@@ -1,0 +1,41 @@
+# R files
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# LaTeX files
+*.aux
+*.log
+*.pdf
+*.out
+*.synctex.gz
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.toc
+*.bcf
+*.run.xml
+
+# Simulation results (keep directory structure)
+simulations/results/*
+!simulations/results/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# R package build artifacts
+src/
+inst/doc/
+.Rcheck/
+*.tar.gz
+*.zip
+
+# Data files (optional - uncomment if you want to ignore data)
+# data/*
+# !data/.gitkeep

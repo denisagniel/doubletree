@@ -1,0 +1,21 @@
+Package: dmltree
+Type: Package
+Title: DML Causal Estimation with Interpretable Trees
+Version: 0.0.0.9000
+Authors@R: person("Your Name", "Your Role", email = "your.email@example.com")
+Description: Implements methods for causal inference using Double Machine Learning (DML) 
+    with interpretable tree-based models. This package builds on treefarmr to provide
+    DML-based causal estimation with tree-based machine learning methods.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.0
+Imports:
+    treefarmr,
+    stats,
+    utils
+Suggests:
+    devtools,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
