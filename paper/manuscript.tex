@@ -77,7 +77,7 @@ For each cross-fitting fold $k$, we train $\hat{e}^{(-k)}$, $\hat{m}_0^{(-k)}$, 
 
 \subsection{Main result}
 
-We treat the nuisance estimators as \emph{penalized empirical risk minimizers} over the class of axis-aligned decision trees with at most $s_n$ leaves (a tree sieve whose complexity grows with $n$). The theory below concerns this estimator; in practice, algorithms such as GOSDT compute it or approximate it to within negligible error.
+We treat the nuisance estimators as \emph{penalized empirical risk minimizers}: they minimize empirical risk plus a penalty $\lambda_n \times (\text{number of leaves})$ over axis-aligned decision trees. The penalty controls complexity; the theoretical rate index is $s_n \asymp n^{d/(2\beta+d)}$. In practice we use treefarmr (GOSDT-style), which minimizes this objective; the same rates apply if the solver's suboptimality is $o(s_n \log n / n)$ (see Appendix).
 
 Under the following conditions, these tree nuisance estimators achieve the $o(n^{-1/4})$ $\MSE$ rate required for DML, so that the resulting DML estimator of the ATT is $\sqrt{n}$-consistent and asymptotically normal.
 
@@ -94,7 +94,7 @@ In high dimensions, the complexity of the tree class can grow quickly; to retain
 
 \subsection{Estimation and inference}
 
-In practice we use $K$-fold cross-fitting with $K = 5$ or $K = 10$ (or another user-specified value). Tree complexity (e.g., number of leaves or the regularization penalty) can be chosen by cross-validation: for each nuisance, minimize held-out loss (the chosen loss $L$ on a validation split) over a grid of complexity values. Alternatively, a theory-driven rule can be used (e.g., leaf count of order $n^\alpha$ for a stated $\alpha$). Sensitivity to the choice of complexity can be examined in simulations.
+In practice we use $K$-fold cross-fitting with $K = 5$ or $K = 10$ (or another user-specified value). The regularization parameter $\lambda$ (penalty per leaf) can be chosen by cross-validation: for each nuisance, minimize held-out loss (the chosen loss $L$ on a validation split) over a grid of $\lambda$ values. A theory-driven default is $\lambda \propto (\log n)/n$ (e.g.\ $\lambda = (\log n)/n$), which matches the rate conditions in the Appendix and typically yields trees with $O(n^{d/(2\beta+d)})$ leaves under the conditions of the theorem; the proportionality constant can be tuned by cross-validation if desired. Sensitivity to the choice of $\lambda$ can be examined in simulations.
 
 The asymptotic variance $\sigma^2$ of $\sqrt{n}(\hat\theta - \theta_0)$ is the variance of $\psi(O; \theta_0, \eta_0)$. We estimate it by the empirical variance of the estimated influence function,
 \begin{equation}
@@ -176,9 +176,9 @@ We give formal statements and proof ideas for the tree nuisance rate. The settin
 Let $L(y, f(x))$ be a loss function. Define the risk $R(f) = \E[L(Y, f(X))]$ and the excess risk $R(f) - R(\eta_0)$. The estimator is the penalized empirical risk minimizer:
 \begin{equation}
 \label{eq:perm}
-\hat\eta \in \argmin_{f \in \cT_{s_n}} \Bigl[ \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i)) + \lambda_n s_n \Bigr].
+\hat\eta \in \argmin_{f \in \cT_{M_n}} \Bigl[ \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i)) + \lambda_n \cdot (\#\text{leaves of } f) \Bigr],
 \end{equation}
-We assume a \textbf{loss--norm link}: there exists a function $\phi(\delta) \to 0$ as $\delta \to 0$ such that $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$. This holds for squared error ($\phi(\delta)=\delta$) and for cross-entropy with bounded probabilities (standard bounds). Any solver (e.g., GOSDT) that attains this minimum or an $\varepsilon$-optimal solution fits the framework; $\varepsilon$-optimality can be absorbed into the oracle inequality.
+where $\cT_{M_n}$ is the set of axis-aligned decision trees with at most $M_n$ leaves, with $M_n \to \infty$ and $M_n \log n / n \to 0$ as $n \to \infty$ (e.g.\ $M_n = n$ or $M_n \propto s_n \log n$). This matches the objective implemented by treefarmr (loss plus regularization times number of leaves). The constant $s_n$ below is the theoretical rate index, $s_n \asymp n^{d/(2\beta+d)}$. In practice, $\lambda_n$ may be taken proportional to $(\log n)/n$ (e.g.\ $\lambda_n = c (\log n)/n$ for a constant $c$) to match the rate conditions; the constant $c$ can be chosen by cross-validation. We assume a \textbf{loss--norm link}: there exists a function $\phi(\delta) \to 0$ as $\delta \to 0$ such that $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$. This holds for squared error ($\phi(\delta)=\delta$) and for cross-entropy with bounded probabilities (standard bounds). Any procedure that attains this minimum or an $\varepsilon_n$-optimal solution (penalized risk $\le \inf_f (\cdots) + \varepsilon_n$) fits the framework provided $\varepsilon_n = o(s_n \log n / n)$; treefarmr and GOSDT minimize this objective (optionally with a time or tolerance limit).
 
 \begin{lemma}[Approximation by tree partitions]
 \label{lem:approx}
@@ -234,46 +234,53 @@ Assume functions in $\cT_s$ are uniformly bounded (e.g.\ in $[0,1]$), which hold
 Each $f \in \cT_s$ is piecewise constant on an axis-aligned partition with at most $s$ cells; that is, $f = \sum_{j=1}^s a_j \mathbf{1}_{A_j}$ for disjoint axis-aligned cells $A_j$ and constants $a_j \in [0,1]$. The class of indicator functions of such cells (or of sets realizable as unions of at most $s$ axis-aligned boxes) has VC dimension $O(s \log s)$; see \citet{bartlettRademacherGaussianComplexities2002} or \citet{bartlettLocalRademacherComplexities2006} for decision trees and axis-aligned partitions. The class $\cT_s$ is contained in the set of linear combinations of $s$ such indicators with coefficients in $[0,1]$, so its pseudo-dimension is $O(s \log s)$.
 
 \paragraph{Covering number.}
-By the standard entropy bound cited above, $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$. Thus the VC (pseudo-) dimension of $\cT_s$ is of order $s \log s$, and the covering number bound above suffices for the oracle inequality in Lemma~\ref{lem:oracle} (the complexity term $s_n \log n / n$ is consistent with $\log N \lesssim s \log s \cdot \log(1/\epsilon)$ when $\epsilon \sim 1/\sqrt{n}$, giving $\log N \lesssim s \log n$ for $s \ge 2$).
+By the standard entropy bound cited above, $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$. Thus the VC (pseudo-) dimension of $\cT_s$ is of order $s \log s$, and the covering number bound above suffices for the oracle inequality in Lemma~\ref{lem:oracle} (the complexity term $s_n \log n / n$ is consistent with $\log N \lesssim s \log s \cdot \log(1/\epsilon)$ when $\epsilon \sim 1/\sqrt{n}$, giving $\log N \lesssim s \log n$ for $s \ge 2$). In Lemma~\ref{lem:oracle} we apply this with $s = O(s_n)$ (since $\hat\eta \in \cT_{O_p(s_n)}$ and $f_n \in \cT_{s_n}$ by Lemma~\ref{lem:hats}).
+\end{proof}
+
+\begin{lemma}[Number of leaves of the penalized minimizer]
+\label{lem:hats}
+Let $\hat{s} := \#\text{leaves of }\hat\eta$. Under $\lambda_n \asymp (\log n)/n$ and $s_n \asymp n^{d/(2\beta+d)}$, the penalized minimizer $\hat\eta$ in \eqref{eq:perm} satisfies $\hat{s} = O_p(s_n)$.
+\end{lemma}
+\begin{proof}[Proof idea]
+Take $f_n \in \cT_{s_n}$ with $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. By definition of $\hat\eta$, $R_n(\hat\eta) + \lambda_n \hat{s} \le R_n(f_n) + \lambda_n s_n$, so $\lambda_n \hat{s} \le R_n(f_n) - R_n(\hat\eta) + \lambda_n s_n \le R_n(f_n) + \lambda_n s_n$. Boundedness of $R(\cdot)$ and the usual empirical-process bound give $R_n(f_n) \le R(f_n) + O_p(\sqrt{s_n \log n / n}) = O(1) + O_p(\sqrt{s_n \log n / n})$. Thus $\hat{s} \le s_n + (R_n(f_n) - R_n(\hat\eta))/\lambda_n \le s_n + O_p(1/\lambda_n) + O_p(\sqrt{s_n \log n / n}/\lambda_n)$. With $\lambda_n \asymp (\log n)/n$, the second term is $O_p(n/\log n)$ and the third is $O_p(n \sqrt{s_n \log n / n} / \log n) = O_p(\sqrt{n s_n / \log n})$. For $s_n \asymp n^{d/(2\beta+d)}$, $\sqrt{n s_n}/\sqrt{\log n}$ is $o(s_n)$ when $d/(2\beta+d) < 1$ (which holds for $\beta > 0$), so $\hat{s} \le s_n + o_p(s_n) = O_p(s_n)$.
 \end{proof}
 
 \begin{lemma}[Oracle inequality for penalized ERM]
 \label{lem:oracle}
-For $\hat\eta$ the penalized ERM over $\cT_{s_n}$ with penalty $\lambda_n s_n$ chosen appropriately (e.g., $\lambda_n \asymp (\log n)/n$),
+For $\hat\eta$ the penalized ERM~\eqref{eq:perm} (minimize $R_n(f) + \lambda_n \cdot (\#\text{leaves of } f)$ over $\cT_{M_n}$) with $\lambda_n \asymp (\log n)/n$ and $s_n$ as above,
 \[
 R(\hat\eta) - R(\eta_0) \le C \Bigl( \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] + \frac{s_n \log n}{n} \Bigr) + o_p(1).
 \]
 \end{lemma}
 \begin{proof}
-We assume the following in addition to the loss--norm link. \textbf{Boundedness:} $Y$ and all $f \in \cT_{s_n}$ take values in a bounded interval (e.g., $[0,1]$ for propensity or bounded outcomes); this is already implied by Lemma~\ref{lem:complexity}. \textbf{Loss:} $L(y,\cdot)$ is Lipschitz in the second argument uniformly in $y$, or quadratic (e.g., $|L(y,a)-L(y,b)| \le M|a-b|$ or $\le M(a-b)^2$); squared error and cross-entropy with bounded probabilities satisfy this. \textbf{Sieve:} $s_n \to \infty$ and $s_n \log n / n \to 0$ as $n \to \infty$.
+We assume the following in addition to the loss--norm link. \textbf{Boundedness:} $Y$ and all $f \in \cT_{M_n}$ take values in a bounded interval (e.g., $[0,1]$ for propensity or bounded outcomes); this is already implied by Lemma~\ref{lem:complexity}. \textbf{Loss:} $L(y,\cdot)$ is Lipschitz in the second argument uniformly in $y$, or quadratic (e.g., $|L(y,a)-L(y,b)| \le M|a-b|$ or $\le M(a-b)^2$); squared error and cross-entropy with bounded probabilities satisfy this. \textbf{Sieve:} $s_n \to \infty$ and $s_n \log n / n \to 0$ as $n \to \infty$. By Lemma~\ref{lem:hats}, $\hat{s} := \#\text{leaves of }\hat\eta = O_p(s_n)$, so $\hat\eta \in \cT_{C s_n}$ with high probability for some constant $C$.
 
 \paragraph{Step 1: Decomposition.}
-Let $R_n(f) = \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i))$. By definition of $\hat\eta$, for any $f \in \cT_{s_n}$ we have $R_n(\hat\eta) + \lambda_n s_n \le R_n(f) + \lambda_n s_n$, so $R_n(\hat\eta) \le R_n(f)$. Fix $f_n \in \cT_{s_n}$ such that $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$ (such $f_n$ exists by definition of the infimum). Then
+Let $R_n(f) = \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i))$. By definition of $\hat\eta$, for $f_n \in \cT_{s_n}$ we have $R_n(\hat\eta) + \lambda_n \hat{s} \le R_n(f_n) + \lambda_n s_n$, so $R_n(\hat\eta) - R_n(f_n) \le \lambda_n(s_n - \hat{s}) \le \lambda_n s_n = O(s_n \log n / n)$. Fix $f_n \in \cT_{s_n}$ such that $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. Then
 \[
 R(\hat\eta) - R(\eta_0) = \bigl(R(\hat\eta) - R_n(\hat\eta)\bigr) + \bigl(R_n(\hat\eta) - R_n(f_n)\bigr) + \bigl(R_n(f_n) - R(f_n)\bigr) + \bigl(R(f_n) - R(\eta_0)\bigr).
 \]
-The second bracket is $\le 0$ by the penalized ERM property. Hence
+The second bracket is $\le \lambda_n s_n = O(s_n \log n / n)$. Hence
 \[
-R(\hat\eta) - R(\eta_0) \le \underbrace{\bigl(R(\hat\eta) - R_n(\hat\eta)\bigr)}_{\text{(I)}} + \underbrace{\bigl(R_n(f_n) - R(f_n)\bigr)}_{\text{(II)}} + \underbrace{\bigl(R(f_n) - R(\eta_0)\bigr)}_{\text{(III)}}.
+R(\hat\eta) - R(\eta_0) \le \underbrace{\bigl(R(\hat\eta) - R_n(\hat\eta)\bigr)}_{\text{(I)}} + \underbrace{\bigl(R_n(f_n) - R(f_n)\bigr)}_{\text{(II)}} + \underbrace{\bigl(R(f_n) - R(\eta_0)\bigr)}_{\text{(III)}} + O(s_n \log n / n).
 \]
 
 \paragraph{Step 2: Approximation term.}
 Term (III) satisfies $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. Thus (III) is at most the approximation term in the stated bound (up to a constant $C \ge 1$ and $o(1)$).
 
 \paragraph{Step 3: Empirical process.}
-Terms (I) and (II) are each of the form $(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))$ for some $f \in \cT_{s_n}$. By Lemma~\ref{lem:complexity}, $\log N(\epsilon, \cT_{s_n}, L^2(P)) \lesssim s_n \log s_n \cdot \log(1/\epsilon)$. For uniformly bounded $f$ and Lipschitz or quadratic $L$, the same entropy (or a constant multiple) applies to the class of loss differences $\ell_f = L(Y,f(X)) - L(Y,\eta_0(X))$. A standard maximal inequality (e.g., Dudley entropy integral or Bernstein-type bound for the empirical process over $\cT_{s_n}$) yields $\E \sup_{f \in \cT_{s_n}} |(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))| \lesssim \sqrt{s_n \log s_n \cdot \log n / n}$; concentration then gives $\sup_{f \in \cT_{s_n}} |(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))| = O_p(\sqrt{s_n \log n / n})$. Using a peeling argument (restrict to $f$ with $R(f)-R(\eta_0) \le \delta$, bound the empirical process on that slice, then optimize $\delta$) or the fact that $\lambda_n \asymp (\log n)/n$, we obtain that (I) and (II) are together $O_p(s_n \log n / n)$; see, e.g., \citet{chenLargeSampleSieve2007} or \citet{picardDensityEstimationModel2007} for the full chaining/peeling details.
+Terms (I) and (II) are each of the form $(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))$ for some $f$ in a class of trees with $O_p(s_n)$ leaves ($\hat\eta$ and $f_n$). By Lemma~\ref{lem:complexity}, $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$. With $\hat{s} = O_p(s_n)$, the same entropy and maximal inequality give (I) and (II) together $O_p(s_n \log n / n)$; see, e.g., \citet{chenLargeSampleSieve2007} or \citet{picardDensityEstimationModel2007} for the full chaining/peeling details.
 
 \paragraph{Conclusion.}
-Hence (I) + (II) $= O_p(s_n \log n / n)$, and (III) $\le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. Taking the constant $C$ in the lemma large enough, we obtain
-$R(\hat\eta) - R(\eta_0) \le C \bigl( \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + \frac{s_n \log n}{n} \bigr) + o_p(1)$.
+Hence (I) + (II) $= O_p(s_n \log n / n)$, and (III) $\le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. The extra $\lambda_n s_n$ is of the same order. Taking the constant $C$ in the lemma large enough, we obtain $R(\hat\eta) - R(\eta_0) \le C \bigl( \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + \frac{s_n \log n}{n} \bigr) + o_p(1)$.
 
 \paragraph{Remark: $\varepsilon_n$-optimal minimizers.}
-If $\hat\eta$ is only $\varepsilon_n$-optimal in the sense that the penalized empirical risk of $\hat\eta$ is at most $\inf_{f \in \cT_{s_n}}(\cdots) + \varepsilon_n$, then the decomposition yields $R_n(\hat\eta) - R_n(f_n) \le \varepsilon_n$ instead of $\le 0$, so an extra $\varepsilon_n$ appears in the bound. The same oracle inequality holds provided $\varepsilon_n = o(s_n \log n / n)$ (e.g., $\varepsilon_n = o(1/n)$), with $\varepsilon_n$ absorbed into the $o_p(1)$ term. This applies to solvers such as GOSDT that deliver near-optimal solutions.
+We say $\hat\eta$ is \emph{$\varepsilon_n$-optimal} if its penalized empirical risk is at most $\inf_{f \in \cT_{M_n}}(\cdots) + \varepsilon_n$. Then $R_n(\hat\eta) - R_n(f_n) \le \lambda_n s_n + \varepsilon_n$; the same oracle inequality holds provided $\varepsilon_n = o(s_n \log n / n)$ (e.g., $\varepsilon_n = o(1/n)$), with $\varepsilon_n$ absorbed into the $o_p(1)$ term. Treefarmr and GOSDT with an appropriate tolerance produce such an $\hat\eta$.
 \end{proof}
 
 \begin{lemma}[Optimal choice of $s_n$]
 \label{lem:optimal-sn}
-Balance the approximation term $s_n^{-2\beta/d}$ and the estimation term $s_n (\log n)/n$. Setting $s_n \asymp n^{d/(2\beta+d)}$ yields excess risk $R(\hat\eta) - R(\eta_0) = O_p(n^{-2\beta/(2\beta+d)})$. By the loss--norm link, $\|\hat\eta - \eta_0\|_{L^2(P)}^2 \le \phi(O_p(n^{-2\beta/(2\beta+d)})) = O_p(n^{-2\beta/(2\beta+d)})$ (e.g., if $\phi(\delta) \lesssim \delta$), so
+With $s_n$ as the rate index (the penalized minimizer has $\hat{s} = O_p(s_n)$ leaves by Lemma~\ref{lem:hats}), balance the approximation term $s_n^{-2\beta/d}$ and the estimation term $s_n (\log n)/n$. Setting $s_n \asymp n^{d/(2\beta+d)}$ yields excess risk $R(\hat\eta) - R(\eta_0) = O_p(n^{-2\beta/(2\beta+d)})$. By the loss--norm link, $\|\hat\eta - \eta_0\|_{L^2(P)}^2 \le \phi(O_p(n^{-2\beta/(2\beta+d)})) = O_p(n^{-2\beta/(2\beta+d)})$ (e.g., if $\phi(\delta) \lesssim \delta$), so
 \[
 \|\hat\eta - \eta_0\|_{L^2(P)} = O_p\bigl( n^{-\beta/(2\beta+d)} \bigr).
 \]
@@ -285,7 +292,7 @@ Set $s_n^{-2\beta/d} \asymp s_n (\log n)/n$ and solve for $s_n$; substitute into
 
 \begin{theorem}[Nuisance rate]
 \label{thm:nuisance-rate}
-Suppose $\eta_0 \in H^\beta([0,1]^d)$, $X \in [0,1]^d$, the loss--norm link holds, and $\hat\eta$ is the penalized ERM over $\cT_{s_n}$ with $s_n \asymp n^{d/(2\beta+d)}$. Then $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$. If $\beta/(2\beta+d) > 1/4$, then this rate is $o_p(n^{-1/4})$.
+Suppose $\eta_0 \in H^\beta([0,1]^d)$, $X \in [0,1]^d$, the loss--norm link holds, and $\hat\eta$ is the penalized ERM~\eqref{eq:perm} (loss plus $\lambda_n \times \#\text{leaves}$) over $\cT_{M_n}$ with $\lambda_n \asymp (\log n)/n$ and $s_n \asymp n^{d/(2\beta+d)}$. Then $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$. If $\beta/(2\beta+d) > 1/4$, then this rate is $o_p(n^{-1/4})$.
 \end{theorem}
 \begin{proof}
 Combine Lemmas~\ref{lem:approx}--\ref{lem:optimal-sn} and the loss--norm link.
