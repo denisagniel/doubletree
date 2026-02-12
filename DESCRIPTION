@@ -9,7 +9,7 @@ Description: Implements methods for causal inference using Double Machine Learni
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.3.0
+RoxygenNote: 7.3.3
 Imports:
     treefarmr,
     stats,
