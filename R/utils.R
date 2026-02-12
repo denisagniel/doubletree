@@ -42,16 +42,17 @@ create_folds <- function(n, K, strata = NULL, seed = NULL) {
 
 #' Check (X, A, Y) inputs for DML ATT
 #'
-#' Validates presence, dimensions, binary A and Y, and optionally warns on overlap.
+#' Validates presence, dimensions, binary A, and Y according to outcome_type.
 #' Called internally by dml_att.
 #'
 #' @param X Data.frame or matrix of covariates (binary 0/1 for treefarmr).
 #' @param A Integer or numeric vector of treatment (0/1).
-#' @param Y Integer or numeric vector of outcome (binary 0/1 for current implementation).
+#' @param Y Integer or numeric vector of outcome; must be binary (0/1) if outcome_type is "binary", numeric if "continuous".
+#' @param outcome_type Character. "binary" (default) or "continuous".
 #' @param check_overlap Logical. If TRUE, warn when propensity range suggests weak overlap.
 #' @return Invisible NULL; stops on error.
 #' @noRd
-check_dml_att_data <- function(X, A, Y, check_overlap = TRUE) {
+check_dml_att_data <- function(X, A, Y, outcome_type = "binary", check_overlap = TRUE) {
   if (is.null(X) || is.null(A) || is.null(Y)) {
     stop("X, A, and Y are required")
   }
@@ -65,8 +66,16 @@ check_dml_att_data <- function(X, A, Y, check_overlap = TRUE) {
   if (!all(A %in% c(0, 1))) {
     stop("A must be binary (0/1)")
   }
-  if (!all(Y %in% c(0, 1))) {
-    stop("Y must be binary (0/1). Continuous outcome is not implemented yet.")
+  if (outcome_type == "binary") {
+    if (!all(Y %in% c(0, 1))) {
+      stop("Y must be binary (0/1) when outcome_type is \"binary\".")
+    }
+  } else if (outcome_type == "continuous") {
+    if (!is.numeric(Y)) {
+      stop("Y must be numeric when outcome_type is \"continuous\".")
+    }
+  } else {
+    stop("outcome_type must be \"binary\" or \"continuous\".")
   }
   if (check_overlap && length(unique(A)) == 2L) {
     p1 <- mean(A)

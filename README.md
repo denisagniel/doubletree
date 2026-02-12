@@ -2,7 +2,7 @@
 
 This package implements causal inference for the **Average Treatment effect on the Treated (ATT)** using Double Machine Learning (DML) with interpretable optimal decision trees. It depends on [treefarmr](https://github.com/) for fitting the nuisance functions (propensity and outcome trees). Theory-aligned API expectations for the tree side are described in `paper/Implementation-requirements-Rashomon-DML.md`.
 
-**Note:** Only **binary outcome Y** is currently supported. Continuous outcome is not implemented yet (no fallback).
+**Outcome:** Set `outcome_type = "binary"` (default) for binary Y (0/1); use `outcome_type = "continuous"` for continuous Y. For continuous Y, outcome trees use squared-error loss and **treefarmr** must support `loss_function = "squared_error"` for regression.
 
 ## Project Structure
 
@@ -73,6 +73,8 @@ The manuscript selects a **single interpretable tree per nuisance** via the inte
 
 ## Minimal example
 
+**Binary outcome (default):**
+
 ```r
 devtools::load_all()
 # X: data.frame of binary (0/1) covariates; A, Y: binary (0/1) treatment and outcome
@@ -85,6 +87,8 @@ fit <- dml_att(X, A, Y, K = 5)
 fit$theta   # point estimate
 fit$ci_95   # 95% Wald CI
 ```
+
+**Continuous outcome:** Use `outcome_type = "continuous"` and numeric Y. Requires treefarmr to support `squared_error` loss for the outcome trees.
 
 ## Running Simulations
 

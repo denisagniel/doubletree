@@ -9,6 +9,7 @@ dml_att(
   A,
   Y,
   K = 5,
+  outcome_type = c("binary", "continuous"),
   regularization = 0.1,
   stratified = TRUE,
   seed = NULL,
@@ -21,9 +22,11 @@ dml_att(
 
 \item{A}{Integer or numeric vector of treatment (0/1).}
 
-\item{Y}{Integer or numeric vector of outcome (0/1). Binary only; continuous Y not supported.}
+\item{Y}{Numeric vector of outcome. Binary (0/1) when outcome_type is "binary"; any numeric when "continuous".}
 
 \item{K}{Number of cross-fitting folds. Default 5.}
+
+\item{outcome_type}{Character. "binary" (default) or "continuous". Continuous requires treefarmr squared_error loss for m0, m1.}
 
 \item{regularization}{Numeric. Tree complexity penalty passed to treefarmr. Default 0.1.}
 
@@ -41,8 +44,9 @@ List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95
 }
 \description{
 Estimates the ATT using double machine learning with optimal decision trees
-(via treefarmr) for the nuisance functions e(X), m0(X), m1(X). Uses log-loss
-only; binary outcome Y required. Continuous outcome is not implemented yet.
+(via treefarmr) for the nuisance functions e(X), m0(X), m1(X). Binary outcome
+uses log-loss for all nuisances; continuous outcome uses log-loss for propensity
+and squared_error for m0, m1 (requires treefarmr to support squared_error).
 }
 \references{
 Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.

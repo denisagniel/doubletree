@@ -1,13 +1,15 @@
 #' DML estimator for the Average Treatment effect on the Treated (ATT)
 #'
 #' Estimates the ATT using double machine learning with optimal decision trees
-#' (via treefarmr) for the nuisance functions e(X), m0(X), m1(X). Uses log-loss
-#' only; binary outcome Y required. Continuous outcome is not implemented yet.
+#' (via treefarmr) for the nuisance functions e(X), m0(X), m1(X). Binary outcome
+#' uses log-loss for all nuisances; continuous outcome uses log-loss for propensity
+#' and squared_error for m0, m1 (requires treefarmr to support squared_error).
 #'
 #' @param X Data.frame or matrix of covariates. Must be binary (0/1) for treefarmr.
 #' @param A Integer or numeric vector of treatment (0/1).
-#' @param Y Integer or numeric vector of outcome (0/1). Binary only; continuous Y not supported.
+#' @param Y Numeric vector of outcome. Binary (0/1) when outcome_type is "binary"; any numeric when "continuous".
 #' @param K Number of cross-fitting folds. Default 5.
+#' @param outcome_type Character. "binary" (default) or "continuous". Continuous requires treefarmr squared_error loss for m0, m1.
 #' @param regularization Numeric. Tree complexity penalty passed to treefarmr. Default 0.1.
 #' @param stratified Logical. If TRUE (default), fold assignment is stratified by A.
 #' @param seed Optional. Random seed for fold creation.
@@ -17,15 +19,16 @@
 #'   score_values (influence at theta), nuisance_fits (per-fold models), fold_indices, n, K.
 #' @references Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.
 #' @export
-dml_att <- function(X, A, Y, K = 5, regularization = 0.1, stratified = TRUE, seed = NULL, verbose = FALSE, ...) {
-  check_dml_att_data(X, A, Y)
+dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"), regularization = 0.1, stratified = TRUE, seed = NULL, verbose = FALSE, ...) {
+  outcome_type <- match.arg(outcome_type)
+  check_dml_att_data(X, A, Y, outcome_type = outcome_type)
   if (is.matrix(X)) X <- as.data.frame(X)
   n <- nrow(X)
   fold_indices <- create_folds(n, K, strata = if (stratified) A else NULL, seed = seed)
 
   nuisance_fits <- vector("list", K)
   for (k in seq_len(K)) {
-    nuisance_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices, regularization = regularization, verbose = verbose, ...)
+    nuisance_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices, outcome_type = outcome_type, regularization = regularization, verbose = verbose, ...)
   }
 
   eta <- get_fold_specific_eta(nuisance_fits, X, fold_indices)
