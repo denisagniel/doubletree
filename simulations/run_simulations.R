@@ -1,73 +1,63 @@
 # run_simulations.R
 # Main script for running simulations for DML causal estimation with interpretable trees
 #
-# This script demonstrates how to use treefarmr and dmltree packages
-# for running simulation studies.
+# Uses dmltree::dml_att() with treefarmr for nuisance trees.
 
 # Setup ------------------------------------------------------------------------
 
-# Load required packages
-# Note: treefarmr should be auto-loaded via .Rprofile if available
-# If not, load it manually:
-# devtools::load_all("../treefarmr")
-
-# Load the dmltree package (in development mode)
 if (!requireNamespace("devtools", quietly = TRUE)) {
   stop("devtools is required. Install with: install.packages('devtools')")
 }
-
-# Load dmltree package
 devtools::load_all()
 
-# Check if treefarmr is available
 if (!requireNamespace("treefarmr", quietly = TRUE)) {
-  warning("treefarmr not available. Some functionality may be limited.")
+  stop("treefarmr is required. Install from source or set up .Rprofile to load from ../treefarmr")
 }
 
-# Create results directory if it doesn't exist
 results_dir <- "simulations/results"
 if (!dir.exists(results_dir)) {
   dir.create(results_dir, recursive = TRUE)
 }
 
-# Simulation Parameters --------------------------------------------------------
+# Simple DGP: binary X, A, Y ----------------------------------------------------
+# X ~ Bernoulli(0.5), P(A=1|X) = plogis(0.5*X - 0.2), Y(a) ~ Bernoulli(0.3 + 0.2*X + tau*a), tau = ATT
+generate_data <- function(n, tau = 0.15, seed = NULL) {
+  if (!is.null(seed)) set.seed(seed)
+  X1 <- as.integer(runif(n) < 0.5)
+  X2 <- as.integer(runif(n) < 0.5)
+  X <- data.frame(X1 = X1, X2 = X2)
+  e <- plogis(0.5 * X1 - 0.2)
+  A <- as.integer(runif(n) < e)
+  Y0 <- as.integer(runif(n) < (0.3 + 0.2 * X1))
+  Y1 <- as.integer(runif(n) < (0.3 + 0.2 * X1 + tau))
+  Y <- A * Y1 + (1 - A) * Y0
+  list(X = X, A = A, Y = Y, tau = tau)
+}
 
-# Define simulation parameters here
-# Example:
-# n_sim <- 100          # Number of simulation replications
-# n_obs <- 1000         # Sample size
-# seed <- 12345         # Random seed
+# Run one replication and optionally multiple ----------------------------------
+n_obs <- 400
+K <- 5
 
-# Run Simulations --------------------------------------------------------------
+set.seed(12345)
+data <- generate_data(n_obs, tau = 0.15, seed = 12345)
+result <- dmltree::dml_att(data$X, data$A, data$Y, K = K)
 
-# TODO: Implement your simulation study here
-# 
-# Example structure:
-# 
-# results <- list()
-# for (i in 1:n_sim) {
-#   set.seed(seed + i)
-#   
-#   # Generate data
-#   # data <- generate_data(n_obs)
-#   
-#   # Run DML estimation with tree-based methods
-#   # result <- dmltree_estimate(data)
-#   
-#   # Store results
-#   # results[[i]] <- result
-# }
+message("Point estimate (theta): ", round(result$theta, 4))
+message("95% CI: ", paste(round(result$ci_95, 4), collapse = ", "))
+message("True ATT: ", data$tau)
 
-# Save Results ------------------------------------------------------------------
+# Save single run
+saveRDS(result, file.path(results_dir, "dml_att_result.rds"))
 
-# Save simulation results
-# Example:
-# saveRDS(results, file.path(results_dir, "simulation_results.rds"))
-# 
-# Or save as CSV if results are tabular:
-# results_df <- do.call(rbind, results)
-# write.csv(results_df, file.path(results_dir, "simulation_results.csv"), 
-#           row.names = FALSE)
+# Optional: multiple replications
+n_sim <- 10
+results <- list()
+for (i in seq_len(n_sim)) {
+  d <- generate_data(n_obs, tau = 0.15, seed = 10000 + i)
+  results[[i]] <- dmltree::dml_att(d$X, d$A, d$Y, K = K)
+}
+theta_hats <- vapply(results, function(r) r$theta, numeric(1))
+message("\nOver ", n_sim, " replications: mean(theta_hat) = ", round(mean(theta_hats), 4), ", true ATT = 0.15")
+saveRDS(list(theta_hats = theta_hats, results = results), file.path(results_dir, "simulation_results.rds"))
 
-message("Simulation script template ready.")
-message("Results will be saved to: ", results_dir)
+message("Results saved to ", results_dir)

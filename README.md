@@ -1,6 +1,8 @@
 # dmltree: DML Causal Estimation with Interpretable Trees
 
-This research project implements and evaluates methods for causal inference using Double Machine Learning (DML) with interpretable tree-based models.
+This package implements causal inference for the **Average Treatment effect on the Treated (ATT)** using Double Machine Learning (DML) with interpretable optimal decision trees. It depends on [treefarmr](https://github.com/) for fitting the nuisance functions (propensity and outcome trees). Theory-aligned API expectations for the tree side are described in `paper/Implementation-requirements-Rashomon-DML.md`.
+
+**Note:** Only **binary outcome Y** is currently supported. Continuous outcome is not implemented yet (no fallback).
 
 ## Project Structure
 
@@ -65,9 +67,24 @@ If `treefarmr` is located elsewhere:
 - Update the path in `.Rprofile`, or
 - Manually load it: `devtools::load_all("/path/to/treefarmr")`
 
+## Minimal example
+
+```r
+devtools::load_all()
+# X: data.frame of binary (0/1) covariates; A, Y: binary (0/1) treatment and outcome
+set.seed(42)
+n <- 300
+X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
+A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
+Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
+fit <- dml_att(X, A, Y, K = 5)
+fit$theta   # point estimate
+fit$ci_95   # 95% Wald CI
+```
+
 ## Running Simulations
 
-See `simulations/run_simulations.R` for the main simulation script template.
+See `simulations/run_simulations.R` for a full example (DGP and replications).
 
 ## Package Development
 
