@@ -65,7 +65,7 @@ Double Machine Learning (DML) estimates $\theta_0$ by combining sample splitting
 \end{equation}
 where $k(i)$ denotes the fold containing observation $i$.
 
-For $\hat\theta$ to be $\sqrt{n}$-consistent and asymptotically normal, the nuisance estimators must converge sufficiently fast. Specifically, \citet{chernozhukov2018} show that if the nuisance estimators achieve mean squared error ($\MSE$) rate $o(n^{-1/4})$ in the relevant norms, then the linearization remainder in the expansion of $\hat\theta$ is $o_p(n^{-1/2})$, so that $\sqrt{n}(\hat\theta - \theta_0)$ is asymptotically normal with variance equal to that of the influence function. The $n^{-1/4}$ rate arises because the remainder typically involves products of nuisance errors; to ensure these products are $o_p(n^{-1/2})$, each nuisance error must be $o_p(n^{-1/4})$. In the next subsection we specialize to optimal decision trees for estimating $\eta$.
+For $\hat\theta$ to be $\sqrt{n}$-consistent and asymptotically normal, the nuisance estimators must converge sufficiently fast. Specifically, \citet{chernozhukov2018} show that if the nuisance estimators achieve mean squared error ($\MSE$) rate $o(n^{-1/4})$ in the relevant norms, then the linearization remainder in the expansion of $\hat\theta$ is $o_p(n^{-1/2})$, so that $\sqrt{n}(\hat\theta - \theta_0)$ is asymptotically normal with variance equal to that of the influence function. The $n^{-1/4}$ rate arises because the remainder typically involves products of nuisance errors; to ensure these products are $o_p(n^{-1/2})$, each nuisance error must be $o_p(n^{-1/4})$. More generally, \emph{any} fold-specific nuisance estimators that are $o_p(n^{-1/4})$-close to the true nuisances (in the norms appearing in the score expansion) yield the same conclusion; we state this as a general theorem in the Appendix (Section~\ref{app:alt-nuisances}). In the next subsection we specialize to optimal decision trees for estimating $\eta$.
 
 \subsection{Optimal decision trees as nuisance learners}
 
@@ -77,7 +77,7 @@ For each cross-fitting fold $k$, we train $\hat{e}^{(-k)}$, $\hat{m}_0^{(-k)}$, 
 
 \subsection{Main result}
 
-We treat the nuisance estimators as \emph{penalized empirical risk minimizers}: they minimize empirical risk plus a penalty $\lambda_n \times (\text{number of leaves})$ over axis-aligned decision trees. The penalty controls complexity; the theoretical rate index is $s_n \asymp n^{d/(2\beta+d)}$. In practice we use treefarmr (GOSDT-style), which minimizes this objective; the same rates apply if the solver's suboptimality is $o(s_n \log n / n)$ (see Appendix).
+We treat the nuisance estimators as \emph{penalized empirical risk minimizers}: they minimize empirical risk plus a penalty $\lambda_n \times (\text{number of leaves})$ over axis-aligned decision trees. The penalty controls complexity; the theoretical rate index is $s_n \asymp n^{d/(2\beta+d)}$. In practice we use a GOSDT-style solver that minimizes this objective; the same rates apply if the solver's suboptimality is $o(s_n \log n / n)$ (see Appendix).
 
 Under the following conditions, these tree nuisance estimators achieve the $o(n^{-1/4})$ $\MSE$ rate required for DML, so that the resulting DML estimator of the ATT is $\sqrt{n}$-consistent and asymptotically normal.
 
@@ -109,18 +109,22 @@ A Wald-type 95\% confidence interval for $\theta_0$ is
 \label{sec:rashomon}
 
 \subsection{Rashomon set per fold}
-% For each fold $k$: fit optimal trees on training part; define Rashomon set as trees with empirical loss within $\varepsilon$ of the best (or same complexity, near-optimal risk).
-% Interpretation: multiple trees ``good enough'' on that fold.
+
+For each cross-fitting fold $k$, we fit optimal trees on the training part (data not in fold $k$) as in Section~\ref{sec:methods}. The \emph{Rashomon set} for fold $k$ is the set of trees that are ``almost as good'' as the best tree on that training set: trees (in $\cT_{M_n}$ or $\cT_{s_n}$) whose empirical penalized risk on $\mathcal{D}^{(-k)}$ is within a factor $(1+\varepsilon)$ of the minimum, or within an additive $\varepsilon$ of the best. Formally, $R_k(\varepsilon) = \{ f \in \cT_{M_n} : R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon) \cdot \text{best}^{(-k)} \}$, where $\text{best}^{(-k)}$ is the minimal penalized risk on the training data for fold $k$ (see Appendix~\ref{app:rashomon}). Thus we obtain multiple trees that are good enough on that fold, rather than a single optimal tree. Algorithms such as SPLIT \citep{babbarNearOptimalDecisionTrees2025} or GOSDT-style solvers can enumerate or approximate the Rashomon set for decision trees; methods that enumerate the full Rashomon set for sparse trees have been studied by \citet{xinExploringWholeRashomon2022}.
 
 \subsection{Intersection across folds}
-% Goal: select a single tree in the intersection of Rashomon sets for all folds (near-optimal on every fold).
-% Construction: enumerate/approximate intersection, or minimize worst-fold loss over Rashomon-admissible trees, or consensus criterion.
-% Output: one propensity tree and one outcome tree for reporting and for computing the DML estimator.
+
+The goal is to select a \emph{single} tree per nuisance (one propensity tree and one or two outcome trees for $m_0$, $m_1$) for interpretability and reporting, while preserving valid inference. To that end, we define the \emph{intersection} of the Rashomon sets across folds: the set of tree \emph{structures} (splits) that appear in every fold's Rashomon set when each fold's trees are fitted on their respective training data $\mathcal{D}^{(-k)}$. A structure in the intersection is one that, when refit on each fold's training data, has penalized risk within $(1+\varepsilon)$ of the best for that fold. One can compute the intersection by enumerating or approximating the Rashomon sets per fold and matching structures (e.g., via a canonical representation or JSON). We then choose one structure from the intersection per nuisance (e.g., the smallest or the first).
+
+For use in the DML estimator, for each fold $k$ we take $\tilde{\eta}^{(-k)}$ to be the tree from the intersection \emph{refit on $\mathcal{D}^{(-k)}$}---or equivalently, the fold-$k$ instance of that structure from the Rashomon set of fold $k$. The score $\psi(O_i; \theta, \tilde{\eta}^{(-k(i))})$ is evaluated with these fold-specific fitted nuisances, so that the orthogonality and cross-fitting structure of DML are preserved. The output is one reportable propensity tree and one reportable outcome tree (or one structure each for $m_0$ and $m_1$) for stakeholders, with fold-specific fitted versions used in the estimator.
 
 \subsection{Rationale and caveats}
-% High-stakes benefit: single, stable tree per nuisance more interpretable and auditable than $K$ fold-specific trees.
-% Theory: rate/root-$n$ validity for intersection-of-Rashomon estimator may be difficult; leave as open/future work.
-% Bias vs interpretability: intersection tree may have higher bias; frame as trade-off; evaluate in simulations (Section~\ref{sec:results}).
+
+In high-stakes settings, a single stable tree per nuisance is more interpretable and auditable than $K$ fold-specific trees that may differ across folds. Stakeholders can inspect one propensity tree and one outcome tree rather than $K$ versions of each.
+
+From a theoretical standpoint, under the conditions of the Appendix (Definition~\ref{def:rashomon-fold}, Definition~\ref{def:intersection}, Proposition~\ref{prop:rashomon-dml}), choosing nuisances from the Rashomon set---or from the intersection, with refit per fold---yields $\tilde{\eta}^{(-k)}$ that are $o_p(n^{-1/4})$-close to $\eta_0$. The general theorem (Appendix~\ref{app:alt-nuisances}, Theorem~\ref{thm:dml-alt}) then implies that the DML estimator with these nuisances remains $\sqrt{n}$-consistent and asymptotically normal with the same limiting variance.
+
+A caveat is that the intersection tree may have higher bias or a larger constant than a fold-specific optimal tree, because it must perform well on every fold's training set. This bias--interpretability trade-off can be examined in simulations (Section~\ref{sec:results}), where we compare DML with fold-specific optimal trees versus DML with the Rashomon intersection.
 
 \section{Results}
 \label{sec:results}
@@ -178,7 +182,7 @@ Let $L(y, f(x))$ be a loss function. Define the risk $R(f) = \E[L(Y, f(X))]$ and
 \label{eq:perm}
 \hat\eta \in \argmin_{f \in \cT_{M_n}} \Bigl[ \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i)) + \lambda_n \cdot (\#\text{leaves of } f) \Bigr],
 \end{equation}
-where $\cT_{M_n}$ is the set of axis-aligned decision trees with at most $M_n$ leaves, with $M_n \to \infty$ and $M_n \log n / n \to 0$ as $n \to \infty$ (e.g.\ $M_n = n$ or $M_n \propto s_n \log n$). This matches the objective implemented by treefarmr (loss plus regularization times number of leaves). The constant $s_n$ below is the theoretical rate index, $s_n \asymp n^{d/(2\beta+d)}$. In practice, $\lambda_n$ may be taken proportional to $(\log n)/n$ (e.g.\ $\lambda_n = c (\log n)/n$ for a constant $c$) to match the rate conditions; the constant $c$ can be chosen by cross-validation. We assume a \textbf{loss--norm link}: there exists a function $\phi(\delta) \to 0$ as $\delta \to 0$ such that $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$. This holds for squared error ($\phi(\delta)=\delta$) and for cross-entropy with bounded probabilities (standard bounds). Any procedure that attains this minimum or an $\varepsilon_n$-optimal solution (penalized risk $\le \inf_f (\cdots) + \varepsilon_n$) fits the framework provided $\varepsilon_n = o(s_n \log n / n)$; treefarmr and GOSDT minimize this objective (optionally with a time or tolerance limit).
+where $\cT_{M_n}$ is the set of axis-aligned decision trees with at most $M_n$ leaves, with $M_n \to \infty$ and $M_n \log n / n \to 0$ as $n \to \infty$ (e.g.\ $M_n = n$ or $M_n \propto s_n \log n$). This matches the objective of a GOSDT-style solver (loss plus regularization times number of leaves). The constant $s_n$ below is the theoretical rate index, $s_n \asymp n^{d/(2\beta+d)}$. In practice, $\lambda_n$ may be taken proportional to $(\log n)/n$ (e.g.\ $\lambda_n = c (\log n)/n$ for a constant $c$) to match the rate conditions; the constant $c$ can be chosen by cross-validation. We assume a \textbf{loss--norm link}: there exists a function $\phi(\delta) \to 0$ as $\delta \to 0$ such that $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$. This holds for squared error ($\phi(\delta)=\delta$) and for cross-entropy with bounded probabilities (standard bounds). Any procedure that attains this minimum or an $\varepsilon_n$-optimal solution (penalized risk $\le \inf_f (\cdots) + \varepsilon_n$) fits the framework provided $\varepsilon_n = o(s_n \log n / n)$; GOSDT-style solvers minimize this objective (optionally with a time or tolerance limit).
 
 \begin{lemma}[Approximation by tree partitions]
 \label{lem:approx}
@@ -275,7 +279,7 @@ Terms (I) and (II) are each of the form $(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))$ 
 Hence (I) + (II) $= O_p(s_n \log n / n)$, and (III) $\le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. The extra $\lambda_n s_n$ is of the same order. Taking the constant $C$ in the lemma large enough, we obtain $R(\hat\eta) - R(\eta_0) \le C \bigl( \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + \frac{s_n \log n}{n} \bigr) + o_p(1)$.
 
 \paragraph{Remark: $\varepsilon_n$-optimal minimizers.}
-We say $\hat\eta$ is \emph{$\varepsilon_n$-optimal} if its penalized empirical risk is at most $\inf_{f \in \cT_{M_n}}(\cdots) + \varepsilon_n$. Then $R_n(\hat\eta) - R_n(f_n) \le \lambda_n s_n + \varepsilon_n$; the same oracle inequality holds provided $\varepsilon_n = o(s_n \log n / n)$ (e.g., $\varepsilon_n = o(1/n)$), with $\varepsilon_n$ absorbed into the $o_p(1)$ term. Treefarmr and GOSDT with an appropriate tolerance produce such an $\hat\eta$.
+We say $\hat\eta$ is \emph{$\varepsilon_n$-optimal} if its penalized empirical risk is at most $\inf_{f \in \cT_{M_n}}(\cdots) + \varepsilon_n$. Then $R_n(\hat\eta) - R_n(f_n) \le \lambda_n s_n + \varepsilon_n$; the same oracle inequality holds provided $\varepsilon_n = o(s_n \log n / n)$ (e.g., $\varepsilon_n = o(1/n)$), with $\varepsilon_n$ absorbed into the $o_p(1)$ term. GOSDT-style solvers with an appropriate tolerance produce such an $\hat\eta$.
 \end{proof}
 
 \begin{lemma}[Optimal choice of $s_n$]
@@ -302,6 +306,66 @@ Combine Lemmas~\ref{lem:approx}--\ref{lem:optimal-sn} and the loss--norm link.
 \label{cor:dml}
 If each nuisance estimator satisfies $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ in the norms that appear in the orthogonal score expansion, then the remainder in the DML expansion is $o_p(n^{-1/2})$. Under identification (overlap, bounded moments) and $K$-fold cross-fitting, $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the influence function. No new proof is required; we invoke \citet{chernozhukov2018} and verify their conditions (overlap, boundedness, cross-fitting).
 \end{corollary}
+
+\subsection{DML with alternative nuisances (general theorem)}
+\label{app:alt-nuisances}
+
+The following result is of independent interest for DML with cross-fitting: it states that any fold-specific nuisance estimators that are ``close'' to the true nuisances in the sense that controls the DML remainder still yield $\sqrt{n}$-consistent, asymptotically normal inference. No structure (e.g., trees) is assumed; the result is generic.
+
+\begin{definition}[$o_p(n^{-1/4})$-close nuisances]
+\label{def:close}
+For each fold $k \in \{1,\ldots,K\}$, let $\tilde{\eta}^{(-k)} = (\tilde{e}^{(-k)}, \tilde{m}_0^{(-k)}, \tilde{m}_1^{(-k)})$ be a nuisance estimator trained on data not in fold $k$. We say the $\tilde{\eta}^{(-k)}$ are \emph{$o_p(n^{-1/4})$-close} to $\eta_0$ if, for each $k$, we have $\|\tilde{e}^{(-k)} - e_0\|_{L^2(P)} = o_p(n^{-1/4})$, $\|\tilde{m}_0^{(-k)} - m_{0,0}\|_{L^2(P)} = o_p(n^{-1/4})$, and $\|\tilde{m}_1^{(-k)} - m_{1,0}\|_{L^2(P)} = o_p(n^{-1/4})$. Under the overlap condition ($0 < e_0(X) < 1$ bounded away from 0 and 1), these componentwise $L^2(P)$ norms are the relevant norms for the ATT score expansion; equivalently, $\max_{k=1,\ldots,K} \|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ when $\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)}$ denotes the maximum of the three component norms.
+\end{definition}
+
+\begin{theorem}[DML with alternative nuisances]
+\label{thm:dml-alt}
+Assume $K$ is fixed. Under the same identification, overlap, and moment conditions as in \citet{chernozhukov2018} (unconfoundedness, overlap, bounded outcomes and propensity), suppose that for each fold $k$, $\tilde{\eta}^{(-k)}$ is trained on data not in fold $k$ and is $o_p(n^{-1/4})$-close to $\eta_0$ in the sense of Definition~\ref{def:close}. Let $\hat\theta$ be the DML estimator defined by
+\[
+\frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \hat\theta, \tilde{\eta}^{(-k(i))}\bigr) = 0.
+\]
+Then $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the influence function $\psi(O; \theta_0, \eta_0)$.
+\end{theorem}
+\begin{proof}
+By \citet{chernozhukov2018}, the only nuisance-dependent condition for $\sqrt{n}$-consistency and asymptotic normality is that the second-order remainder in the linearization of the moment condition be $o_p(n^{-1/2})$. For the ATT orthogonal score \eqref{eq:score}, the remainder is bounded in absolute value by a constant times products of the form $\|\tilde{e}^{(-k)} - e_0\|_{L^2(P)} \|\tilde{m}_a^{(-k)} - m_{a,0}\|_{L^2(P)}$ (and similar cross-terms), possibly with overlap-weighted norms; see \citet{chernozhukov2018}, Section~3.2 and their Assumption 3.2. Under overlap, the weights are bounded, so componentwise $\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ implies that each such product is $o_p(n^{-1/2})$. Hence the remainder is $o_p(n^{-1/2})$. The remaining conditions in \citet{chernozhukov2018} (identification, cross-fitting with $K$ fixed, bounded moments) do not depend on the choice of nuisance estimator. Thus their conclusion applies with $\tilde{\eta}^{(-k)}$ in place of $\hat\eta^{(-k)}$.
+\end{proof}
+
+\subsection{Rashomon set per fold and intersection}
+\label{app:rashomon}
+
+We give formal definitions of the Rashomon set for each cross-fitting fold and of the intersection across folds. These are used in Section~\ref{sec:rashomon}. For a fixed nuisance (e.g., propensity $e$ or outcome regression $m_0$), the training data for fold $k$ is $\mathcal{D}^{(-k)}$ (all observations not in fold $k$); $n_{-k} = |\mathcal{D}^{(-k)}|$. Let $R_n^{(-k)}(f) = (1/n_{-k}) \sum_{i \notin \text{fold } k} L(Y_i, f(X_i))$ denote the empirical risk on $\mathcal{D}^{(-k)}$ for the relevant loss $L$, and let $\text{best}^{(-k)} = \inf_{f \in \cT_{M_n}} [ R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) ]$ be the minimal penalized risk on that fold.
+
+\begin{definition}[Rashomon set per fold]
+\label{def:rashomon-fold}
+For $\varepsilon \ge 0$, the \emph{Rashomon set} for fold $k$ is
+\[
+R_k(\varepsilon) = \Bigl\{ f \in \cT_{M_n} : R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon) \cdot \text{best}^{(-k)} \Bigr\}.
+\]
+Optionally one restricts to trees with $\#\text{leaves} \le s_n$ so that the set is compatible with the sieve. We say trees in $R_k(\varepsilon)$ are \emph{$(1+\varepsilon)$-near-optimal} on fold $k$.
+\end{definition}
+
+\begin{lemma}[Oracle inequality for near-minimizers]
+\label{lem:oracle-near}
+Under the same conditions as Lemma~\ref{lem:oracle} (with $R_n^{(-k)}$, $\mathcal{D}^{(-k)}$, and $\text{best}^{(-k)}$ in place of $R_n$, $n$, and the fold-$k$ minimizer). For any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le s_n$ (or $\#\text{leaves}(f) = O_p(s_n)$ under the same $\lambda_n$ logic as Lemma~\ref{lem:hats}),
+\[
+R(f) - R(\eta_0) \le C \Bigl( \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f' \in \cT_{s_n}} \bigl[ R(f') - R(\eta_0) \bigr] \Bigr) + o_p(1).
+\]
+\end{lemma}
+\begin{proof}[Proof idea]
+Decompose $R(f) - R(\eta_0)$ as $(R(f) - R_n^{(-k)}(f)) + (R_n^{(-k)}(f) - R_n^{(-k)}(f^*)) + (R_n^{(-k)}(f^*) - R(f^*)) + (R(f^*) - R(\eta_0))$ for $f^* \in \cT_{s_n}$ with $R(f^*) - R(\eta_0)$ near $\inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)]$. Since $f \in R_k(\varepsilon_n)$, we have $R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon_n) \cdot \text{best}^{(-k)}$, so $R_n^{(-k)}(f) - R_n^{(-k)}(f^*) \le \varepsilon_n \cdot \text{best}^{(-k)} + \lambda_n s_n + O(s_n \log n / n)$ (using that the minimizer has penalized risk $\text{best}^{(-k)}$). The empirical-process terms are $O_p(s_n \log n / n)$ as in Lemma~\ref{lem:oracle}. The bound follows.
+\end{proof}
+
+\begin{definition}[Intersection of Rashomon sets (structure-based)]
+\label{def:intersection}
+The \emph{intersection} of the Rashomon sets across folds is the set of \emph{tree structures} (splits) such that for every fold $k$, when that structure is refit on $\mathcal{D}^{(-k)}$ (i.e., leaf values are optimized on data not in fold $k$), the resulting tree belongs to $R_k(\varepsilon)$. Here, \emph{refit} means: minimize $R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f)$ over all trees $f$ with that same structure (same splits, variable leaf values). Equivalently, a structure is in the intersection if it appears in $R_k(\varepsilon)$ for each $k$ when each fold's trees are fitted on $\mathcal{D}^{(-k)}$.
+\end{definition}
+
+\begin{proposition}[Rashomon selection and DML validity]
+\label{prop:rashomon-dml}
+Suppose that for each fold $k$, we choose $\tilde{\eta}^{(-k)} \in R_k(\varepsilon_n)$ (e.g., any tree in the fold-$k$ Rashomon set, or the refit of an intersection structure on $\mathcal{D}^{(-k)}$). A \emph{sufficient condition} for $\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ is: $\varepsilon_n \to 0$ and $\varepsilon_n = o(n^{-1/2})$ (so that $\varepsilon_n \cdot \text{best}^{(-k)} = o_p(n^{-1/2})$ since $\text{best}^{(-k)} = O_p(1)$), under the same sieve and rate conditions as Theorem~\ref{thm:nuisance-rate}. Then the DML estimator $\hat\theta$ defined with $\tilde{\eta}^{(-k)}$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$ by Theorem~\ref{thm:dml-alt}.
+\end{proposition}
+\begin{proof}
+By Lemma~\ref{lem:oracle-near}, any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le s_n$ satisfies $R(f) - R(\eta_0) \le C( \varepsilon_n \cdot \text{best}^{(-k)} + s_n \log n / n + \inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)] ) + o_p(1)$. Under the theorem's conditions, the approximation term and $s_n \log n / n$ are $o_p(n^{-1/2})$; with $\varepsilon_n = o(n^{-1/2})$, we obtain $R(f) - R(\eta_0) = o_p(n^{-1/2})$. By the loss--norm link, $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$; for squared loss $\phi(\delta) = \delta$, so excess risk $o_p(n^{-1/2})$ gives $\|f - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$. Thus $\tilde{\eta}^{(-k)}$ is $o_p(n^{-1/4})$-close to $\eta_0$, and Theorem~\ref{thm:dml-alt} applies.
+\end{proof}
 
 \subsection{High-dimensional caveat}
 If the tree class is allowed to split on all of many covariates, the effective complexity can grow and the preceding rates may not hold. To retain the same rate, one can assume (a) \emph{sparsity} of the regression function (few relevant covariates), (b) \emph{restricted depth} so that the effective dimension in the tree is bounded, or (c) \emph{margin} or regularity conditions. Such assumptions are standard in nonparametrics.
