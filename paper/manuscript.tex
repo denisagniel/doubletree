@@ -191,7 +191,7 @@ Let $\cT_s$ be the class of axis-aligned trees with at most $s$ leaves. If $\eta
 We first give precise notation, then prove the bound for squared-error loss, and extend to generic loss.
 
 \paragraph{Notation.}
-The H\"older class $H^\beta([0,1]^d)$ consists of (bounded) functions $\eta$ on $[0,1]^d$ such that $|\eta(x) - \eta(x')| \le \|\eta\|_{H^\beta} |x - x'|^\beta$ for all $x, x' \in [0,1]^d$, where $|x - x'|$ is Euclidean distance and $\beta \in (0,1]$. Every axis-aligned partition of $[0,1]^d$ into at most $s$ cells can be realized by some $f \in \cT_s$ (piecewise-constant on the partition, one value per cell).
+For $\beta > 0$, the H\"older class $H^\beta([0,1]^d)$ is defined as follows. Let $\ell = \lfloor \beta \rfloor$ and $\gamma = \beta - \ell \in (0,1]$. A (bounded) function $\eta$ on $[0,1]^d$ belongs to $H^\beta([0,1]^d)$ if (i) all partial derivatives of $\eta$ of order $k$ exist and are bounded for $k = 0, \ldots, \ell$, and (ii) for every multi-index $\alpha$ with $|\alpha| = \ell$, the derivative $D^\alpha \eta$ is $\gamma$-H\"older continuous: $|D^\alpha \eta(x) - D^\alpha \eta(x')| \le C |x - x'|^\gamma$ for all $x, x' \in [0,1]^d$. The norm $\|\eta\|_{H^\beta}$ can be taken as the maximum over the relevant derivative bounds and H\"older constants. For $\beta \in (0,1]$, this reduces to the usual condition $|\eta(x) - \eta(x')| \le \|\eta\|_{H^\beta} |x - x'|^\beta$. Every axis-aligned partition of $[0,1]^d$ into at most $s$ cells can be realized by some $f \in \cT_s$ (piecewise-constant on the partition).
 
 \paragraph{Step 1: Partition.}
 Let $k = \lfloor s^{1/d} \rfloor \ge 1$. Divide each coordinate into $k$ intervals of length $1/k$, yielding $N = k^d \le s$ axis-aligned cells $A_1, \ldots, A_N$ that partition $[0,1]^d$. Each cell has diameter $\diam(A_j) \le \sqrt{d}/k \le C_d s^{-1/d}$.
@@ -215,6 +215,9 @@ For squared error, $R(f_s) - R(\eta_0) = \|f_s - \eta_0\|_{L^2(P)}^2 \le C s^{-2
 
 \paragraph{Generic loss.}
 Under the loss--norm link, any $f_s$ with $\|f_s - \eta_0\|_{L^2(P)}^2 \le C s^{-2\beta/d}$ satisfies $R(f_s) - R(\eta_0) \le \phi(C s^{-2\beta/d}) = O(s^{-2\beta/d})$ when $\phi(\delta) \lesssim \delta$ (e.g.\ squared error and cross-entropy with bounded probabilities). Thus $\inf_{f \in \cT_s} [R(f) - R(\eta_0)] \le C s^{-2\beta/d}$ for such losses. For further discussion of piecewise-constant approximation see \citet{gyorfiLeastSquaresEstimates2002} or \citet{devoreConstructiveApproximation1993}.
+
+\paragraph{Case $\beta > 1$.}
+For $\eta_0 \in H^\beta([0,1]^d)$ with $\beta > 1$, piecewise-constant approximation on a regular partition of $[0,1]^d$ into $O(s)$ cells of diameter $O(s^{-1/d})$ achieves $L^2$ error of order $s^{-\beta/d}$ (hence squared error $s^{-2\beta/d}$). This follows from the fact that on each cell the function can be approximated by its Taylor polynomial of degree $\ell = \lfloor \beta \rfloor$ at a point in the cell, with remainder bounded in $L^2$ by $O((\diam)^\beta)$; averaging to a constant on the cell yields the same rate. See, e.g., \citet{devoreConstructiveApproximation1993} (approximation by piecewise polynomials and piecewise constants) or \citet{gyorfiLeastSquaresEstimates2002} (rates for $H^\beta$ in nonparametric regression). Thus $\inf_{f \in \cT_s} \|f - \eta_0\|_{L^2(P)}^2 \le C s^{-2\beta/d}$, and by the loss--norm link, $\inf_{f \in \cT_s} [R(f) - R(\eta_0)] \le C s^{-2\beta/d}$.
 \end{proof}
 
 \begin{lemma}[Complexity of tree class]
