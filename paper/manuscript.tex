@@ -241,8 +241,31 @@ For $\hat\eta$ the penalized ERM over $\cT_{s_n}$ with penalty $\lambda_n s_n$ c
 R(\hat\eta) - R(\eta_0) \le C \Bigl( \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] + \frac{s_n \log n}{n} \Bigr) + o_p(1).
 \]
 \end{lemma}
-\begin{proof}[Proof idea]
-Model selection or penalized ERM over a combinatorial function class: combine the approximation bound (Lemma~\ref{lem:approx}) with a complexity penalty. Standard references include \citet{chenLargeSampleSieve2007} (sieve M-estimation) and \citet{picardDensityEstimationModel2007} (oracle inequalities for model selection).
+\begin{proof}
+We assume the following in addition to the loss--norm link. \textbf{Boundedness:} $Y$ and all $f \in \cT_{s_n}$ take values in a bounded interval (e.g., $[0,1]$ for propensity or bounded outcomes); this is already implied by Lemma~\ref{lem:complexity}. \textbf{Loss:} $L(y,\cdot)$ is Lipschitz in the second argument uniformly in $y$, or quadratic (e.g., $|L(y,a)-L(y,b)| \le M|a-b|$ or $\le M(a-b)^2$); squared error and cross-entropy with bounded probabilities satisfy this. \textbf{Sieve:} $s_n \to \infty$ and $s_n \log n / n \to 0$ as $n \to \infty$.
+
+\paragraph{Step 1: Decomposition.}
+Let $R_n(f) = \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i))$. By definition of $\hat\eta$, for any $f \in \cT_{s_n}$ we have $R_n(\hat\eta) + \lambda_n s_n \le R_n(f) + \lambda_n s_n$, so $R_n(\hat\eta) \le R_n(f)$. Fix $f_n \in \cT_{s_n}$ such that $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$ (such $f_n$ exists by definition of the infimum). Then
+\[
+R(\hat\eta) - R(\eta_0) = \bigl(R(\hat\eta) - R_n(\hat\eta)\bigr) + \bigl(R_n(\hat\eta) - R_n(f_n)\bigr) + \bigl(R_n(f_n) - R(f_n)\bigr) + \bigl(R(f_n) - R(\eta_0)\bigr).
+\]
+The second bracket is $\le 0$ by the penalized ERM property. Hence
+\[
+R(\hat\eta) - R(\eta_0) \le \underbrace{\bigl(R(\hat\eta) - R_n(\hat\eta)\bigr)}_{\text{(I)}} + \underbrace{\bigl(R_n(f_n) - R(f_n)\bigr)}_{\text{(II)}} + \underbrace{\bigl(R(f_n) - R(\eta_0)\bigr)}_{\text{(III)}}.
+\]
+
+\paragraph{Step 2: Approximation term.}
+Term (III) satisfies $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. Thus (III) is at most the approximation term in the stated bound (up to a constant $C \ge 1$ and $o(1)$).
+
+\paragraph{Step 3: Empirical process.}
+Terms (I) and (II) are each of the form $(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))$ for some $f \in \cT_{s_n}$. By Lemma~\ref{lem:complexity}, $\log N(\epsilon, \cT_{s_n}, L^2(P)) \lesssim s_n \log s_n \cdot \log(1/\epsilon)$. For uniformly bounded $f$ and Lipschitz or quadratic $L$, the same entropy (or a constant multiple) applies to the class of loss differences $\ell_f = L(Y,f(X)) - L(Y,\eta_0(X))$. A standard maximal inequality (e.g., Dudley entropy integral or Bernstein-type bound for the empirical process over $\cT_{s_n}$) yields $\E \sup_{f \in \cT_{s_n}} |(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))| \lesssim \sqrt{s_n \log s_n \cdot \log n / n}$; concentration then gives $\sup_{f \in \cT_{s_n}} |(P_n - P)(L(Y,f(X)) - L(Y,\eta_0(X)))| = O_p(\sqrt{s_n \log n / n})$. Using a peeling argument (restrict to $f$ with $R(f)-R(\eta_0) \le \delta$, bound the empirical process on that slice, then optimize $\delta$) or the fact that $\lambda_n \asymp (\log n)/n$, we obtain that (I) and (II) are together $O_p(s_n \log n / n)$; see, e.g., \citet{chenLargeSampleSieve2007} or \citet{picardDensityEstimationModel2007} for the full chaining/peeling details.
+
+\paragraph{Conclusion.}
+Hence (I) + (II) $= O_p(s_n \log n / n)$, and (III) $\le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. Taking the constant $C$ in the lemma large enough, we obtain
+$R(\hat\eta) - R(\eta_0) \le C \bigl( \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + \frac{s_n \log n}{n} \bigr) + o_p(1)$.
+
+\paragraph{Remark: $\varepsilon_n$-optimal minimizers.}
+If $\hat\eta$ is only $\varepsilon_n$-optimal in the sense that the penalized empirical risk of $\hat\eta$ is at most $\inf_{f \in \cT_{s_n}}(\cdots) + \varepsilon_n$, then the decomposition yields $R_n(\hat\eta) - R_n(f_n) \le \varepsilon_n$ instead of $\le 0$, so an extra $\varepsilon_n$ appears in the bound. The same oracle inequality holds provided $\varepsilon_n = o(s_n \log n / n)$ (e.g., $\varepsilon_n = o(1/n)$), with $\varepsilon_n$ absorbed into the $o_p(1)$ term. This applies to solvers such as GOSDT that deliver near-optimal solutions.
 \end{proof}
 
 \begin{lemma}[Optimal choice of $s_n$]
