@@ -93,3 +93,143 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices) {
   }
   list(e = e_out, m0 = m0_out, m1 = m1_out)
 }
+
+#' Fit nuisances via Rashomon intersection (cross_fitted_rashomon)
+#'
+#' Fits e(X), m0(X), m1(X) using treefarmr::cross_fitted_rashomon with the same
+#' fold assignment as DML. When a nuisance has no intersecting trees (n_intersecting == 0),
+#' falls back to single-tree-per-fold for that nuisance via fit_nuisances_fold.
+#'
+#' @param X Data.frame or matrix of covariates (binary 0/1).
+#' @param A Integer vector of treatment (0/1).
+#' @param Y Numeric vector of outcome (binary 0/1 or continuous).
+#' @param fold_indices Integer vector of length nrow(X) with fold id per row (1..K).
+#' @param outcome_type Character. "binary" or "continuous"; determines loss for m0, m1.
+#' @param regularization Numeric. Passed to treefarmr. Default 0.1.
+#' @param verbose Logical. Passed to treefarmr. Default FALSE.
+#' @param rashomon_bound_multiplier,rashomon_bound_adder,max_leaves,auto_tune_intersecting Passed to cross_fitted_rashomon.
+#' @param ... Additional arguments passed to treefarmr::cross_fitted_rashomon.
+#' @return List with cf_e, cf_m0, cf_m1 (cf_rashomon or NULL if fallback), fallback_fits (list of K per-fold fits or NULL), outcome_type.
+#' @noRd
+fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary",
+                                   regularization = 0.1, verbose = FALSE,
+                                   rashomon_bound_multiplier = 0.05, rashomon_bound_adder = 0,
+                                   max_leaves = NULL, auto_tune_intersecting = FALSE, ...) {
+  n <- nrow(X)
+  K <- max(fold_indices, na.rm = TRUE)
+  loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
+
+  cf_e <- tryCatch({
+    out <- treefarmr::cross_fitted_rashomon(
+      X, A, K = K, loss_function = "log_loss", regularization = regularization,
+      rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
+      max_leaves = max_leaves, fold_indices = fold_indices,
+      auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
+    )
+    if (out$n_intersecting > 0) out else NULL
+  }, error = function(e) NULL)
+
+  idx0 <- which(A == 0)
+  idx1 <- which(A == 1)
+  n0 <- length(idx0)
+  n1 <- length(idx1)
+  if (n0 == 0) stop("No control units (A=0); cannot fit m0.")
+  if (n1 == 0) stop("No treated units (A=1); cannot fit m1.")
+
+  cf_m0 <- tryCatch({
+    X0 <- X[idx0, , drop = FALSE]
+    Y0 <- Y[idx0]
+    fold0 <- fold_indices[idx0]
+    out <- treefarmr::cross_fitted_rashomon(
+      X0, Y0, K = K, loss_function = loss_outcome, regularization = regularization,
+      rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
+      max_leaves = max_leaves, fold_indices = fold0,
+      auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
+    )
+    if (out$n_intersecting > 0) out else NULL
+  }, error = function(e) NULL)
+
+  cf_m1 <- tryCatch({
+    X1 <- X[idx1, , drop = FALSE]
+    Y1 <- Y[idx1]
+    fold1 <- fold_indices[idx1]
+    out <- treefarmr::cross_fitted_rashomon(
+      X1, Y1, K = K, loss_function = loss_outcome, regularization = regularization,
+      rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
+      max_leaves = max_leaves, fold_indices = fold1,
+      auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
+    )
+    if (out$n_intersecting > 0) out else NULL
+  }, error = function(e) NULL)
+
+  need_fallback <- is.null(cf_e) || is.null(cf_m0) || is.null(cf_m1)
+  fallback_fits <- NULL
+  if (need_fallback) {
+    fallback_fits <- vector("list", K)
+    for (k in seq_len(K)) {
+      fallback_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,
+                                              outcome_type = outcome_type, regularization = regularization,
+                                              verbose = verbose, ...)
+    }
+  }
+
+  list(
+    cf_e = cf_e,
+    cf_m0 = cf_m0,
+    cf_m1 = cf_m1,
+    fallback_fits = fallback_fits,
+    outcome_type = outcome_type
+  )
+}
+
+#' Fold-specific eta from Rashomon fits (and optional fallback)
+#'
+#' Builds e(X), m0(X), m1(X) of length n using predict(..., fold_indices) on
+#' cf_rashomon objects, or fallback per-fold fits when a nuisance had n_intersecting == 0.
+#'
+#' @param rashomon_list Return value of fit_nuisances_rashomon.
+#' @param X Data.frame or matrix of covariates.
+#' @param fold_indices Integer vector of length n (fold id per row).
+#' @return List with elements e, m0, m1 (each numeric vector of length n).
+#' @noRd
+get_fold_specific_eta_rashomon <- function(rashomon_list, X, fold_indices) {
+  n <- nrow(X)
+  e_out <- numeric(n)
+  m0_out <- numeric(n)
+  m1_out <- numeric(n)
+  outcome_type <- rashomon_list$outcome_type
+
+  if (!is.null(rashomon_list$cf_e) && rashomon_list$cf_e$n_intersecting > 0) {
+    pe <- predict(rashomon_list$cf_e, X, fold_indices = fold_indices, type = "prob")
+    e_out <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, n)
+  } else if (!is.null(rashomon_list$fallback_fits)) {
+    eta_fb <- get_fold_specific_eta(rashomon_list$fallback_fits, X, fold_indices)
+    e_out <- eta_fb$e
+  }
+
+  if (!is.null(rashomon_list$cf_m0) && rashomon_list$cf_m0$n_intersecting > 0) {
+    if (outcome_type == "continuous") {
+      m0_out <- as.numeric(predict(rashomon_list$cf_m0, X, fold_indices = fold_indices))
+    } else {
+      pm0 <- predict(rashomon_list$cf_m0, X, fold_indices = fold_indices, type = "prob")
+      m0_out <- if (is.matrix(pm0)) pm0[, 2L] else rep(0.5, n)
+    }
+  } else if (!is.null(rashomon_list$fallback_fits)) {
+    eta_fb <- get_fold_specific_eta(rashomon_list$fallback_fits, X, fold_indices)
+    m0_out <- eta_fb$m0
+  }
+
+  if (!is.null(rashomon_list$cf_m1) && rashomon_list$cf_m1$n_intersecting > 0) {
+    if (outcome_type == "continuous") {
+      m1_out <- as.numeric(predict(rashomon_list$cf_m1, X, fold_indices = fold_indices))
+    } else {
+      pm1 <- predict(rashomon_list$cf_m1, X, fold_indices = fold_indices, type = "prob")
+      m1_out <- if (is.matrix(pm1)) pm1[, 2L] else rep(0.5, n)
+    }
+  } else if (!is.null(rashomon_list$fallback_fits)) {
+    eta_fb <- get_fold_specific_eta(rashomon_list$fallback_fits, X, fold_indices)
+    m1_out <- eta_fb$m1
+  }
+
+  list(e = e_out, m0 = m0_out, m1 = m1_out)
+}

@@ -14,6 +14,11 @@ dml_att(
   stratified = TRUE,
   seed = NULL,
   verbose = FALSE,
+  use_rashomon = FALSE,
+  rashomon_bound_multiplier = 0.05,
+  rashomon_bound_adder = 0,
+  max_leaves = NULL,
+  auto_tune_intersecting = FALSE,
   ...
 )
 }
@@ -36,17 +41,33 @@ dml_att(
 
 \item{verbose}{Logical. Passed to treefarmr. Default FALSE.}
 
-\item{...}{Additional arguments passed to treefarmr::fit_tree.}
+\item{use_rashomon}{Logical. If TRUE, fit nuisances via \code{treefarmr::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).}
+
+\item{rashomon_bound_multiplier}{Numeric. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Default 0.05.}
+
+\item{rashomon_bound_adder}{Numeric. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Default 0.}
+
+\item{max_leaves}{Optional integer. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Restricts Rashomon set to trees with at most this many leaves.}
+
+\item{auto_tune_intersecting}{Logical. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. If TRUE, tune until at least one intersecting tree is found. Default FALSE.}
+
+\item{...}{Additional arguments passed to treefarmr (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
 }
 \value{
 List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
-  score_values (influence at theta), nuisance_fits (per-fold models), fold_indices, n, K.
+  score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
 }
 \description{
 Estimates the ATT using double machine learning with optimal decision trees
 (via treefarmr) for the nuisance functions e(X), m0(X), m1(X). Binary outcome
 uses log-loss for all nuisances; continuous outcome uses log-loss for propensity
 and squared_error for m0, m1 (requires treefarmr to support squared_error).
+}
+\details{
+When \code{use_rashomon = TRUE}, nuisances are fit via
+\code{treefarmr::cross_fitted_rashomon}: one interpretable tree per nuisance
+(intersection of Rashomon sets across folds) with fold-specific refits for
+valid DML. The same K and fold assignment are used for Rashomon and the score.
 }
 \references{
 Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.

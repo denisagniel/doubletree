@@ -40,6 +40,26 @@ test_that("create_folds returns integer vector 1..K", {
   expect_type(f, "integer")
 })
 
+test_that("dml_att with use_rashomon = TRUE runs and returns same structure", {
+  skip_if_not_installed("treefarmr")
+  set.seed(42)
+  n <- 150
+  X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
+  A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
+  Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
+  fit <- dml_att(X, A, Y, K = 3, use_rashomon = TRUE, verbose = FALSE)
+  expect_type(fit$theta, "double")
+  expect_length(fit$theta, 1)
+  expect_type(fit$sigma, "double")
+  expect_length(fit$ci_95, 2)
+  expect_true(fit$ci_95[1] < fit$theta)
+  expect_true(fit$ci_95[2] > fit$theta)
+  expect_equal(fit$n, n)
+  expect_equal(fit$K, 3)
+  expect_true(is.list(fit$nuisance_fits))
+  expect_true(length(fit$fold_indices) == n)
+})
+
 test_that("dml_att_variance and dml_att_ci work", {
   scores <- rnorm(100, 0, 1)
   v <- dml_att_variance(scores)
