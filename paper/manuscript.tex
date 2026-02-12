@@ -21,7 +21,8 @@
 \maketitle
 
 \begin{abstract}
-% Placeholder: (1) Problem and gap---interpretable nuisances in DML without rate guarantees. (2) Approach---optimal trees in DML for ATT plus Rashomon intersection for a single tree per nuisance. (3) Main result---sufficient conditions for $o(n^{-1/4})$ and valid inference. (4) Empirical takeaway---competitive performance and interpretability; ATE discussed as extension in Discussion.
+    
+Interpretable nuisance learners in double machine learning (DML) rarely come with formal rate guarantees needed for valid inference. We use optimal decision trees as nuisance estimators in DML for the average treatment effect on the treated (ATT) and, for reporting, select a single tree per nuisance via the intersection of Rashomon sets across cross-fitting folds. We give sufficient conditions on tree complexity and smoothness under which these nuisances achieve $o(n^{-1/4})$ convergence in the relevant norms, so that the DML estimator is $\sqrt{n}$-consistent and asymptotically normal. The paper focuses on theory and method; empirical performance can be evaluated in simulations.
 \end{abstract}
 
 \section{Introduction}
@@ -47,7 +48,7 @@ We observe \iid data $O_1, \ldots, O_n$, where each $O = (X, A, Y)$ consists of 
 \theta_0 = \E[Y(1) - Y(0) \mid A=1].
 \end{equation}
 
-We assume unconfoundedness (selection on observables): $(Y(0), Y(1)) \perp A \mid X$. We also assume overlap: $0 < \Prob(A=1 \mid X) < 1$ almost surely (or at least on the support of $X$ among the treated). Under these conditions, the ATT is identified via the propensity score $e(X) = \Prob(A=1 \mid X)$ and the outcome regressions $m(a,X) = \E[Y \mid A=a, X]$ for $a \in \{0,1\}$. The nuisance functions required for estimation are $e(X)$, $m(0,X)$, and $m(1,X)$; we collect them in the vector $\eta = (e, m_0, m_1)$ with $m_0(X) = m(0,X)$ and $m_1(X) = m(1,X)$.
+We assume unconfoundedness (selection on observables): $(Y(0), Y(1)) \perp A \mid X$. We also assume strong overlap: the propensity score $e(X) = \Prob(A=1 \mid X)$ is bounded away from zero and one, e.g.\ $0 < c \le e(X) \le 1-c < 1$ for some constant $c > 0$, almost surely on the support of $X$ (or at least on the support among the treated). Under these conditions, the ATT is identified via the propensity score $e(X) = \Prob(A=1 \mid X)$ and the outcome regressions $m(a,X) = \E[Y \mid A=a, X]$ for $a \in \{0,1\}$. The nuisance functions required for estimation are $e(X)$, $m(0,X)$, and $m(1,X)$; we collect them in the vector $\eta = (e, m_0, m_1)$ with $m_0(X) = m(0,X)$ and $m_1(X) = m(1,X)$.
 
 The ATT can be estimated using a Neyman-orthogonal (efficient influence) score $\psi(O; \theta, \eta)$ that satisfies $\E[\psi(O; \theta_0, \eta_0)] = 0$ and has zero first-order Gateaux derivative with respect to $\eta$ at $\eta_0$, so that first-order nuisance estimation error does not affect the limiting distribution of the estimator \citep{chernozhukov2018}. Let $\pi = \Prob(A=1)$. A standard form for the orthogonal score for the ATT is
 \begin{equation}
@@ -94,13 +95,13 @@ In high dimensions, the complexity of the tree class can grow quickly; to retain
 
 \subsection{Estimation and inference}
 
-In practice we use $K$-fold cross-fitting with $K = 5$ or $K = 10$ (or another user-specified value). The regularization parameter $\lambda$ (penalty per leaf) can be chosen by cross-validation: for each nuisance, minimize held-out loss (the chosen loss $L$ on a validation split) over a grid of $\lambda$ values. A theory-driven default is $\lambda \propto (\log n)/n$ (e.g.\ $\lambda = (\log n)/n$), which matches the rate conditions in the Appendix and typically yields trees with $O(n^{d/(2\beta+d)})$ leaves under the conditions of the theorem; the proportionality constant can be tuned by cross-validation if desired. Sensitivity to the choice of $\lambda$ can be examined in simulations.
+In practice we use $K$-fold cross-fitting with $K = 5$ or $K = 10$ (or another user-specified value). The regularization parameter $\lambda$ (penalty per leaf) can be chosen by cross-validation: for each nuisance, minimize held-out loss (the chosen loss $L$ on a validation split) over a grid of $\lambda$ values. A theory-driven default is $\lambda \propto (\log n)/n$ (e.g.\ $\lambda = (\log n)/n$), which matches the rate conditions in the Appendix and typically yields trees with $O(n^{d/(2\beta+d)})$ leaves under the conditions of the theorem; the proportionality constant can be tuned by cross-validation if desired. Sensitivity to the choice of $\lambda$ can be examined in simulations. In practice, complexity is controlled by the penalty $\lambda$ and the maximum number of leaves (or the solver's complexity bound), which play the role of the theoretical rate index $s_n$.
 
 The asymptotic variance $\sigma^2$ of $\sqrt{n}(\hat\theta - \theta_0)$ is the variance of $\psi(O; \theta_0, \eta_0)$. We estimate it by the empirical variance of the estimated influence function,
 \begin{equation}
 \hat\sigma^2 = \frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \hat\theta, \hat\eta^{(-k(i))}\bigr)^2.
 \end{equation}
-A Wald-type 95\% confidence interval for $\theta_0$ is
+When evaluating $\psi$ in this formula, $\pi$ is estimated by $\hat{\pi} = n^{-1} \sum_{i=1}^n A_i$, and the same fold-specific nuisances $\hat{\eta}^{(-k(i))}$ as in the score are used. A Wald-type 95\% confidence interval for $\theta_0$ is
 \begin{equation}
 \hat\theta \pm 1.96 \, \frac{\hat\sigma}{\sqrt{n}}.
 \end{equation}
@@ -110,11 +111,11 @@ A Wald-type 95\% confidence interval for $\theta_0$ is
 
 \subsection{Rashomon set per fold}
 
-For each cross-fitting fold $k$, we fit optimal trees on the training part (data not in fold $k$) as in Section~\ref{sec:methods}. The \emph{Rashomon set} for fold $k$ is the set of trees that are ``almost as good'' as the best tree on that training set: trees (in $\cT_{M_n}$ or $\cT_{s_n}$) whose empirical penalized risk on $\mathcal{D}^{(-k)}$ is within a factor $(1+\varepsilon)$ of the minimum, or within an additive $\varepsilon$ of the best. Formally, $R_k(\varepsilon) = \{ f \in \cT_{M_n} : R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon) \cdot \text{best}^{(-k)} \}$, where $\text{best}^{(-k)}$ is the minimal penalized risk on the training data for fold $k$ (see Appendix~\ref{app:rashomon}). Thus we obtain multiple trees that are good enough on that fold, rather than a single optimal tree. Algorithms such as SPLIT \citep{babbarNearOptimalDecisionTrees2025} or GOSDT-style solvers can enumerate or approximate the Rashomon set for decision trees; methods that enumerate the full Rashomon set for sparse trees have been studied by \citet{xinExploringWholeRashomon2022}.
+For each cross-fitting fold $k$, we fit optimal trees on the training part (data not in fold $k$) as in Section~\ref{sec:methods}. The \emph{Rashomon set} for fold $k$ is the set of trees that are ``almost as good'' as the best tree on that training set: trees (in $\cT_{M_n}$ or $\cT_{s_n}$) whose empirical penalized risk on $\mathcal{D}^{(-k)}$ is within a factor $(1+\varepsilon)$ of the minimum, or within an additive $\varepsilon$ of the best. Formally, $R_k(\varepsilon) = \{ f \in \cT_{M_n} : R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon) \cdot \text{best}^{(-k)} \}$, where $\text{best}^{(-k)}$ is the minimal penalized risk on the training data for fold $k$ (see Appendix~\ref{app:rashomon}). Thus we obtain multiple trees that are good enough on that fold, rather than a single optimal tree. Algorithms such as SPLIT \citep{babbarNearOptimalDecisionTrees2025} or GOSDT-style solvers can enumerate or approximate the Rashomon set for decision trees; methods that enumerate the full Rashomon set for sparse trees have been studied by \citet{xinExploringWholeRashomon2022}. For the validity result in Proposition~\ref{prop:rashomon-dml} (Appendix), the tolerance must be chosen as a sequence $\varepsilon_n$ with $\varepsilon_n \to 0$ and $\varepsilon_n = o(n^{-1/2})$ so that nuisances selected from $R_k(\varepsilon_n)$ satisfy the conditions for $\sqrt{n}$-inference. For the theory in the Appendix (Lemma~\ref{lem:oracle-near}, Proposition~\ref{prop:rashomon-dml}) to apply, we restrict the Rashomon set (and thus the intersection) to trees with at most $s_n$ leaves (or $O(s_n)$), consistent with the sieve and rate conditions there.
 
 \subsection{Intersection across folds}
 
-The goal is to select a \emph{single} tree per nuisance (one propensity tree and one or two outcome trees for $m_0$, $m_1$) for interpretability and reporting, while preserving valid inference. To that end, we define the \emph{intersection} of the Rashomon sets across folds: the set of tree \emph{structures} (splits) that appear in every fold's Rashomon set when each fold's trees are fitted on their respective training data $\mathcal{D}^{(-k)}$. A structure in the intersection is one that, when refit on each fold's training data, has penalized risk within $(1+\varepsilon)$ of the best for that fold. One can compute the intersection by enumerating or approximating the Rashomon sets per fold and matching structures (e.g., via a canonical representation or JSON). We then choose one structure from the intersection per nuisance (e.g., the smallest or the first).
+The goal is to select a \emph{single} tree per nuisance (one propensity tree and one or two outcome trees for $m_0$, $m_1$) for interpretability and reporting, while preserving valid inference. To that end, we define the \emph{intersection} of the Rashomon sets across folds: the set of tree \emph{structures} (splits) that appear in every fold's Rashomon set when each fold's trees are fitted on their respective training data $\mathcal{D}^{(-k)}$. A structure in the intersection is one that, when refit on each fold's training data, has penalized risk within $(1+\varepsilon_n)$ of the best for that fold. One can compute the intersection by enumerating or approximating the Rashomon sets per fold and matching structures (e.g., via a canonical representation or JSON). We then choose one structure from the intersection per nuisance (e.g., the smallest or the first).
 
 For use in the DML estimator, for each fold $k$ we take $\tilde{\eta}^{(-k)}$ to be the tree from the intersection \emph{refit on $\mathcal{D}^{(-k)}$}---or equivalently, the fold-$k$ instance of that structure from the Rashomon set of fold $k$. The score $\psi(O_i; \theta, \tilde{\eta}^{(-k(i))})$ is evaluated with these fold-specific fitted nuisances, so that the orthogonality and cross-fitting structure of DML are preserved. The output is one reportable propensity tree and one reportable outcome tree (or one structure each for $m_0$ and $m_1$) for stakeholders, with fold-specific fitted versions used in the estimator.
 
@@ -154,22 +155,19 @@ A caveat is that the intersection tree may have higher bias or a larger constant
 \label{sec:discussion}
 
 \subsection{Limitations}
-% Function class/assumptions: nuisances well approximated by trees of bounded complexity; impact of misspecification.
-% Computation: cost of optimal tree fitting vs greedy/forests; scalability.
-% Choice of complexity: cross-validation/tuning; sensitivity of inference.
-% Rashomon intersection: lack of formal theory; possible bias vs interpretability trade-off.
+Our results assume the true nuisances lie in a H\"older class and are well approximated by trees of bounded complexity ($s_n$ leaves); misspecification or poor approximation can degrade rates and inference. Computationally, fitting optimal trees is costlier than greedy trees or forests, and scalability with $n$ and dimension is a practical concern. Tuning choices---including the penalty $\lambda$, the Rashomon tolerance $\varepsilon_n$, and the maximum number of leaves---affect both interpretability and the validity of inference; sensitivity to these choices is a limitation in applications.
 
 \subsection{Extensions}
-% ATE: same DML-with-trees and Rashomon approach applies; orthogonal score and nuisances differ; mention briefly.
-% Other parameters (CATE, LATE) or identifying assumptions; other interpretable learners; high-dimensional $X$; formal theory for Rashomon-intersection if feasible.
+The same DML-with-trees and Rashomon-intersection approach applies to the average treatment effect (ATE), with a different orthogonal score and nuisance set. Other parameters (e.g.\ CATE, LATE) or identifying assumptions can be accommodated with the appropriate scores and nuisances. Other interpretable learners (e.g.\ rule lists, sparse linear models) may be studied analogously; for high-dimensional $X$, sparsity or restricted depth (as in the Appendix) can retain the same rate guarantees.
 
 \subsection{Implications for high-stakes settings}
 A central contribution of this work is to show that \emph{interpretable} learners (decision trees) can satisfy the DML nuisance-rate requirement and thus deliver valid inference---transparent models need not sacrifice statistical validity. Tree-DML is a candidate for settings like Medicare quality measurement: interpretable nuisances, valid confidence intervals, and transparent rules. Caveats include the need for validation, domain input, and regulatory alignment.
 
 \section{Conclusion}
 \label{sec:conclusion}
-% Paragraph 1: Restate gap (interpretable nuisances in DML without rate guarantees) and what we did: optimal trees as nuisances in DML for ATT, sufficient conditions for $o(n^{-1/4})$, Rashomon intersection for single tree per nuisance, empirical evidence of competitive performance and interpretability.
-% Paragraph 2: Broader impact---transparent, statistically principled causal estimation for high-stakes applications (policy, healthcare) without sacrificing validity.
+We addressed the lack of formal rate guarantees for interpretable nuisance learners in DML. We showed that optimal decision trees, used as nuisance estimators in DML for the ATT, can satisfy the $o(n^{-1/4})$ rate under identified conditions on smoothness and complexity, and we used Rashomon set intersection to select a single reportable tree per nuisance while preserving valid $\sqrt{n}$-inference. A general theorem (Appendix) guarantees that any fold-specific nuisances that are $o_p(n^{-1/4})$-close to the truth yield the same asymptotic normality.
+
+This work supports transparent, statistically principled causal estimation in high-stakes settings such as policy and healthcare: interpretable trees need not sacrifice validity, so stakeholders can rely on both clear decision rules and asymptotically valid confidence intervals.
 
 \appendix
 \section{Proof of the nuisance rate}
