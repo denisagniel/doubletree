@@ -67,6 +67,10 @@ If `treefarmr` is located elsewhere:
 - Update the path in `.Rprofile`, or
 - Manually load it: `devtools::load_all("/path/to/treefarmr")`
 
+### Rashomon DML (future)
+
+The manuscript selects a **single interpretable tree per nuisance** via the intersection of Rashomon sets across cross-fitting folds, then refits that structure per fold for valid DML. The current package fits one optimal tree per fold (no Rashomon or intersection). To support the full Rashomon-DML workflow, **treefarmr** would need to implement the API described in `paper/Implementation-requirements-Rashomon-DML.md`: Rashomon set per fold (tolerance, optional max_leaves), structure comparison and intersection across folds, and refit-by-structure for fold-specific nuisances. dmltree would then call those treefarmr APIs; no dmltree code changes are required for estimation validity (fold-specific nuisances are already used).
+
 ## Minimal example
 
 ```r
