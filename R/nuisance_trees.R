@@ -140,12 +140,13 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
 #' @param nuisance_fits List of length K; each element is list(e_model, m0_model).
 #' @param X Data.frame or matrix of covariates.
 #' @param fold_indices Integer vector of length n (fold id per row).
-#' @param e_min Lower bound for propensity clamping. Default 1e-6.
-#' @param e_max Upper bound for propensity clamping. Default 1 - 1e-6.
+#' @param e_min Lower bound for propensity clamping.
+#' @param e_max Upper bound for propensity clamping.
 #' @return List with elements e, m0 (each numeric vector of length n).
 #' @noRd
 get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
-                                   e_min = 1e-6, e_max = 1 - 1e-6) {
+                                   e_min = .PROPENSITY_LOWER_BOUND,
+                                   e_max = .PROPENSITY_UPPER_BOUND) {
   n <- nrow(X)
   K <- length(nuisance_fits)
   e_out <- numeric(n)
@@ -324,12 +325,13 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
 #' @param rashomon_list Return value of fit_nuisances_rashomon.
 #' @param X Data.frame or matrix of covariates.
 #' @param fold_indices Integer vector of length n (fold id per row).
-#' @param e_min Lower bound for propensity clamping. Default 1e-6.
-#' @param e_max Upper bound for propensity clamping. Default 1 - 1e-6.
+#' @param e_min Lower bound for propensity clamping.
+#' @param e_max Upper bound for propensity clamping.
 #' @return List with elements e, m0 (each numeric vector of length n).
 #' @noRd
 get_fold_specific_eta_rashomon <- function(rashomon_list, X, fold_indices,
-                                           e_min = 1e-6, e_max = 1 - 1e-6) {
+                                           e_min = .PROPENSITY_LOWER_BOUND,
+                                           e_max = .PROPENSITY_UPPER_BOUND) {
   n <- nrow(X)
   e_out <- numeric(n)
   m0_out <- numeric(n)

@@ -10,6 +10,17 @@
 #'   the same proportion of each stratum.
 #' @param seed Optional integer. Random seed for reproducibility.
 #' @return Integer vector of length n with values in 1..K.
+#' @examples
+#' # Basic usage: 5-fold cross-fitting
+#' folds <- create_folds(n = 100, K = 5, seed = 42)
+#' table(folds)  # Each fold has ~20 observations
+#'
+#' # Stratified by treatment
+#' A <- rbinom(100, 1, 0.3)
+#' folds_stratified <- create_folds(n = 100, K = 5, strata = A, seed = 42)
+#' # Check balance: each fold has similar treatment proportions
+#' tapply(A, folds_stratified, mean)
+#'
 #' @export
 create_folds <- function(n, K, strata = NULL, seed = NULL) {
   if (!is.numeric(n) || length(n) != 1 || n < 1) {

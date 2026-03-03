@@ -1,3 +1,7 @@
+# Threshold for detecting no treated units
+# (sum(A/pi) < EPSILON implies all A=0 or pi extremely small)
+.NO_TREATED_THRESHOLD <- 1e-10
+
 #' DML estimator for the Average Treatment effect on the Treated (ATT)
 #'
 #' Estimates the ATT using double machine learning with optimal decision trees
@@ -178,7 +182,9 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
 
   # Closed form: psi(theta) = psi(0) - theta*(A/pi), so sum(psi(theta)) = 0 => theta = sum(psi(0)) / sum(A/pi).
   sum_a_over_pi <- sum(A / pi_hat)
-  if (sum_a_over_pi < 1e-10) stop("No treated units (sum(A) ~ 0).")
+  if (sum_a_over_pi < .NO_TREATED_THRESHOLD) {
+    stop("No treated units (sum(A) ~ 0) or pi_hat extremely small.", call. = FALSE)
+  }
   score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
   theta <- sum(score_at_zero) / sum_a_over_pi
 
