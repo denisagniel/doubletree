@@ -11,12 +11,16 @@
 #' @param fold_indices Integer vector of length nrow(X) with fold assignment.
 #' @param outcome_type Character. "binary" or "continuous"; determines loss for m0, m1.
 #' @param regularization Numeric. Penalty per leaf for treefarmr. Default 0.1.
+#' @param cv_regularization Logical. If TRUE, use cross-validation to select lambda. Default FALSE.
+#' @param cv_K Integer. Number of CV folds for lambda selection. Default 5.
 #' @param verbose Logical. Passed to treefarmr. Default FALSE.
 #' @param ... Additional arguments passed to treefarmr::fit_tree.
 #' @return List with elements e_model, m0_model, m1_model (treefarmr fit objects).
 #'   If no A=0 or no A=1 in training set, the corresponding model is NULL (caller should handle).
 #' @noRd
-fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "binary", regularization = 0.1, verbose = FALSE, ...) {
+fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "binary",
+                               regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
+                               verbose = FALSE, ...) {
   train_idx <- which(fold_indices != fold_id)
   X_tr <- X[train_idx, , drop = FALSE]
   A_tr <- A[train_idx]
@@ -30,9 +34,90 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
     stop("No treated units (A=1) in training set for fold ", fold_id, "; use fewer folds or check data.")
   }
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
-  e_model <- treefarmr::fit_tree(X_tr, A_tr, loss_function = "log_loss", regularization = regularization, verbose = verbose, ...)
-  m0_model <- treefarmr::fit_tree(X_tr[A_tr == 0, , drop = FALSE], Y_tr[A_tr == 0], loss_function = loss_outcome, regularization = regularization, verbose = verbose, ...)
-  m1_model <- treefarmr::fit_tree(X_tr[A_tr == 1, , drop = FALSE], Y_tr[A_tr == 1], loss_function = loss_outcome, regularization = regularization, verbose = verbose, ...)
+
+  # Fit propensity model
+  if (cv_regularization) {
+    cv_e <- treefarmr::cv_regularization(X_tr, A_tr, loss_function = "log_loss",
+                                         K = cv_K, refit = TRUE, verbose = FALSE, ...)
+    e_model <- cv_e$model
+    if (verbose) message("  Fold ", fold_id, " e: selected lambda = ", round(cv_e$best_lambda, 5))
+  } else {
+    e_model <- treefarmr::fit_tree(X_tr, A_tr, loss_function = "log_loss",
+                                   regularization = regularization, verbose = verbose, ...)
+  }
+
+  # Fit m0 model
+  if (cv_regularization) {
+    cv_m0 <- treefarmr::cv_regularization(X_tr[A_tr == 0, , drop = FALSE], Y_tr[A_tr == 0],
+                                          loss_function = loss_outcome, K = cv_K,
+                                          refit = TRUE, verbose = FALSE, ...)
+    m0_model <- cv_m0$model
+    if (verbose) message("  Fold ", fold_id, " m0: selected lambda = ", round(cv_m0$best_lambda, 5))
+  } else {
+    m0_model <- treefarmr::fit_tree(X_tr[A_tr == 0, , drop = FALSE], Y_tr[A_tr == 0],
+                                    loss_function = loss_outcome, regularization = regularization,
+                                    verbose = verbose, ...)
+  }
+
+  # Fit m1 model
+  if (cv_regularization) {
+    cv_m1 <- treefarmr::cv_regularization(X_tr[A_tr == 1, , drop = FALSE], Y_tr[A_tr == 1],
+                                          loss_function = loss_outcome, K = cv_K,
+                                          refit = TRUE, verbose = FALSE, ...)
+    m1_model <- cv_m1$model
+    if (verbose) message("  Fold ", fold_id, " m1: selected lambda = ", round(cv_m1$best_lambda, 5))
+  } else {
+    m1_model <- treefarmr::fit_tree(X_tr[A_tr == 1, , drop = FALSE], Y_tr[A_tr == 1],
+                                    loss_function = loss_outcome, regularization = regularization,
+                                    verbose = verbose, ...)
+  }
+
+  # Nuisance quality diagnostics
+  # Check propensity model quality
+  e_pred <- predict(e_model, X_tr, type = "prob")
+  e_vals <- if (is.matrix(e_pred)) e_pred[, 2L] else rep(0.5, nrow(X_tr))
+
+  # Check for degenerate predictions
+  if (sd(e_vals) < 1e-6) {
+    warning("Fold ", fold_id, ": Propensity model predictions nearly constant ",
+            "(sd < 1e-6). Model may not have converged or data may lack signal. ",
+            "Consider different regularization or checking data quality.",
+            call. = FALSE)
+  }
+
+  # Check for extreme predictions
+  prop_extreme <- mean(e_vals < 0.01 | e_vals > 0.99)
+  if (prop_extreme > 0.1) {
+    warning("Fold ", fold_id, ": ", round(100 * prop_extreme, 1),
+            "% of propensity predictions are extreme (<0.01 or >0.99). ",
+            "This may indicate separation or poor overlap. ",
+            "Consider larger regularization or checking for rare covariate patterns.",
+            call. = FALSE)
+  }
+
+  # Check for predictions outside [0,1] (shouldn't happen but defensive)
+  if (any(e_vals < 0 | e_vals > 1)) {
+    stop("Fold ", fold_id, ": Propensity predictions outside [0,1]. ",
+         "This indicates a bug in treefarmr or corrupted model output.",
+         call. = FALSE)
+  }
+
+  # Similar checks for outcome models if continuous
+  if (outcome_type == "continuous") {
+    m0_pred <- predict(m0_model, X_tr[A_tr == 0, , drop = FALSE])
+    m1_pred <- predict(m1_model, X_tr[A_tr == 1, , drop = FALSE])
+
+    # Check for constant predictions
+    if (sd(m0_pred) < 1e-6) {
+      warning("Fold ", fold_id, ": Control outcome model predictions nearly constant",
+              call. = FALSE)
+    }
+    if (sd(m1_pred) < 1e-6) {
+      warning("Fold ", fold_id, ": Treated outcome model predictions nearly constant",
+              call. = FALSE)
+    }
+  }
+
   list(e_model = e_model, m0_model = m0_model, m1_model = m1_model, outcome_type = outcome_type)
 }
 
@@ -106,22 +191,59 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices) {
 #' @param fold_indices Integer vector of length nrow(X) with fold id per row (1..K).
 #' @param outcome_type Character. "binary" or "continuous"; determines loss for m0, m1.
 #' @param regularization Numeric. Passed to treefarmr. Default 0.1.
+#' @param cv_regularization Logical. If TRUE, use CV to select lambda for each nuisance. Default FALSE.
+#' @param cv_K Integer. Number of CV folds for lambda selection. Default 5.
 #' @param verbose Logical. Passed to treefarmr. Default FALSE.
 #' @param rashomon_bound_multiplier,rashomon_bound_adder,max_leaves,auto_tune_intersecting Passed to cross_fitted_rashomon.
 #' @param ... Additional arguments passed to treefarmr::cross_fitted_rashomon.
 #' @return List with cf_e, cf_m0, cf_m1 (cf_rashomon or NULL if fallback), fallback_fits (list of K per-fold fits or NULL), outcome_type.
 #' @noRd
 fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary",
-                                   regularization = 0.1, verbose = FALSE,
+                                   regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
+                                   verbose = FALSE,
                                    rashomon_bound_multiplier = 0.05, rashomon_bound_adder = 0,
                                    max_leaves = NULL, auto_tune_intersecting = FALSE, ...) {
   n <- nrow(X)
   K <- max(fold_indices, na.rm = TRUE)
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
 
+  # If CV requested, select regularization for each nuisance
+  if (cv_regularization) {
+    if (verbose) message("Selecting regularization via CV...")
+
+    # CV for propensity
+    cv_e <- treefarmr::cv_regularization(X, A, loss_function = "log_loss",
+                                         K = cv_K, refit = FALSE, verbose = FALSE, ...)
+    reg_e <- cv_e$best_lambda
+    if (verbose) message("  e: selected lambda = ", round(reg_e, 5))
+
+    # CV for m0
+    idx0 <- which(A == 0)
+    X0 <- X[idx0, , drop = FALSE]
+    Y0 <- Y[idx0]
+    cv_m0 <- treefarmr::cv_regularization(X0, Y0, loss_function = loss_outcome,
+                                          K = cv_K, refit = FALSE, verbose = FALSE, ...)
+    reg_m0 <- cv_m0$best_lambda
+    if (verbose) message("  m0: selected lambda = ", round(reg_m0, 5))
+
+    # CV for m1
+    idx1 <- which(A == 1)
+    X1 <- X[idx1, , drop = FALSE]
+    Y1 <- Y[idx1]
+    cv_m1 <- treefarmr::cv_regularization(X1, Y1, loss_function = loss_outcome,
+                                          K = cv_K, refit = FALSE, verbose = FALSE, ...)
+    reg_m1 <- cv_m1$best_lambda
+    if (verbose) message("  m1: selected lambda = ", round(reg_m1, 5))
+  } else {
+    # Use fixed regularization
+    reg_e <- regularization
+    reg_m0 <- regularization
+    reg_m1 <- regularization
+  }
+
   cf_e <- tryCatch({
     out <- treefarmr::cross_fitted_rashomon(
-      X, A, K = K, loss_function = "log_loss", regularization = regularization,
+      X, A, K = K, loss_function = "log_loss", regularization = reg_e,
       rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
       max_leaves = max_leaves, fold_indices = fold_indices,
       auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
@@ -141,7 +263,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     Y0 <- Y[idx0]
     fold0 <- fold_indices[idx0]
     out <- treefarmr::cross_fitted_rashomon(
-      X0, Y0, K = K, loss_function = loss_outcome, regularization = regularization,
+      X0, Y0, K = K, loss_function = loss_outcome, regularization = reg_m0,
       rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
       max_leaves = max_leaves, fold_indices = fold0,
       auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
@@ -154,7 +276,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     Y1 <- Y[idx1]
     fold1 <- fold_indices[idx1]
     out <- treefarmr::cross_fitted_rashomon(
-      X1, Y1, K = K, loss_function = loss_outcome, regularization = regularization,
+      X1, Y1, K = K, loss_function = loss_outcome, regularization = reg_m1,
       rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
       max_leaves = max_leaves, fold_indices = fold1,
       auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
@@ -169,6 +291,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     for (k in seq_len(K)) {
       fallback_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,
                                               outcome_type = outcome_type, regularization = regularization,
+                                              cv_regularization = cv_regularization, cv_K = cv_K,
                                               verbose = verbose, ...)
     }
   }
