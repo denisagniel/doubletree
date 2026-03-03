@@ -69,6 +69,27 @@ When \code{use_rashomon = TRUE}, nuisances are fit via
 (intersection of Rashomon sets across folds) with fold-specific refits for
 valid DML. The same K and fold assignment are used for Rashomon and the score.
 }
+\examples{
+\dontrun{
+# Binary outcome (default)
+library(treefarmr)  # Required dependency
+set.seed(42)
+n <- 300
+X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
+A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
+Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
+
+# Estimate ATT using DML with tree-based nuisances
+fit <- dml_att(X, A, Y, K = 5, regularization = 0.1)
+print(fit$theta)   # Point estimate
+print(fit$ci_95)   # 95\% Wald confidence interval
+
+# With Rashomon DML (one interpretable tree per nuisance)
+fit_rashomon <- dml_att(X, A, Y, K = 5, use_rashomon = TRUE,
+                       rashomon_bound_multiplier = 0.05)
+print(fit_rashomon$theta)
+}
+}
 \references{
 Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.
 }

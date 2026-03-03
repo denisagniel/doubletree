@@ -28,6 +28,26 @@
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
 #' @references Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.
+#' @examples
+#' \dontrun{
+#' # Binary outcome (default)
+#' library(treefarmr)  # Required dependency
+#' set.seed(42)
+#' n <- 300
+#' X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
+#' A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
+#' Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
+#'
+#' # Estimate ATT using DML with tree-based nuisances
+#' fit <- dml_att(X, A, Y, K = 5, regularization = 0.1)
+#' print(fit$theta)   # Point estimate
+#' print(fit$ci_95)   # 95% Wald confidence interval
+#'
+#' # With Rashomon DML (one interpretable tree per nuisance)
+#' fit_rashomon <- dml_att(X, A, Y, K = 5, use_rashomon = TRUE,
+#'                        rashomon_bound_multiplier = 0.05)
+#' print(fit_rashomon$theta)
+#' }
 #' @export
 dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"), regularization = 0.1, stratified = TRUE, seed = NULL, verbose = FALSE, use_rashomon = FALSE, rashomon_bound_multiplier = 0.05, rashomon_bound_adder = 0, max_leaves = NULL, auto_tune_intersecting = FALSE, ...) {
   outcome_type <- match.arg(outcome_type)
