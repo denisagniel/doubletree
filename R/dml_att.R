@@ -1,13 +1,13 @@
 #' DML estimator for the Average Treatment effect on the Treated (ATT)
 #'
 #' Estimates the ATT using double machine learning with optimal decision trees
-#' (via treefarmr) for the nuisance functions e(X), m0(X), m1(X). Binary outcome
-#' uses log-loss for all nuisances; continuous outcome uses log-loss for propensity
-#' and squared_error for m0, m1 (requires treefarmr to support squared_error).
+#' (via treefarmr) for the nuisance functions e(X) and m0(X). Binary outcome
+#' uses log-loss for both nuisances; continuous outcome uses log-loss for propensity
+#' and squared_error for m0 (requires treefarmr to support squared_error).
 #'
 #' When \code{use_rashomon = TRUE}, nuisances are fit via
 #' \code{treefarmr::cross_fitted_rashomon}: one interpretable tree per nuisance
-#' (intersection of Rashomon sets across folds) with fold-specific refits for
+#' (e, m0) via intersection of Rashomon sets across folds with fold-specific refits for
 #' valid DML. The same K and fold assignment are used for Rashomon and the score.
 #'
 #' @param X Data.frame or matrix of covariates. Must be binary (0/1) for treefarmr.
@@ -16,28 +16,72 @@
 #' @param K Number of cross-fitting folds. Default 5.
 #' @param outcome_type Character. "binary" (default) or "continuous". Continuous requires treefarmr squared_error loss for m0, m1.
 #' @param regularization Numeric. Tree complexity penalty passed to treefarmr. Default 0.1. Ignored if \code{cv_regularization = TRUE}.
-#' @param cv_regularization Logical. If TRUE, use cross-validation to select regularization parameter for each nuisance function. Default FALSE.
+#' @param cv_regularization Logical. If TRUE, use cross-validation to select
+#'   regularization parameter \eqn{\lambda} separately for each nuisance function
+#'   (e, m0). If FALSE (default), use fixed \code{regularization} value.
+#'
+#'   \strong{When to use TRUE:} You don't know the right penalty or want robustness
+#'   across varied data structures. Adds computational cost (nested CV) but improves
+#'   model selection.
+#'
+#'   \strong{When to use FALSE:} You have a theory-justified choice (e.g., from
+#'   \code{treefarmr::cv_regularization()} on pilot data) or want speed. Fixed
+#'   \code{regularization} is faster and reproducible.
+#'
+#'   \strong{Theory:} Manuscript recommends \eqn{\lambda \propto (\log n)/n} for
+#'   minimax-optimal trees. See \code{treefarmr::cv_regularization()} for automatic
+#'   selection implementing this rate.
 #' @param cv_K Integer. Number of folds for cross-validation of regularization. Default 5. Only used if \code{cv_regularization = TRUE}.
 #' @param stratified Logical. If TRUE (default), fold assignment is stratified by A.
 #' @param seed Optional. Random seed for fold creation.
 #' @param verbose Logical. Passed to treefarmr. Default FALSE.
 #' @param use_rashomon Logical. If TRUE, fit nuisances via \code{treefarmr::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).
-#' @param rashomon_bound_multiplier Numeric. Rashomon tolerance \eqn{\varepsilon_n} passed to
-#'   \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Default: 0.05.
-#'   For theoretically justified values, use \code{treefarmr::select_epsilon_n(nrow(X))}.
-#'   Recommended: \eqn{\varepsilon_n = c\sqrt{(\log n)/n}} for \eqn{c \in \{1,2,3\}}.
-#'   See manuscript Appendix A.5.
+#' @param rashomon_bound_multiplier Numeric. Rashomon tolerance \eqn{\varepsilon_n}
+#'   controlling the size of the Rashomon set (trees with penalized risk
+#'   \eqn{\le (1 + \varepsilon) \cdot \text{best}}). Default: 0.05 (for quick exploration).
+#'
+#'   \strong{Recommended:} Use theory-justified value via
+#'   \code{treefarmr::select_epsilon_n(nrow(X), method = "fixed", c = 2)}.
+#'   This sets \eqn{\varepsilon_n = c\sqrt{(\log n)/n}}, which satisfies the
+#'   DML rate requirement \eqn{o(n^{-1/2})} for the 2-nuisance ATT score (manuscript Appendix A.5).
+#'
+#'   \strong{Trade-off:} Smaller \eqn{\varepsilon_n} yields trees closer to optimal
+#'   but higher risk of empty intersection. Larger \eqn{\varepsilon_n} facilitates
+#'   intersection (interpretability gain) but includes more sub-optimal trees.
+#'   Typical range: 0.02 (tight) to 0.10 (loose).
 #' @param rashomon_bound_adder Numeric. Additive Rashomon bound (not recommended for DML).
 #'   Default: 0.
 #' @param max_leaves Optional integer. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Restricts Rashomon set to trees with at most this many leaves.
-#' @param auto_tune_intersecting Logical. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. If TRUE, tune until at least one intersecting tree is found. Default FALSE.
+#' @param auto_tune_intersecting Logical. If TRUE, automatically increase
+#'   \code{rashomon_bound_multiplier} until at least one tree structure appears in
+#'   the intersection across all K folds. Default: FALSE.
+#'
+#'   \strong{Use with caution:} Automatically selecting \eqn{\varepsilon_n} based on
+#'   intersection status is a heuristic that may yield arbitrarily large tolerance.
+#'   If intersection is empty for reasonable \eqn{\varepsilon_n \le 0.2}, this
+#'   indicates substantial cross-fold heterogeneity. Consider falling back to
+#'   fold-specific trees (\code{use_rashomon = FALSE}) instead.
 #' @param ... Additional arguments passed to treefarmr (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
 #' @references Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.
 #' @examples
 #' \dontrun{
-#' # Binary outcome (default)
+#' # Decision guide for key parameters:
+#'
+#' # 1. epsilon_n (rashomon_bound_multiplier):
+#' #    - Use theory: epsilon_n <- treefarmr::select_epsilon_n(n, c = 2)
+#' #    - Quick exploratory: rashomon_bound_multiplier = 0.05 (default)
+#'
+#' # 2. regularization:
+#' #    - Use CV if unsure: cv_regularization = TRUE
+#' #    - Fixed if known: regularization = 0.1 (or from pilot CV)
+#'
+#' # 3. Rashomon vs fold-specific:
+#' #    - Rashomon (use_rashomon = TRUE): interpretability, single tree/nuisance
+#' #    - Fold-specific (FALSE): robustness, no intersection requirement
+#'
+#' # Recommended workflow for new dataset:
 #' library(treefarmr)  # Required dependency
 #' set.seed(42)
 #' n <- 300
@@ -45,21 +89,23 @@
 #' A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
 #' Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
 #'
-#' # Estimate ATT using DML with tree-based nuisances
-#' fit <- dml_att(X, A, Y, K = 5, regularization = 0.1)
+#' # Theory-justified epsilon_n
+#' epsilon_n <- treefarmr::select_epsilon_n(n, method = "fixed", c = 2)
+#'
+#' # Recommended: Rashomon with CV regularization
+#' fit <- dml_att(
+#'   X, A, Y,
+#'   K = 5,
+#'   use_rashomon = TRUE,
+#'   rashomon_bound_multiplier = epsilon_n,
+#'   cv_regularization = TRUE  # Auto-select lambda
+#' )
 #' print(fit$theta)   # Point estimate
 #' print(fit$ci_95)   # 95% Wald confidence interval
 #'
-#' # With Rashomon DML (one interpretable tree per nuisance)
-#' # Recommended: Use theory-justified epsilon_n
-#' epsilon_n <- treefarmr::select_epsilon_n(n, method = "fixed", c = 2)
-#' fit_rashomon <- dml_att(X, A, Y, K = 5, use_rashomon = TRUE,
-#'                        rashomon_bound_multiplier = epsilon_n)
-#' print(fit_rashomon$theta)
-#'
-#' # Alternative: Use default (0.05) for quick exploratory analysis
-#' fit_rashomon_quick <- dml_att(X, A, Y, K = 5, use_rashomon = TRUE)
-#' print(fit_rashomon_quick$theta)
+#' # Alternative: Quick exploratory analysis
+#' fit_quick <- dml_att(X, A, Y, K = 5, regularization = 0.1)
+#' print(fit_quick$theta)
 #' }
 #' @export
 dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
