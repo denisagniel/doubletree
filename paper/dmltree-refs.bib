@@ -22,6 +22,23 @@
   file = {/Users/dagniel/Zotero/storage/YTKPVAHN/Babbar et al. - 2025 - Near-Optimal Decision Trees in a SPLIT Second.pdf}
 }
 
+@misc{bakshiClassificationTreesValid2026,
+  title = {Classification {{Trees}} with {{Valid Inference}} via the {{Exponential Mechanism}}},
+  author = {Bakshi, Soham and Panigrahi, Snigdha},
+  year = 2026,
+  month = feb,
+  number = {arXiv:2511.15068},
+  eprint = {2511.15068},
+  primaryclass = {stat},
+  publisher = {arXiv},
+  doi = {10.48550/arXiv.2511.15068},
+  urldate = {2026-02-19},
+  abstract = {Decision trees are widely used for non-linear modeling, as they capture interactions between predictors while producing inherently interpretable models. Despite their popularity, performing inference on the non-linear fit remains largely unaddressed. This paper focuses on classification trees and makes two key contributions. First, we introduce a novel tree-fitting method that replaces the greedy splitting of the predictor space in standard tree algorithms with a probabilistic approach. Each split in our approach is selected according to sampling probabilities defined by an exponential mechanism, with a temperature parameter controlling its deviation from the deterministic choice given data. Second, while our approach can fit a tree that with high probability coincides with the fit produced by standard tree algorithms at low temperatures, it is not merely predictive; unlike standard algorithms, it enables inference by taking into account the highly adaptive tree structure. Our method produces pivots directly from the sampling probabilities in the exponential mechanism. In theory, our pivots allow asymptotically valid inference on the parameters in the predictive fit, and in practice, our method delivers powerful inference without sacrificing predictive accuracy, in contrast to data splitting methods.},
+  archiveprefix = {arXiv},
+  keywords = {Statistics - Methodology},
+  file = {/Users/dagniel/Zotero/storage/GLXUQYFA/Bakshi and Panigrahi - 2026 - Classification Trees with Valid Inference via the Exponential Mechanism.pdf;/Users/dagniel/Zotero/storage/IMERTLE2/2511.html}
+}
+
 @article{bartlettLocalRademacherComplexities2006,
   title = {Local {{Rademacher}} Complexities and Empirical Minimization},
   author = {Bartlett, Peter L. and Mendelson, Shahar},
@@ -43,6 +60,17 @@
   pages = {463--482},
   urldate = {2026-02-05},
   file = {/Users/dagniel/Zotero/storage/6PJZF9SB/Bartlett and Mendelson - 2002 - Rademacher and gaussian complexities Risk bounds and structural results.pdf}
+}
+
+@article{bertsimas2017optimal,
+  title = {Optimal Classification Trees},
+  author = {Bertsimas, Dimitris and Dunn, Jack},
+  year = 2017,
+  journal = {Machine Learning},
+  volume = {106},
+  number = {7},
+  pages = {1039--1082},
+  doi = {10.1007/s10994-017-5633-9}
 }
 
 @article{biauAnalysisRandomForests2012,
@@ -172,6 +200,23 @@
   file = {/Users/dagniel/Zotero/storage/B92H2QU7/Heredia et al. - 2025 - RS-ORT A Reduced-Space Branch-and-Bound Algorithm for Optimal Regression Trees.pdf}
 }
 
+@misc{laanResearchersGuideEmpirical2026,
+  title = {A {{Researcher}}'s {{Guide}} to {{Empirical Risk Minimization}}},
+  author = {van der Laan, Lars},
+  year = 2026,
+  month = feb,
+  number = {arXiv:2602.21501},
+  eprint = {2602.21501},
+  primaryclass = {stat},
+  publisher = {arXiv},
+  doi = {10.48550/arXiv.2602.21501},
+  urldate = {2026-02-26},
+  abstract = {This guide develops high-probability regret bounds for empirical risk minimization (ERM). The presentation is modular: we state broadly applicable guarantees under high-level conditions and give tools for verifying them for specific losses and function classes. We emphasize that many ERM rate derivations can be organized around a three-step recipe -- a basic inequality, a uniform local concentration bound, and a fixed-point argument -- which yields regret bounds in terms of a critical radius, defined via localized Rademacher complexity, under a mild Bernstein-type variance--risk condition. To make these bounds concrete, we upper bound the critical radius using local maximal inequalities and metric-entropy integrals, recovering familiar rates for VC-subgraph, Sobolev/H\"older, and bounded-variation classes. We also review ERM with nuisance components -- including weighted ERM and Neyman-orthogonal losses -- as they arise in causal inference, missing data, and domain adaptation. Following the orthogonal learning framework, we highlight that these problems often admit regret-transfer bounds linking regret under an estimated loss to population regret under the target loss. These bounds typically decompose regret into (i) statistical error under the estimated (optimized) loss and (ii) approximation error due to nuisance estimation. Under sample splitting or cross-fitting, the first term can be controlled using standard fixed-loss ERM regret bounds, while the second term depends only on nuisance-estimation accuracy. We also treat the in-sample regime, where nuisances and the ERM are fit on the same data, deriving regret bounds and giving sufficient conditions for fast rates.},
+  archiveprefix = {arXiv},
+  keywords = {Computer Science - Machine Learning,Mathematics - Statistics Theory,Statistics - Machine Learning},
+  file = {/Users/dagniel/Zotero/storage/JV3YWIEQ/Laan - 2026 - A Researcher's Guide to Empirical Risk Minimization.pdf;/Users/dagniel/Zotero/storage/7B98CNKM/2602.html}
+}
+
 @article{liTargetedQualityMeasurement2025,
   title = {Targeted Quality Measurement of Health Care Providers},
   author = {Li, Yige and Keating, Nancy L. and Landrum, Mary Beth and Zubizarreta, Jos{\'e} R.},
@@ -298,6 +343,41 @@
   howpublished = {https://www.acpjournals.org/doi/epdf/10.7326/ANNALS-25-00280},
   langid = {english},
   file = {/Users/dagniel/Zotero/storage/9W8AWNHQ/ANNALS-25-00280.html}
+}
+
+@misc{oconnellRandomForestsStatistical2026,
+  title = {Random {{Forests}} as {{Statistical Procedures}}: {{Design}}, {{Variance}}, and {{Dependence}}},
+  shorttitle = {Random {{Forests}} as {{Statistical Procedures}}},
+  author = {O'Connell, Nathaniel S.},
+  year = 2026,
+  month = feb,
+  number = {arXiv:2602.13104},
+  eprint = {2602.13104},
+  primaryclass = {stat},
+  publisher = {arXiv},
+  doi = {10.48550/arXiv.2602.13104},
+  urldate = {2026-02-16},
+  abstract = {Random forests are widely used prediction procedures, yet are typically described algorithmically rather than as statistical designs acting on a fixed dataset. We develop a finite-sample, design-based formulation of random forests in which each tree is an explicit randomized conditional regression function. This perspective yields an exact variance identity for the forest predictor that separates finite-aggregation variability from a structural dependence term that persists even under infinite aggregation. We further decompose both single-tree dispersion and inter-tree covariance using the laws of total variance and covariance, isolating two fundamental design mechanisms-reuse of training observations and alignment of data-adaptive partitions. These mechanisms induce a strict covariance floor, demonstrating that predictive variability cannot be eliminated by increasing the number of trees alone. The resulting framework clarifies how resampling, feature-level randomization, and split selection govern resolution, tree variability, and dependence, and establishes random forests as explicit finite-sample statistical designs whose behavior is determined by their underlying randomized construction.},
+  archiveprefix = {arXiv},
+  keywords = {Computer Science - Machine Learning,Mathematics - Statistics Theory,Statistics - Machine Learning},
+  file = {/Users/dagniel/Zotero/storage/9NG3SRJT/O'Connell - 2026 - Random Forests as Statistical Procedures Design, Variance, and Dependence.pdf;/Users/dagniel/Zotero/storage/K4BLBX57/2602.html}
+}
+
+@misc{ouCoarseningBiasVariable2026,
+  title = {Coarsening {{Bias}} from {{Variable Discretization}} in {{Causal Functionals}}},
+  author = {Ou, Xiaxian and Nabi, Razieh},
+  year = 2026,
+  month = feb,
+  number = {arXiv:2602.22083},
+  eprint = {2602.22083},
+  primaryclass = {stat},
+  publisher = {arXiv},
+  doi = {10.48550/arXiv.2602.22083},
+  urldate = {2026-02-26},
+  abstract = {A class of causal effect functionals requires integration over conditional densities of continuous variables, as in mediation effects and nonparametric identification in causal graphical models. Estimating such densities and evaluating the resulting integrals can be statistically and computationally demanding. A common workaround is to discretize the variable and replace integrals with finite sums. Although convenient, discretization alters the population-level functional and can induce non-negligible approximation bias, even under correct identification. Under smoothness conditions, we show that this coarsening bias is first order in the bin width and arises at the level of the target functional, distinct from statistical estimation error. We propose a simple bias-reduced functional that evaluates the outcome regression at within-bin conditional means, eliminating the leading term and yielding a second-order approximation error. We derive plug-in and one-step estimators for the bias-reduced functional. Simulations demonstrate substantial bias reduction and near-nominal confidence interval coverage, even under coarse binning. Our results provide a simple framework for controlling the impact of variable discretization on parameter approximation and estimation.},
+  archiveprefix = {arXiv},
+  keywords = {Computer Science - Machine Learning,Statistics - Machine Learning,Statistics - Methodology},
+  file = {/Users/dagniel/Zotero/storage/CQD9WVHJ/Ou and Nabi - 2026 - Coarsening Bias from Variable Discretization in Causal Functionals.pdf;/Users/dagniel/Zotero/storage/BFVIEMX2/2602.html}
 }
 
 @incollection{picardDensityEstimationModel2007,
@@ -472,3 +552,179 @@
   keywords = {ML: Clustering},
   file = {/Users/dagniel/Zotero/storage/JYUYFR9A/Zhang et al. - 2023 - Optimal Sparse Regression Trees.pdf}
 }
+
+% Added for B1-B7 proof fixes (2026-03-03)
+
+@book{anthony1999neural,
+  title={Neural Network Learning: Theoretical Foundations},
+  author={Anthony, Martin and Bartlett, Peter L},
+  year={1999},
+  publisher={Cambridge University Press}
+}
+
+@book{vandervaart1996weak,
+  title={Weak Convergence and Empirical Processes},
+  author={van der Vaart, Aad W and Wellner, Jon A},
+  year={1996},
+  publisher={Springer}
+}
+
+@article{talagrand1996new,
+  title={New concentration inequalities in product spaces},
+  author={Talagrand, Michel},
+  journal={Inventiones mathematicae},
+  volume={126},
+  number={3},
+  pages={505--563},
+  year={1996}
+}
+
+@article{zhang2004statistical,
+  title={Statistical behavior and consistency of classification methods based on convex risk minimization},
+  author={Zhang, Tong},
+  journal={The Annals of Statistics},
+  volume={32},
+  number={1},
+  pages={56--85},
+  year={2004}
+}
+
+@book{boucheron2013concentration,
+  title={Concentration Inequalities: A Nonasymptotic Theory of Independence},
+  author={Boucheron, St{\'e}phane and Lugosi, G{\'a}bor and Massart, Pascal},
+  year={2013},
+  publisher={Oxford University Press}
+}
+
+@article{chernozhukov2018,
+  title={Double/debiased machine learning for treatment and structural parameters},
+  author={Chernozhukov, Victor and Chetverikov, Denis and Demirer, Mert and Duflo, Esther and Hansen, Christian and Newey, Whitney and Robins, James},
+  journal={The Econometrics Journal},
+  volume={21},
+  number={1},
+  pages={C1--C68},
+  year={2018}
+}
+
+@article{hahn1998role,
+  title={On the role of the propensity score in efficient semiparametric estimation of average treatment effects},
+  author={Hahn, Jinyong},
+  journal={Econometrica},
+  pages={315--331},
+  year={1998}
+}
+
+@article{abadie2005semiparametric,
+  title={Semiparametric difference-in-differences estimators},
+  author={Abadie, Alberto},
+  journal={The Review of Economic Studies},
+  volume={72},
+  number={1},
+  pages={1--19},
+  year={2005}
+}
+
+@article{dudley1978central,
+  title={Central limit theorems for empirical measures},
+  author={Dudley, Richard M},
+  journal={The Annals of Probability},
+  pages={899--929},
+  year={1978}
+}
+
+@article{dudley1984central,
+  title={A course on empirical processes},
+  author={Dudley, Richard M},
+  journal={Lecture notes in mathematics},
+  volume={1097},
+  pages={1--142},
+  year={1984},
+  publisher={Springer}
+}
+
+@book{dudley1999uniform,
+  title={Uniform Central Limit Theorems},
+  author={Dudley, Richard M},
+  year={1999},
+  publisher={Cambridge University Press}
+}
+
+@article{blumer1989learnability,
+  title={Learnability and the Vapnik-Chervonenkis dimension},
+  author={Blumer, Anselm and Ehrenfeucht, Andrzej and Haussler, David and Warmuth, Manfred K},
+  journal={Journal of the ACM},
+  volume={36},
+  number={4},
+  pages={929--965},
+  year={1989}
+}
+
+@article{haussler1995sphere,
+  title={Sphere packing numbers for subsets of the Boolean $n$-cube with bounded {VC} dimension},
+  author={Haussler, David},
+  journal={Journal of Combinatorial Theory, Series A},
+  volume={69},
+  number={2},
+  pages={217--232},
+  year={1995}
+}
+
+@article{bartlett2006convexity,
+  title={Convexity, classification, and risk bounds},
+  author={Bartlett, Peter L and Jordan, Michael I and McAuliffe, Jon D},
+  journal={Journal of the American Statistical Association},
+  volume={101},
+  number={473},
+  pages={138--156},
+  year={2006}
+}
+
+@book{hormander1990analysis,
+  title={The Analysis of Linear Partial Differential Operators I},
+  author={H{\"o}rmander, Lars},
+  year={1990},
+  publisher={Springer}
+}
+
+@book{folland1999real,
+  title={Real Analysis: Modern Techniques and Their Applications},
+  author={Folland, Gerald B},
+  year={1999},
+  publisher={Wiley}
+}
+
+
+% Added for revised introduction - related tree literature (2026-03-03)
+
+@article{chatterjee2019adaptive,
+  title={Adaptive Estimation of Multivariate Piecewise Polynomials and Bounded Variation Functions by Optimal Decision Trees},
+  author={Chatterjee, Sabyasachi and Goswami, Subhajit},
+  journal={arXiv preprint arXiv:1907.00748},
+  year={2019}
+}
+
+@article{mourtada2018minimax,
+  title={Minimax Optimal Rates for Mondrian Trees and Forests},
+  author={Mourtada, Jaouad and Ga{\"i}ffas, St{\'e}phane and Scornet, Erwan},
+  journal={arXiv preprint arXiv:1803.05784},
+  year={2018}
+}
+
+@article{vanderpas2017bayesian,
+  title={Bayesian Dyadic Trees and Histograms for Regression},
+  author={van der Pas, St{\'e}phanie and Rockova, Veronika},
+  journal={arXiv preprint arXiv:1701.05306},
+  year={2017}
+}
+
+@article{nobel1996histogram,
+  title={Histogram Regression Estimation Using Data-Dependent Partitions},
+  author={Nobel, Andrew B},
+  journal={The Annals of Statistics},
+  volume={24},
+  number={3},
+  pages={1084--1105},
+  year={1996},
+  publisher={Institute of Mathematical Statistics}
+}
+
