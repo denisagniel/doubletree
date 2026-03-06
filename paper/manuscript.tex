@@ -75,14 +75,12 @@ where $\hat\eta = (\hat{e}, \hat{\mu}_0)$ are estimated on held out data or via 
 \end{equation}
 where $\hat\pi = n^{-1}\sum_{i=1}^n A_i$ is the sample proportion treated. 
 
-We require the following standard assumptions. 
-\begin{assumption}[Consistency]
-\end{assumption}
-\begin{assumption}[Positivity] (We require strong positivity here, I think, because of the Norm-loss link)
-\end{assumption}
-\begin{assumption}[Exchangeability]
-\end{assumption}
-These assumptions are standard in the causal inference literature. Consistency states that there aren't multiple versions of treatment, and we observe one of the counterfactuals. Positivity bounds the propensity score and ensures sufficient overlap between treated and control groups. Note that typically the ATT requires a weaker form of positivity, but we assume a stronger form for later proofs (cite appendix lemma). Exchangeability ensures that there is no unmeasured confounding. 
+We require the following standard assumptions for causal identification of the ATT:
+\begin{itemize}
+\item \textbf{Consistency:} $Y = Y(A)$ (no multiple versions of treatment; we observe the potential outcome corresponding to the received treatment).
+\item \textbf{Positivity (strong overlap):} There exists $c > 0$ such that $c \le e_0(X) \le 1-c$ almost surely, where $e_0(X) = P(A=1|X)$. This ensures sufficient overlap between treated and control groups and is required for the cross-entropy loss-norm link (Appendix~\ref{app:loss-norm}).
+\item \textbf{Exchangeability (unconfoundedness):} $Y(a) \perp A \mid X$ for $a \in \{0,1\}$ (no unmeasured confounding).
+\end{itemize} 
 
 Under these assumptions, 
 
@@ -300,7 +298,32 @@ Let $\hat{s} := \#\text{leaves of }\hat\eta$. Under $\lambda_n \asymp (\log n)/n
 Take $f_n \in \cT_{s_n}$ with $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. By definition of $\hat\eta$, $R_n(\hat\eta) + \lambda_n \hat{s} \le R_n(f_n) + \lambda_n s_n$, so $\lambda_n \hat{s} \le R_n(f_n) - R_n(\hat\eta) + \lambda_n s_n \le R_n(f_n) + \lambda_n s_n$. Boundedness of $R(\cdot)$ and the usual empirical-process bound give $R_n(f_n) \le R(f_n) + O_p(\sqrt{s_n \log n / n}) = O(1) + O_p(\sqrt{s_n \log n / n})$. Thus $\hat{s} \le s_n + (R_n(f_n) - R_n(\hat\eta))/\lambda_n \le s_n + O_p(1/\lambda_n) + O_p(\sqrt{s_n \log n / n}/\lambda_n)$. With $\lambda_n \asymp (\log n)/n$, the second term is $O_p(n/\log n)$ and the third is $O_p(n \sqrt{s_n \log n / n} / \log n) = O_p(\sqrt{n s_n / \log n})$. For $s_n \asymp n^{d/(2\beta+d)}$, $\sqrt{n s_n}/\sqrt{\log n}$ is $o(s_n)$ when $d/(2\beta+d) < 1$ (which holds for $\beta > 0$), so $\hat{s} \le s_n + o_p(s_n) = O_p(s_n)$.
 \end{proof}
 
-The following oracle inequality is a direct application of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, to our DML setting. We state it here for completeness and to establish notation for subsequent results.
+The following lemma verifies that the conditions of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, hold in our setting, enabling us to apply their oracle inequality for penalized ERM.
+
+\begin{lemma}[Verification of Xu et al.\ (2026) conditions]
+\label{lem:xu-verification}
+The setting of Theorem~\ref{thm:nuisance-rate} satisfies the conditions of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1:
+
+\begin{enumerate}
+\item \textbf{Bounded outcomes and predictions:} For squared loss with $Y \in [0,1]$, both outcomes and tree predictions are bounded. For cross-entropy with $Y \in \{0,1\}$ and $\eta_0(x) \in [c, 1-c]$, the loss $L(y,p) = -y \log p - (1-y) \log(1-p)$ is bounded for $p \in [c,1-c]$. We take $M = 1$ (maximum prediction value).
+
+\item \textbf{Sub-Gaussian or bounded noise:} For squared loss, the noise $\varepsilon = Y - \eta_0(X)$ satisfies $|\varepsilon| \le 2M = 2$ (since $Y, \eta_0 \in [0,1]$), hence is sub-Gaussian with parameter $K = 2$. For cross-entropy with binary $Y$, the noise structure is implicit in the Bregman divergence (see Appendix~\ref{app:loss-norm}), and boundedness ensures finite variance.
+
+\item \textbf{Penalty choice:} \citet{xuStatisticalOptimalityOptimal2026}, equation (7), requires $\lambda \ge C(M+K)(\log(nd)+u)/(\delta n)$ for appropriate constants. Our choice $\lambda_n \asymp (\log n)/n$ matches this requirement with $\delta \asymp \log n$, $u = 0$, and $C$ absorbing $(M+K)$ (both $O(1)$). This gives $\lambda_n \asymp (\log n)/n$ as stated.
+
+\item \textbf{Sieve condition:} The oracle inequality requires $\delta \cdot s_n = o(n)$ (see Xu et al., Remark 3.2). With $\delta \asymp \log n$ and $s_n \asymp n^{d/(2\beta+d)}$, we have $\delta \cdot s_n \asymp n^{d/(2\beta+d)} \log n = o(n)$ since $d/(2\beta+d) < 1$ (equivalent to $\beta > 0$).
+
+\item \textbf{Entropy condition:} The covering number bound $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$ required by Xu et al.\ is established in Lemma~\ref{lem:complexity} for axis-aligned decision trees.
+
+\item \textbf{Cross-fitting adjustment:} Each fold trains on $n_{-k} = (K-1)n/K$ observations. Since $K$ is fixed, $(K-1)/K$ is a constant (e.g., $4/5$ for $K=5$), so the rate $n_{-k}^{-\beta/(2\beta+d)} \asymp n^{-\beta/(2\beta+d)}$ applies uniformly across folds, with the implicit constant depending on $K$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+Conditions 1, 2, 4, and 5 follow directly from our setup (bounded outcomes for squared loss and cross-entropy, sieve growth rate, entropy bound from Lemma~\ref{lem:complexity}). Condition 3 holds by matching Xu et al.'s penalty requirement with our choice $\lambda_n \asymp (\log n)/n$. Condition 6 accounts for the reduced sample size per fold in cross-fitting, which affects only the constant in the rate, not the polynomial order.
+\end{proof}
+
+The following oracle inequality is a direct application of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, whose conditions are verified in Lemma~\ref{lem:xu-verification}.
 
 \begin{lemma}[Sharp oracle inequality for penalized ERM]
 \label{lem:oracle}
@@ -339,7 +362,7 @@ The following theorem combines the oracle inequality framework from \citet{xuSta
 
 \begin{theorem}[Nuisance rate]
 \label{thm:nuisance-rate}
-Suppose $\eta_0 \in H^\beta([0,1]^d)$, $X \in [0,1]^d$, the loss--norm link holds, and $\hat\eta$ is the penalized ERM~\eqref{eq:perm} (loss plus $\lambda_n \times \#\text{leaves}$) over $\cT_{M_n}$ with $\lambda_n \asymp (\log n)/n$ and $s_n \asymp n^{d/(2\beta+d)}$. Then $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$. If $\beta/(2\beta+d) > 1/4$, then this rate is $o_p(n^{-1/4})$.
+Suppose $\eta_0 \in H^\beta([0,1]^d)$, $X \in [0,1]^d$, the loss is either (i) squared error $L(y,f) = (y-f)^2$ with $Y \in [0,1]$, or (ii) cross-entropy $L(y,p) = -y \log p - (1-y) \log(1-p)$ with $Y \in \{0,1\}$ and $\eta_0(x) \in [c, 1-c]$ for some $c > 0$. Let $\hat\eta$ be the penalized ERM~\eqref{eq:perm} (loss plus $\lambda_n \times \#\text{leaves}$) over $\cT_{M_n}$ with $\lambda_n \asymp (\log n)/n$ and $s_n \asymp n^{d/(2\beta+d)}$. Then $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$. If $\beta/(2\beta+d) > 1/4$, then this rate is $o_p(n^{-1/4})$.
 \end{theorem}
 \begin{proof}
 This theorem combines three components: (1) the oracle inequality from \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, which establishes the excess risk bound for penalized ERM trees; (2) the approximation rate for Hölder-$\beta$ functions (Lemma~\ref{lem:approx}); and (3) the loss-norm link (Lemma~\ref{lem:loss-norm}). We establish the result through the following steps.
@@ -374,14 +397,14 @@ Solving for $s_n$:
 s_n^{1 + 2\beta/d} \asymp \frac{n}{\log n} \implies s_n \asymp \Bigl( \frac{n}{\log n} \Bigr)^{d/(d + 2\beta)}.
 \]
 
-For asymptotic analysis, we typically ignore the $\log n$ factor (or absorb it into the $\asymp$), giving:
+For asymptotic analysis, we absorb polylogarithmic factors into the $\asymp$ symbol, noting that they do not affect the polynomial rate:
 \[
 s_n \asymp n^{d/(2\beta + d)}.
 \]
 
 With this choice, both terms in the oracle inequality have the same order:
 \[
-s_n^{-2\beta/d} \asymp \frac{s_n \log n}{n} \asymp \Bigl( n^{d/(2\beta+d)} \Bigr)^{-2\beta/d} = n^{-2\beta/(2\beta+d)}.
+s_n^{-2\beta/d} \asymp \frac{s_n \log n}{n} \asymp n^{-2\beta/(2\beta+d)}.
 \]
 
 (To see this: $s_n^{-2\beta/d} = (n^{d/(2\beta+d)})^{-2\beta/d} = n^{-2\beta/(2\beta+d)}$.)
@@ -1182,14 +1205,13 @@ For cross-entropy, we will show $\phi(\delta) = C\delta$ for a constant $C$ depe
 
 \subsection{Key Assumption: Bounded Probabilities}
 
-\begin{assumption}[Bounded away from 0 and 1]
+\textbf{Assumption (Bounded away from 0 and 1).}
 \label{assump:bounded-probs}
 There exists $c > 0$ such that:
 \[
 c \le \eta_0(x) \le 1-c \quad \text{for all } x \in \cX.
 \]
 Equivalently, the true conditional probability is bounded away from the boundary $\{0, 1\}$.
-\end{assumption}
 
 \textbf{Interpretation:} This is a standard assumption in classification (sometimes called the "margin" or "bounded overlap" condition). It rules out deterministic cases where $P(Y=1|X=x) \in \{0,1\}$ (which would make cross-entropy infinite). In practice, $c$ can be small (e.g., $c = 0.01$).
 
@@ -1235,88 +1257,36 @@ R(f) - R(\eta_0)
 
 This is the expected KL divergence between $\text{Bernoulli}(\eta_0(X))$ and $\text{Bernoulli}(f(X))$, averaged over $X \sim P$.
 
-\paragraph{Step 2: KL divergence bounds $L^2$ distance (Pinsker's inequality variant).}
+\paragraph{Step 2: Strong convexity of negative entropy implies KL lower bound.}
 
-For two probabilities $p, q \in [c, 1-c]$, the KL divergence is:
+The negative entropy function $h(p) = -p \log p - (1-p) \log(1-p)$ is strictly convex with second derivative
 \[
-\text{KL}(p \| q) = p \log(p/q) + (1-p) \log((1-p)/(1-q)).
+h''(p) = \frac{1}{p} + \frac{1}{1-p}.
 \]
 
-We will show that $\text{KL}(p \| q) \ge \frac{c(1-c)}{2} (p - q)^2$ for $p, q \in [c, 1-c]$.
-
-\textbf{Lower bound via strong convexity:}
-The function $h(q) = -p \log q - (1-p) \log(1-q)$ (cross-entropy of $p$ evaluated at $q$) is strongly convex in $q$ on $[c, 1-c]$. The second derivative is:
+On the interval $[c, 1-c]$, the minimum of $h''(p)$ occurs at the boundary:
 \[
-h''(q) = \frac{p}{q^2} + \frac{1-p}{(1-q)^2}.
+\mu := \min_{p \in [c,1-c]} h''(p) = \min\Bigl\{ \frac{1}{c} + \frac{1}{1-c}, \frac{1}{1-c} + \frac{1}{c} \Bigr\} = \frac{1}{c} + \frac{1}{1-c} = \frac{1}{c(1-c)}.
 \]
 
-For $q \in [c, 1-c]$ and $p \in [c, 1-c]$, we have:
+For two probabilities $p, q \in [c, 1-c]$, the KL divergence can be expressed as a Bregman divergence with respect to $h$:
 \[
-h''(q) \ge \frac{c}{(1-c)^2} + \frac{c}{(1-c)^2} = \frac{2c}{(1-c)^2}.
+\text{KL}(p \| q) = h(p) - h(q) - h'(q)(p-q).
 \]
 
-Wait, let's be more careful. For $p, q \in [c, 1-c]$:
+By the Bregman divergence bound for strongly convex functions \citep{zhang2004statistical}, if $h$ has strong convexity modulus $\mu$ on a convex set, then
 \[
-h''(q) = \frac{p}{q^2} + \frac{1-p}{(1-q)^2} \ge \frac{c}{(1-c)^2} + \frac{c}{(1-c)^2} = \frac{2c}{(1-c)^2}.
+D_h(p \| q) \geq \frac{\mu}{2} |p - q|^2.
 \]
 
-Actually, the minimum of $h''(q)$ occurs when the denominators are maximal. Since $q \in [c, 1-c]$, we have $q \le 1-c$ and $1-q \ge c$. Thus:
+For the negative entropy on $[c,1-c]$, this gives:
 \[
-h''(q) \ge \frac{c}{(1-c)^2} + \frac{c}{(1-c)^2} = \frac{2c}{(1-c)^2}.
+\text{KL}(p \| q) \geq \frac{1}{2c(1-c)} (p - q)^2.
 \]
 
-No, let me reconsider. For $q \in [c, 1-c]$:
-- $q \ge c \implies 1/q^2 \le 1/c^2$
-- $1-q \ge c \implies 1/(1-q)^2 \le 1/c^2$
-
-But we want a lower bound, not upper. Let's use strong convexity correctly.
-
-\textbf{Alternative: Direct bound on KL divergence.}
-
-For $p, q \in [c, 1-c]$ with $c \in (0, 1/2)$ (to ensure both $c$ and $1-c$ are bounded away from boundaries), the KL divergence satisfies:
+Thus, for any $p, q \in [c, 1-c]$:
 \[
-\text{KL}(p \| q) \ge \frac{1}{2 \max(1/c, 1/(1-c))} (p - q)^2 = \frac{c(1-c)}{2} (p - q)^2,
-\]
-where we use $\max(1/c, 1/(1-c)) = 1/\min(c, 1-c) = 1/c$ (assuming $c \le 1/2$).
-
-This follows from the strong convexity of the negative entropy $-p \log p - (1-p) \log(1-p)$ on $[c, 1-c]$. The Hessian (second derivative) of $-p \log p - (1-p) \log(1-p)$ is:
-\[
--\frac{d^2}{dp^2}[p \log p + (1-p) \log(1-p)] = \frac{1}{p} + \frac{1}{1-p}.
-\]
-
-On $[c, 1-c]$, this is minimized at the endpoints: $\min_{p \in [c,1-c]} (1/p + 1/(1-p)) = 1/c + 1/(1-c)$.
-
-For $c \le 1/2$, $1/c + 1/(1-c) \ge 1/c + 1/(1/2) = 1/c + 2$. So the strong convexity constant is $\mu = 1/c + 1/(1-c) \ge 2/(1-c) \ge 2$ (when $c \le 1/2$).
-
-Actually, let's use a cleaner bound. By Taylor expansion around $q$:
-\[
-\text{KL}(p \| q) = \frac{(p-q)^2}{2} \cdot h''(\xi)
-\]
-for some $\xi$ between $p$ and $q$, where $h(p) = p \log p + (1-p) \log(1-p)$ is the negative entropy.
-
-We have $h''(p) = 1/p + 1/(1-p)$. On $[c, 1-c]$, the minimum is:
-\[
-\min_{p \in [c,1-c]} h''(p) = h''(1/2) = 4 \quad \text{or} \quad h''(c) = 1/c + 1/(1-c).
-\]
-
-For $c$ close to 0, the minimum is at $p = 1/2$, giving $h''(1/2) = 4$. But for general $c$, the minimum is $h''(c)$ or $h''(1-c)$ (at the endpoints). We have:
-\[
-h''(c) = \frac{1}{c} + \frac{1}{1-c} \ge \frac{1}{c} \ge 1.
-\]
-
-So $\text{KL}(p \| q) \ge \frac{1}{2} \min_{\xi \in [c,1-c]} h''(\xi) (p-q)^2$. For simplicity, we use the bound:
-\[
-\text{KL}(p \| q) \ge \frac{1}{2(1-c)} (p-q)^2,
-\]
-since $\min h''(p) \ge 1/(1-c)$ on $[c, 1-c]$ (by the AM-HM inequality or direct calculation).
-
-Actually, let's use the standard Pinsker-type inequality. For cross-entropy on bounded probabilities, a standard result (e.g., Zhang, 2004) is:
-\[
-\text{KL}(p \| q) \ge \frac{(p - q)^2}{2 M},
-\]
-where $M = \max(1/c, 1/(1-c))$. For $c \le 1/2$, $M = 1/c$, so:
-\[
-\text{KL}(p \| q) \ge \frac{c}{2} (p - q)^2.
+\text{KL}(p \| q) \geq \frac{1}{2c(1-c)} (p - q)^2.
 \]
 
 \paragraph{Step 3: Integrate over $X$ to get $L^2$ bound.}
