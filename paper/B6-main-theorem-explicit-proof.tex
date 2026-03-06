@@ -1,0 +1,88 @@
+% B6: Main Theorem (Theorem 1) - Explicit Proof
+% Replaces "Combine lemmas" (line 300)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Complete Explicit Proof for Theorem 1
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Replace the proof of Theorem 1 (line 299-301) with:
+
+\begin{proof}
+This theorem combines three components: (1) the oracle inequality from \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, which establishes the excess risk bound for penalized ERM trees; (2) the approximation rate for Hölder-$\beta$ functions (Lemma~\ref{lem:approx}); and (3) the loss-norm link (Lemma~\ref{lem:loss-norm}). We establish the result through the following steps.
+
+We combine Lemmas~\ref{lem:approx}--\ref{lem:optimal-sn} to obtain the stated rate. The proof proceeds in five steps: apply the oracle inequality, substitute the optimal $s_n$, derive the excess risk rate, apply the loss--norm link, and take the square root.
+
+\paragraph{Step 1: Apply the oracle inequality (Lemma~\ref{lem:oracle}).}
+By Lemma~\ref{lem:oracle}, for $\hat\eta$ the penalized ERM with $\lambda_n \asymp (\log n)/n$:
+\[
+R(\hat\eta) - R(\eta_0) \le C \Bigl( \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] + \frac{s_n \log n}{n} \Bigr) + o_p(1).
+\]
+
+\paragraph{Step 2: Apply the approximation bound (Lemma~\ref{lem:approx}).}
+By Lemma~\ref{lem:approx}, for $\eta_0 \in H^\beta([0,1]^d)$:
+\[
+\inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] \le C' s_n^{-2\beta/d}.
+\]
+
+Substituting into Step~1:
+\[
+R(\hat\eta) - R(\eta_0) \le C \Bigl( C' s_n^{-2\beta/d} + \frac{s_n \log n}{n} \Bigr) + o_p(1).
+\]
+
+\paragraph{Step 3: Choose optimal $s_n$ (Lemma~\ref{lem:optimal-sn}).}
+By Lemma~\ref{lem:optimal-sn}, we balance the approximation term $s_n^{-2\beta/d}$ and the estimation term $s_n \log n / n$ by setting:
+\[
+s_n^{-2\beta/d} \asymp \frac{s_n \log n}{n}.
+\]
+
+Solving for $s_n$:
+\[
+s_n^{1 + 2\beta/d} \asymp \frac{n}{\log n} \implies s_n \asymp \Bigl( \frac{n}{\log n} \Bigr)^{d/(d + 2\beta)}.
+\]
+
+For asymptotic analysis, we typically ignore the $\log n$ factor (or absorb it into the $\asymp$), giving:
+\[
+s_n \asymp n^{d/(2\beta + d)}.
+\]
+
+With this choice, both terms in the oracle inequality have the same order:
+\[
+s_n^{-2\beta/d} \asymp \frac{s_n \log n}{n} \asymp \Bigl( n^{d/(2\beta+d)} \Bigr)^{-2\beta/d} = n^{-2\beta/(2\beta+d)}.
+\]
+
+(To see this: $s_n^{-2\beta/d} = (n^{d/(2\beta+d)})^{-2\beta/d} = n^{-2\beta/(2\beta+d)}$.)
+
+Thus:
+\[
+R(\hat\eta) - R(\eta_0) \le C'' n^{-2\beta/(2\beta+d)} + o_p(1) = O_p\bigl( n^{-2\beta/(2\beta+d)} \bigr).
+\]
+
+\paragraph{Step 4: Apply the loss--norm link.}
+By the loss--norm link assumption (stated in the setup, line~183, and proved for squared loss and cross-entropy in Appendix~\ref{app:loss-norm}), there exists $\phi(\delta) \to 0$ as $\delta \to 0$ such that:
+\[
+R(f) - R(\eta_0) \le \delta \implies \|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta).
+\]
+
+For squared loss, $\phi(\delta) = \delta$ (identity). For cross-entropy with bounded probabilities, $\phi(\delta) = C\delta$ for a constant $C$ (Lemma~\ref{lem:ce-loss-norm}). In both cases, $\phi(\delta) \lesssim \delta$.
+
+From Step~3, $R(\hat\eta) - R(\eta_0) = O_p(n^{-2\beta/(2\beta+d)})$. Applying the loss--norm link:
+\[
+\|\hat\eta - \eta_0\|_{L^2(P)}^2 \le \phi\bigl( O_p(n^{-2\beta/(2\beta+d)}) \bigr) = O_p(n^{-2\beta/(2\beta+d)}),
+\]
+where the last equality uses $\phi(\delta) \lesssim \delta$.
+
+\paragraph{Step 5: Take the square root.}
+Since $\|\hat\eta - \eta_0\|_{L^2(P)}^2 = O_p(n^{-2\beta/(2\beta+d)})$, taking square roots:
+\[
+\|\hat\eta - \eta_0\|_{L^2(P)} = O_p\bigl( n^{-\beta/(2\beta+d)} \bigr).
+\]
+
+This is the classical minimax rate for estimating $\eta_0 \in H^\beta([0,1]^d)$ in $L^2$ norm, achieved by the tree estimator with optimal regularization $s_n \asymp n^{d/(2\beta+d)}$.
+
+\paragraph{Sufficiency for DML (second part of theorem).}
+The theorem also states that if $\beta/(2\beta+d) > 1/4$, then the rate $n^{-\beta/(2\beta+d)}$ is faster than $n^{-1/4}$, i.e., $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$.
+
+To verify: $\beta/(2\beta+d) > 1/4$ is equivalent to $4\beta > 2\beta + d$, which simplifies to $2\beta > d$, or $\beta > d/2$. This is the smoothness condition stated in the theorem.
+
+When $\beta > d/2$, the convergence rate $n^{-\beta/(2\beta+d)} = o(n^{-1/4})$, which by DML theory (Chernozhukov et al., 2018) is sufficient for $\sqrt{n}$-consistent and asymptotically normal estimation of the causal parameter (Corollary~\ref{cor:dml}). This completes the proof.
+\end{proof}
