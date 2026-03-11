@@ -14,13 +14,17 @@
 #' @param cv_regularization Logical. If TRUE, use cross-validation to select lambda. Default FALSE.
 #' @param cv_K Integer. Number of CV folds for lambda selection. Default 5.
 #' @param verbose Logical. Passed to treefarmr. Default FALSE.
-#' @param ... Additional arguments passed to treefarmr::fit_tree.
-#' @return List with elements e_model, m0_model (treefarmr fit objects).
-#'   If no A=0 in training set, m0_model is NULL (caller should handle).
+#' @param discretize_method Character. "quantiles" for quantile-based discretization.
+#' @param discretize_bins Integer or "adaptive". Number of bins for discretization.
+#' @param ... Additional arguments passed to optimaltrees::fit_tree.
+#' @return List with elements e_model, m0_model (treefarmr fit objects),
+#'   discretization_e, discretization_m0 (breaks for test set), outcome_type.
 #' @noRd
 fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "binary",
                                regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
-                               verbose = FALSE, ...) {
+                               verbose = FALSE,
+                               discretize_method = "quantiles", discretize_bins = "adaptive",
+                               ...) {
   train_idx <- which(fold_indices != fold_id)
   X_tr <- X[train_idx, , drop = FALSE]
   A_tr <- A[train_idx]
@@ -35,33 +39,48 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
   }
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
 
-  # Fit propensity model
+  # Source discretization function (in case not loaded)
+  if (!exists("discretize_adaptive")) {
+    source(file.path(dirname(sys.frame(1)$ofile), "discretize_adaptive.R"))
+  }
+
+  # Discretize training features (adaptive binning)
+  disc_result <- discretize_adaptive(X_tr, n_bins = discretize_bins, method = discretize_method)
+  X_tr_disc <- disc_result$X_discrete
+  breaks_e <- disc_result$breaks_list
+
+  # Fit propensity model on discretized features
   if (cv_regularization) {
-    cv_e <- treefarmr::cv_regularization(X_tr, A_tr, loss_function = "log_loss",
+    cv_e <- optimaltrees::cv_regularization(X_tr_disc, A_tr, loss_function = "log_loss",
                                          K = cv_K, refit = TRUE, verbose = FALSE, ...)
     e_model <- cv_e$model
     if (verbose) message("  Fold ", fold_id, " e: selected lambda = ", round(cv_e$best_lambda, 5))
   } else {
-    e_model <- treefarmr::fit_tree(X_tr, A_tr, loss_function = "log_loss",
+    e_model <- optimaltrees::fit_tree(X_tr_disc, A_tr, loss_function = "log_loss",
                                    regularization = regularization, verbose = verbose, ...)
   }
 
-  # Fit m0 model
+  # Discretize for m0 model (controls only, use same bins as e model for consistency)
+  X_tr_controls <- X_tr[A_tr == 0, , drop = FALSE]
+  disc_result_m0 <- discretize_adaptive(X_tr_controls, breaks_list = breaks_e)
+  X_tr_disc_controls <- disc_result_m0$X_discrete
+
+  # Fit m0 model on discretized features
   if (cv_regularization) {
-    cv_m0 <- treefarmr::cv_regularization(X_tr[A_tr == 0, , drop = FALSE], Y_tr[A_tr == 0],
+    cv_m0 <- optimaltrees::cv_regularization(X_tr_disc_controls, Y_tr[A_tr == 0],
                                           loss_function = loss_outcome, K = cv_K,
                                           refit = TRUE, verbose = FALSE, ...)
     m0_model <- cv_m0$model
     if (verbose) message("  Fold ", fold_id, " m0: selected lambda = ", round(cv_m0$best_lambda, 5))
   } else {
-    m0_model <- treefarmr::fit_tree(X_tr[A_tr == 0, , drop = FALSE], Y_tr[A_tr == 0],
+    m0_model <- optimaltrees::fit_tree(X_tr_disc_controls, Y_tr[A_tr == 0],
                                     loss_function = loss_outcome, regularization = regularization,
                                     verbose = verbose, ...)
   }
 
   # Nuisance quality diagnostics
-  # Check propensity model quality
-  e_pred <- predict(e_model, X_tr, type = "prob")
+  # Check propensity model quality (predict on discretized training data)
+  e_pred <- predict(e_model, X_tr_disc, type = "prob")
   e_vals <- if (is.matrix(e_pred)) e_pred[, 2L] else rep(0.5, nrow(X_tr))
 
   # Check for degenerate predictions
@@ -91,7 +110,7 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
 
   # Similar checks for outcome model if continuous
   if (outcome_type == "continuous") {
-    m0_pred <- predict(m0_model, X_tr[A_tr == 0, , drop = FALSE])
+    m0_pred <- predict(m0_model, X_tr_disc_controls)
 
     # Check for constant predictions
     if (sd(m0_pred) < 1e-6) {
@@ -100,7 +119,12 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
     }
   }
 
-  list(e_model = e_model, m0_model = m0_model, outcome_type = outcome_type)
+  list(
+    e_model = e_model,
+    m0_model = m0_model,
+    discretization_breaks = breaks_e,  # Store breaks for test set prediction
+    outcome_type = outcome_type
+  )
 }
 
 #' Predict nuisances for given rows using a fold's fitted models
@@ -117,16 +141,34 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
   if (length(fold_rows) == 0) {
     return(list(e = numeric(0), m0 = numeric(0)))
   }
+
+  # Source discretization function if needed
+  if (!exists("discretize_adaptive")) {
+    source(file.path(dirname(sys.frame(1)$ofile), "discretize_adaptive.R"))
+  }
+
   X_sub <- X[fold_rows, , drop = FALSE]
   outcome_type <- if (!is.null(models$outcome_type)) models$outcome_type else "binary"
-  pe <- predict(models$e_model, X_sub, type = "prob")
-  e_vec <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, nrow(X_sub))
+
+  # Discretize test data using training breaks
+  breaks <- models$discretization_breaks
+  if (!is.null(breaks)) {
+    disc_result <- discretize_adaptive(X_sub, breaks_list = breaks)
+    X_sub_disc <- disc_result$X_discrete
+  } else {
+    X_sub_disc <- X_sub  # Fallback if no breaks stored
+  }
+
+  # Predict on discretized features
+  pe <- predict(models$e_model, X_sub_disc, type = "prob")
+  e_vec <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, nrow(X_sub_disc))
+
   if (outcome_type == "continuous") {
-    pm0 <- predict(models$m0_model, X_sub)
+    pm0 <- predict(models$m0_model, X_sub_disc)
     m0_vec <- as.numeric(if (is.matrix(pm0)) pm0[, 1L] else pm0)
   } else {
-    pm0 <- predict(models$m0_model, X_sub, type = "prob")
-    m0_vec <- if (is.matrix(pm0)) pm0[, 2L] else rep(0.5, nrow(X_sub))
+    pm0 <- predict(models$m0_model, X_sub_disc, type = "prob")
+    m0_vec <- if (is.matrix(pm0)) pm0[, 2L] else rep(0.5, nrow(X_sub_disc))
   }
   list(e = e_vec, m0 = m0_vec)
 }
@@ -167,7 +209,7 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 
 #' Fit nuisances via Rashomon intersection (cross_fitted_rashomon)
 #'
-#' Fits e(X), m0(X) using treefarmr::cross_fitted_rashomon with the same
+#' Fits e(X), m0(X) using optimaltrees::cross_fitted_rashomon with the same
 #' fold assignment as DML. When a nuisance has no intersecting trees (n_intersecting == 0),
 #' falls back to single-tree-per-fold for that nuisance via fit_nuisances_fold.
 #'
@@ -181,7 +223,7 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 #' @param cv_K Integer. Number of CV folds for lambda selection. Default 5.
 #' @param verbose Logical. Passed to treefarmr. Default FALSE.
 #' @param rashomon_bound_multiplier,rashomon_bound_adder,max_leaves,auto_tune_intersecting Passed to cross_fitted_rashomon.
-#' @param ... Additional arguments passed to treefarmr::cross_fitted_rashomon.
+#' @param ... Additional arguments passed to optimaltrees::cross_fitted_rashomon.
 #' @return List with cf_e, cf_m0 (cf_rashomon or NULL if fallback), fallback_fits (list of K per-fold fits or NULL), outcome_type.
 #' @noRd
 fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary",
@@ -198,7 +240,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     if (verbose) message("Selecting regularization via CV...")
 
     # CV for propensity
-    cv_e <- treefarmr::cv_regularization(X, A, loss_function = "log_loss",
+    cv_e <- optimaltrees::cv_regularization(X, A, loss_function = "log_loss",
                                          K = cv_K, refit = FALSE, verbose = FALSE, ...)
     reg_e <- cv_e$best_lambda
     if (verbose) message("  e: selected lambda = ", round(reg_e, 5))
@@ -207,7 +249,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     idx0 <- which(A == 0)
     X0 <- X[idx0, , drop = FALSE]
     Y0 <- Y[idx0]
-    cv_m0 <- treefarmr::cv_regularization(X0, Y0, loss_function = loss_outcome,
+    cv_m0 <- optimaltrees::cv_regularization(X0, Y0, loss_function = loss_outcome,
                                           K = cv_K, refit = FALSE, verbose = FALSE, ...)
     reg_m0 <- cv_m0$best_lambda
     if (verbose) message("  m0: selected lambda = ", round(reg_m0, 5))
@@ -218,7 +260,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
   }
 
   cf_e <- tryCatch({
-    out <- treefarmr::cross_fitted_rashomon(
+    out <- optimaltrees::cross_fitted_rashomon(
       X, A, K = K, loss_function = "log_loss", regularization = reg_e,
       rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
       max_leaves = max_leaves, fold_indices = fold_indices,
@@ -261,7 +303,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     X0 <- X[idx0, , drop = FALSE]
     Y0 <- Y[idx0]
     fold0 <- fold_indices[idx0]
-    out <- treefarmr::cross_fitted_rashomon(
+    out <- optimaltrees::cross_fitted_rashomon(
       X0, Y0, K = K, loss_function = loss_outcome, regularization = reg_m0,
       rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
       max_leaves = max_leaves, fold_indices = fold0,

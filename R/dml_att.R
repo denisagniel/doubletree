@@ -10,7 +10,7 @@
 #' and squared_error for m0 (requires treefarmr to support squared_error).
 #'
 #' When \code{use_rashomon = TRUE}, nuisances are fit via
-#' \code{treefarmr::cross_fitted_rashomon}: one interpretable tree per nuisance
+#' \code{optimaltrees::cross_fitted_rashomon}: one interpretable tree per nuisance
 #' (e, m0) via intersection of Rashomon sets across folds with fold-specific refits for
 #' valid DML. The same K and fold assignment are used for Rashomon and the score.
 #'
@@ -29,23 +29,23 @@
 #'   model selection.
 #'
 #'   \strong{When to use FALSE:} You have a theory-justified choice (e.g., from
-#'   \code{treefarmr::cv_regularization()} on pilot data) or want speed. Fixed
+#'   \code{optimaltrees::cv_regularization()} on pilot data) or want speed. Fixed
 #'   \code{regularization} is faster and reproducible.
 #'
 #'   \strong{Theory:} Manuscript recommends \eqn{\lambda \propto (\log n)/n} for
-#'   minimax-optimal trees. See \code{treefarmr::cv_regularization()} for automatic
+#'   minimax-optimal trees. See \code{optimaltrees::cv_regularization()} for automatic
 #'   selection implementing this rate.
 #' @param cv_K Integer. Number of folds for cross-validation of regularization. Default 5. Only used if \code{cv_regularization = TRUE}.
 #' @param stratified Logical. If TRUE (default), fold assignment is stratified by A.
 #' @param seed Optional. Random seed for fold creation.
 #' @param verbose Logical. Passed to treefarmr. Default FALSE.
-#' @param use_rashomon Logical. If TRUE, fit nuisances via \code{treefarmr::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).
+#' @param use_rashomon Logical. If TRUE, fit nuisances via \code{optimaltrees::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).
 #' @param rashomon_bound_multiplier Numeric. Rashomon tolerance \eqn{\varepsilon_n}
 #'   controlling the size of the Rashomon set (trees with penalized risk
 #'   \eqn{\le (1 + \varepsilon) \cdot \text{best}}). Default: 0.05 (for quick exploration).
 #'
 #'   \strong{Recommended:} Use theory-justified value via
-#'   \code{treefarmr::select_epsilon_n(nrow(X), method = "fixed", c = 2)}.
+#'   \code{optimaltrees::select_epsilon_n(nrow(X), method = "fixed", c = 2)}.
 #'   This sets \eqn{\varepsilon_n = c\sqrt{(\log n)/n}}, which satisfies the
 #'   DML rate requirement \eqn{o(n^{-1/2})} for the 2-nuisance ATT score (manuscript Appendix A.5).
 #'
@@ -65,6 +65,11 @@
 #'   If intersection is empty for reasonable \eqn{\varepsilon_n \le 0.2}, this
 #'   indicates substantial cross-fold heterogeneity. Consider falling back to
 #'   fold-specific trees (\code{use_rashomon = FALSE}) instead.
+#' @param discretize_method Character. Method for discretizing continuous features.
+#'   Default: "quantiles" (quantile-based binning).
+#' @param discretize_bins Integer or "adaptive". Number of bins for discretization.
+#'   If "adaptive" (default), uses b_n = max(2, ceiling(log(n)/3)) as suggested
+#'   by nonparametric theory for optimal bias-variance tradeoff.
 #' @param ... Additional arguments passed to treefarmr (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
@@ -74,7 +79,7 @@
 #' # Decision guide for key parameters:
 #'
 #' # 1. epsilon_n (rashomon_bound_multiplier):
-#' #    - Use theory: epsilon_n <- treefarmr::select_epsilon_n(n, c = 2)
+#' #    - Use theory: epsilon_n <- optimaltrees::select_epsilon_n(n, c = 2)
 #' #    - Quick exploratory: rashomon_bound_multiplier = 0.05 (default)
 #'
 #' # 2. regularization:
@@ -94,7 +99,7 @@
 #' Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
 #'
 #' # Theory-justified epsilon_n
-#' epsilon_n <- treefarmr::select_epsilon_n(n, method = "fixed", c = 2)
+#' epsilon_n <- optimaltrees::select_epsilon_n(n, method = "fixed", c = 2)
 #'
 #' # Recommended: Rashomon with CV regularization
 #' fit <- dml_att(
@@ -117,7 +122,10 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
                    stratified = TRUE, seed = NULL, verbose = FALSE,
                    use_rashomon = FALSE, rashomon_bound_multiplier = 0.05,
                    rashomon_bound_adder = 0, max_leaves = NULL,
-                   auto_tune_intersecting = FALSE, ...) {
+                   auto_tune_intersecting = FALSE,
+                   discretize_method = "quantiles",
+                   discretize_bins = "adaptive",
+                   ...) {
   outcome_type <- match.arg(outcome_type)
   check_dml_att_data(X, A, Y, outcome_type = outcome_type)
   if (is.matrix(X)) X <- as.data.frame(X)
