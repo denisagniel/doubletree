@@ -66,10 +66,12 @@
 #'   indicates substantial cross-fold heterogeneity. Consider falling back to
 #'   fold-specific trees (\code{use_rashomon = FALSE}) instead.
 #' @param discretize_method Character. Method for discretizing continuous features.
-#'   Default: "quantiles" (quantile-based binning).
+#'   Default: "quantiles" (theory-recommended, do not override unless you have good reason).
+#'   Uses threshold encoding (k bins → k-1 features) for computational efficiency.
 #' @param discretize_bins Integer or "adaptive". Number of bins for discretization.
-#'   If "adaptive" (default), uses b_n = max(2, ceiling(log(n)/3)) as suggested
-#'   by nonparametric theory for optimal bias-variance tradeoff.
+#'   Default: "adaptive" (theory-recommended, do not override unless you have good reason).
+#'   Uses b_n = max(2, ceiling(log(n)/3)) as suggested by nonparametric theory
+#'   for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary features.
 #' @param ... Additional arguments passed to treefarmr (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
