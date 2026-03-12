@@ -5,21 +5,21 @@
 #' DML estimator for the Average Treatment effect on the Treated (ATT)
 #'
 #' Estimates the ATT using double machine learning with optimal decision trees
-#' (via treefarmr) for the nuisance functions e(X) and m0(X). Binary outcome
+#' (via optimaltrees) for the nuisance functions e(X) and m0(X). Binary outcome
 #' uses log-loss for both nuisances; continuous outcome uses log-loss for propensity
-#' and squared_error for m0 (requires treefarmr to support squared_error).
+#' and squared_error for m0 (requires optimaltrees to support squared_error).
 #'
 #' When \code{use_rashomon = TRUE}, nuisances are fit via
 #' \code{optimaltrees::cross_fitted_rashomon}: one interpretable tree per nuisance
 #' (e, m0) via intersection of Rashomon sets across folds with fold-specific refits for
 #' valid DML. The same K and fold assignment are used for Rashomon and the score.
 #'
-#' @param X Data.frame or matrix of covariates. Must be binary (0/1) for treefarmr.
+#' @param X Data.frame or matrix of covariates. Must be binary (0/1) for optimaltrees.
 #' @param A Integer or numeric vector of treatment (0/1).
 #' @param Y Numeric vector of outcome. Binary (0/1) when outcome_type is "binary"; any numeric when "continuous".
 #' @param K Number of cross-fitting folds. Default 5.
-#' @param outcome_type Character. "binary" (default) or "continuous". Continuous requires treefarmr squared_error loss for m0, m1.
-#' @param regularization Numeric. Tree complexity penalty passed to treefarmr. Default 0.1. Ignored if \code{cv_regularization = TRUE}.
+#' @param outcome_type Character. "binary" (default) or "continuous". Continuous requires optimaltrees squared_error loss for m0, m1.
+#' @param regularization Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1. Ignored if \code{cv_regularization = TRUE}.
 #' @param cv_regularization Logical. If TRUE, use cross-validation to select
 #'   regularization parameter \eqn{\lambda} separately for each nuisance function
 #'   (e, m0). If FALSE (default), use fixed \code{regularization} value.
@@ -38,7 +38,7 @@
 #' @param cv_K Integer. Number of folds for cross-validation of regularization. Default 5. Only used if \code{cv_regularization = TRUE}.
 #' @param stratified Logical. If TRUE (default), fold assignment is stratified by A.
 #' @param seed Optional. Random seed for fold creation.
-#' @param verbose Logical. Passed to treefarmr. Default FALSE.
+#' @param verbose Logical. Passed to optimaltrees. Default FALSE.
 #' @param use_rashomon Logical. If TRUE, fit nuisances via \code{optimaltrees::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).
 #' @param rashomon_bound_multiplier Numeric. Rashomon tolerance \eqn{\varepsilon_n}
 #'   controlling the size of the Rashomon set (trees with penalized risk
@@ -72,7 +72,7 @@
 #'   Default: "adaptive" (theory-recommended, do not override unless you have good reason).
 #'   Uses b_n = max(2, ceiling(log(n)/3)) as suggested by nonparametric theory
 #'   for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary features.
-#' @param ... Additional arguments passed to treefarmr (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
+#' @param ... Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
 #' @references Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.
@@ -93,7 +93,7 @@
 #' #    - Fold-specific (FALSE): robustness, no intersection requirement
 #'
 #' # Recommended workflow for new dataset:
-#' library(treefarmr)  # Required dependency
+#' library(optimaltrees)  # Required dependency
 #' set.seed(42)
 #' n <- 300
 #' X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))

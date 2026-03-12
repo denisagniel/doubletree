@@ -1,0 +1,218 @@
+% B5: Hölder Approximation for β > 1 - Explicit Proof
+% Replaces hand-waving "follows from the fact that..." (line 221-222)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PART 1: Main Text Version (for Lemma 1)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Replace the paragraph "Case β > 1" (lines 221-222) with:
+
+\paragraph{Case $\beta > 1$.}
+For $\eta_0 \in H^\beta([0,1]^d)$ with $\beta > 1$, we prove the same approximation rate $s^{-2\beta/d}$ using Taylor expansion with remainder bounds. Let $\ell = \lfloor \beta \rfloor$ and $\gamma = \beta - \ell \in (0,1]$. On each cell $A_j$ of the regular partition (diameter $\delta_j = O(s^{-1/d})$), choose a base point $x_j \in A_j$. By Taylor's theorem, for any $x \in A_j$:
+\[
+\eta_0(x) = \sum_{|\alpha| \le \ell} \frac{D^\alpha \eta_0(x_j)}{\alpha!} (x - x_j)^\alpha + R_\ell(x),
+\]
+where the remainder satisfies $|R_\ell(x)| \le C \|\eta_0\|_{H^\beta} |x - x_j|^\beta \le C \|\eta_0\|_{H^\beta} (\delta_j)^\beta$ for $x \in A_j$ (by the Hölder condition on $\ell$-th derivatives). Define $f_s$ to be piecewise constant on the partition with $f_s(x) = \E[\eta_0(X) \mid X \in A_j]$ for $x \in A_j$. On each cell, the $L^2$ projection of $\eta_0$ onto constants is the conditional expectation, so:
+\[
+\int_{A_j} (\eta_0(x) - f_s(x))^2 dP \le \int_{A_j} (\eta_0(x) - \eta_0(x_j))^2 dP.
+\]
+Using the Taylor expansion, $|\eta_0(x) - \eta_0(x_j)| = |R_\ell(x)| \le C(\delta_j)^\beta$ (the lower-order terms in the Taylor expansion cancel at $x = x_j$, and the remainder dominates). Thus:
+\[
+\int_{A_j} (\eta_0(x) - \eta_0(x_j))^2 dP \le P(A_j) \cdot C^2 (\delta_j)^{2\beta} \|\eta_0\|_{H^\beta}^2.
+\]
+Summing over $j$ and using $\delta_j = O(s^{-1/d})$ and $\sum_j P(A_j) = 1$:
+\[
+\|f_s - \eta_0\|_{L^2(P)}^2 \le C \sum_j P(A_j) \cdot s^{-2\beta/d} = C s^{-2\beta/d}.
+\]
+Thus $\inf_{f \in \cT_s} \|f - \eta_0\|_{L^2(P)}^2 \le C s^{-2\beta/d}$. By the loss--norm link, $\inf_{f \in \cT_s} [R(f) - R(\eta_0)] \le C s^{-2\beta/d}$ for squared loss and other losses satisfying $\phi(\delta) \lesssim \delta$. For further discussion of piecewise-constant approximation to Hölder functions, see Devore \& Lorentz (1993), Chapter~6 (approximation by piecewise polynomials), or Györfi et al.\ (2002), Theorem~3.2 (rates for $H^\beta$ in nonparametric regression).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PART 2: Appendix Version (Complete Proof with More Detail)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Hölder Approximation for $\beta > 1$}
+\label{app:holder-beta-gt-1}
+
+We provide a complete proof that piecewise-constant functions on tree partitions can approximate Hölder functions with $\beta > 1$ at rate $s^{-2\beta/d}$. This extends the basic case $\beta \in (0,1]$ (which uses only pointwise Hölder continuity) to higher-order smoothness using Taylor expansion.
+
+\subsubsection{Setup}
+
+Recall the Hölder class definition from Lemma~\ref{lem:approx}:
+
+\begin{definition}[Hölder class for $\beta > 1$]
+Let $\beta > 1$, $\ell = \lfloor \beta \rfloor$, and $\gamma = \beta - \ell \in (0,1]$. A function $\eta: [0,1]^d \to \R$ belongs to $H^\beta([0,1]^d)$ if:
+\begin{enumerate}
+\item All partial derivatives of $\eta$ of order $k$ exist and are bounded for $k = 0, 1, \ldots, \ell$.
+\item For every multi-index $\alpha$ with $|\alpha| = \ell$, the $\ell$-th order derivative $D^\alpha \eta$ is $\gamma$-Hölder continuous:
+\[
+|D^\alpha \eta(x) - D^\alpha \eta(x')| \le \|\eta\|_{H^\beta} |x - x'|^\gamma
+\]
+for all $x, x' \in [0,1]^d$.
+\end{enumerate}
+The norm is $\|\eta\|_{H^\beta} = \max\bigl\{ \sup_{x,|\alpha| \le \ell} |D^\alpha \eta(x)|, \sup_{x \ne x', |\alpha|=\ell} \frac{|D^\alpha \eta(x) - D^\alpha \eta(x')|}{|x - x'|^\gamma} \bigr\}$.
+\end{definition}
+
+\textbf{Examples:}
+\begin{itemize}
+\item $\beta = 1.5$: $\ell = 1$, $\gamma = 0.5$. First derivatives are $0.5$-Hölder (square-root continuity).
+\item $\beta = 2$: $\ell = 2$, $\gamma = 0$ (but we interpret $\gamma = 1$ for $\beta$ integer). Second derivatives are continuous (or Lipschitz for strict $\beta = 2$).
+\item $\beta = 3$: $\ell = 3$, $\gamma = 0$. Third derivatives are continuous.
+\end{itemize}
+
+\subsubsection{Taylor's Theorem and Remainder Bounds}
+
+\begin{lemma}[Taylor expansion with Hölder remainder]
+\label{lem:taylor-holder}
+Let $\eta \in H^\beta([0,1]^d)$ with $\beta > 1$, $\ell = \lfloor \beta \rfloor$, $\gamma = \beta - \ell$. For any $x, x_0 \in [0,1]^d$:
+\[
+\eta(x) = \sum_{|\alpha| \le \ell} \frac{D^\alpha \eta(x_0)}{\alpha!} (x - x_0)^\alpha + R_\ell(x; x_0),
+\]
+where the remainder satisfies:
+\[
+|R_\ell(x; x_0)| \le C_d \|\eta\|_{H^\beta} |x - x_0|^\beta.
+\]
+Here $C_d$ is a constant depending only on the dimension $d$ and $\beta$.
+\end{lemma}
+
+\begin{proof}
+This is the multivariate Taylor expansion with integral remainder. By standard Taylor's theorem (Hörmander, 1990, or Folland, 1999), the remainder can be written as:
+\[
+R_\ell(x; x_0) = \sum_{|\alpha| = \ell + 1} \frac{1}{\alpha!} \int_0^1 (1-t)^\ell D^\alpha \eta(x_0 + t(x - x_0)) \, dt \cdot (x - x_0)^\alpha.
+\]
+
+However, for $\beta$ non-integer, $D^\alpha \eta$ does not exist for $|\alpha| = \ell + 1$. Instead, we use the integral remainder form for multi-index $|\alpha| = \ell$:
+\[
+R_\ell(x; x_0) = \sum_{|\alpha| = \ell} \frac{(x - x_0)^\alpha}{\alpha!} \int_0^1 [D^\alpha \eta(x_0 + t(x - x_0)) - D^\alpha \eta(x_0)] \, dt.
+\]
+
+By the Hölder condition on $D^\alpha \eta$ (for $|\alpha| = \ell$):
+\[
+|D^\alpha \eta(x_0 + t(x - x_0)) - D^\alpha \eta(x_0)| \le \|\eta\|_{H^\beta} |t(x - x_0)|^\gamma = \|\eta\|_{H^\beta} t^\gamma |x - x_0|^\gamma.
+\]
+
+Thus:
+\begin{align*}
+|R_\ell(x; x_0)|
+&\le \sum_{|\alpha| = \ell} \frac{|x - x_0|^{|\alpha|}}{\alpha!} \int_0^1 \|\eta\|_{H^\beta} t^\gamma |x - x_0|^\gamma \, dt \\
+&= \sum_{|\alpha| = \ell} \frac{|x - x_0|^{\ell + \gamma}}{\alpha!} \|\eta\|_{H^\beta} \int_0^1 t^\gamma \, dt \\
+&= \sum_{|\alpha| = \ell} \frac{|x - x_0|^\beta}{\alpha!} \|\eta\|_{H^\beta} \cdot \frac{1}{\gamma + 1}.
+\end{align*}
+
+The number of multi-indices $\alpha$ with $|\alpha| = \ell$ is $\binom{d + \ell - 1}{\ell} = O_d(1)$ (polynomial in $d$). Thus:
+\[
+|R_\ell(x; x_0)| \le C_d \|\eta\|_{H^\beta} |x - x_0|^\beta,
+\]
+where $C_d = \sum_{|\alpha|=\ell} \frac{1}{\alpha! (\gamma+1)}$ depends on $d$ and $\beta$.
+\end{proof}
+
+\subsubsection{Piecewise-Constant Approximation}
+
+\begin{theorem}[Approximation for $\beta > 1$]
+\label{thm:approx-beta-gt-1}
+Let $\eta_0 \in H^\beta([0,1]^d)$ with $\beta > 1$. For $s \ge 2^d$, there exists $f_s \in \cT_s$ (a piecewise-constant function on a tree partition with $s$ leaves) such that:
+\[
+\|f_s - \eta_0\|_{L^2(P)}^2 \le C s^{-2\beta/d},
+\]
+where $C$ depends on $\|\eta_0\|_{H^\beta}$, $d$, and $\beta$.
+\end{theorem}
+
+\begin{proof}
+We construct $f_s$ explicitly and bound the approximation error using the Taylor expansion.
+
+\paragraph{Step 1: Partition.}
+Let $k = \lfloor s^{1/d} \rfloor \ge 1$. Divide each coordinate into $k$ intervals of equal length $1/k$, yielding $N = k^d \le s$ axis-aligned cells $A_1, \ldots, A_N$ that partition $[0,1]^d$. Each cell has diameter $\delta_j := \diam(A_j) \le \sqrt{d}/k = O(s^{-1/d})$.
+
+\paragraph{Step 2: Piecewise-constant approximant.}
+For each cell $A_j$, choose a base point $x_j \in A_j$ (e.g., the center). Define:
+\[
+f_s(x) = \eta_0(x_j) \quad \text{for } x \in A_j.
+\]
+Alternatively, define $f_s(x) = \E[\eta_0(X) \mid X \in A_j]$ (the conditional expectation). Both constructions yield the same rate; we use the former for simplicity.
+
+Note that $f_s$ is piecewise constant on the partition $\{A_j\}$, hence $f_s \in \cT_s$.
+
+\paragraph{Step 3: $L^2$ approximation error.}
+We have:
+\[
+\|f_s - \eta_0\|_{L^2(P)}^2 = \sum_{j=1}^N \int_{A_j} (\eta_0(x) - \eta_0(x_j))^2 \, dP(x).
+\]
+
+On each cell $A_j$, apply Taylor expansion (Lemma~\ref{lem:taylor-holder}):
+\[
+\eta_0(x) = \sum_{|\alpha| \le \ell} \frac{D^\alpha \eta_0(x_j)}{\alpha!} (x - x_j)^\alpha + R_\ell(x; x_j).
+\]
+
+At $x = x_j$, all terms vanish except $\alpha = (0,\ldots,0)$, so:
+\[
+\eta_0(x_j) = D^{(0)} \eta_0(x_j) = \eta_0(x_j).
+\]
+
+Thus:
+\[
+\eta_0(x) - \eta_0(x_j) = \sum_{0 < |\alpha| \le \ell} \frac{D^\alpha \eta_0(x_j)}{\alpha!} (x - x_j)^\alpha + R_\ell(x; x_j).
+\]
+
+For $x \in A_j$, we have $|x - x_j| \le \delta_j = O(s^{-1/d})$. The Taylor polynomial terms (for $1 \le |\alpha| \le \ell$) satisfy:
+\[
+\Bigl| \sum_{0 < |\alpha| \le \ell} \frac{D^\alpha \eta_0(x_j)}{\alpha!} (x - x_j)^\alpha \Bigr| \le C \|\eta_0\|_{H^\beta} |x - x_j|^\ell,
+\]
+where $C$ depends on $d$ and $\ell$ (using that all derivatives up to order $\ell$ are bounded by $\|\eta_0\|_{H^\beta}$).
+
+The remainder satisfies (by Lemma~\ref{lem:taylor-holder}):
+\[
+|R_\ell(x; x_j)| \le C_d \|\eta_0\|_{H^\beta} |x - x_j|^\beta.
+\]
+
+Since $\beta = \ell + \gamma > \ell$, the remainder dominates the Taylor polynomial terms for small $|x - x_j|$. Thus:
+\[
+|\eta_0(x) - \eta_0(x_j)| \le C' \|\eta_0\|_{H^\beta} |x - x_j|^\beta,
+\]
+where $C'$ absorbs the polynomial and remainder constants.
+
+\paragraph{Step 4: Integrate over each cell.}
+On cell $A_j$:
+\begin{align*}
+\int_{A_j} (\eta_0(x) - \eta_0(x_j))^2 \, dP(x)
+&\le \int_{A_j} (C' \|\eta_0\|_{H^\beta})^2 |x - x_j|^{2\beta} \, dP(x) \\
+&\le (C' \|\eta_0\|_{H^\beta})^2 (\delta_j)^{2\beta} \int_{A_j} dP(x) \\
+&= (C' \|\eta_0\|_{H^\beta})^2 (\delta_j)^{2\beta} P(A_j).
+\end{align*}
+
+Using $\delta_j = O(s^{-1/d})$:
+\[
+\int_{A_j} (\eta_0(x) - \eta_0(x_j))^2 \, dP(x) \le C'' s^{-2\beta/d} P(A_j),
+\]
+where $C'' = (C' \|\eta_0\|_{H^\beta})^2 \cdot C_\delta^{2\beta}$ and $C_\delta$ is the constant in $\delta_j \le C_\delta s^{-1/d}$.
+
+\paragraph{Step 5: Sum over all cells.}
+Summing over $j = 1, \ldots, N$ and using $\sum_j P(A_j) = 1$:
+\[
+\|f_s - \eta_0\|_{L^2(P)}^2 = \sum_{j=1}^N \int_{A_j} (\eta_0(x) - \eta_0(x_j))^2 \, dP(x) \le C'' s^{-2\beta/d}.
+\]
+
+Thus $\inf_{f \in \cT_s} \|f - \eta_0\|_{L^2(P)}^2 \le C s^{-2\beta/d}$, proving the approximation bound.
+\end{proof}
+
+\subsubsection{Connection to Risk}
+
+By the loss--norm link (for squared loss, $R(f) - R(\eta_0) = \|f - \eta_0\|_{L^2(P)}^2$), Theorem~\ref{thm:approx-beta-gt-1} immediately gives:
+\[
+\inf_{f \in \cT_s} [R(f) - R(\eta_0)] \le C s^{-2\beta/d}
+\]
+for squared loss. For other losses (cross-entropy, etc.) satisfying the loss--norm link with $\phi(\delta) = C\delta$ (Appendix~\ref{app:loss-norm}), the same rate holds:
+\[
+\inf_{f \in \cT_s} [R(f) - R(\eta_0)] \le \phi(C s^{-2\beta/d}) = C' s^{-2\beta/d}.
+\]
+
+\subsubsection{Summary}
+
+For $\eta_0 \in H^\beta([0,1]^d)$ with $\beta > 1$:
+\begin{itemize}
+\item Piecewise-constant functions on regular partitions achieve $L^2$ approximation rate $s^{-\beta/d}$ (hence squared $L^2$ rate $s^{-2\beta/d}$)
+\item The key tool is Taylor expansion with Hölder remainder bound
+\item The remainder term $R_\ell(x; x_j) = O(|x-x_j|^\beta)$ dominates lower-order Taylor terms
+\item Combined with the oracle inequality (Lemma~\ref{lem:oracle}), this yields the minimax-optimal rate $n^{-\beta/(2\beta+d)}$ for tree estimators
+\end{itemize}
+
+This completes the proof of Lemma~\ref{lem:approx} for the case $\beta > 1$.

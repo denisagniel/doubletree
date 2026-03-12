@@ -1,7 +1,7 @@
 #' Fit nuisance trees for one cross-fitting fold
 #'
 #' Fits propensity e(X) and outcome regression m0(X) on training data
-#' (all rows not in fold_id) using treefarmr. Propensity uses log_loss; outcome
+#' (all rows not in fold_id) using optimaltrees. Propensity uses log_loss; outcome
 #' trees use log_loss (binary Y) or squared_error (continuous Y). Used internally by dml_att.
 #'
 #' @param X Data.frame or matrix of covariates (binary 0/1).
@@ -10,14 +10,14 @@
 #' @param fold_id Integer. Fold index (1..K) to leave out; training = fold_indices != fold_id.
 #' @param fold_indices Integer vector of length nrow(X) with fold assignment.
 #' @param outcome_type Character. "binary" or "continuous"; determines loss for m0.
-#' @param regularization Numeric. Penalty per leaf for treefarmr. Default 0.1.
+#' @param regularization Numeric. Penalty per leaf for optimaltrees. Default 0.1.
 #' @param cv_regularization Logical. If TRUE, use cross-validation to select lambda. Default FALSE.
 #' @param cv_K Integer. Number of CV folds for lambda selection. Default 5.
-#' @param verbose Logical. Passed to treefarmr. Default FALSE.
+#' @param verbose Logical. Passed to optimaltrees. Default FALSE.
 #' @param discretize_method Character. "quantiles" for quantile-based discretization.
 #' @param discretize_bins Integer or "adaptive". Number of bins for discretization.
 #' @param ... Additional arguments passed to optimaltrees::fit_tree.
-#' @return List with elements e_model, m0_model (treefarmr fit objects),
+#' @return List with elements e_model, m0_model (optimaltrees fit objects),
 #'   discretization_e, discretization_m0 (breaks for test set), outcome_type.
 #' @noRd
 fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "binary",
@@ -39,7 +39,7 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
   }
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
 
-  # Fit propensity model (treefarmr handles discretization with threshold encoding)
+  # Fit propensity model (optimaltrees handles discretization with threshold encoding)
   if (cv_regularization) {
     cv_e <- optimaltrees::cv_regularization(
       X_tr, A_tr,  # Pass continuous features directly
@@ -60,8 +60,9 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
     )
   }
 
-  # Check for model fitting failure (should not happen with model_limit=0)
-  if (is.null(e_model$model$tree_json) && is.null(e_model$model$result_data)) {
+  # Check for model fitting failure using n_trees instead of tree_json
+  # (tree_json may be NULL for models with discretization, which is OK)
+  if (is.null(e_model$n_trees) || e_model$n_trees == 0) {
     stop(
       "TreeFARMS model fitting failed for propensity model in fold ", fold_id, ".\n",
       "This indicates:\n",
@@ -81,7 +82,7 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
     )
   }
 
-  # Fit m0 model on controls (treefarmr handles discretization with threshold encoding)
+  # Fit m0 model on controls (optimaltrees handles discretization with threshold encoding)
   X_tr_controls <- X_tr[A_tr == 0, , drop = FALSE]
   if (cv_regularization) {
     cv_m0 <- optimaltrees::cv_regularization(
@@ -103,8 +104,9 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
     )
   }
 
-  # Check for model fitting failure (should not happen with model_limit=0)
-  if (is.null(m0_model$model$tree_json) && is.null(m0_model$model$result_data)) {
+  # Check for model fitting failure using n_trees instead of tree_json
+  # (tree_json may be NULL for models with discretization, which is OK)
+  if (is.null(m0_model$n_trees) || m0_model$n_trees == 0) {
     stop(
       "TreeFARMS model fitting failed for control outcome model (m0) in fold ", fold_id, ".\n",
       "This indicates:\n",
@@ -137,7 +139,7 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
     e_model = e_model,
     m0_model = m0_model,
     outcome_type = outcome_type
-    # Note: discretization metadata now stored in model$discretization_metadata (treefarmr)
+    # Note: discretization metadata now stored in model$discretization_metadata (optimaltrees)
   )
 }
 
@@ -145,7 +147,7 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
 #'
 #' Helper to discretize test data using training discretization metadata.
 #' @param X_new Data.frame of continuous features
-#' @param metadata Discretization metadata from treefarmr model
+#' @param metadata Discretization metadata from optimaltrees model
 #' @return Data.frame with binary features
 #' @noRd
 apply_discretization_metadata <- function(X_new, metadata) {
@@ -210,7 +212,7 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
   outcome_type <- if (!is.null(models$outcome_type)) models$outcome_type else "binary"
 
   # Apply discretization to test data using training metadata
-  # treefarmr stores discretization metadata in model$discretization
+  # optimaltrees stores discretization metadata in model$discretization
   e_metadata <- models$e_model$discretization
   m0_metadata <- models$m0_model$discretization
 
@@ -285,10 +287,10 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 #' @param Y Numeric vector of outcome (binary 0/1 or continuous).
 #' @param fold_indices Integer vector of length nrow(X) with fold id per row (1..K).
 #' @param outcome_type Character. "binary" or "continuous"; determines loss for m0.
-#' @param regularization Numeric. Passed to treefarmr. Default 0.1.
+#' @param regularization Numeric. Passed to optimaltrees. Default 0.1.
 #' @param cv_regularization Logical. If TRUE, use CV to select lambda for each nuisance. Default FALSE.
 #' @param cv_K Integer. Number of CV folds for lambda selection. Default 5.
-#' @param verbose Logical. Passed to treefarmr. Default FALSE.
+#' @param verbose Logical. Passed to optimaltrees. Default FALSE.
 #' @param rashomon_bound_multiplier,rashomon_bound_adder,max_leaves,auto_tune_intersecting Passed to cross_fitted_rashomon.
 #' @param ... Additional arguments passed to optimaltrees::cross_fitted_rashomon.
 #' @return List with cf_e, cf_m0 (cf_rashomon or NULL if fallback), fallback_fits (list of K per-fold fits or NULL), outcome_type.

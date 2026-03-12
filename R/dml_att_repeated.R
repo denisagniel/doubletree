@@ -24,7 +24,7 @@
 #'
 #' @examples
 #' \donttest{
-#' library(treefarmr)
+#' library(optimaltrees)
 #' set.seed(42)
 #' n <- 150
 #' X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))

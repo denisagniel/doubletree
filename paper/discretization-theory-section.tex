@@ -1,0 +1,61 @@
+% Theory section to add to manuscript explaining continuous → discrete connection
+% Insert before "Main result" subsection
+
+\subsubsection{From continuous to discrete: implementation via discretization}
+\label{sec:discretization}
+
+The theoretical analysis assumes continuous covariates $X \in [0,1]^d$ with smooth regression functions $\eta_0 \in H^\beta([0,1]^d)$. Optimal tree algorithms (including our implementation \texttt{optimaltrees}) fit trees to \emph{binary features}. This section explains how the continuous-covariate theory applies when the algorithm operates on discretized features.
+
+\paragraph{Discretization scheme.}
+For each continuous covariate $X_j \in [0,1]$, we select $m$ thresholds $0 < t_{j,1} < t_{j,2} < \cdots < t_{j,m} < 1$ and create $m$ binary indicators:
+\[
+X_j^{(k)} = \mathbf{1}\{ X_j \le t_{j,k} \}, \quad k = 1, \ldots, m.
+\]
+This replaces each continuous covariate with $m$ binary features, yielding $\tilde{d} = md$ binary covariates in total. The tree-fitting algorithm operates on the binary feature space $\{0,1\}^{\tilde{d}}$.
+
+\paragraph{Approximation with discretized features.}
+Let $\cT_s^{\text{disc}}$ denote the class of trees with at most $s$ leaves on the discretized binary feature space $\{0,1\}^{\tilde{d}}$. The key question: does discretization degrade the approximation rate?
+
+\textbf{Answer:} If the discretization is sufficiently fine (enough threshold points per coordinate), the Hölder approximation rate is preserved.
+
+\begin{lemma}[Approximation with discretization]
+\label{lem:approx-disc}
+Let $\eta_0 \in H^\beta([0,1]^d)$. Suppose each continuous covariate $X_j$ is discretized into $m$ bins using thresholds. If $m \ge C s^{1/d}$ (i.e., $m$ scales with the tree partition granularity), then
+\[
+\inf_{f \in \cT_s^{\text{disc}}} \bigl[ R(f) - R(\eta_0) \bigr] \le C' s^{-2\beta/d},
+\]
+where the constant $C'$ depends on $\|\eta_0\|_{H^\beta}$, $d$, and $\beta$, but not on $m$ (for $m$ large enough).
+\end{lemma}
+
+\begin{proof}[Proof idea]
+The proof combines the continuous Hölder approximation (Lemma~\ref{lem:approx}) with a discretization error bound.
+
+\textbf{Step 1: Continuous approximation.}
+By Lemma~\ref{lem:approx}, there exists $f_s \in \cT_s$ (a piecewise-constant function on a continuous partition with $s$ cells of diameter $O(s^{-1/d})$) such that $\|f_s - \eta_0\|_{L^2(P)}^2 \le C s^{-2\beta/d}$.
+
+\textbf{Step 2: Discretization error.}
+Each cell $A_j$ of the continuous partition $f_s$ is an axis-aligned rectangle. If the discretization thresholds include (or are close to) the cell boundaries, then the rectangle $A_j$ can be \emph{approximated} by a union of binary-feature cells (intersections of the binary indicators $X_j^{(k)}$).
+
+With $m$ thresholds per coordinate, the discretization grid has cells of diameter $O(m^{-1/d})$. If $m \ge C s^{1/d}$, then the discretization cells are \emph{finer} than the tree-partition cells (diameter $O(s^{-1/d})$). In this regime, each continuous cell $A_j$ can be covered by a union of $O(1)$ binary cells, so the discretized function $\tilde{f}_s \in \cT_s^{\text{disc}}$ satisfies $\|\tilde{f}_s - f_s\|_{L^2(P)}^2 = O(m^{-2\beta/d})$. When $m = \Omega(s^{1/d})$, this discretization error is $O(s^{-2\beta/d})$, matching the continuous approximation rate.
+
+\textbf{Step 3: Combine.}
+By triangle inequality, $\|\tilde{f}_s - \eta_0\|_{L^2(P)} \le \|\tilde{f}_s - f_s\|_{L^2(P)} + \|f_s - \eta_0\|_{L^2(P)}$. Both terms are $O(s^{-\beta/d})$, so $\inf_{f \in \cT_s^{\text{disc}}} [R(f) - R(\eta_0)] = O(s^{-2\beta/d})$ by the loss-norm link.
+
+For a full treatment of approximation with discretized features, see Györfi et al.\ (2002), Chapter 10 (approximation by histogram rules and piecewise-constant estimates on dyadic partitions), or Tsybakov (2009), Chapter 1.2.
+\end{proof}
+
+\paragraph{VC dimension on binary features.}
+The VC subgraph dimension of $\cT_s^{\text{disc}}$ (trees on $\tilde{d} = md$ binary features) is $O(s \log s)$ (Appendix~\ref{app:vc-dimension}). The key observation: with binary features, each split in the tree chooses a binary indicator (no threshold optimization needed), so the combinatorial complexity is \emph{simpler} than for continuous features. The oracle inequality (Lemma~\ref{lem:oracle}) applies directly with $d$ replaced by $\tilde{d}$ in the VC dimension bound.
+
+\paragraph{Rate optimality with discretization.}
+Combining Lemma~\ref{lem:approx-disc} and the oracle inequality (Lemma~\ref{lem:oracle}) for the binary feature space:
+\[
+R(\hat\eta) - R(\eta_0) \le C \Bigl( s^{-2\beta/d} + \frac{s \log n}{n} \Bigr) + o_p(1).
+\]
+Balancing the two terms by setting $s_n \asymp n^{d/(2\beta+d)}$ yields the rate $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$ (Theorem~\ref{thm:nuisance-rate}). \textbf{Discretization does not degrade the rate} provided $m = \Omega(s_n^{1/d}) = \Omega(n^{1/(2\beta+d)})$, which is satisfied in practice for any fixed $m \ge 2$ when $\beta$ and $d$ are moderate.
+
+\paragraph{Implementation in \texttt{optimaltrees}.}
+The \texttt{optimaltrees} package accepts continuous features and discretizes them automatically. Default: median split ($m=1$ threshold per feature). Users can specify more thresholds via \texttt{discretize\_method = "quantiles"} with \texttt{discretize\_bins = m}. Predictions on new continuous data apply the stored thresholds, maintaining consistency between training and inference. See package vignettes for examples.
+
+\paragraph{Interpretation.}
+Discretization is standard in tree-based methods (e.g., CART, random forests, GOSDT all use threshold-based splits, which are equivalent to discretizing continuous features at data-driven thresholds). Our analysis shows that: (i) the Hölder approximation rate is preserved when discretization is fine enough, and (ii) the oracle inequality applies to the discretized feature space with VC dimension $O(s \log s)$. For practitioners, this means trees with $s_n \asymp n^{d/(2\beta+d)}$ leaves achieve the minimax-optimal rate for estimating $\eta_0 \in H^\beta([0,1]^d)$ via discretized features.

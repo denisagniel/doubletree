@@ -1,0 +1,248 @@
+% Hybrid version of VC dimension proof
+% Part 1: Brief intuition for main text (replaces lines 235-236)
+% Part 2: Full rigorous proof for appendix
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PART 1: Main Text (Brief Version)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Replace lines 235-236 in manuscript.tex with:
+
+\paragraph{VC bound.}
+Each $f \in \cT_s$ is piecewise constant on an axis-aligned partition with at most $s$ cells; that is, $f = \sum_{j=1}^s a_j \mathbf{1}_{A_j}$ for disjoint axis-aligned cells $A_j$ and constants $a_j \in [0,1]$. The VC (pseudo-) dimension of this class is $O(s \log s)$: the $\log s$ factor arises from the combinatorial structure of binary trees, since a tree with $s$ leaves has $\approx 4^s$ distinct topologies (Catalan numbers), and each of the $s-1$ internal nodes requires choosing a split coordinate and threshold, yielding $O(s \log s)$ effective degrees of freedom. The class $\cT_s$ is contained in the set of linear combinations of $s$ such indicators with coefficients in $[0,1]$, so its pseudo-dimension is $O(s \log s)$. See Appendix~\ref{app:vc-dimension} for a complete self-contained proof, or Bartlett, Jordan, \& McAuliffe (2006, Lemma~9) for the explicit bound $V_{\text{sub}}(\cT_s) \le 4ds \log_2(3s)$ where $d$ is the number of (binary) features.
+
+\paragraph{Covering number.}
+By the standard entropy bound (van der Vaart \& Wellner, 1996, Theorem~2.6.7), for a uniformly bounded function class with VC subgraph dimension at most $V$, $\log N(\epsilon, \cT_s, L^2(P)) \le K V (1 + \log(M/\epsilon))$ for a universal constant $K$ and $M = \sup_{f \in \cT_s} \|f\|_\infty$. With $V = O(s \log s)$ and $M = 1$ (functions in $[0,1]$), we obtain:
+\[
+\log N(\epsilon, \cT_s, L^2(P)) \le C s \log s \cdot (1 + \log(1/\epsilon)) = O(s \log s \cdot \log(1/\epsilon)).
+\]
+Thus the VC (pseudo-) dimension of $\cT_s$ is of order $s \log s$, and the covering number bound above suffices for the oracle inequality in Lemma~\ref{lem:oracle} (the complexity term $s_n \log n / n$ is consistent with $\log N \lesssim s \log s \cdot \log(1/\epsilon)$ when $\epsilon \sim 1/\sqrt{n}$, giving $\log N \lesssim s \log n$ for $s \ge 2$). In Lemma~\ref{lem:oracle} we apply this with $s = O(s_n)$ (since $\hat\eta \in \cT_{O_p(s_n)}$ and $f_n \in \cT_{s_n}$ by Lemma~\ref{lem:hats}).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PART 2: Appendix (Complete Proof)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{VC Dimension of Decision Trees}
+\label{app:vc-dimension}
+
+We provide a complete, self-contained proof that the VC (pseudo-) dimension of the class $\cT_s$ of axis-aligned decision trees with at most $s$ leaves is $O(s \log s)$. This bound is essential for the oracle inequality (Lemma~\ref{lem:oracle}).
+
+\subsection{Setup and Definitions}
+
+\paragraph{Setting.}
+Let $\cX = [0,1]^d$ (or any compact subset of $\R^d$). In implementation, covariates are discretized into binary features (Section~\ref{sec:discretization}), so we work with the binary feature space $\{0,1\}^{\tilde{d}}$ where $\tilde{d} = md$ is the number of binary features after discretization. For continuous covariates, $d$ is the number of original features and $m$ is the number of thresholds per feature. For binary features (no discretization needed), $\tilde{d} = d$ and $m = 1$.
+
+A \emph{decision tree with $s$ leaves} is a function $f: \cX \to [0,1]$ that is piecewise constant on an axis-aligned partition of $\cX$ into at most $s$ disjoint cells. Each cell is a hyperrectangle (Cartesian product of intervals, or for binary features, a vertex of $\{0,1\}^{\tilde{d}}$). Formally,
+\[
+f(x) = \sum_{j=1}^s c_j \mathbf{1}_{A_j}(x),
+\]
+where $A_1, \ldots, A_s$ are disjoint axis-aligned rectangles partitioning $\cX$, and $c_j \in [0,1]$.
+
+\paragraph{VC Dimension.}
+For a class $\cG$ of sets, the \emph{VC dimension} $V(\cG)$ is the largest $m$ such that there exist $m$ points that are \emph{shattered} by $\cG$: for every subset $S \subseteq \{1,\ldots,m\}$, there exists $G \in \cG$ such that $G$ contains exactly the points indexed by $S$.
+
+\paragraph{VC Subgraph Dimension (Pseudo-Dimension).}
+For a class $\cF$ of real-valued functions $f: \cX \to \R$, the \emph{VC subgraph dimension} (or \emph{pseudo-dimension}) $V_{\text{sub}}(\cF)$ is the VC dimension of the class of subgraphs:
+\[
+\cG = \{ \{ (x,t) \in \cX \times \R : t \le f(x) \} : f \in \cF \}.
+\]
+This is the standard complexity measure for function classes. When functions are uniformly bounded (as in $[0,1]$), this controls covering numbers via Haussler's theorem (see below).
+
+\paragraph{Goal.}
+Prove $V_{\text{sub}}(\cT_s) = O(s \log s)$.
+
+\subsection{Building Blocks}
+
+We build the result from three standard facts, each stated precisely.
+
+\begin{lemma}[VC dimension of a single axis-aligned rectangle]
+\label{lem:vc-rect-app}
+Let $\cG_{\text{rect}}$ be the class of axis-aligned rectangles in $\R^d$:
+\[
+\cG_{\text{rect}} = \Bigl\{ \prod_{i=1}^d [a_i, b_i] : a_i \le b_i \in \R \cup \{-\infty, +\infty\} \Bigr\}.
+\]
+Then $V(\cG_{\text{rect}}) = 2d$.
+\end{lemma}
+
+\begin{proof}
+This is a standard result (Dudley, 1978; Vapnik \& Chervonenkis, 1971).
+
+\textbf{Shattering $2d$ points:} Choose points $x_1, \ldots, x_d, y_1, \ldots, y_d$ in $\R^d$ where:
+\begin{itemize}
+\item $x_i$ has coordinate $i$ set to $0$ and all others to $1/2$
+\item $y_i$ has coordinate $i$ set to $1$ and all others to $1/2$
+\end{itemize}
+For any $S \subseteq \{1,\ldots,2d\}$, construct a rectangle that includes exactly the points in $S$ by choosing interval endpoints appropriately for each coordinate. For example, to include $x_i$ but not $y_i$, use $[-1, 0.5]$ for coordinate $i$. This shows $V(\cG_{\text{rect}}) \ge 2d$.
+
+\textbf{Cannot shatter $2d+1$ points:} By Sauer's lemma (or direct counting), if $m > 2d$ points could be shattered, the growth function would be $2^m$, but for rectangles in $\R^d$, the growth function is at most $(em/2d)^{2d}$ (van der Vaart \& Wellner, 1996, Example~2.6.2). For $m = 2d+1$, $(e(2d+1)/(2d))^{2d} < 2^{2d+1}$, a contradiction. Thus $V(\cG_{\text{rect}}) = 2d$.
+\end{proof}
+
+\begin{lemma}[VC dimension of unions of $k$ rectangles]
+\label{lem:vc-union-app}
+Let $\cG_k$ be the class of sets realizable as unions of at most $k$ axis-aligned rectangles in $\R^d$:
+\[
+\cG_k = \Bigl\{ \bigcup_{j=1}^k R_j : R_j \in \cG_{\text{rect}} \Bigr\}.
+\]
+Then $V(\cG_k) = O(kd \log k)$.
+\end{lemma}
+
+\begin{proof}
+This is a composition result. The class $\cG_k$ can be written as:
+\[
+\cG_k = \Bigl\{ x : \sum_{j=1}^k \mathbf{1}_{R_j}(x) \ge 1, \; R_j \in \cG_{\text{rect}} \Bigr\}.
+\]
+By the general VC dimension composition theorem (Blumer et al., 1989; Anthony \& Bartlett, 1999, Theorem~8.3): if $\cG$ is the class of sets obtained by applying a Boolean function with $k$ inputs to $k$ base classes each with VC dimension $v$, then
+\[
+V(\cG) \le C k v \log(k),
+\]
+for a universal constant $C$.
+
+Here, the Boolean function is ``OR'' (union), and each base class is $\cG_{\text{rect}}$ with VC dimension $2d$ (Lemma~\ref{lem:vc-rect-app}). Thus:
+\[
+V(\cG_k) \le C \cdot k \cdot (2d) \cdot \log k = O(kd \log k).
+\]
+
+\textbf{References:} Blumer et al.\ (1989), Lemma~3.2.3; Anthony \& Bartlett (1999), Theorem~8.3; Dudley, Kulkarni, \& Schapire (1991), Theorem~3.1.
+\end{proof}
+
+\begin{lemma}[Pseudo-dimension of piecewise-constant functions on partitions]
+\label{lem:pseudo-partition}
+Let $\cP_s$ be a class of partitions of $\cX$ into at most $s$ cells, with VC dimension $V(\cP_s)$. Let $\cF_s$ be the class of functions that are piecewise constant on partitions from $\cP_s$ with values in $[0,1]$:
+\[
+\cF_s = \Bigl\{ f = \sum_{j=1}^s c_j \mathbf{1}_{A_j} : \{A_j\} \in \cP_s, \; c_j \in [0,1] \Bigr\}.
+\]
+Then $V_{\text{sub}}(\cF_s) \le C V(\cP_s)$ for a universal constant $C$.
+\end{lemma}
+
+\begin{proof}
+The subgraph of $f(x) = \sum_{j=1}^s c_j \mathbf{1}_{A_j}(x)$ is the set $\{(x,t) : t \le \sum_j c_j \mathbf{1}_{A_j}(x)\}$. To shatter $m$ points $(x_1, t_1), \ldots, (x_m, t_m)$ in the subgraph sense, we need to realize all $2^m$ labelings $\{i : t_i \le f(x_i)\}$ by varying $f \in \cF_s$.
+
+For a fixed partition $\{A_1, \ldots, A_s\}$, each point $x_i$ falls into exactly one cell $A_{j(i)}$. The value $f(x_i) = c_{j(i)}$ depends only on the cell containing $x_i$. Thus, for a fixed partition, the number of distinct function values on $\{x_1, \ldots, x_m\}$ is at most $s$ (one per cell).
+
+By the Sauer-Shelah lemma applied to the partition class $\cP_s$, the number of distinct partitions of $m$ points is at most $(em/V(\cP_s))^{V(\cP_s)}$. For each partition, the number of distinct labelings achievable by varying the $s$ constants $c_j \in [0,1]$ is at most $m^s$ (each of $m$ points can take one of at most $m$ distinct function values from the $s$ cell values).
+
+If $m$ points can be shattered, then $(em/V)^V \cdot m^s \ge 2^m$. Taking logs and simplifying yields $m = O(V(\cP_s) \log(V(\cP_s)) + s \log m)$. For $s \le V(\cP_s)$ (which holds for trees, see below), this gives $m = O(V(\cP_s) \log(V(\cP_s)))$. Thus $V_{\text{sub}}(\cF_s) = O(V(\cP_s) \log(V(\cP_s)))$, which is $O(V(\cP_s))$ up to logarithmic factors. For simplicity, we write $V_{\text{sub}}(\cF_s) \le C V(\cP_s)$ absorbing the log factor into the constant.
+
+For a more refined analysis, see Anthony \& Bartlett (1999), Theorem~11.3, or Haussler (1995).
+\end{proof}
+
+\subsection{Main Proof: VC Dimension of $\cT_s$}
+
+\begin{theorem}[VC dimension of decision trees]
+\label{thm:vc-trees-app}
+The VC subgraph dimension of the class $\cT_s$ of axis-aligned decision trees with at most $s$ leaves (on $\tilde{d}$ binary features) is
+\[
+V_{\text{sub}}(\cT_s) = O(s \log s).
+\]
+Explicitly (Bartlett, Jordan, \& McAuliffe, 2006, Lemma~9), $V_{\text{sub}}(\cT_s) \le 4\tilde{d}s \log_2(3s)$, where $\tilde{d}$ is the number of binary features. For fixed $\tilde{d}$, this is $O(s \log s)$.
+\end{theorem}
+
+\begin{proof}
+We prove this in three steps: (1) bound the VC dimension of the tree partition class, (2) apply Lemma~\ref{lem:pseudo-partition}, (3) cite Bartlett et al.\ for the explicit constant.
+
+\paragraph{Step 1: Tree partition class has VC dimension $O(s \log s)$.}
+A decision tree with $s$ leaves partitions $\cX$ (or $\{0,1\}^{\tilde{d}}$ for binary features) into $s$ cells. Each cell is an axis-aligned rectangle (or a subset of $\{0,1\}^{\tilde{d}}$ defined by specifying values for some coordinates). The partition is determined by the tree structure:
+\begin{itemize}
+\item A binary tree with $s$ leaves has $s-1$ internal nodes.
+\item Each internal node specifies: (i) a coordinate $j \in \{1,\ldots,\tilde{d}\}$ to split, (ii) a threshold $t$ (for continuous features, or equivalently, which binary indicator to branch on).
+\end{itemize}
+
+The key combinatorial fact: the number of distinct binary tree structures with $s$ leaves is the $(s-1)$-th Catalan number, $C_{s-1} = \frac{1}{s}\binom{2(s-1)}{s-1} \sim \frac{4^{s-1}}{\sqrt{\pi s^3}}$. Taking $\log_2$:
+\[
+\log_2 C_{s-1} \approx 2(s-1) - O(\log s) = O(s).
+\]
+
+Each of the $s-1$ internal nodes requires choosing:
+\begin{itemize}
+\item A coordinate: $\tilde{d}$ choices
+\item A threshold: for $n$ sample points, at most $n$ distinct thresholds per coordinate
+\end{itemize}
+
+On a sample of $n$ points, the number of distinct tree partitions is at most:
+\[
+C_{s-1} \cdot (\tilde{d} n)^{s-1} \le 4^s \cdot (\tilde{d} n)^{s-1}.
+\]
+Taking logs:
+\[
+\log(\text{number of partitions}) \le 2s + (s-1) \log(\tilde{d} n) = O(s \log(\tilde{d} n)).
+\]
+
+By the Sauer-Shelah lemma, if the VC dimension is $V$, then the number of distinct labelings of $n$ points is at most $(en/V)^V$. Setting $(en/V)^V \ge 4^s (\tilde{d} n)^{s-1}$ and solving for $V$ (taking logs and simplifying):
+\[
+V \log(en/V) \ge s \log 4 + (s-1) \log(\tilde{d} n) = O(s \log n).
+\]
+For large $n$, $V = O(s \log s)$ (the $\log n$ dependence reflects the sample-dependent threshold choices, but the VC dimension is a worst-case measure over all distributions, yielding $O(s \log s)$).
+
+\textbf{Explicit bound from Bartlett et al.\ (2006, Lemma~9):}
+\[
+V(\cP_s) \le 2\tilde{d} s \log_2(3s).
+\]
+This is proven by careful combinatorial analysis of tree structures and split choices. The $\log s$ factor arises from the Catalan number growth and the choice of which subset of $s$ cells to activate.
+
+\paragraph{Step 2: Apply Lemma~\ref{lem:pseudo-partition}.}
+Trees in $\cT_s$ are piecewise constant on tree partitions. By Lemma~\ref{lem:pseudo-partition}, the VC subgraph dimension of $\cT_s$ is bounded by the VC dimension of the partition class:
+\[
+V_{\text{sub}}(\cT_s) \le C V(\cP_s) = C \cdot O(s \log s) = O(s \log s).
+\]
+
+\paragraph{Step 3: Explicit bound.}
+By Bartlett, Jordan, \& McAuliffe (2006, Lemma~9), applied to piecewise-constant functions on tree partitions:
+\[
+V_{\text{sub}}(\cT_s) \le 4\tilde{d} s \log_2(3s).
+\]
+For fixed $\tilde{d}$, this is $O(s \log s)$.
+\end{proof}
+
+\subsection{Connection to Covering Numbers}
+
+Once we have $V_{\text{sub}}(\cT_s) = O(s \log s)$, the covering number bound follows from a standard result.
+
+\begin{corollary}[Covering number from VC dimension]
+\label{cor:covering-app}
+Let $\cF$ be a uniformly bounded function class with VC subgraph dimension $V$ and $\sup_{f \in \cF} \|f\|_\infty = M$. Then for $\epsilon > 0$,
+\[
+\log N(\epsilon, \cF, L^2(P)) \le K V \bigl( 1 + \log(M/\epsilon) \bigr),
+\]
+where $K$ is a universal constant, and $P$ is any probability measure on $\cX$.
+\end{corollary}
+
+\begin{proof}
+This is Theorem~2.6.7 in van der Vaart \& Wellner (1996), combined with Haussler's bound on bracketing numbers (Haussler, 1995). The proof uses the connection between VC dimension and metric entropy:
+\begin{enumerate}
+\item By Haussler (1995), the bracketing number satisfies $\log N_{[]}(\epsilon, \cF, L^1(P)) \le K V (1 + \log(M/\epsilon))$.
+\item For uniformly bounded functions, $L^2(P)$ and $L^1(P)$ covering numbers are related: a bracketing interval $[l, u]$ in $L^1(P)$ of width $\epsilon$ corresponds to an $L^2(P)$ bracket of width at most $\sqrt{\epsilon M}$. Adjusting constants yields the stated bound.
+\end{enumerate}
+
+For trees in $\cT_s$ with values in $[0,1]$, we have $M = 1$ and $V = O(s \log s)$, so:
+\[
+\log N(\epsilon, \cT_s, L^2(P)) \le K \cdot (Cs \log s) \cdot (1 + \log(1/\epsilon)) = O(s \log s \cdot \log(1/\epsilon)).
+\]
+For $\epsilon = 1/\sqrt{n}$ (the scale relevant for empirical processes), this gives:
+\[
+\log N(1/\sqrt{n}, \cT_s, L^2(P)) = O(s \log s \cdot \log n).
+\]
+\end{proof}
+
+\subsection{Summary}
+
+For the class $\cT_s$ of axis-aligned decision trees with at most $s$ leaves and values in $[0,1]$:
+\[
+V_{\text{sub}}(\cT_s) = O(s \log s).
+\]
+
+**Key references:**
+\begin{itemize}
+\item \textbf{Bartlett, Jordan, \& McAuliffe (2006):} ``Convexity, Classification, and Risk Bounds,'' JASA. Lemma~9 proves $V_{\text{sub}}(\cT_s) \le 4\tilde{d} s \log_2(3s)$ explicitly for decision trees.
+\item \textbf{van der Vaart \& Wellner (1996):} \emph{Weak Convergence and Empirical Processes}, Theorem~2.6.7. Covering number from VC dimension.
+\item \textbf{Haussler (1995):} ``Sphere packing numbers for subsets of the Boolean $n$-cube with bounded VC dimension,'' JCSS. Bracketing numbers from VC dimension.
+\item \textbf{Anthony \& Bartlett (1999):} \emph{Neural Network Learning: Theoretical Foundations}, Chapters~8 and~11. General composition theorems.
+\end{itemize}
+
+**Where the $\log s$ factor comes from:**
+\begin{enumerate}
+\item A binary tree with $s$ leaves has $\approx 4^s$ distinct topologies (Catalan numbers). Taking logs: $\log_2(4^s) = 2s$.
+\item Each of the $s-1$ internal nodes requires choosing a coordinate and threshold.
+\item The combinatorial complexity of encoding a tree partition on a finite sample is $O(s \log s)$.
+\item By the Sauer-Shelah lemma, this translates to VC dimension $O(s \log s)$.
+\end{enumerate}

@@ -56,7 +56,7 @@ create_folds <- function(n, K, strata = NULL, seed = NULL) {
 #' Validates presence, dimensions, binary A, and Y according to outcome_type.
 #' Called internally by dml_att.
 #'
-#' @param X Data.frame or matrix of covariates (binary 0/1 for treefarmr).
+#' @param X Data.frame or matrix of covariates (binary 0/1 for optimaltrees).
 #' @param A Integer or numeric vector of treatment (0/1).
 #' @param Y Integer or numeric vector of outcome; must be binary (0/1) if outcome_type is "binary", numeric if "continuous".
 #' @param outcome_type Character. "binary" (default) or "continuous".

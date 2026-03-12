@@ -1,10 +1,10 @@
 #' Apply Discretization Metadata to New Data
 #'
-#' Helper function to discretize new data using metadata from a treefarmr model.
-#' This is needed because treefarmr's predict() doesn't auto-discretize.
+#' Helper function to discretize new data using metadata from a optimaltrees model.
+#' This is needed because optimaltrees's predict() doesn't auto-discretize.
 #'
 #' @param X_new Data.frame of continuous features
-#' @param metadata Discretization metadata from treefarmr model
+#' @param metadata Discretization metadata from optimaltrees model
 #' @return Data.frame with binary features matching training discretization
 #' @noRd
 apply_discretization_metadata <- function(X_new, metadata) {

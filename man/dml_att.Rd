@@ -23,7 +23,7 @@ dml_att(
 )
 }
 \arguments{
-\item{X}{Data.frame or matrix of covariates. Must be binary (0/1) for treefarmr.}
+\item{X}{Data.frame or matrix of covariates. Must be binary (0/1) for optimaltrees.}
 
 \item{A}{Integer or numeric vector of treatment (0/1).}
 
@@ -31,17 +31,17 @@ dml_att(
 
 \item{K}{Number of cross-fitting folds. Default 5.}
 
-\item{outcome_type}{Character. "binary" (default) or "continuous". Continuous requires treefarmr squared_error loss for m0, m1.}
+\item{outcome_type}{Character. "binary" (default) or "continuous". Continuous requires optimaltrees squared_error loss for m0, m1.}
 
-\item{regularization}{Numeric. Tree complexity penalty passed to treefarmr. Default 0.1.}
+\item{regularization}{Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1.}
 
 \item{stratified}{Logical. If TRUE (default), fold assignment is stratified by A.}
 
 \item{seed}{Optional. Random seed for fold creation.}
 
-\item{verbose}{Logical. Passed to treefarmr. Default FALSE.}
+\item{verbose}{Logical. Passed to optimaltrees. Default FALSE.}
 
-\item{use_rashomon}{Logical. If TRUE, fit nuisances via \code{treefarmr::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).}
+\item{use_rashomon}{Logical. If TRUE, fit nuisances via \code{optimaltrees::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).}
 
 \item{rashomon_bound_multiplier}{Numeric. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Default 0.05.}
 
@@ -51,7 +51,7 @@ dml_att(
 
 \item{auto_tune_intersecting}{Logical. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. If TRUE, tune until at least one intersecting tree is found. Default FALSE.}
 
-\item{...}{Additional arguments passed to treefarmr (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
+\item{...}{Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
 }
 \value{
 List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
@@ -59,20 +59,20 @@ List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95
 }
 \description{
 Estimates the ATT using double machine learning with optimal decision trees
-(via treefarmr) for the nuisance functions e(X), m0(X), m1(X). Binary outcome
+(via optimaltrees) for the nuisance functions e(X), m0(X), m1(X). Binary outcome
 uses log-loss for all nuisances; continuous outcome uses log-loss for propensity
-and squared_error for m0, m1 (requires treefarmr to support squared_error).
+and squared_error for m0, m1 (requires optimaltrees to support squared_error).
 }
 \details{
 When \code{use_rashomon = TRUE}, nuisances are fit via
-\code{treefarmr::cross_fitted_rashomon}: one interpretable tree per nuisance
+\code{optimaltrees::cross_fitted_rashomon}: one interpretable tree per nuisance
 (intersection of Rashomon sets across folds) with fold-specific refits for
 valid DML. The same K and fold assignment are used for Rashomon and the score.
 }
 \examples{
 \dontrun{
 # Binary outcome (default)
-library(treefarmr)  # Required dependency
+library(optimaltrees)  # Required dependency
 set.seed(42)
 n <- 300
 X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))

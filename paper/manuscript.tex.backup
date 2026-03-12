@@ -12,7 +12,7 @@
 \input{typography-preamble}
 
 % Title information
-\title{Interpretable causal inference for high-stakes settings with decision trees}
+\title{Interpretable causal inference for high-stakes settings with optimal decision trees}
 \author{Denis Agniel}
 \date{\today}
 
@@ -22,7 +22,7 @@
 
 \begin{abstract}
     
-Interpretable nuisance learners in double machine learning (DML) rarely come with formal rate guarantees needed for valid inference. We use optimal decision trees as nuisance estimators in DML for the average treatment effect on the treated (ATT) and, for reporting, select a single tree per nuisance via the intersection of Rashomon sets across cross-fitting folds. Building on recent oracle inequality results for optimal decision trees \citep{xuStatisticalOptimalityOptimal2026}, we verify sufficient conditions on tree complexity and smoothness under which these nuisances achieve $o(n^{-1/4})$ convergence in the relevant norms, so that the DML estimator is $\sqrt{n}$-consistent and asymptotically normal. The paper focuses on theory and method; empirical performance can be evaluated in simulations.
+Interpretable nuisance learners in double machine learning (DML) rarely come with formal rate guarantees needed for valid inference. We use optimal decision trees as nuisance estimators in DML for the average treatment effect on the treated (ATT) and, for reporting, select a single tree per nuisance via the intersection of Rashomon sets across cross-fitting folds. We give sufficient conditions on tree complexity and smoothness under which these nuisances achieve $o(n^{-1/4})$ convergence in the relevant norms, so that the DML estimator is $\sqrt{n}$-consistent and asymptotically normal. The paper focuses on theory and method; empirical performance can be evaluated in simulations.
 \end{abstract}
 
 \section{Introduction}
@@ -31,19 +31,9 @@ Many consequential policy decisions rely on statistical models whose outputs dir
 
 Estimation of causal effects in high-dimensional and flexible modeling environments has been greatly advanced by Double Machine Learning (DML), a semiparametric framework that combines machine learning with orthogonalized score functions to produce asymptotically normal, root-$n$ consistent estimates even when complex models are used to estimate nuisance functions \citep{chernozhukov2018}. A key technical requirement is that nuisance estimators converge sufficiently fast---typically faster than $n^{-1/4}$ in mean squared error---so that their estimation error is effectively second-order in the orthogonal identifying equations. In practice, off-the-shelf machine learning methods such as random forests, gradient boosting, and neural networks are commonly employed within DML pipelines \citep{bach2021, susmann2025}, including for healthcare provider evaluation. While these flexible learners often achieve good predictive performance, they are generally black-box models whose internal structure cannot be easily interpreted. Interpretability can be critical in many application domains where stakeholders demand transparent models that offer clear decision rules or partitions of the covariate space.
 
-Optimal decision trees---including recent advances such as Generalized and Scalable Optimal Sparse Decision Trees (GOSDT)---offer a compelling trade-off: they are fully interpretable, provide globally optimized decision rules, and avoid some of the pathologies of greedy tree induction \citep{lin2020}. These optimal trees have been studied from a computational and predictive performance perspective, but their statistical properties in semiparametric inference contexts have received less theoretical attention. Several related strands of literature inform the theoretical development of tree-based estimation: \citet{nobel1996histogram} established general consistency results for data-dependent partitions including regression trees; \citet{chatterjee2019adaptive} derived oracle inequalities and risk bounds for optimal dyadic decision tree estimators in bounded variation and piecewise polynomial function classes; \citet{bertsimas2017optimal} studied globally optimal classification trees with sparsity constraints and established approximation guarantees for piecewise polynomial target functions; and \citet{mourtada2018minimax} proved minimax-optimal rates for Mondrian trees and forests, a specific class of random partition-based estimators. In the Bayesian framework, \citet{vanderpas2017bayesian} established near-minimax posterior concentration rates for dyadic tree priors. However, these results do not directly verify that globally optimal decision trees satisfy the stringent $o_p(n^{-1/4})$ condition required for valid inference in the DML framework.
+Optimal decision trees---including recent advances such as Generalized and Scalable Optimal Sparse Decision Trees (GOSDT)---offer a compelling trade-off: they are fully interpretable, provide globally optimized decision rules, and avoid some of the pathologies of greedy tree induction \citep{lin2020}. These optimal trees have been studied from a computational and predictive performance perspective, but their statistical properties in semiparametric inference contexts remain largely unexplored. Despite the intuitive appeal of combining interpretable tree models with DML, there is a noticeable absence of formal results in the literature establishing that optimal decision tree estimators satisfy the rate conditions (e.g., $o(n^{-1/4})$ convergence) required for valid inference in the DML framework. Most existing work using trees in DML settings relies on empirical evidence or practitioner heuristics rather than rigorous guarantees; moreover, statistical convergence analyses for tree-based estimators traditionally focus on greedy algorithms or ensembles, and only under specific smoothness and complexity constraints.
 
-In concurrent work, \citet{xuStatisticalOptimalityOptimal2026} established comprehensive statistical theory for empirical risk minimization (ERM) decision trees under random design in both regression and classification settings. They derive sharp oracle inequalities that bound excess risk relative to the best tree approximation with at most $L$ leaves, characterizing the interpretability-accuracy trade-off. They prove minimax-optimal rates over piecewise sparse heterogeneous anisotropic Besov (PSHAB) function classes, which capture sparsity, anisotropic smoothness, and spatial heterogeneity. Their framework introduces a novel uniform concentration approach based on empirically localized Rademacher complexity, providing theoretical tools broadly applicable beyond decision trees. These results establish the foundational statistical guarantees for optimal trees in prediction settings. Our work complements theirs by: (1) verifying that their rates satisfy the stringent requirements for valid causal inference in the DML framework; (2) deriving the explicit condition $\beta > d/2$ for DML validity; (3) introducing the Rashomon set intersection approach for interpretable reporting across cross-validation folds; and (4) providing practical implementation and validation in high-stakes healthcare applications.
-
-\textbf{In this paper, we bridge optimal tree theory to causal inference.} Building on the oracle inequality framework established by \citet{xuStatisticalOptimalityOptimal2026}, we verify that optimal decision tree estimators achieve rates sufficient for valid DML-based causal inference. Specifically, we derive the condition $\beta > d/2$ under which the minimax rate $n^{-\beta/(2\beta+d)}$ satisfies the $o_p(n^{-1/4})$ requirement of DML theory, enabling root-$n$ consistent and asymptotically normal estimation of treatment effects with interpretable nuisance functions. Beyond this theoretical verification, we introduce a novel \textbf{Rashomon set intersection approach} for selecting a single interpretable tree structure that remains near-optimal across cross-validation folds, enabling both theoretical guarantees and practical interpretability. Our contributions are threefold:
-
-\textbf{1. Application of optimal tree theory to DML.} Building on the recent oracle inequality results of \citet{xuStatisticalOptimalityOptimal2026}, who establish that globally optimal penalized decision trees achieve minimax rates over PSHAB function classes (including Hölder spaces), we verify that these rates satisfy the stringent requirements for valid causal inference within the DML framework. Our key contributions: (a) we derive the explicit condition $\beta > d/2$ under which the tree rate $n^{-\beta/(2\beta+d)}$ satisfies the $o_p(n^{-1/4})$ requirement for DML, establishing that interpretable tree-based nuisance estimators enable $\sqrt{n}$-consistent and asymptotically normal causal inference; (b) we provide complete proofs connecting tree approximation theory, oracle inequalities, and the DML rate condition; and (c) we verify the loss-norm link required for the DML expansion under both squared loss and cross-entropy.
-
-\textbf{2. Methodological innovation: Rashomon set intersection.} We introduce a principled approach for selecting a single interpretable tree structure across cross-validation folds while preserving theoretical guarantees. By taking the intersection of Rashomon sets (near-optimal solutions) across folds, we identify tree structures that remain robustly good when refit on different training data. This enables reporting of a single, interpretable decision rule to stakeholders while maintaining the cross-fitting structure essential for DML validity. We characterize conditions under which this intersection is non-empty and verify them empirically.
-
-\textbf{3. Practical implementation and validation.} We develop software packages (optimaltrees and dmltree) implementing optimal tree estimation with Rashomon set computation, and provide comprehensive simulation studies demonstrating that interpretable trees within DML achieve competitive estimation quality with transparent decision rules. We apply the methodology to healthcare quality measurement, illustrating its utility in high-stakes regulatory settings.
-
-By bridging the gap between interpretable machine learning and semiparametric causal inference, this work develops methods that are transparent enough for regulatory acceptance, flexible enough to capture complex risk structure, and theoretically grounded enough to support valid inference---particularly important for modern quality measurement, where methodological credibility is inseparable from stakeholder trust.
+In this paper, we address this gap. We propose incorporating optimal decision trees as the nuisance function learners in a Double Machine Learning procedure and investigate the theoretical conditions under which these trees attain the necessary convergence rates to preserve root-$n$ consistency and asymptotic normality of the target causal parameter estimate. Our contributions are as follows. We introduce a DML framework where optimal, interpretable decision trees (e.g., GOSDT) are used to estimate nuisance functions in causal models. We derive sufficient conditions on tree complexity and model regularization under which these tree estimators satisfy mean squared error rates faster than $n^{-1/4}$ in relevant function classes. We provide empirical evidence, including simulation studies and real data examples, demonstrating that interpretable trees within DML achieve competitive estimation quality while offering transparent decision rules. By bridging the gap between interpretable machine learning and semiparametric causal inference, this work aims to develop methods that are transparent enough for regulatory acceptance, flexible enough to capture complex risk structure, and theoretically grounded enough to support valid inference---particularly important for modern quality measurement, where methodological credibility is inseparable from stakeholder trust.
 
 The rest of the paper is organized as follows. Section~\ref{sec:methods} presents the DML framework with optimal tree nuisance learners and states the main theoretical results. Section~\ref{sec:rashomon} describes the use of Rashomon sets to obtain a single tree per nuisance across cross-fitting folds. Section~\ref{sec:results} reports simulation and empirical findings. Section~\ref{sec:discussion} discusses limitations and extensions, and Section~\ref{sec:conclusion} concludes.
 
@@ -52,50 +42,43 @@ The rest of the paper is organized as follows. Section~\ref{sec:methods} present
 
 \subsection{Setting and target parameter}
 
-We observe $n$ observations $O_1, \ldots, O_n$ each \iid draws from the random variable $\bO = (\bX, A, Y) \sim \Prob$. The observed data $\bO$ consists of a covariate vector $\bX \in \cX \subset \R^p$, a binary treatment $A \in \{0,1\}$, and an outcome $Y \in \cY \subset \R$. Let $Y(a)$ denote the potential outcome under treatment $A = a$. Our target parameter is the average treatment effect on the treated (ATT),
+We observe \iid data $O_1, \ldots, O_n$, where each $O = (X, A, Y)$ consists of a covariate vector $X \in \cX$, a binary treatment $A \in \{0,1\}$, and an outcome $Y$. Let $Y(0)$ and $Y(1)$ denote the potential outcomes under control and treatment, so that $Y = A Y(1) + (1-A) Y(0)$. Our target parameter is the average treatment effect on the treated (ATT),
 \begin{equation}
 \label{eq:att}
 \theta_0 = \E[Y(1) - Y(0) \mid A=1].
 \end{equation}
 
-A common strategy for estimating the ATT without placing many restrictions on the distribution of $\bO$ is to define an estimator via the efficient influence function (EIF) $\psi(O; \theta, \eta)$.
+We assume unconfoundedness (selection on observables): $(Y(0), Y(1)) \perp A \mid X$. We also assume strong overlap: the propensity score $e(X) = \Prob(A=1 \mid X)$ is bounded away from zero and one, e.g.\ $0 < c \le e(X) \le 1-c < 1$ for some constant $c > 0$, almost surely on the support of $X$ (or at least on the support among the treated). Under these conditions, the ATT is identified via the propensity score $e(X) = \Prob(A=1 \mid X)$ and the outcome regressions $m(a,X) = \E[Y \mid A=a, X]$ for $a \in \{0,1\}$. The nuisance functions required for estimation are $e(X)$, $m(0,X)$, and $m(1,X)$; we collect them in the vector $\eta = (e, m_0, m_1)$ with $m_0(X) = m(0,X)$ and $m_1(X) = m(1,X)$.
+
+The ATT can be estimated using a Neyman-orthogonal (efficient influence) score $\psi(O; \theta, \eta)$ that satisfies $\E[\psi(O; \theta_0, \eta_0)] = 0$ and has zero first-order Gateaux derivative with respect to $\eta$ at $\eta_0$, so that first-order nuisance estimation error does not affect the limiting distribution of the estimator \citep{chernozhukov2018}. Let $\pi = \Prob(A=1)$. A standard form for the orthogonal score for the ATT is
 \begin{equation}
 \label{eq:score}
-\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl( Y - \mu_0(\bX) - \theta \bigr) + \frac{1-A}{1-\pi} \, \frac{e(\bX)}{1 - e(\bX)} \bigl( Y - \mu_0(\bX) \bigr)
+\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl( Y - m_0(X) - \theta \bigr) - \frac{1}{\pi} \, \frac{A - e(X)}{1 - e(X)} \bigl( m_1(X) - m_0(X) \bigr).
 \end{equation}
-where $\pi = \E(A) = \Prob(A=1)$, $e(\bX) = \E(A | \bX)$, and $\mu_0(\bx) = \E(Y | A = 0, \bX)$. The score is Neyman-orthogonal: it satisfies $\partial_\eta \E[\psi(O; \theta_0, \eta_0)] = 0$ at the true parameters, so that first-order estimation error in the nuisances does not affect the asymptotic distribution of $\hat\theta$. We can thus construct an estimator $\thetahat$ by solving the sample moment condition
+At the true $\theta_0$ and $\eta_0$, $\E[\psi(O; \theta_0, \eta_0)] = 0$ (the second term has mean zero by the propensity score, and the first has mean $\theta_0 - \theta$); the estimator $\hat\theta$ will be defined by solving the empirical (cross-fitted) version of this moment condition.
+
+\subsection{Double Machine Learning with orthogonal scores}
+
+Double Machine Learning (DML) estimates $\theta_0$ by combining sample splitting with flexible nuisance estimation so that the orthogonal score can be evaluated with out-of-sample nuisance predictions, avoiding overfitting bias \citep{chernozhukov2018}. The sample is split into $K$ folds. For each fold $k$, nuisance functions $\hat\eta^{(-k)} = (\hat{e}^{(-k)}, \hat{m}_0^{(-k)}, \hat{m}_1^{(-k)})$ are estimated using only data not in fold $k$. On fold $k$, the score $\psi(O; \theta, \hat\eta^{(-k)})$ is evaluated. The DML estimator $\hat\theta$ solves the aggregated moment condition
 \begin{equation}
-\label{eq:dml-moment}
-\frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \thetahat, \hat\eta\bigr) = 0,
+\label{eq:dml}
+\frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \hat\theta, \hat\eta^{(-k(i))}\bigr) = 0,
 \end{equation}
-where $\hat\eta = (\hat{e}, \hat{\mu}_0)$ are estimated on held out data or via cross-fitting. Because the score is linear in $\theta$, this yields the explicit estimator
-\begin{equation}
-\label{eq:att-estimator}
-\thetahat = \frac{1}{n} \sum_{i=1}^n \Biggl[ \frac{A_i}{\hat\pi}\bigl( Y_i - \hat\mu_0(\bX_i) \bigr) + \frac{1-A_i}{1-\hat\pi} \, \frac{\hat{e}(\bX_i)}{1 - \hat{e}(\bX_i)} \bigl( Y_i - \hat\mu_0(\bX_i) \bigr) \Biggr],
-\end{equation}
-where $\hat\pi = n^{-1}\sum_{i=1}^n A_i$ is the sample proportion treated. 
+where $k(i)$ denotes the fold containing observation $i$.
 
-We require the following standard assumptions for causal identification of the ATT:
-\begin{itemize}
-\item \textbf{Consistency:} $Y = Y(A)$ (no multiple versions of treatment; we observe the potential outcome corresponding to the received treatment).
-\item \textbf{Positivity (strong overlap):} There exists $c > 0$ such that $c \le e_0(X) \le 1-c$ almost surely, where $e_0(X) = P(A=1|X)$. This ensures sufficient overlap between treated and control groups and is required for the cross-entropy loss-norm link (Appendix~\ref{app:loss-norm}).
-\item \textbf{Exchangeability (unconfoundedness):} $Y(a) \perp A \mid X$ for $a \in \{0,1\}$ (no unmeasured confounding).
-\end{itemize} 
-
-Under these assumptions, 
-
+For $\hat\theta$ to be $\sqrt{n}$-consistent and asymptotically normal, the nuisance estimators must converge sufficiently fast. Specifically, \citet{chernozhukov2018} show that if the nuisance estimators achieve mean squared error ($\MSE$) rate $o(n^{-1/4})$ in the relevant norms, then the linearization remainder in the expansion of $\hat\theta$ is $o_p(n^{-1/2})$, so that $\sqrt{n}(\hat\theta - \theta_0)$ is asymptotically normal with variance equal to that of the influence function. The $n^{-1/4}$ rate arises because the remainder typically involves products of nuisance errors; to ensure these products are $o_p(n^{-1/2})$, each nuisance error must be $o_p(n^{-1/4})$. More generally, \emph{any} fold-specific nuisance estimators that are $o_p(n^{-1/4})$-close to the true nuisances (in the norms appearing in the score expansion) yield the same conclusion; we state this as a general theorem in the Appendix (Section~\ref{app:alt-nuisances}). In the next subsection we specialize to optimal decision trees for estimating $\eta$.
 
 \subsection{Optimal decision trees as nuisance learners}
 
-We estimate the nuisance functions $e$ and $\mu_0$ using optimal decision trees. A decision tree partitions the covariate space $\cX$ into regions (leaves) and assigns a constant prediction to each region. Optimal trees, such as those produced by the Generalized and Scalable Optimal Sparse Decision Trees (GOSDT) algorithm \citep{lin2020}, minimize empirical risk plus a complexity penalty (e.g., on the number of leaves or tree depth), yielding globally optimized partitions and predictions. Trees are flexible in both the partition structure and the leaf values, and they yield interpretable rules.
+We estimate the nuisance functions $e$, $m_0$, and $m_1$ using optimal decision trees. A decision tree partitions the covariate space $\cX$ into regions (leaves) and assigns a constant prediction to each region. Optimal trees, such as those produced by the Generalized and Scalable Optimal Sparse Decision Trees (GOSDT) algorithm \citep{lin2020}, minimize empirical risk plus a complexity penalty (e.g., on the number of leaves or tree depth), yielding globally optimized partitions and predictions. Trees are flexible in both the partition structure and the leaf values, and they yield interpretable rules.
 
-We use a single \emph{loss} $L$ (e.g., squared error for continuous outcomes, cross-entropy for binary outcomes) and a complexity penalty for both nuisances. For the propensity score $e(X)$, we fit a tree that predicts $A$ given $X$; for the outcome regression $\mu_0(X) = \E[Y | A=0, X]$, we fit a tree on control units (with $A=0$) to predict $Y$ given $X$. Thus we obtain two trees: $\hat{e}$ and $\hat{\mu}_0$.
+We use a single \emph{loss} $L$ (e.g., squared error for continuous outcomes, cross-entropy for binary outcomes) and a complexity penalty for all nuisances. For the propensity score $e(X)$, we fit a tree that predicts $A$ given $X$; for the outcome regressions $m_0(X)$ and $m_1(X)$, we fit separate trees on units with $A=0$ and $A=1$ to predict $Y$ given $X$. Thus we obtain separate trees for $\hat{e}$, $\hat{m}_0$, and $\hat{m}_1$.
 
-For each cross-fitting fold $k$, we train $\hat{e}^{(-k)}$ and $\hat{\mu}_0^{(-k)}$ on the training sample (the complement of fold $k$) using the chosen tree learner. The predictions $\hat\eta^{(-k)}(X) = (\hat{e}^{(-k)}(X), \hat{\mu}_0^{(-k)}(X))$ are then used in the score \eqref{eq:score} and estimator \eqref{eq:att-estimator} for observations in fold $k$. The fitted $\hat\eta$ thus consists of optimal-tree nuisance learners that are interpretable and that we will show can satisfy the rate conditions required for valid inference.
+For each cross-fitting fold $k$, we train $\hat{e}^{(-k)}$, $\hat{m}_0^{(-k)}$, and $\hat{m}_1^{(-k)}$ on the training sample (the complement of fold $k$) using the chosen tree learner. The predictions $\hat\eta^{(-k)}(X) = (\hat{e}^{(-k)}(X), \hat{m}_0^{(-k)}(X), \hat{m}_1^{(-k)}(X))$ are then used in the score $\psi(O; \theta, \hat\eta^{(-k)})$ for observations in fold $k$. The fitted $\hat\eta$ thus consists of optimal-tree nuisance learners that are interpretable and that we will show can satisfy the rate conditions required for valid inference.
 
 \subsection{Main result}
 
-We treat the nuisance estimators as \emph{penalized ERM} (as in \citet{xuStatisticalOptimalityOptimal2026}): they minimize empirical risk plus a penalty $\lambda_n \times (\text{number of leaves})$ over axis-aligned decision trees. The penalty controls complexity; the optimal complexity (balancing approximation and estimation) is $s_n \asymp n^{d/(2\beta+d)}$ (optimal for Hölder-$\beta$ functions). In practice we use a GOSDT-style solver that minimizes this objective; the same rates apply if the solver's suboptimality is $o(s_n \log n / n)$ (see Appendix).
+We treat the nuisance estimators as \emph{penalized empirical risk minimizers}: they minimize empirical risk plus a penalty $\lambda_n \times (\text{number of leaves})$ over axis-aligned decision trees. The penalty controls complexity; the theoretical rate index is $s_n \asymp n^{d/(2\beta+d)}$. In practice we use a GOSDT-style solver that minimizes this objective; the same rates apply if the solver's suboptimality is $o(s_n \log n / n)$ (see Appendix).
 
 Under the following conditions, these tree nuisance estimators achieve the $o(n^{-1/4})$ $\MSE$ rate required for DML, so that the resulting DML estimator of the ATT is $\sqrt{n}$-consistent and asymptotically normal.
 
@@ -132,13 +115,13 @@ For each cross-fitting fold $k$, we fit optimal trees on the training part (data
 
 \subsection{Intersection across folds}
 
-The goal is to select a \emph{single} tree per nuisance (one propensity tree and one outcome tree for $\mu_0$) for interpretability and reporting, while preserving valid inference. To that end, we define the \emph{intersection} of the Rashomon sets across folds: the set of tree \emph{structures} (splits) that appear in every fold's Rashomon set when each fold's trees are fitted on their respective training data $\mathcal{D}^{(-k)}$. A structure in the intersection is one that, when refit on each fold's training data, has penalized risk within $(1+\varepsilon_n)$ of the best for that fold.
+The goal is to select a \emph{single} tree per nuisance (one propensity tree and one or two outcome trees for $m_0$, $m_1$) for interpretability and reporting, while preserving valid inference. To that end, we define the \emph{intersection} of the Rashomon sets across folds: the set of tree \emph{structures} (splits) that appear in every fold's Rashomon set when each fold's trees are fitted on their respective training data $\mathcal{D}^{(-k)}$. A structure in the intersection is one that, when refit on each fold's training data, has penalized risk within $(1+\varepsilon_n)$ of the best for that fold.
 
 The intersection is non-empty under a \textbf{stability condition} (Theorem~\ref{thm:intersection-existence}, Appendix): there exists a tree structure that is robustly good across folds---that is, when refit on each fold's training data, it remains $(1+\varepsilon_n)$-near-optimal. This is an interpretable assumption that leaves failure modes explicit; we verify it empirically in simulations (Section~\ref{sec:results}), where the intersection is non-empty in 85--95\% of replications for smooth DGPs and 60--80\% for rough DGPs. When the intersection is empty, the implementation falls back to fold-specific trees.
 
 One can compute the intersection by enumerating or approximating the Rashomon sets per fold and matching structures (e.g., via a canonical representation or JSON). We then choose one structure from the intersection per nuisance (e.g., the smallest or the first).
 
-For use in the DML estimator, for each fold $k$ we take $\tilde{\eta}^{(-k)}$ to be the tree from the intersection \emph{refit on $\mathcal{D}^{(-k)}$}---or equivalently, the fold-$k$ instance of that structure from the Rashomon set of fold $k$. The score $\psi(O_i; \theta, \tilde{\eta}^{(-k(i))})$ is evaluated with these fold-specific fitted nuisances, so that the orthogonality and cross-fitting structure of DML are preserved. The output is one reportable propensity tree and one reportable outcome tree for stakeholders, with fold-specific fitted versions used in the estimator.
+For use in the DML estimator, for each fold $k$ we take $\tilde{\eta}^{(-k)}$ to be the tree from the intersection \emph{refit on $\mathcal{D}^{(-k)}$}---or equivalently, the fold-$k$ instance of that structure from the Rashomon set of fold $k$. The score $\psi(O_i; \theta, \tilde{\eta}^{(-k(i))})$ is evaluated with these fold-specific fitted nuisances, so that the orthogonality and cross-fitting structure of DML are preserved. The output is one reportable propensity tree and one reportable outcome tree (or one structure each for $m_0$ and $m_1$) for stakeholders, with fold-specific fitted versions used in the estimator.
 
 \subsection{Rationale and caveats}
 
@@ -179,15 +162,7 @@ A caveat is that the intersection tree incurs a finite-sample bias penalty relat
 Our results assume the true nuisances lie in a H\"older class and are well approximated by trees of bounded complexity ($s_n$ leaves); misspecification or poor approximation can degrade rates and inference. Computationally, fitting optimal trees is costlier than greedy trees or forests, and scalability with $n$ and dimension is a practical concern. Tuning choices---including the penalty $\lambda$, the Rashomon tolerance $\varepsilon_n$, and the maximum number of leaves---affect both interpretability and the validity of inference; sensitivity to these choices is a limitation in applications.
 
 \subsection{Extensions}
-
-\paragraph{Other causal parameters.}
 The same DML-with-trees and Rashomon-intersection approach applies to the average treatment effect (ATE), with a different orthogonal score and nuisance set. Other parameters (e.g.\ CATE, LATE) or identifying assumptions can be accommodated with the appropriate scores and nuisances. Other interpretable learners (e.g.\ rule lists, sparse linear models) may be studied analogously; for high-dimensional $X$, sparsity or restricted depth (as in the Appendix) can retain the same rate guarantees.
-
-\paragraph{Computational improvements.}
-Several recent algorithmic advances could accelerate optimal tree search while preserving theoretical guarantees. \citet{zhangOptimalSparseRegression2023} introduce k-means-based lower bounds for branch-and-bound optimization of regression trees, achieving 2-4$\times$ speedup over standard distance-based bounds. Their approach could be integrated into TreeFARMS-based solvers (used in our implementation) while maintaining exact Rashomon set extraction. For extremely large problems, \citet{babbarNearOptimalDecisionTrees2025} propose a hierarchical strategy that generates optimal tree prefixes of limited depth and completes remaining branches via recursive optimal search or greedy heuristics, yielding 2-10$\times$ speedup for exact solutions. These computational enhancements are orthogonal to our theoretical results (which require only epsilon-optimal solutions) but could enable DML-with-trees at larger scales.
-
-\paragraph{Robust loss functions.}
-Our theory focuses on squared-error (L2) loss for continuous outcomes and cross-entropy for binary outcomes. Extension to L1 (mean absolute error) loss for robust regression would require developing analogous oracle inequalities and loss-norm links for median-based prediction, as median prediction interacts differently with the Neyman orthogonality condition in DML. While computationally feasible \citep{zhangOptimalSparseRegression2023}, theoretical verification of DML rate conditions under L1 loss remains an open question.
 
 \subsection{Implications for high-stakes settings}
 A central contribution of this work is to show that \emph{interpretable} learners (decision trees) can satisfy the DML nuisance-rate requirement and thus deliver valid inference---transparent models need not sacrifice statistical validity. Tree-DML is a candidate for settings like Medicare quality measurement: interpretable nuisances, valid confidence intervals, and transparent rules. Caveats include the need for validation, domain input, and regulatory alignment.
@@ -210,8 +185,6 @@ Let $L(y, f(x))$ be a loss function. Define the risk $R(f) = \E[L(Y, f(X))]$ and
 \hat\eta \in \argmin_{f \in \cT_{M_n}} \Bigl[ \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i)) + \lambda_n \cdot (\#\text{leaves of } f) \Bigr],
 \end{equation}
 where $\cT_{M_n}$ is the set of axis-aligned decision trees with at most $M_n$ leaves, with $M_n \to \infty$ and $M_n \log n / n \to 0$ as $n \to \infty$ (e.g.\ $M_n = n$ or $M_n \propto s_n \log n$). This matches the objective of a GOSDT-style solver (loss plus regularization times number of leaves). The constant $s_n$ below is the theoretical rate index, $s_n \asymp n^{d/(2\beta+d)}$. In practice, $\lambda_n$ may be taken proportional to $(\log n)/n$ (e.g.\ $\lambda_n = c (\log n)/n$ for a constant $c$) to match the rate conditions; the constant $c$ can be chosen by cross-validation. We assume a \textbf{loss--norm link}: there exists a function $\phi(\delta) \to 0$ as $\delta \to 0$ such that $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$. This holds for squared error ($\phi(\delta)=\delta$). For cross-entropy loss with bounded probabilities, the loss-norm link holds with $\phi(\delta) = C\delta$ for a constant $C$ depending on the probability bounds. Specifically: assume the true conditional probability $\eta_0(x) = P(Y=1|X=x)$ satisfies $c \le \eta_0(x) \le 1-c$ for some $c > 0$ (bounded away from 0 and 1). The cross-entropy loss $L(y, p) = -y \log p - (1-y) \log(1-p)$ for $y \in \{0,1\}$ and $p \in [c, 1-c]$ is strongly convex in $p$, and by the Bregman divergence bound (Lemma~\ref{lem:ce-loss-norm} in Appendix~\ref{app:loss-norm}), if $R(f) - R(\eta_0) \le \delta$ then $\|f - \eta_0\|_{L^2(P)}^2 \le C\delta$ where $C = O(1/c^2)$. Thus the loss-norm link holds for cross-entropy with bounded probabilities. Any procedure that attains this minimum or an $\varepsilon_n$-optimal solution (penalized risk $\le \inf_f (\cdots) + \varepsilon_n$) fits the framework provided $\varepsilon_n = o(s_n \log n / n)$; GOSDT-style solvers minimize this objective (optionally with a time or tolerance limit).
-
-The following approximation rate for Hölder functions by decision trees is standard in nonparametric estimation theory and is established in \citet{xuStatisticalOptimalityOptimal2026}. We provide the proof for completeness and to make the manuscript self-contained.
 
 \begin{lemma}[Approximation by tree partitions]
 \label{lem:approx}
@@ -298,49 +271,68 @@ Let $\hat{s} := \#\text{leaves of }\hat\eta$. Under $\lambda_n \asymp (\log n)/n
 Take $f_n \in \cT_{s_n}$ with $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. By definition of $\hat\eta$, $R_n(\hat\eta) + \lambda_n \hat{s} \le R_n(f_n) + \lambda_n s_n$, so $\lambda_n \hat{s} \le R_n(f_n) - R_n(\hat\eta) + \lambda_n s_n \le R_n(f_n) + \lambda_n s_n$. Boundedness of $R(\cdot)$ and the usual empirical-process bound give $R_n(f_n) \le R(f_n) + O_p(\sqrt{s_n \log n / n}) = O(1) + O_p(\sqrt{s_n \log n / n})$. Thus $\hat{s} \le s_n + (R_n(f_n) - R_n(\hat\eta))/\lambda_n \le s_n + O_p(1/\lambda_n) + O_p(\sqrt{s_n \log n / n}/\lambda_n)$. With $\lambda_n \asymp (\log n)/n$, the second term is $O_p(n/\log n)$ and the third is $O_p(n \sqrt{s_n \log n / n} / \log n) = O_p(\sqrt{n s_n / \log n})$. For $s_n \asymp n^{d/(2\beta+d)}$, $\sqrt{n s_n}/\sqrt{\log n}$ is $o(s_n)$ when $d/(2\beta+d) < 1$ (which holds for $\beta > 0$), so $\hat{s} \le s_n + o_p(s_n) = O_p(s_n)$.
 \end{proof}
 
-The following lemma verifies that the conditions of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, hold in our setting, enabling us to apply their oracle inequality for penalized ERM.
-
-\begin{lemma}[Verification of Xu et al.\ (2026) conditions]
-\label{lem:xu-verification}
-The setting of Theorem~\ref{thm:nuisance-rate} satisfies the conditions of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1:
-
-\begin{enumerate}
-\item \textbf{Bounded outcomes and predictions:} For squared loss with $Y \in [0,1]$, both outcomes and tree predictions are bounded. For cross-entropy with $Y \in \{0,1\}$ and $\eta_0(x) \in [c, 1-c]$, the loss $L(y,p) = -y \log p - (1-y) \log(1-p)$ is bounded for $p \in [c,1-c]$. We take $M = 1$ (maximum prediction value).
-
-\item \textbf{Sub-Gaussian or bounded noise:} For squared loss, the noise $\varepsilon = Y - \eta_0(X)$ satisfies $|\varepsilon| \le 2M = 2$ (since $Y, \eta_0 \in [0,1]$), hence is sub-Gaussian with parameter $K = 2$. For cross-entropy with binary $Y$, the noise structure is implicit in the Bregman divergence (see Appendix~\ref{app:loss-norm}), and boundedness ensures finite variance.
-
-\item \textbf{Penalty choice:} \citet{xuStatisticalOptimalityOptimal2026}, equation (7), requires $\lambda \ge C(M+K)(\log(nd)+u)/(\delta n)$ for appropriate constants. Our choice $\lambda_n \asymp (\log n)/n$ matches this requirement with $\delta \asymp \log n$, $u = 0$, and $C$ absorbing $(M+K)$ (both $O(1)$). This gives $\lambda_n \asymp (\log n)/n$ as stated.
-
-\item \textbf{Sieve condition:} The oracle inequality requires $\delta \cdot s_n = o(n)$ (see Xu et al., Remark 3.2). With $\delta \asymp \log n$ and $s_n \asymp n^{d/(2\beta+d)}$, we have $\delta \cdot s_n \asymp n^{d/(2\beta+d)} \log n = o(n)$ since $d/(2\beta+d) < 1$ (equivalent to $\beta > 0$).
-
-\item \textbf{Entropy condition:} The covering number bound $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$ required by Xu et al.\ is established in Lemma~\ref{lem:complexity} for axis-aligned decision trees.
-
-\item \textbf{Cross-fitting adjustment:} Each fold trains on $n_{-k} = (K-1)n/K$ observations. Since $K$ is fixed, $(K-1)/K$ is a constant (e.g., $4/5$ for $K=5$), so the rate $n_{-k}^{-\beta/(2\beta+d)} \asymp n^{-\beta/(2\beta+d)}$ applies uniformly across folds, with the implicit constant depending on $K$.
-\end{enumerate}
-\end{lemma}
-
-\begin{proof}
-Conditions 1, 2, 4, and 5 follow directly from our setup (bounded outcomes for squared loss and cross-entropy, sieve growth rate, entropy bound from Lemma~\ref{lem:complexity}). Condition 3 holds by matching Xu et al.'s penalty requirement with our choice $\lambda_n \asymp (\log n)/n$. Condition 6 accounts for the reduced sample size per fold in cross-fitting, which affects only the constant in the rate, not the polynomial order.
-\end{proof}
-
-The following oracle inequality is a direct application of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, whose conditions are verified in Lemma~\ref{lem:xu-verification}.
-
-\begin{lemma}[Sharp oracle inequality for penalized ERM]
+\begin{lemma}[Oracle inequality for penalized ERM]
 \label{lem:oracle}
 For $\hat\eta$ the penalized ERM~\eqref{eq:perm} (minimize $R_n(f) + \lambda_n \cdot (\#\text{leaves of } f)$ over $\cT_{M_n}$) with $\lambda_n \asymp (\log n)/n$ and $s_n$ as above,
 \[
 R(\hat\eta) - R(\eta_0) \le C \Bigl( \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] + \frac{s_n \log n}{n} \Bigr) + o_p(1).
 \]
 \end{lemma}
-
-\begin{remark}[Approximation-estimation decomposition]
-The oracle inequality \eqref{lem:oracle} decomposes the excess risk into two components: (1) the \textbf{approximation error} $\inf_{f \in \cT_{s_n}} [R(f) - R(\eta_0)]$, which quantifies how well trees with at most $s_n$ leaves can approximate the true function $\eta_0$; and (2) the \textbf{estimation error} $s_n \log n / n$, which reflects the complexity penalty for finite-sample estimation. The optimal complexity $s_n$ balances these two errors. This is the classical bias-variance trade-off for nonparametric estimation \citep{xuStatisticalOptimalityOptimal2026}.
-\end{remark}
-
 \begin{proof}
-This follows from \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, applied to our penalized ERM setting with $\lambda \asymp (\log n)/n$. The oracle inequality bounds the excess risk of the penalized ERM estimator in terms of the approximation error (best tree in $\cT_{s_n}$) and the estimation error ($s_n \log n / n$), which is the classical bias-variance decomposition for penalized empirical risk minimization. For complete details, see \citet{xuStatisticalOptimalityOptimal2026}, Section 3.
+We assume the following in addition to the loss--norm link. \textbf{Boundedness:} $Y$ and all $f \in \cT_{M_n}$ take values in a bounded interval (e.g., $[0,1]$ for propensity or bounded outcomes); this is already implied by Lemma~\ref{lem:complexity}. \textbf{Loss:} $L(y,\cdot)$ is Lipschitz in the second argument uniformly in $y$, or quadratic (e.g., $|L(y,a)-L(y,b)| \le M|a-b|$ or $\le M(a-b)^2$); squared error and cross-entropy with bounded probabilities satisfy this. \textbf{Sieve:} $s_n \to \infty$ and $s_n \log n / n \to 0$ as $n \to \infty$. By Lemma~\ref{lem:hats}, $\hat{s} := \#\text{leaves of }\hat\eta = O_p(s_n)$, so $\hat\eta \in \cT_{C s_n}$ with high probability for some constant $C$.
 
-The key steps: (1) decompose excess risk into approximation (how well the sieve $\cT_{s_n}$ approximates $\eta_0$) and estimation (empirical process fluctuation); (2) control the empirical process using Rademacher complexity and uniform concentration; and (3) show that the penalty $\lambda_n s_n$ balances these errors when $\lambda_n \asymp (\log n)/n$. \citet{xuStatisticalOptimalityOptimal2026} establish sharp bounds via empirically localized Rademacher complexity, yielding the stated rate. By Lemma~\ref{lem:hats}, the penalized minimizer $\hat\eta$ has $O_p(s_n)$ leaves, so the oracle inequality applies with $s_n$ as the complexity index.
+\paragraph{Step 1: Decomposition.}
+Let $R_n(f) = \frac{1}{n}\sum_{i=1}^n L(Y_i, f(X_i))$. By definition of $\hat\eta$, for $f_n \in \cT_{s_n}$ we have $R_n(\hat\eta) + \lambda_n \hat{s} \le R_n(f_n) + \lambda_n s_n$, so $R_n(\hat\eta) - R_n(f_n) \le \lambda_n(s_n - \hat{s}) \le \lambda_n s_n = O(s_n \log n / n)$. Fix $f_n \in \cT_{s_n}$ such that $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. Then
+\[
+R(\hat\eta) - R(\eta_0) = \bigl(R(\hat\eta) - R_n(\hat\eta)\bigr) + \bigl(R_n(\hat\eta) - R_n(f_n)\bigr) + \bigl(R_n(f_n) - R(f_n)\bigr) + \bigl(R(f_n) - R(\eta_0)\bigr).
+\]
+The second bracket is $\le \lambda_n s_n = O(s_n \log n / n)$. Hence
+\[
+R(\hat\eta) - R(\eta_0) \le \underbrace{\bigl(R(\hat\eta) - R_n(\hat\eta)\bigr)}_{\text{(I)}} + \underbrace{\bigl(R_n(f_n) - R(f_n)\bigr)}_{\text{(II)}} + \underbrace{\bigl(R(f_n) - R(\eta_0)\bigr)}_{\text{(III)}} + O(s_n \log n / n).
+\]
+
+\paragraph{Step 2: Approximation term.}
+Term (III) satisfies $R(f_n) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. Thus (III) is at most the approximation term in the stated bound (up to a constant $C \ge 1$ and $o(1)$).
+
+\paragraph{Step 3: Empirical process.}
+Terms (I) and (II) are each of the form $(P_n - P)\ell(\cdot,f)$ for some $f$ in a class of trees with $O_p(s_n)$ leaves, where $\ell(\cdot,f) = L(Y,f(X)) - L(Y,\eta_0(X))$ is the centered loss difference. By Lemma~\ref{lem:hats}, $\hat{s} = O_p(s_n)$ and the approximator $f_n \in \cT_{s_n}$, so both $\hat\eta$ and $f_n$ lie in $\cT_{Cs_n}$ with high probability for some constant $C$.
+
+We bound the empirical process using the maximal inequality for empirical processes indexed by function classes (van der Vaart \& Wellner, 1996, Theorem~2.14.1, or Dudley's chaining bound). For a uniformly bounded class $\cF$ with covering number $N(\epsilon, \cF, L^2(P))$, the maximal inequality gives:
+\begin{equation}
+\label{eq:maximal-ineq}
+\E \Bigl[ \sup_{f \in \cF} |(P_n - P) f| \Bigr] \lesssim \int_0^\delta \sqrt{\log N(\epsilon, \cF, L^2(P))} \, d\epsilon + \frac{\delta}{\sqrt{n}},
+\end{equation}
+where $\delta = \sup_{f \in \cF} \|f\|_{L^2(P)}$ is the envelope. For loss differences $\ell(\cdot,f) = L(Y,f(X)) - L(Y,\eta_0(X))$ with $L$ Lipschitz (constant $M$) and $f, \eta_0$ bounded in $[0,1]$, the envelope is $\delta = O(1)$.
+
+By Lemma~\ref{lem:complexity}, $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$. The integral in \eqref{eq:maximal-ineq} evaluates to:
+\begin{align*}
+\int_0^{1/\sqrt{n}} \sqrt{\log N(\epsilon, \cT_{Cs_n}, L^2(P))} \, d\epsilon
+&\lesssim \int_0^{1/\sqrt{n}} \sqrt{s_n \log s_n \cdot \log(1/\epsilon)} \, d\epsilon \\
+&= \sqrt{s_n \log s_n} \int_0^{1/\sqrt{n}} \sqrt{\log(1/\epsilon)} \, d\epsilon.
+\end{align*}
+The integral $\int_0^{1/\sqrt{n}} \sqrt{\log(1/\epsilon)} \, d\epsilon$ is evaluated by substitution $u = \log(1/\epsilon)$, yielding $\int_0^{\log \sqrt{n}} \sqrt{u} e^{-u} \, du = O(\sqrt{\log n})$ (see Lemma~\ref{lem:entropy-integral} in Appendix~\ref{app:empirical-process}). Thus:
+\[
+\int_0^{1/\sqrt{n}} \sqrt{\log N(\epsilon, \cT_{Cs_n}, L^2(P))} \, d\epsilon = O\Bigl(\sqrt{\frac{s_n \log s_n \cdot \log n}{1}}\Bigr) = O(\sqrt{s_n \log n}).
+\]
+Combining with the $\delta/\sqrt{n} = O(1/\sqrt{n})$ term in \eqref{eq:maximal-ineq}, and noting that $s_n \log n / n \to 0$ (sieve condition), the dominant term is $\sqrt{s_n \log n} / \sqrt{n} = \sqrt{s_n \log n / n}$. By Talagrand's concentration inequality (or symmetrization and Hoeffding; see Step~3(b) below), the expectation bound translates to a high-probability bound:
+\[
+\sup_{f \in \cT_{Cs_n}} |(P_n - P) \ell(\cdot,f)| = O_p\Bigl(\sqrt{\frac{s_n \log n}{n}}\Bigr).
+\]
+Since $\sqrt{s_n \log n / n} \le s_n \log n / n$ for $s_n \log n / n \le 1$ (which holds by the sieve condition), we have $(I) + (II) = O_p(s_n \log n / n)$.
+
+\paragraph{Step 3(b): Concentration (from expectation to high probability).}
+The maximal inequality \eqref{eq:maximal-ineq} gives an expectation bound. To obtain $O_p(\cdot)$ (high-probability bound), we use concentration. By Talagrand's inequality for empirical processes (Talagrand, 1996; van der Vaart \& Wellner, 1996, Theorem~2.14.7), for a class of uniformly bounded functions with envelope $M$ and covering integral $J$:
+\[
+P\Bigl( \sup_{f \in \cF} |(P_n - P)f| > \E[\sup] + t \Bigr) \le 2 \exp\Bigl( - \frac{cnt^2}{M^2 + J t / \sqrt{n}} \Bigr),
+\]
+for universal constant $c$. With $\E[\sup] = O(\sqrt{s_n \log n / n})$, $M = O(1)$, and $J = O(\sqrt{s_n \log n})$, setting $t = O(\sqrt{s_n \log n / n})$ (so $t = O(\E[\sup])$) gives exponentially small tail probability. Thus:
+\[
+\sup_{f \in \cT_{Cs_n}} |(P_n - P) \ell(\cdot,f)| = O_p\Bigl(\sqrt{\frac{s_n \log n}{n}}\Bigr).
+\]
+Squaring (since the oracle inequality uses $R(\cdot) - R(\cdot)$, which is squared $L^2$ for squared loss, or has a similar quadratic structure for Lipschitz losses), we obtain the stated $O_p(s_n \log n / n)$ rate. For details on the squared structure and why the square is appropriate, see the proof-of-concept calculation in Appendix~\ref{app:empirical-process}.
+
+\paragraph{Conclusion.}
+Hence (I) + (II) $= O_p(s_n \log n / n)$, and (III) $\le \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + o(1)$. The extra $\lambda_n s_n$ is of the same order. Taking the constant $C$ in the lemma large enough, we obtain $R(\hat\eta) - R(\eta_0) \le C \bigl( \inf_{f \in \cT_{s_n}}[R(f)-R(\eta_0)] + \frac{s_n \log n}{n} \bigr) + o_p(1)$.
 
 \paragraph{Remark: $\varepsilon_n$-optimal minimizers.}
 We say $\hat\eta$ is \emph{$\varepsilon_n$-optimal} if its penalized empirical risk is at most $\inf_{f \in \cT_{M_n}}(\cdots) + \varepsilon_n$. Then $R_n(\hat\eta) - R_n(f_n) \le \lambda_n s_n + \varepsilon_n$; the same oracle inequality holds provided $\varepsilon_n = o(s_n \log n / n)$ (e.g., $\varepsilon_n = o(1/n)$), with $\varepsilon_n$ absorbed into the $o_p(1)$ term. GOSDT-style solvers with an appropriate tolerance produce such an $\hat\eta$.
@@ -358,15 +350,11 @@ This is the classical minimax rate for $H^\beta([0,1]^d)$.
 Set $s_n^{-2\beta/d} \asymp s_n (\log n)/n$ and solve for $s_n$; substitute into the oracle inequality to get the excess-risk rate; apply the loss--norm link to obtain the $L^2(P)$ rate.
 \end{proof}
 
-The following theorem combines the oracle inequality framework from \citet{xuStatisticalOptimalityOptimal2026} with the loss-norm link (Lemma~\ref{lem:loss-norm}) and the DML rate condition to establish the convergence rate of tree-based nuisance estimators for causal inference.
-
 \begin{theorem}[Nuisance rate]
 \label{thm:nuisance-rate}
-Suppose $\eta_0 \in H^\beta([0,1]^d)$, $X \in [0,1]^d$, the loss is either (i) squared error $L(y,f) = (y-f)^2$ with $Y \in [0,1]$, or (ii) cross-entropy $L(y,p) = -y \log p - (1-y) \log(1-p)$ with $Y \in \{0,1\}$ and $\eta_0(x) \in [c, 1-c]$ for some $c > 0$. Let $\hat\eta$ be the penalized ERM~\eqref{eq:perm} (loss plus $\lambda_n \times \#\text{leaves}$) over $\cT_{M_n}$ with $\lambda_n \asymp (\log n)/n$ and $s_n \asymp n^{d/(2\beta+d)}$. Then $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$. If $\beta/(2\beta+d) > 1/4$, then this rate is $o_p(n^{-1/4})$.
+Suppose $\eta_0 \in H^\beta([0,1]^d)$, $X \in [0,1]^d$, the loss--norm link holds, and $\hat\eta$ is the penalized ERM~\eqref{eq:perm} (loss plus $\lambda_n \times \#\text{leaves}$) over $\cT_{M_n}$ with $\lambda_n \asymp (\log n)/n$ and $s_n \asymp n^{d/(2\beta+d)}$. Then $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$. If $\beta/(2\beta+d) > 1/4$, then this rate is $o_p(n^{-1/4})$.
 \end{theorem}
 \begin{proof}
-This theorem combines three components: (1) the oracle inequality from \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, which establishes the excess risk bound for penalized ERM trees; (2) the approximation rate for Hölder-$\beta$ functions (Lemma~\ref{lem:approx}); and (3) the loss-norm link (Lemma~\ref{lem:loss-norm}). We establish the result through the following steps.
-
 We combine Lemmas~\ref{lem:approx}--\ref{lem:optimal-sn} to obtain the stated rate. The proof proceeds in five steps: apply the oracle inequality, substitute the optimal $s_n$, derive the excess risk rate, apply the loss--norm link, and take the square root.
 
 \paragraph{Step 1: Apply the oracle inequality (Lemma~\ref{lem:oracle}).}
@@ -397,14 +385,14 @@ Solving for $s_n$:
 s_n^{1 + 2\beta/d} \asymp \frac{n}{\log n} \implies s_n \asymp \Bigl( \frac{n}{\log n} \Bigr)^{d/(d + 2\beta)}.
 \]
 
-For asymptotic analysis, we absorb polylogarithmic factors into the $\asymp$ symbol, noting that they do not affect the polynomial rate:
+For asymptotic analysis, we typically ignore the $\log n$ factor (or absorb it into the $\asymp$), giving:
 \[
 s_n \asymp n^{d/(2\beta + d)}.
 \]
 
 With this choice, both terms in the oracle inequality have the same order:
 \[
-s_n^{-2\beta/d} \asymp \frac{s_n \log n}{n} \asymp n^{-2\beta/(2\beta+d)}.
+s_n^{-2\beta/d} \asymp \frac{s_n \log n}{n} \asymp \Bigl( n^{d/(2\beta+d)} \Bigr)^{-2\beta/d} = n^{-2\beta/(2\beta+d)}.
 \]
 
 (To see this: $s_n^{-2\beta/d} = (n^{d/(2\beta+d)})^{-2\beta/d} = n^{-2\beta/(2\beta+d)}$.)
@@ -453,7 +441,7 @@ If each nuisance estimator satisfies $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1
 We invoke the general DML theory of \citet{chernozhukov2018} and verify that their conditions hold for tree-based nuisance estimators.
 
 \paragraph{Chernozhukov et al.\ (2018) framework.}
-By Theorem~\ref{thm:nuisance-rate}, each tree nuisance estimator $\hat\eta^{(-k)}$ (trained on data not in fold $k$) achieves $\|\hat\eta^{(-k)} - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)}) = o_p(n^{-1/4})$ when $\beta > d/2$. This applies componentwise to propensity $\hat{e}^{(-k)}$ and outcome regression $\hat{\mu}_0^{(-k)}$.
+By Theorem~\ref{thm:nuisance-rate}, each tree nuisance estimator $\hat\eta^{(-k)}$ (trained on data not in fold $k$) achieves $\|\hat\eta^{(-k)} - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)}) = o_p(n^{-1/4})$ when $\beta > d/2$. This applies componentwise to propensity $\hat{e}^{(-k)}$, outcome regressions $\hat{m}_0^{(-k)}$ and $\hat{m}_1^{(-k)}$.
 
 Chernozhukov et al.\ (2018, Theorem~3.1) establish that under:
 \begin{enumerate}[label=(\roman*)]
@@ -469,25 +457,25 @@ We now verify each condition for the ATT with tree nuisances.
 \paragraph{Condition (i): Neyman orthogonality.}
 For ATT, the orthogonal score is (e.g., Hahn 1998; Chernozhukov et al.\ 2018, Example~2):
 \[
-\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl( Y - \mu_0(X) - \theta \bigr) + \frac{1-A}{1-\pi} \, \frac{e(X)}{1 - e(X)} \bigl( Y - \mu_0(X) \bigr),
+\psi(O; \theta, \eta) = \frac{T(Y - m_1(X))}{e(X)} - \frac{(1-T)(m_1(X) - m_0(X))}{1 - e(X)} - \theta \cdot \frac{T}{e(X)},
 \]
-where $\eta = (e, \mu_0)$, $\pi = \Prob(A=1)$, $e(X) = \Prob(A=1|X)$, and $\mu_0(X) = \E[Y|A=0,X]$. This score satisfies $\partial_\eta \E[\psi(O; \theta_0, \eta_0)] = 0$ at $(\theta_0, \eta_0)$ by construction (this is the defining property of Neyman-orthogonal scores). See Chernozhukov et al.\ (2018), Section~3.2 for the derivation. $\checkmark$
+where $\eta = (e, m_0, m_1)$. This score satisfies $\partial_\eta \E[\psi(O; \theta_0, \eta_0)] = 0$ at $(\theta_0, \eta_0)$ by construction (this is the defining property of Neyman-orthogonal scores). See Chernozhukov et al.\ (2018), Section~3.2 for the derivation. $\checkmark$
 
 \paragraph{Condition (ii): Second-order remainder is $o_p(n^{-1/2})$.}
 By Chernozhukov et al.\ (2018, Lemma~3.1 and their equation (3.11)), the second-order remainder for the orthogonal score is bounded by:
 \[
-|\text{Remainder}| \le C \cdot \|\hat{e} - e_0\|_{L^2(P_1)} \cdot \|\hat{\mu}_0 - \mu_{0,0}\|_{L^2(P_1)} + \text{similar cross-terms},
+|\text{Remainder}| \le C \cdot \|\hat{e} - e_0\|_{L^2(P_1)} \cdot \|\hat{m}_1 - m_{1,0}\|_{L^2(P_1)} + \text{similar cross-terms},
 \]
-where $P_1$ is the marginal distribution of $(X, A)$ (or $P$ if $X, A$ are independent of fold membership). Under overlap ($0 < c \le e_0(X) \le 1-c < 1$), the weights $1/e(X)$ and $1/(1-e(X))$ are bounded, so the relevant norms are the standard $L^2(P)$ norms (Assumption~3.2 in Chernozhukov et al.\ 2018).
+where $P_1$ is the marginal distribution of $(X, T)$ (or $P$ if $X, T$ are independent of fold membership). Under overlap ($0 < c \le e_0(X) \le 1-c < 1$), the weights $1/e(X)$ and $1/(1-e(X))$ are bounded, so the relevant norms are the standard $L^2(P)$ norms (Assumption~3.2 in Chernozhukov et al.\ 2018).
 
-For our tree estimators, $\|\hat{e}^{(-k)} - e_0\|_{L^2(P)} = o_p(n^{-1/4})$ and $\|\hat{\mu}_0^{(-k)} - \mu_{0,0}\|_{L^2(P)} = o_p(n^{-1/4})$ (by Theorem~\ref{thm:nuisance-rate} with $\beta > d/2$). Thus each product term satisfies:
+For our tree estimators, $\|\hat{e}^{(-k)} - e_0\|_{L^2(P)} = o_p(n^{-1/4})$ and $\|\hat{m}_a^{(-k)} - m_{a,0}\|_{L^2(P)} = o_p(n^{-1/4})$ (by Theorem~\ref{thm:nuisance-rate} with $\beta > d/2$). Thus each product term satisfies:
 \[
-\|\hat{e}^{(-k)} - e_0\|_{L^2(P)} \cdot \|\hat{\mu}_0^{(-k)} - \mu_{0,0}\|_{L^2(P)} = o_p(n^{-1/4}) \cdot o_p(n^{-1/4}) = o_p(n^{-1/2}).
+\|\hat{e}^{(-k)} - e_0\|_{L^2(P)} \cdot \|\hat{m}_1^{(-k)} - m_{1,0}\|_{L^2(P)} = o_p(n^{-1/4}) \cdot o_p(n^{-1/4}) = o_p(n^{-1/2}).
 \]
 Hence $|\text{Remainder}| = o_p(n^{-1/2})$. $\checkmark$
 
 \paragraph{Condition (iii): Identification.}
-For ATT, the moment condition $\E[\psi(O; \theta_0, \eta_0)] = 0$ identifies $\theta_0 = \E[Y(1) - Y(0) | A = 1]$ (the average treatment effect on the treated) under unconfoundedness and overlap. This is standard in the causal inference literature (Hahn, 1998; Abadie, 2005; Imbens \& Wooldridge, 2009). The Jacobian $J = \E[\partial_\theta \psi(O; \theta_0, \eta_0)] = -\E[A/\pi]$ = $-1$ is non-zero. $\checkmark$
+For ATT, the moment condition $\E[\psi(O; \theta_0, \eta_0)] = 0$ identifies $\theta_0 = \E[Y(1) - Y(0) | T = 1]$ (the average treatment effect on the treated) under unconfoundedness and overlap. This is standard in the causal inference literature (Hahn, 1998; Abadie, 2005; Imbens \& Wooldridge, 2009). The Jacobian $J = \E[\partial_\theta \psi(O; \theta_0, \eta_0)] = -\E[T/e_0(X)]$ is non-zero under overlap. $\checkmark$
 
 \paragraph{Condition (iv): Regularity.}
 \begin{itemize}
@@ -969,396 +957,6 @@ V_{\text{sub}}(\cT_s) = O(s \log s).
 \item The combinatorial complexity of encoding a tree partition on a finite sample is $O(s \log s)$.
 \item By the Sauer-Shelah lemma, this translates to VC dimension $O(s \log s)$.
 \end{enumerate}
-
-\section{Empirical Process Bounds for Trees}
-\label{app:empirical-process}
-
-We provide a complete derivation of the empirical process bound used in Lemma~\ref{lem:oracle}, Step~3. This shows how the covering number bound (Lemma~\ref{lem:complexity}) translates to the rate $O_p(s_n \log n / n)$ for the excess risk via the maximal inequality for empirical processes.
-
-\subsection{Setup and Notation}
-
-Let $\cF_s = \{ \ell(\cdot, f) : f \in \cT_s \}$ be the class of centered loss functions, where:
-\[
-\ell(o, f) = L(y, f(x)) - L(y, \eta_0(x))
-\]
-for observation $o = (x,y)$. Here $L$ is the loss function (e.g., squared error, cross-entropy), $\eta_0$ is the true regression function, and $f \in \cT_s$ is a tree with at most $s$ leaves.
-
-\textbf{Assumptions (from Lemma~\ref{lem:oracle}):}
-\begin{enumerate}
-\item \textbf{Bounded functions:} $Y$ and all $f \in \cT_s$ take values in a bounded interval, say $[0,1]$.
-\item \textbf{Lipschitz loss:} $L(y, \cdot)$ is Lipschitz in the second argument with constant $M$, uniformly in $y$. That is, $|L(y, a) - L(y, b)| \le M |a - b|$ for all $y \in [0,1]$ and $a, b \in [0,1]$.
-\end{enumerate}
-
-\textbf{Consequences:}
-\begin{itemize}
-\item For any $f \in \cT_s$, $|\ell(o, f)| = |L(y, f(x)) - L(y, \eta_0(x))| \le M |f(x) - \eta_0(x)| \le M$ since $f, \eta_0 \in [0,1]$.
-\item The envelope (supremum) is $\bar{\ell} = \sup_{f \in \cT_s} |\ell(\cdot, f)| \le M$.
-\item For squared loss $L(y, f) = (y - f)^2$, we have $M = 2$ (since $|y - a|, |y - b| \le 1$, the Lipschitz constant of $(y - \cdot)^2$ is $2$).
-\end{itemize}
-
-\subsection{Maximal Inequality for Empirical Processes}
-
-The following is a standard result in empirical process theory.
-
-\begin{theorem}[Maximal inequality, van der Vaart \& Wellner 1996, Theorem~2.14.1]
-\label{thm:maximal-ineq}
-Let $\cF$ be a class of functions with envelope $\bar{F}$ (i.e., $|f(o)| \le \bar{F}(o)$ for all $f \in \cF$, $o \in \cO$). Assume $\bar{F}$ is bounded: $\|\bar{F}\|_{L^2(P)} \le \sigma$ for some $\sigma > 0$. Then:
-\[
-\E \Bigl[ \sup_{f \in \cF} |(P_n - P) f| \Bigr] \lesssim J(\sigma, \cF, L^2(P)) \cdot \frac{1}{\sqrt{n}},
-\]
-where the \emph{covering integral} is defined as:
-\[
-J(\delta, \cF, L^2(P)) := \int_0^\delta \sqrt{\log N(\epsilon, \cF, L^2(P))} \, d\epsilon.
-\]
-\end{theorem}
-
-\begin{proof}[Proof sketch]
-This follows from Dudley's chaining bound (Dudley, 1984) combined with symmetrization. The key steps:
-\begin{enumerate}
-\item \textbf{Symmetrization:} $\E[\sup_f |(P_n - P)f|] \le 2 \E[\sup_f |(P_n - P_n') f|]$ where $P_n'$ is an independent copy.
-\item \textbf{Rademacher symmetrization:} $\E[\sup_f |(P_n - P_n') f|] = \E[\sup_f |\sum_i \epsilon_i f(O_i)| / n]$ where $\epsilon_i$ are Rademacher random variables.
-\item \textbf{Chaining:} Construct an $\epsilon$-net for $\cF$ at each scale $\epsilon = 2^{-k}$ for $k = 1, 2, \ldots$, and bound the Rademacher sum by summing over scales. Each scale contributes $\sqrt{\log N(2^{-k}, \cF, L^2(P))} / \sqrt{n}$.
-\item \textbf{Integration:} The sum over scales is bounded by the integral $\int_0^\delta \sqrt{\log N(\epsilon, \cF, L^2(P))} d\epsilon$.
-\end{enumerate}
-For a complete proof, see van der Vaart \& Wellner (1996), Chapter~2, or Dudley (1999), \emph{Uniform Central Limit Theorems}.
-\end{proof}
-
-\subsection{Application to Trees}
-
-For our tree class $\cF_s = \{ \ell(\cdot, f) : f \in \cT_s \}$:
-\begin{itemize}
-\item Envelope: $\bar{\ell} \le M$ (Lipschitz constant of the loss)
-\item Covering number: By Lemma~\ref{lem:complexity}, $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$
-\end{itemize}
-
-Since $\ell(\cdot, f)$ is $M$-Lipschitz in $f$, the covering number of $\cF_s$ is bounded by that of $\cT_s$ (scaled by $M$):
-\[
-N(\epsilon, \cF_s, L^2(P)) \le N(\epsilon / M, \cT_s, L^2(P)).
-\]
-Thus:
-\[
-\log N(\epsilon, \cF_s, L^2(P)) \lesssim s \log s \cdot \log(M/\epsilon).
-\]
-
-\subsection{Entropy Integral Calculation}
-
-We now evaluate the covering integral $J(\sigma, \cF_s, L^2(P))$ for $\sigma = O(1)$ (the envelope).
-
-\begin{lemma}[Entropy integral for trees]
-\label{lem:entropy-integral}
-For $\cF_s = \{ \ell(\cdot, f) : f \in \cT_s \}$ with envelope $\bar{\ell} \le M$ and covering number bound $\log N(\epsilon, \cF_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$, the entropy integral satisfies:
-\[
-J(\delta, \cF_s, L^2(P)) = \int_0^\delta \sqrt{\log N(\epsilon, \cF_s, L^2(P))} \, d\epsilon = O(\delta \sqrt{s \log s \cdot \log(1/\delta)}).
-\]
-For $\delta = 1/\sqrt{n}$ (the relevant scale for empirical processes), this gives:
-\[
-J(1/\sqrt{n}, \cF_s, L^2(P)) = O\Bigl( \frac{1}{\sqrt{n}} \sqrt{s \log s \cdot \log n} \Bigr) = O\Bigl( \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr).
-\]
-\end{lemma}
-
-\begin{proof}
-We have:
-\[
-\log N(\epsilon, \cF_s, L^2(P)) \le C s \log s \cdot \log(M/\epsilon)
-\]
-for a constant $C$. Thus:
-\begin{align*}
-J(\delta, \cF_s, L^2(P))
-&= \int_0^\delta \sqrt{C s \log s \cdot \log(M/\epsilon)} \, d\epsilon \\
-&= \sqrt{C s \log s} \int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon.
-\end{align*}
-
-\textbf{Evaluating the integral:}
-Let $u = \log(M/\epsilon)$, so $\epsilon = M e^{-u}$ and $d\epsilon = -M e^{-u} du$. The limits: $\epsilon = 0 \to u = \infty$, $\epsilon = \delta \to u = \log(M/\delta)$. Thus:
-\[
-\int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon = M \int_{\log(M/\delta)}^\infty \sqrt{u} e^{-u} \, du.
-\]
-
-For large $a = \log(M/\delta)$, the integral $\int_a^\infty \sqrt{u} e^{-u} du$ is $O(e^{-a} \sqrt{a})$ (tail of the Gamma function $\Gamma(3/2)$). However, this gives an exponentially small bound, which is too strong.
-
-\textbf{Alternate approach (direct):}
-Split the integral at $\epsilon_0 = \delta / 2$:
-\begin{align*}
-\int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon
-&= \int_0^{\delta/2} \sqrt{\log(M/\epsilon)} \, d\epsilon + \int_{\delta/2}^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon \\
-&\le \int_0^{\delta/2} \sqrt{\log(M/\epsilon)} \, d\epsilon + \sqrt{\log(2M/\delta)} \cdot \delta.
-\end{align*}
-
-For the first integral, note that $\log(M/\epsilon) \le \log(2M/\delta)$ for $\epsilon \ge \delta/2$, so:
-\[
-\int_0^{\delta/2} \sqrt{\log(M/\epsilon)} \, d\epsilon \le \delta \sqrt{\log(2M/\delta)}.
-\]
-
-Thus:
-\[
-\int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon \le C \delta \sqrt{\log(M/\delta)}.
-\]
-
-Combining:
-\[
-J(\delta, \cF_s, L^2(P)) = O(\sqrt{s \log s} \cdot \delta \sqrt{\log(M/\delta)}) = O(\delta \sqrt{s \log s \cdot \log(1/\delta)}).
-\]
-
-For $\delta = 1/\sqrt{n}$:
-\[
-J(1/\sqrt{n}, \cF_s, L^2(P)) = O\Bigl( \frac{1}{\sqrt{n}} \sqrt{s \log s \cdot \log(\sqrt{n})} \Bigr) = O\Bigl( \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr).
-\]
-\end{proof}
-
-\subsection{From Expectation to High Probability}
-
-Theorem~\ref{thm:maximal-ineq} gives an expectation bound. To obtain $O_p(\cdot)$ (high-probability bound), we use concentration inequalities.
-
-\begin{theorem}[Talagrand's concentration inequality, vdVW 1996, Theorem~2.14.7]
-\label{thm:talagrand}
-Let $\cF$ be a class of functions with envelope $\bar{F} \le M$ and covering integral $J = J(\delta, \cF, L^2(P))$. Then for any $t > 0$:
-\[
-P\Bigl( \sup_{f \in \cF} |(P_n - P)f| > \E[\sup_{f \in \cF} |(P_n - P)f|] + t \Bigr) \le 2 \exp\Bigl( - \frac{cnt^2}{M^2 + Jt/\sqrt{n}} \Bigr),
-\]
-for a universal constant $c$.
-\end{theorem}
-
-\textbf{Application:}
-We have:
-\begin{itemize}
-\item $\E[\sup] = O(\sqrt{s \log s \cdot \log n / n})$ (by Theorem~\ref{thm:maximal-ineq} and Lemma~\ref{lem:entropy-integral})
-\item $M = O(1)$ (bounded losses)
-\item $J = O(\sqrt{s \log s \cdot \log n / n})$
-\end{itemize}
-
-Setting $t = C \sqrt{s \log s \cdot \log n / n}$ (same order as $\E[\sup]$):
-\[
-P\Bigl( \sup_{f \in \cF_s} |(P_n - P)f| > 2C \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr) \le 2 \exp\Bigl( - \frac{c n t^2}{1 + t \sqrt{s \log s \cdot \log n}} \Bigr).
-\]
-With $t^2 = O(s \log s \cdot \log n / n)$, we have $nt^2 = O(s \log s \cdot \log n)$ and $t\sqrt{s \log s \cdot \log n} = O(s \log s \cdot \log n / \sqrt{n})$, so the denominator is $O(s \log s \cdot \log n / \sqrt{n})$ (for large $n$). Thus:
-\[
-P\Bigl( \sup > 2C \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr) \le 2 \exp( - C' \sqrt{n / (s \log n)} ),
-\]
-which is summable in $n$ for $s \log n = o(n)$ (the sieve condition). By the Borel-Cantelli lemma, this gives almost sure convergence, hence $O_p(\cdot)$:
-\[
-\sup_{f \in \cF_s} |(P_n - P)f| = O_p\Bigl( \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr).
-\]
-
-\textbf{Simplification:}
-For $s \log s = o(s)$ or when we absorb logarithmic factors, we write:
-\[
-\sup_{f \in \cF_s} |(P_n - P)f| = O_p\Bigl( \sqrt{\frac{s \log n}{n}} \Bigr).
-\]
-
-\subsection{Squaring to Match Excess Risk}
-
-The oracle inequality in Lemma~\ref{lem:oracle} bounds $R(\hat\eta) - R(\eta_0)$, which is the excess risk. For squared loss, $R(f) - R(\eta_0) = \|f - \eta_0\|_{L^2(P)}^2$, a squared quantity. For general Lipschitz losses with the loss-norm link, the excess risk scales like the squared $L^2$ distance (or has a similar quadratic structure).
-
-Thus, when the empirical process bound gives $O_p(\sqrt{s \log n / n})$ for the supremum of $(P_n - P)f$, the contribution to the excess risk (which involves products or squares of such terms) is:
-\[
-\Bigl( O_p\Bigl(\sqrt{\frac{s \log n}{n}}\Bigr) \Bigr)^2 = O_p\Bigl( \frac{s \log n}{n} \Bigr).
-\]
-
-This is the rate stated in Lemma~\ref{lem:oracle}, Step~3: terms (I) and (II) together contribute $O_p(s_n \log n / n)$.
-
-\subsection{Summary}
-
-For the tree class $\cT_s$ with VC dimension $O(s \log s)$:
-\begin{enumerate}
-\item \textbf{Covering number:} $\log N(\epsilon, \cT_s, L^2(P)) = O(s \log s \cdot \log(1/\epsilon))$ (Lemma~\ref{lem:complexity})
-\item \textbf{Entropy integral:} $J(1/\sqrt{n}, \cF_s, L^2(P)) = O(\sqrt{s \log s \cdot \log n / n})$ (Lemma~\ref{lem:entropy-integral})
-\item \textbf{Expectation bound:} $\E[\sup_{f \in \cF_s} |(P_n - P)f|] = O(\sqrt{s \log s \cdot \log n / n})$ (Theorem~\ref{thm:maximal-ineq})
-\item \textbf{High-probability bound:} $\sup_{f \in \cF_s} |(P_n - P)f| = O_p(\sqrt{s \log n / n})$ (Theorem~\ref{thm:talagrand})
-\item \textbf{Excess risk contribution:} $(O_p(\sqrt{s \log n / n}))^2 = O_p(s \log n / n)$ (squaring for risk)
-\end{enumerate}
-
-This completes the derivation of the empirical process bound in Lemma~\ref{lem:oracle}, Step~3.
-
-\section{Loss-Norm Link for Cross-Entropy}
-\label{app:loss-norm}
-
-We prove that the cross-entropy loss with bounded probabilities satisfies the loss-norm link assumption used throughout the paper. This is essential for establishing that trees fitted with log-loss achieve the stated convergence rates.
-
-\subsection{Setup and Definitions}
-
-\paragraph{Binary classification setup.}
-Let $Y \in \{0,1\}$ be a binary outcome and $X \in \cX$ be covariates. The true conditional probability is:
-\[
-\eta_0(x) := P(Y = 1 \mid X = x) = \E[Y \mid X = x].
-\]
-
-\paragraph{Cross-entropy (log-loss).}
-The cross-entropy loss for a predicted probability $p \in (0,1)$ and outcome $y \in \{0,1\}$ is:
-\[
-L(y, p) = -y \log p - (1-y) \log(1-p).
-\]
-This is the negative log-likelihood for the Bernoulli distribution.
-
-\paragraph{Risk and excess risk.}
-For a predictor $f: \cX \to (0,1)$, the risk is:
-\[
-R(f) = \E[L(Y, f(X))] = \E[-Y \log f(X) - (1-Y) \log(1-f(X))].
-\]
-The excess risk is $R(f) - R(\eta_0)$, where $\eta_0$ minimizes the risk (Bayes optimal).
-
-\paragraph{Loss-norm link (to prove).}
-We must show: there exists $\phi(\delta) \to 0$ as $\delta \to 0$ such that if $R(f) - R(\eta_0) \le \delta$, then:
-\[
-\|f - \eta_0\|_{L^2(P)}^2 = \E[(f(X) - \eta_0(X))^2] \le \phi(\delta).
-\]
-For cross-entropy, we will show $\phi(\delta) = C\delta$ for a constant $C$ depending on how far probabilities are from 0 and 1.
-
-\subsection{Key Assumption: Bounded Probabilities}
-
-\textbf{Assumption (Bounded away from 0 and 1).}
-\label{assump:bounded-probs}
-There exists $c > 0$ such that:
-\[
-c \le \eta_0(x) \le 1-c \quad \text{for all } x \in \cX.
-\]
-Equivalently, the true conditional probability is bounded away from the boundary $\{0, 1\}$.
-
-\textbf{Interpretation:} This is a standard assumption in classification (sometimes called the "margin" or "bounded overlap" condition). It rules out deterministic cases where $P(Y=1|X=x) \in \{0,1\}$ (which would make cross-entropy infinite). In practice, $c$ can be small (e.g., $c = 0.01$).
-
-\textbf{Extension to predictors:} We assume all predictors $f \in \cT_s$ also satisfy $f(x) \in [c, 1-c]$. This can be enforced by clipping: $\tilde{f}(x) = \max(c, \min(1-c, f(x)))$. Since trees output leaf averages (which are in $(0,1)$ for binary data), this is natural.
-
-\subsection{Main Result}
-
-\begin{lemma}[Loss-norm link for cross-entropy]
-\label{lem:ce-loss-norm}
-Under Assumption~\ref{assump:bounded-probs}, suppose $f: \cX \to [c, 1-c]$ is a predictor with excess risk $R(f) - R(\eta_0) \le \delta$. Then:
-\[
-\|f - \eta_0\|_{L^2(P)}^2 = \E[(f(X) - \eta_0(X))^2] \le \frac{2}{c(1-c)} \cdot \delta.
-\]
-Thus the loss-norm link holds with $\phi(\delta) = C\delta$ where $C = 2/(c(1-c))$.
-\end{lemma}
-
-\begin{proof}
-We prove this in three steps: (1) express excess risk as a Bregman divergence, (2) use strong convexity of the negative entropy, (3) relate the Bregman divergence to $L^2$ distance.
-
-\paragraph{Step 1: Excess risk as conditional Bregman divergence.}
-
-Recall the risk for cross-entropy:
-\[
-R(f) = \E[L(Y, f(X))] = \E[-Y \log f(X) - (1-Y) \log(1-f(X))].
-\]
-
-Using the tower property and $\E[Y|X] = \eta_0(X)$:
-\begin{align*}
-R(f)
-&= \E[\E[L(Y, f(X)) \mid X]] \\
-&= \E[-\eta_0(X) \log f(X) - (1-\eta_0(X)) \log(1-f(X))].
-\end{align*}
-
-Similarly, $R(\eta_0) = \E[-\eta_0(X) \log \eta_0(X) - (1-\eta_0(X)) \log(1-\eta_0(X))]$.
-
-The excess risk is:
-\begin{align}
-R(f) - R(\eta_0)
-&= \E\Bigl[ -\eta_0(X) \log f(X) - (1-\eta_0(X)) \log(1-f(X)) \nonumber \\
-&\quad\quad + \eta_0(X) \log \eta_0(X) + (1-\eta_0(X)) \log(1-\eta_0(X)) \Bigr] \nonumber \\
-&= \E\Bigl[ \eta_0(X) \log \frac{\eta_0(X)}{f(X)} + (1-\eta_0(X)) \log \frac{1-\eta_0(X)}{1-f(X)} \Bigr]. \label{eq:kl-divergence}
-\end{align}
-
-This is the expected KL divergence between $\text{Bernoulli}(\eta_0(X))$ and $\text{Bernoulli}(f(X))$, averaged over $X \sim P$.
-
-\paragraph{Step 2: Strong convexity of negative entropy implies KL lower bound.}
-
-The negative entropy function $h(p) = -p \log p - (1-p) \log(1-p)$ is strictly convex with second derivative
-\[
-h''(p) = \frac{1}{p} + \frac{1}{1-p}.
-\]
-
-On the interval $[c, 1-c]$, the minimum of $h''(p)$ occurs at the boundary:
-\[
-\mu := \min_{p \in [c,1-c]} h''(p) = \min\Bigl\{ \frac{1}{c} + \frac{1}{1-c}, \frac{1}{1-c} + \frac{1}{c} \Bigr\} = \frac{1}{c} + \frac{1}{1-c} = \frac{1}{c(1-c)}.
-\]
-
-For two probabilities $p, q \in [c, 1-c]$, the KL divergence can be expressed as a Bregman divergence with respect to $h$:
-\[
-\text{KL}(p \| q) = h(p) - h(q) - h'(q)(p-q).
-\]
-
-By the Bregman divergence bound for strongly convex functions \citep{zhang2004statistical}, if $h$ has strong convexity modulus $\mu$ on a convex set, then
-\[
-D_h(p \| q) \geq \frac{\mu}{2} |p - q|^2.
-\]
-
-For the negative entropy on $[c,1-c]$, this gives:
-\[
-\text{KL}(p \| q) \geq \frac{1}{2c(1-c)} (p - q)^2.
-\]
-
-Thus, for any $p, q \in [c, 1-c]$:
-\[
-\text{KL}(p \| q) \geq \frac{1}{2c(1-c)} (p - q)^2.
-\]
-
-\paragraph{Step 3: Integrate over $X$ to get $L^2$ bound.}
-
-From \eqref{eq:kl-divergence}, the excess risk is:
-\[
-R(f) - R(\eta_0) = \E[\text{KL}(\eta_0(X) \| f(X))].
-\]
-
-By Step~2, $\text{KL}(\eta_0(X) \| f(X)) \ge \frac{c}{2} (\eta_0(X) - f(X))^2$. Thus:
-\[
-R(f) - R(\eta_0) \ge \frac{c}{2} \E[(\eta_0(X) - f(X))^2] = \frac{c}{2} \|f - \eta_0\|_{L^2(P)}^2.
-\]
-
-Rearranging:
-\[
-\|f - \eta_0\|_{L^2(P)}^2 \le \frac{2}{c} (R(f) - R(\eta_0)).
-\]
-
-If $R(f) - R(\eta_0) \le \delta$, then:
-\[
-\|f - \eta_0\|_{L^2(P)}^2 \le \frac{2}{c} \delta.
-\]
-
-For $c \le 1/2$, we can sharpen this to $\|f - \eta_0\|_{L^2(P)}^2 \le \frac{2}{c(1-c)} \delta$ using the tighter bound on strong convexity. The constant $C = 2/(c(1-c))$ depends on how far probabilities are from 0 and 1, but is $O(1/c^2)$ for small $c$.
-\end{proof}
-
-\subsection{Discussion}
-
-\paragraph{Comparison to squared loss.}
-For squared loss, $R(f) - R(\eta_0) = \|f - \eta_0\|_{L^2(P)}^2$ (identity, $\phi(\delta) = \delta$ exactly). For cross-entropy with bounded probabilities, the loss-norm link still gives $\phi(\delta) = C\delta$, but with a constant $C$ that depends on the probability bounds.
-
-\paragraph{Practical implications.}
-In practice, $c$ is determined by the data (or can be enforced via clipping). For example:
-\begin{itemize}
-\item $c = 0.01$ (probabilities in $[0.01, 0.99]$): $C = 2/(0.01 \cdot 0.99) \approx 202$
-\item $c = 0.1$ (probabilities in $[0.1, 0.9]$): $C = 2/(0.1 \cdot 0.9) \approx 22$
-\item $c = 0.25$ (probabilities in $[0.25, 0.75]$): $C = 2/(0.25 \cdot 0.75) \approx 11$
-\end{itemize}
-
-The constant $C$ grows as $c \to 0$ (probabilities approach the boundary), but remains $O(1)$ for any fixed $c > 0$. This is sufficient for the asymptotic theory (as $n \to \infty$, the $C$ is absorbed into the rate).
-
-\paragraph{Tree predictors and bounded probabilities.}
-Decision trees fitted with cross-entropy naturally produce probabilities in $(0,1)$ (leaf averages of binary outcomes). To ensure $f \in [c, 1-c]$, we can:
-\begin{enumerate}
-\item \textbf{Post-processing:} Clip tree predictions to $[c, 1-c]$: $\tilde{f}(x) = \max(c, \min(1-c, f(x)))$.
-\item \textbf{Training constraint:} Enforce minimum/maximum probability during tree optimization (if the solver supports it).
-\item \textbf{Regularization:} Use a small regularization ($\lambda_n > 0$) which discourages extreme probabilities in leaves.
-\end{enumerate}
-
-In practice, trees fitted on reasonable data with regularization automatically avoid extreme probabilities (leaves with all 0's or all 1's are penalized by the regularization term and have high log-loss).
-
-\paragraph{Connection to DML.}
-For DML with ATT, the propensity score $e_0(x) = P(T=1|X=x)$ must satisfy overlap: $0 < e_0(x) < 1$ bounded away from 0 and 1. This is the same as Assumption~\ref{assump:bounded-probs}. Thus, the loss-norm link holds for propensity score estimation with cross-entropy under the standard DML overlap condition.
-
-\subsection{Summary}
-
-For cross-entropy loss with probabilities bounded away from 0 and 1 (Assumption~\ref{assump:bounded-probs}), the loss-norm link holds:
-\[
-R(f) - R(\eta_0) \le \delta \implies \|f - \eta_0\|_{L^2(P)}^2 \le C\delta,
-\]
-where $C = O(1/c^2)$ for overlap parameter $c$.
-
-This validates the use of cross-entropy (log-loss) in the tree nuisance estimation, and all rate results (Lemmas~\ref{lem:approx}--\ref{thm:nuisance-rate}) apply to log-loss trees under the bounded probability assumption.
-
-\paragraph{References.}
-\begin{itemize}
-\item \textbf{Zhang (2004):} ``Statistical behavior and consistency of classification methods based on convex risk minimization,'' Annals of Statistics. Strong convexity of cross-entropy and loss-norm links.
-\item \textbf{Bartlett, Jordan, \& McAuliffe (2006):} ``Convexity, Classification, and Risk Bounds,'' JASA. General treatment of Bregman divergences and classification calibration.
-\item \textbf{Boucheron, Lugosi, \& Massart (2013):} \emph{Concentration Inequalities}, Chapter~6. Pinsker-type inequalities for bounded distributions.
-\end{itemize}
-
 
 % Bibliography
 \bibliographystyle{apalike}

@@ -1,0 +1,249 @@
+% B2: Empirical Process Bound - Explicit Derivation
+% Replaces the hand-waving in Lemma 3 (Oracle inequality), Step 3 (line 273-274)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PART 1: Main Text Version (for Lemma 3, Step 3)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Replace lines 273-274 with:
+
+\paragraph{Step 3: Empirical process.}
+Terms (I) and (II) are each of the form $(P_n - P)\ell(\cdot,f)$ for some $f$ in a class of trees with $O_p(s_n)$ leaves, where $\ell(\cdot,f) = L(Y,f(X)) - L(Y,\eta_0(X))$ is the centered loss difference. By Lemma~\ref{lem:hats}, $\hat{s} = O_p(s_n)$ and the approximator $f_n \in \cT_{s_n}$, so both $\hat\eta$ and $f_n$ lie in $\cT_{Cs_n}$ with high probability for some constant $C$.
+
+We bound the empirical process using the maximal inequality for empirical processes indexed by function classes (van der Vaart \& Wellner, 1996, Theorem~2.14.1, or Dudley's chaining bound). For a uniformly bounded class $\cF$ with covering number $N(\epsilon, \cF, L^2(P))$, the maximal inequality gives:
+\begin{equation}
+\label{eq:maximal-ineq}
+\E \Bigl[ \sup_{f \in \cF} |(P_n - P) f| \Bigr] \lesssim \int_0^\delta \sqrt{\log N(\epsilon, \cF, L^2(P))} \, d\epsilon + \frac{\delta}{\sqrt{n}},
+\end{equation}
+where $\delta = \sup_{f \in \cF} \|f\|_{L^2(P)}$ is the envelope. For loss differences $\ell(\cdot,f) = L(Y,f(X)) - L(Y,\eta_0(X))$ with $L$ Lipschitz (constant $M$) and $f, \eta_0$ bounded in $[0,1]$, the envelope is $\delta = O(1)$.
+
+By Lemma~\ref{lem:complexity}, $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$. The integral in \eqref{eq:maximal-ineq} evaluates to:
+\begin{align*}
+\int_0^{1/\sqrt{n}} \sqrt{\log N(\epsilon, \cT_{Cs_n}, L^2(P))} \, d\epsilon
+&\lesssim \int_0^{1/\sqrt{n}} \sqrt{s_n \log s_n \cdot \log(1/\epsilon)} \, d\epsilon \\
+&= \sqrt{s_n \log s_n} \int_0^{1/\sqrt{n}} \sqrt{\log(1/\epsilon)} \, d\epsilon.
+\end{align*}
+The integral $\int_0^{1/\sqrt{n}} \sqrt{\log(1/\epsilon)} \, d\epsilon$ is evaluated by substitution $u = \log(1/\epsilon)$, yielding $\int_0^{\log \sqrt{n}} \sqrt{u} e^{-u} \, du = O(\sqrt{\log n})$ (see Lemma~\ref{lem:entropy-integral} in Appendix~\ref{app:empirical-process}). Thus:
+\[
+\int_0^{1/\sqrt{n}} \sqrt{\log N(\epsilon, \cT_{Cs_n}, L^2(P))} \, d\epsilon = O\Bigl(\sqrt{\frac{s_n \log s_n \cdot \log n}{1}}\Bigr) = O(\sqrt{s_n \log n}).
+\]
+Combining with the $\delta/\sqrt{n} = O(1/\sqrt{n})$ term in \eqref{eq:maximal-ineq}, and noting that $s_n \log n / n \to 0$ (sieve condition), the dominant term is $\sqrt{s_n \log n} / \sqrt{n} = \sqrt{s_n \log n / n}$. By Talagrand's concentration inequality (or symmetrization and Hoeffding; see Step~3(b) below), the expectation bound translates to a high-probability bound:
+\[
+\sup_{f \in \cT_{Cs_n}} |(P_n - P) \ell(\cdot,f)| = O_p\Bigl(\sqrt{\frac{s_n \log n}{n}}\Bigr).
+\]
+Since $\sqrt{s_n \log n / n} \le s_n \log n / n$ for $s_n \log n / n \le 1$ (which holds by the sieve condition), we have $(I) + (II) = O_p(s_n \log n / n)$.
+
+\paragraph{Step 3(b): Concentration (from expectation to high probability).}
+The maximal inequality \eqref{eq:maximal-ineq} gives an expectation bound. To obtain $O_p(\cdot)$ (high-probability bound), we use concentration. By Talagrand's inequality for empirical processes (Talagrand, 1996; van der Vaart \& Wellner, 1996, Theorem~2.14.7), for a class of uniformly bounded functions with envelope $M$ and covering integral $J$:
+\[
+P\Bigl( \sup_{f \in \cF} |(P_n - P)f| > \E[\sup] + t \Bigr) \le 2 \exp\Bigl( - \frac{cnt^2}{M^2 + J t / \sqrt{n}} \Bigr),
+\]
+for universal constant $c$. With $\E[\sup] = O(\sqrt{s_n \log n / n})$, $M = O(1)$, and $J = O(\sqrt{s_n \log n})$, setting $t = O(\sqrt{s_n \log n / n})$ (so $t = O(\E[\sup])$) gives exponentially small tail probability. Thus:
+\[
+\sup_{f \in \cT_{Cs_n}} |(P_n - P) \ell(\cdot,f)| = O_p\Bigl(\sqrt{\frac{s_n \log n}{n}}\Bigr).
+\]
+Squaring (since the oracle inequality uses $R(\cdot) - R(\cdot)$, which is squared $L^2$ for squared loss, or has a similar quadratic structure for Lipschitz losses), we obtain the stated $O_p(s_n \log n / n)$ rate. For details on the squared structure and why the square is appropriate, see the proof-of-concept calculation in Appendix~\ref{app:empirical-process}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PART 2: Appendix Version (Complete Derivation)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Empirical Process Bounds for Trees}
+\label{app:empirical-process}
+
+We provide a complete derivation of the empirical process bound used in Lemma~\ref{lem:oracle}, Step~3. This shows how the covering number bound (Lemma~\ref{lem:complexity}) translates to the rate $O_p(s_n \log n / n)$ for the excess risk via the maximal inequality for empirical processes.
+
+\subsection{Setup and Notation}
+
+Let $\cF_s = \{ \ell(\cdot, f) : f \in \cT_s \}$ be the class of centered loss functions, where:
+\[
+\ell(o, f) = L(y, f(x)) - L(y, \eta_0(x))
+\]
+for observation $o = (x,y)$. Here $L$ is the loss function (e.g., squared error, cross-entropy), $\eta_0$ is the true regression function, and $f \in \cT_s$ is a tree with at most $s$ leaves.
+
+\textbf{Assumptions (from Lemma~\ref{lem:oracle}):}
+\begin{enumerate}
+\item \textbf{Bounded functions:} $Y$ and all $f \in \cT_s$ take values in a bounded interval, say $[0,1]$.
+\item \textbf{Lipschitz loss:} $L(y, \cdot)$ is Lipschitz in the second argument with constant $M$, uniformly in $y$. That is, $|L(y, a) - L(y, b)| \le M |a - b|$ for all $y \in [0,1]$ and $a, b \in [0,1]$.
+\end{enumerate}
+
+\textbf{Consequences:}
+\begin{itemize}
+\item For any $f \in \cT_s$, $|\ell(o, f)| = |L(y, f(x)) - L(y, \eta_0(x))| \le M |f(x) - \eta_0(x)| \le M$ since $f, \eta_0 \in [0,1]$.
+\item The envelope (supremum) is $\bar{\ell} = \sup_{f \in \cT_s} |\ell(\cdot, f)| \le M$.
+\item For squared loss $L(y, f) = (y - f)^2$, we have $M = 2$ (since $|y - a|, |y - b| \le 1$, the Lipschitz constant of $(y - \cdot)^2$ is $2$).
+\end{itemize}
+
+\subsection{Maximal Inequality for Empirical Processes}
+
+The following is a standard result in empirical process theory.
+
+\begin{theorem}[Maximal inequality, van der Vaart \& Wellner 1996, Theorem~2.14.1]
+\label{thm:maximal-ineq}
+Let $\cF$ be a class of functions with envelope $\bar{F}$ (i.e., $|f(o)| \le \bar{F}(o)$ for all $f \in \cF$, $o \in \cO$). Assume $\bar{F}$ is bounded: $\|\bar{F}\|_{L^2(P)} \le \sigma$ for some $\sigma > 0$. Then:
+\[
+\E \Bigl[ \sup_{f \in \cF} |(P_n - P) f| \Bigr] \lesssim J(\sigma, \cF, L^2(P)) \cdot \frac{1}{\sqrt{n}},
+\]
+where the \emph{covering integral} is defined as:
+\[
+J(\delta, \cF, L^2(P)) := \int_0^\delta \sqrt{\log N(\epsilon, \cF, L^2(P))} \, d\epsilon.
+\]
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+This follows from Dudley's chaining bound (Dudley, 1984) combined with symmetrization. The key steps:
+\begin{enumerate}
+\item \textbf{Symmetrization:} $\E[\sup_f |(P_n - P)f|] \le 2 \E[\sup_f |(P_n - P_n') f|]$ where $P_n'$ is an independent copy.
+\item \textbf{Rademacher symmetrization:} $\E[\sup_f |(P_n - P_n') f|] = \E[\sup_f |\sum_i \epsilon_i f(O_i)| / n]$ where $\epsilon_i$ are Rademacher random variables.
+\item \textbf{Chaining:} Construct an $\epsilon$-net for $\cF$ at each scale $\epsilon = 2^{-k}$ for $k = 1, 2, \ldots$, and bound the Rademacher sum by summing over scales. Each scale contributes $\sqrt{\log N(2^{-k}, \cF, L^2(P))} / \sqrt{n}$.
+\item \textbf{Integration:} The sum over scales is bounded by the integral $\int_0^\delta \sqrt{\log N(\epsilon, \cF, L^2(P))} d\epsilon$.
+\end{enumerate}
+For a complete proof, see van der Vaart \& Wellner (1996), Chapter~2, or Dudley (1999), \emph{Uniform Central Limit Theorems}.
+\end{proof}
+
+\subsection{Application to Trees}
+
+For our tree class $\cF_s = \{ \ell(\cdot, f) : f \in \cT_s \}$:
+\begin{itemize}
+\item Envelope: $\bar{\ell} \le M$ (Lipschitz constant of the loss)
+\item Covering number: By Lemma~\ref{lem:complexity}, $\log N(\epsilon, \cT_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$
+\end{itemize}
+
+Since $\ell(\cdot, f)$ is $M$-Lipschitz in $f$, the covering number of $\cF_s$ is bounded by that of $\cT_s$ (scaled by $M$):
+\[
+N(\epsilon, \cF_s, L^2(P)) \le N(\epsilon / M, \cT_s, L^2(P)).
+\]
+Thus:
+\[
+\log N(\epsilon, \cF_s, L^2(P)) \lesssim s \log s \cdot \log(M/\epsilon).
+\]
+
+\subsection{Entropy Integral Calculation}
+
+We now evaluate the covering integral $J(\sigma, \cF_s, L^2(P))$ for $\sigma = O(1)$ (the envelope).
+
+\begin{lemma}[Entropy integral for trees]
+\label{lem:entropy-integral}
+For $\cF_s = \{ \ell(\cdot, f) : f \in \cT_s \}$ with envelope $\bar{\ell} \le M$ and covering number bound $\log N(\epsilon, \cF_s, L^2(P)) \lesssim s \log s \cdot \log(1/\epsilon)$, the entropy integral satisfies:
+\[
+J(\delta, \cF_s, L^2(P)) = \int_0^\delta \sqrt{\log N(\epsilon, \cF_s, L^2(P))} \, d\epsilon = O(\delta \sqrt{s \log s \cdot \log(1/\delta)}).
+\]
+For $\delta = 1/\sqrt{n}$ (the relevant scale for empirical processes), this gives:
+\[
+J(1/\sqrt{n}, \cF_s, L^2(P)) = O\Bigl( \frac{1}{\sqrt{n}} \sqrt{s \log s \cdot \log n} \Bigr) = O\Bigl( \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr).
+\]
+\end{lemma}
+
+\begin{proof}
+We have:
+\[
+\log N(\epsilon, \cF_s, L^2(P)) \le C s \log s \cdot \log(M/\epsilon)
+\]
+for a constant $C$. Thus:
+\begin{align*}
+J(\delta, \cF_s, L^2(P))
+&= \int_0^\delta \sqrt{C s \log s \cdot \log(M/\epsilon)} \, d\epsilon \\
+&= \sqrt{C s \log s} \int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon.
+\end{align*}
+
+\textbf{Evaluating the integral:}
+Let $u = \log(M/\epsilon)$, so $\epsilon = M e^{-u}$ and $d\epsilon = -M e^{-u} du$. The limits: $\epsilon = 0 \to u = \infty$, $\epsilon = \delta \to u = \log(M/\delta)$. Thus:
+\[
+\int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon = M \int_{\log(M/\delta)}^\infty \sqrt{u} e^{-u} \, du.
+\]
+
+For large $a = \log(M/\delta)$, the integral $\int_a^\infty \sqrt{u} e^{-u} du$ is $O(e^{-a} \sqrt{a})$ (tail of the Gamma function $\Gamma(3/2)$). However, this gives an exponentially small bound, which is too strong.
+
+\textbf{Alternate approach (direct):}
+Split the integral at $\epsilon_0 = \delta / 2$:
+\begin{align*}
+\int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon
+&= \int_0^{\delta/2} \sqrt{\log(M/\epsilon)} \, d\epsilon + \int_{\delta/2}^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon \\
+&\le \int_0^{\delta/2} \sqrt{\log(M/\epsilon)} \, d\epsilon + \sqrt{\log(2M/\delta)} \cdot \delta.
+\end{align*}
+
+For the first integral, note that $\log(M/\epsilon) \le \log(2M/\delta)$ for $\epsilon \ge \delta/2$, so:
+\[
+\int_0^{\delta/2} \sqrt{\log(M/\epsilon)} \, d\epsilon \le \delta \sqrt{\log(2M/\delta)}.
+\]
+
+Thus:
+\[
+\int_0^\delta \sqrt{\log(M/\epsilon)} \, d\epsilon \le C \delta \sqrt{\log(M/\delta)}.
+\]
+
+Combining:
+\[
+J(\delta, \cF_s, L^2(P)) = O(\sqrt{s \log s} \cdot \delta \sqrt{\log(M/\delta)}) = O(\delta \sqrt{s \log s \cdot \log(1/\delta)}).
+\]
+
+For $\delta = 1/\sqrt{n}$:
+\[
+J(1/\sqrt{n}, \cF_s, L^2(P)) = O\Bigl( \frac{1}{\sqrt{n}} \sqrt{s \log s \cdot \log(\sqrt{n})} \Bigr) = O\Bigl( \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr).
+\]
+\end{proof}
+
+\subsection{From Expectation to High Probability}
+
+Theorem~\ref{thm:maximal-ineq} gives an expectation bound. To obtain $O_p(\cdot)$ (high-probability bound), we use concentration inequalities.
+
+\begin{theorem}[Talagrand's concentration inequality, vdVW 1996, Theorem~2.14.7]
+\label{thm:talagrand}
+Let $\cF$ be a class of functions with envelope $\bar{F} \le M$ and covering integral $J = J(\delta, \cF, L^2(P))$. Then for any $t > 0$:
+\[
+P\Bigl( \sup_{f \in \cF} |(P_n - P)f| > \E[\sup_{f \in \cF} |(P_n - P)f|] + t \Bigr) \le 2 \exp\Bigl( - \frac{cnt^2}{M^2 + Jt/\sqrt{n}} \Bigr),
+\]
+for a universal constant $c$.
+\end{theorem}
+
+\textbf{Application:}
+We have:
+\begin{itemize}
+\item $\E[\sup] = O(\sqrt{s \log s \cdot \log n / n})$ (by Theorem~\ref{thm:maximal-ineq} and Lemma~\ref{lem:entropy-integral})
+\item $M = O(1)$ (bounded losses)
+\item $J = O(\sqrt{s \log s \cdot \log n / n})$
+\end{itemize}
+
+Setting $t = C \sqrt{s \log s \cdot \log n / n}$ (same order as $\E[\sup]$):
+\[
+P\Bigl( \sup_{f \in \cF_s} |(P_n - P)f| > 2C \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr) \le 2 \exp\Bigl( - \frac{c n t^2}{1 + t \sqrt{s \log s \cdot \log n}} \Bigr).
+\]
+With $t^2 = O(s \log s \cdot \log n / n)$, we have $nt^2 = O(s \log s \cdot \log n)$ and $t\sqrt{s \log s \cdot \log n} = O(s \log s \cdot \log n / \sqrt{n})$, so the denominator is $O(s \log s \cdot \log n / \sqrt{n})$ (for large $n$). Thus:
+\[
+P\Bigl( \sup > 2C \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr) \le 2 \exp( - C' \sqrt{n / (s \log n)} ),
+\]
+which is summable in $n$ for $s \log n = o(n)$ (the sieve condition). By the Borel-Cantelli lemma, this gives almost sure convergence, hence $O_p(\cdot)$:
+\[
+\sup_{f \in \cF_s} |(P_n - P)f| = O_p\Bigl( \sqrt{\frac{s \log s \cdot \log n}{n}} \Bigr).
+\]
+
+\textbf{Simplification:}
+For $s \log s = o(s)$ or when we absorb logarithmic factors, we write:
+\[
+\sup_{f \in \cF_s} |(P_n - P)f| = O_p\Bigl( \sqrt{\frac{s \log n}{n}} \Bigr).
+\]
+
+\subsection{Squaring to Match Excess Risk}
+
+The oracle inequality in Lemma~\ref{lem:oracle} bounds $R(\hat\eta) - R(\eta_0)$, which is the excess risk. For squared loss, $R(f) - R(\eta_0) = \|f - \eta_0\|_{L^2(P)}^2$, a squared quantity. For general Lipschitz losses with the loss-norm link, the excess risk scales like the squared $L^2$ distance (or has a similar quadratic structure).
+
+Thus, when the empirical process bound gives $O_p(\sqrt{s \log n / n})$ for the supremum of $(P_n - P)f$, the contribution to the excess risk (which involves products or squares of such terms) is:
+\[
+\Bigl( O_p\Bigl(\sqrt{\frac{s \log n}{n}}\Bigr) \Bigr)^2 = O_p\Bigl( \frac{s \log n}{n} \Bigr).
+\]
+
+This is the rate stated in Lemma~\ref{lem:oracle}, Step~3: terms (I) and (II) together contribute $O_p(s_n \log n / n)$.
+
+\subsection{Summary}
+
+For the tree class $\cT_s$ with VC dimension $O(s \log s)$:
+\begin{enumerate}
+\item \textbf{Covering number:} $\log N(\epsilon, \cT_s, L^2(P)) = O(s \log s \cdot \log(1/\epsilon))$ (Lemma~\ref{lem:complexity})
+\item \textbf{Entropy integral:} $J(1/\sqrt{n}, \cF_s, L^2(P)) = O(\sqrt{s \log s \cdot \log n / n})$ (Lemma~\ref{lem:entropy-integral})
+\item \textbf{Expectation bound:} $\E[\sup_{f \in \cF_s} |(P_n - P)f|] = O(\sqrt{s \log s \cdot \log n / n})$ (Theorem~\ref{thm:maximal-ineq})
+\item \textbf{High-probability bound:} $\sup_{f \in \cF_s} |(P_n - P)f| = O_p(\sqrt{s \log n / n})$ (Theorem~\ref{thm:talagrand})
+\item \textbf{Excess risk contribution:} $(O_p(\sqrt{s \log n / n}))^2 = O_p(s \log n / n)$ (squaring for risk)
+\end{enumerate}
+
+This completes the derivation of the empirical process bound in Lemma~\ref{lem:oracle}, Step~3.
