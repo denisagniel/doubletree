@@ -203,6 +203,10 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
   sigma <- sqrt(sigma_sq)
   ci_95 <- dml_att_ci(theta, sigma, n, level = 0.95)
 
+  # Add predictions to nuisance_fits for diagnostics
+  nuisance_fits$propensity <- eta$e
+  nuisance_fits$outcome_control <- eta$m0
+
   list(
     theta = theta,
     sigma = sigma,
