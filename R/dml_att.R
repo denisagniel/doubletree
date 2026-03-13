@@ -174,7 +174,9 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
                                            rashomon_bound_multiplier = rashomon_bound_multiplier,
                                            rashomon_bound_adder = rashomon_bound_adder,
                                            max_leaves = max_leaves,
-                                           auto_tune_intersecting = auto_tune_intersecting, ...)
+                                           auto_tune_intersecting = auto_tune_intersecting,
+                                           discretize_method = discretize_method,
+                                           discretize_bins = discretize_bins, ...)
     eta <- get_fold_specific_eta_rashomon(nuisance_fits, X, fold_indices)
   } else {
     nuisance_fits <- vector("list", K)
@@ -183,7 +185,9 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
                                               outcome_type = outcome_type,
                                               regularization = regularization,
                                               cv_regularization = cv_regularization, cv_K = cv_K,
-                                              verbose = verbose, ...)
+                                              verbose = verbose,
+                                              discretize_method = discretize_method,
+                                              discretize_bins = discretize_bins, ...)
     }
     eta <- get_fold_specific_eta(nuisance_fits, X, fold_indices)
   }

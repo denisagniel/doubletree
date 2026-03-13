@@ -299,7 +299,8 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
                                    regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
                                    verbose = FALSE,
                                    rashomon_bound_multiplier = 0.05, rashomon_bound_adder = 0,
-                                   max_leaves = NULL, auto_tune_intersecting = FALSE, ...) {
+                                   max_leaves = NULL, auto_tune_intersecting = FALSE,
+                                   discretize_method = "quantiles", discretize_bins = "adaptive", ...) {
   n <- nrow(X)
   K <- max(fold_indices, na.rm = TRUE)
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
