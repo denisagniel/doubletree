@@ -8,7 +8,7 @@ library(dplyr)
 cat("\n=== PRIMARY SIMULATIONS: PRODUCTION RUN ===\n\n")
 flush.console()
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

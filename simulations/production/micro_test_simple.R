@@ -7,7 +7,7 @@ library(dplyr)
 
 cat("\n=== MICRO TEST: Verify Predict Bug Fix ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

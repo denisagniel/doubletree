@@ -4,7 +4,7 @@ library(dplyr)
 
 devtools::load_all("../../../optimaltrees")
 
-# Source dmltree functions directly
+# Source doubletree functions directly
 source("../../R/estimate_att.R")
 source("../../R/nuisance_trees.R")
 source("../../R/score_att.R")

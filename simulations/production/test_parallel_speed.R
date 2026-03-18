@@ -4,7 +4,7 @@ library(dplyr)
 
 cat("\n=== PARALLEL SPEED TEST ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

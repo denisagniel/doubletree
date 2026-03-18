@@ -4,7 +4,7 @@ library(optimaltrees)
 
 cat("\n=== FULLY INSTRUMENTED TEST ===\n\n")
 
-# Source dmltree functions
+# Source doubletree functions
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

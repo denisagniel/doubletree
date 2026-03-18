@@ -4,7 +4,7 @@ library(optimaltrees)
 
 cat("\n=== TESTING COMPLETE estimate_att() - Config 4, Rep 1 ===\n\n")
 
-# Source dmltree exactly as production run does
+# Source doubletree exactly as production run does
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

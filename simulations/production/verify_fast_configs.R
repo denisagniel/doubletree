@@ -6,7 +6,7 @@ library(dplyr)
 
 cat("\n=== VERIFICATION RUN: Fast Configs Only ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

@@ -13,7 +13,7 @@ d <- generate_dgp_continuous_att(n = 800, tau = 0.10, seed = seed)
 
 # Create exact same folds
 K <- 5
-set.seed(42)  # dmltree default
+set.seed(42)  # doubletree default
 fold_indices <- sample(rep(1:K, length.out = nrow(d$X)))
 
 # Get Fold 1 training data (EXACT indices that hang)
@@ -39,7 +39,7 @@ fit1 <- optimaltrees::fit_tree(
 t2 <- Sys.time()
 cat(sprintf("  Time: %.3fs, n_trees=%d\n\n", as.numeric(difftime(t2, t1, units = "secs")), fit1$n_trees))
 
-# Test WITH discretization parameters (like dml_att uses)
+# Test WITH discretization parameters (like estimate_att uses)
 cat("Test 2: fit_tree WITH discretize_* parameters...\n")
 cat("  (This should hang if discretization is the issue)\n")
 flush.console()

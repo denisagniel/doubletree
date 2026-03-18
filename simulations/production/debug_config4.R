@@ -4,7 +4,7 @@ library(optimaltrees)
 
 cat("\n=== DEBUGGING CONFIG 4 HANG ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

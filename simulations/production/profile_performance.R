@@ -5,7 +5,7 @@ library(optimaltrees)
 
 cat("\n=== PERFORMANCE PROFILING ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

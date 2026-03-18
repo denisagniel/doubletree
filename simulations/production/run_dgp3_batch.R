@@ -74,7 +74,7 @@ run_single_sim <- function(sim_id, grid, dgps, tau, k_folds, seed_offset) {
                 use_rashomon = FALSE, verbose = FALSE)
       }))
       list(theta = fit$theta, sigma = fit$sigma,
-           ci_lower = fit$ci[1], ci_upper = fit$ci[2],
+           ci_lower = fit$ci_95[1], ci_upper = fit$ci_95[2],
            converged = TRUE, epsilon_n = NA)
 
     } else if (row$method == "rashomon") {
@@ -86,7 +86,7 @@ run_single_sim <- function(sim_id, grid, dgps, tau, k_folds, seed_offset) {
                 auto_tune_intersecting = TRUE, verbose = FALSE)
       }))
       list(theta = fit$theta, sigma = fit$sigma,
-           ci_lower = fit$ci[1], ci_upper = fit$ci[2],
+           ci_lower = fit$ci_95[1], ci_upper = fit$ci_95[2],
            converged = fit$converged, epsilon_n = fit$epsilon_n)
 
     } else if (row$method == "forest") {

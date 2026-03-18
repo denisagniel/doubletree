@@ -6,7 +6,7 @@ library(dplyr)
 
 cat("\n=== DEBUGGING VERIFICATION SLOWNESS ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

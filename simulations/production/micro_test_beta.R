@@ -12,7 +12,7 @@ library(dplyr)
 # Load packages
 devtools::load_all("../../../optimaltrees")
 
-# Source dmltree functions
+# Source doubletree functions
 source("../../R/estimate_att.R")
 source("../../R/nuisance_trees.R")
 source("../../R/score_att.R")

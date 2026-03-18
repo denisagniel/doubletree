@@ -11,7 +11,7 @@ seed <- 100000 + 4*10000 + 1
 d <- generate_dgp_continuous_att(n = 800, tau = 0.10, seed = seed)
 
 K <- 5
-set.seed(42)  # dmltree uses seed 42 for folds
+set.seed(42)  # doubletree uses seed 42 for folds
 fold_ids <- sample(rep(1:K, length.out = nrow(d$X)))
 
 cat(sprintf("Data: n=%d, K=%d folds\n\n", nrow(d$X), K))

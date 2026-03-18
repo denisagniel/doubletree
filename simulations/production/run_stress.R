@@ -30,7 +30,7 @@ library(dplyr)
 
 devtools::load_all("../../../optimaltrees")
 
-# Source dmltree functions directly (package not yet formally built)
+# Source doubletree functions directly (package not yet formally built)
 source("../../R/estimate_att.R")
 source("../../R/dml_att_repeated.R")
 source("../../R/nuisance_trees.R")

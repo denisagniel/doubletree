@@ -4,7 +4,7 @@ library(optimaltrees)
 
 cat("\n=== PROFILING estimate_att() WITH Rprof (n=800) ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

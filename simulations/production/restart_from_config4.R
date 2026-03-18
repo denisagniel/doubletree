@@ -7,7 +7,7 @@ library(dplyr)
 cat("\n=== RESTARTING PRODUCTION RUN FROM CONFIG 4 ===\n\n")
 flush.console()
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

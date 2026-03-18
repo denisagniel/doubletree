@@ -6,7 +6,7 @@ library(dplyr)
 
 cat("\n=== Quick Test: model_limit Fix + Threshold Encoding ===\n\n")
 
-# Source dmltree functions directly
+# Source doubletree functions directly
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

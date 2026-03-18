@@ -38,7 +38,7 @@ suppressMessages({
 # Load simulation helpers (prevents log bloat)
 source("../simulation_helpers.R")
 
-# Source dmltree functions SILENTLY
+# Source doubletree functions SILENTLY
 invisible(sapply(c(
   "../../R/estimate_att.R",
   "../../R/dml_att_repeated.R",

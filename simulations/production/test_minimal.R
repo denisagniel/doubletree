@@ -9,7 +9,7 @@ suppressMessages({
 cat("Loading helpers...\\n")
 source("../simulation_helpers.R")
 
-cat("Loading dmltree functions...\\n")
+cat("Loading doubletree functions...\\n")
 invisible(sapply(c(
   "../../R/estimate_att.R",
   "../../R/nuisance_trees.R",

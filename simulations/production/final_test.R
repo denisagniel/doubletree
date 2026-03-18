@@ -8,7 +8,7 @@ library(dplyr)
 
 cat("\n=== FINAL TEST: All Fixes Applied ===\n\n")
 
-# Source dmltree
+# Source doubletree
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")

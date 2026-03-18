@@ -4,7 +4,7 @@ library(optimaltrees)
 
 cat("\n=== COMPLETE DML-ATT PROFILING (n=800) ===\n\n")
 
-# Source dmltree with instrumentation
+# Source doubletree with instrumentation
 source("../../R/utils.R")
 source("../../R/score_att.R")
 source("../../R/inference.R")
