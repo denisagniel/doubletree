@@ -238,8 +238,8 @@ Decision trees fitted with cross-entropy naturally produce probabilities in $(0,
 
 In practice, trees fitted on reasonable data with regularization automatically avoid extreme probabilities (leaves with all 0's or all 1's are penalized by the regularization term and have high log-loss).
 
-\paragraph{Connection to DML.}
-For DML with ATT, the propensity score $e_0(x) = P(T=1|X=x)$ must satisfy overlap: $0 < e_0(x) < 1$ bounded away from 0 and 1. This is the same as Assumption~\ref{assump:bounded-probs}. Thus, the loss-norm link holds for propensity score estimation with cross-entropy under the standard DML overlap condition.
+\paragraph{Connection to EIF-based estimation.}
+For ATT estimation, the propensity score $e_0(x) = P(T=1|X=x)$ must satisfy overlap: $0 < e_0(x) < 1$ bounded away from 0 and 1. This is the same as Assumption~\ref{assump:bounded-probs}. Thus, the loss-norm link holds for propensity score estimation with cross-entropy under the standard overlap condition.
 
 \subsection{Summary}
 

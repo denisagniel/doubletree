@@ -79,10 +79,10 @@ Since $\|\hat\eta - \eta_0\|_{L^2(P)}^2 = O_p(n^{-2\beta/(2\beta+d)})$, taking s
 
 This is the classical minimax rate for estimating $\eta_0 \in H^\beta([0,1]^d)$ in $L^2$ norm, achieved by the tree estimator with optimal regularization $s_n \asymp n^{d/(2\beta+d)}$.
 
-\paragraph{Sufficiency for DML (second part of theorem).}
+\paragraph{Sufficiency for valid inference (second part of theorem).}
 The theorem also states that if $\beta/(2\beta+d) > 1/4$, then the rate $n^{-\beta/(2\beta+d)}$ is faster than $n^{-1/4}$, i.e., $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$.
 
 To verify: $\beta/(2\beta+d) > 1/4$ is equivalent to $4\beta > 2\beta + d$, which simplifies to $2\beta > d$, or $\beta > d/2$. This is the smoothness condition stated in the theorem.
 
-When $\beta > d/2$, the convergence rate $n^{-\beta/(2\beta+d)} = o(n^{-1/4})$, which by DML theory (Chernozhukov et al., 2018) is sufficient for $\sqrt{n}$-consistent and asymptotically normal estimation of the causal parameter (Corollary~\ref{cor:dml}). This completes the proof.
+When $\beta > d/2$, the convergence rate $n^{-\beta/(2\beta+d)} = o(n^{-1/4})$, which by semiparametric theory (Chernozhukov et al., 2018) is sufficient for $\sqrt{n}$-consistent and asymptotically normal estimation of the causal parameter (Corollary~\ref{cor:dml}). This completes the proof.
 \end{proof}

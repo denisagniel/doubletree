@@ -1,4 +1,4 @@
-% B7: DML Validity - Explicit Verification of Chernozhukov (2018) Conditions
+% B7: EIF-Based Inference - Verification of Conditions
 % Replaces hand-waving "we invoke and verify" (line 309)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7,13 +7,13 @@
 
 % Replace Corollary 1 (lines 307-310) with:
 
-\begin{corollary}[DML validity]
+\begin{corollary}[Valid inference with tree nuisances]
 \label{cor:dml}
-If each nuisance estimator satisfies $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ in the norms that appear in the orthogonal score expansion, then under identification (overlap, bounded moments) and $K$-fold cross-fitting, the DML estimator satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the influence function.
+If each nuisance estimator satisfies $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ in the norms that appear in the orthogonal score expansion, then under identification (overlap, bounded moments) and $K$-fold cross-fitting, the EIF-based estimator satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the efficient influence function.
 \end{corollary}
 
 \begin{proof}
-We invoke the general DML theory of \citet{chernozhukov2018} and verify that their conditions hold for tree-based nuisance estimators.
+We invoke the general semiparametric theory of \citet{chernozhukov2018} and verify that their conditions hold for tree-based nuisance estimators.
 
 \paragraph{Chernozhukov et al.\ (2018) framework.}
 By Theorem~\ref{thm:nuisance-rate}, each tree nuisance estimator $\hat\eta^{(-k)}$ (trained on data not in fold $k$) achieves $\|\hat\eta^{(-k)} - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)}) = o_p(n^{-1/4})$ when $\beta > d/2$. This applies componentwise to propensity $\hat{e}^{(-k)}$, outcome regressions $\hat{m}_0^{(-k)}$ and $\hat{m}_1^{(-k)}$.
@@ -25,7 +25,7 @@ Chernozhukov et al.\ (2018, Theorem~3.1) establish that under:
 \item \textbf{Identification:} $\E[\psi(O; \theta_0, \eta_0)] = 0$ uniquely identifies $\theta_0$, with non-singular Jacobian $J = \partial_\theta \E[\psi(O; \theta_0, \eta_0)]$.
 \item \textbf{Regularity:} Bounded moments, overlap, and cross-fitting with $K$ fixed.
 \end{enumerate}
-the DML estimator $\hat\theta$ defined by $(1/n)\sum_i \psi(O_i; \hat\theta, \hat\eta^{(-k(i))}) = 0$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, J^{-1} \Omega J^{-1})$ where $\Omega = \text{Var}[\psi(O; \theta_0, \eta_0)]$.
+the estimator $\hat\theta$ defined by $(1/n)\sum_i \psi(O_i; \hat\theta, \hat\eta^{(-k(i))}) = 0$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, J^{-1} \Omega J^{-1})$ where $\Omega = \text{Var}[\psi(O; \theta_0, \eta_0)]$.
 
 We now verify each condition for the ATT with tree nuisances.
 
@@ -95,7 +95,7 @@ imply the product is $o_p(n^{-1/2})$, satisfying Assumption~3.2.
 Identification (unconfoundedness, overlap), cross-fitting ($K$ fixed), and bounded moments are assumed in the theorem statement. Neyman orthogonality of the ATT score is a structural property (does not depend on the nuisance estimator choice).
 
 \paragraph{Conclusion.}
-By Chernozhukov et al.\ (2018, Theorem~3.1), the DML estimator with nuisances $\tilde{\eta}^{(-k)}$ satisfies:
+By Chernozhukov et al.\ (2018, Theorem~3.1), the EIF-based estimator with nuisances $\tilde{\eta}^{(-k)}$ satisfies:
 \[
 \sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2),
 \]
@@ -107,7 +107,7 @@ where $\sigma^2$ is the asymptotic variance of the influence function. This hold
 % PART 3: Appendix - Detailed Verification (Optional)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Verification of DML Conditions for Tree Nuisances}
+\subsection{Verification of Inference Conditions for Tree Nuisances}
 \label{app:dml-verification}
 
 We provide a detailed verification that tree-based nuisance estimators satisfy the conditions of Chernozhukov et al.\ (2018) for valid double machine learning inference. This supplements Corollary~\ref{cor:dml}.
@@ -187,7 +187,7 @@ All conditions satisfied. $\checkmark$
 
 \subsubsection{Conclusion}
 
-All four conditions (C1)-(C4) of Chernozhukov et al.\ (2018, Theorem~3.1) are verified for tree-based nuisances in the ATT setting. Thus the DML estimator with tree nuisances achieves:
+All four conditions (C1)-(C4) of Chernozhukov et al.\ (2018, Theorem~3.1) are verified for tree-based nuisances in the ATT setting. Thus the EIF-based estimator with tree nuisances achieves:
 \[
 \sqrt{n}(\hat\theta_{\text{ATT}} - \theta_0) \leadsto N\Bigl(0, \frac{\sigma^2}{P(T=1)}\Bigr),
 \]

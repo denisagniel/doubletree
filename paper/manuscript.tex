@@ -28,23 +28,23 @@
 
 Many consequential policy decisions rely on statistical models whose outputs directly affect financial payments, public reporting, and organizational reputation. Medicare quality measurement programs---including the Hospital Readmissions Reduction Program, Hospital Value-Based Purchasing, and Medicare Advantage Star Ratings---use risk-adjusted outcome models to evaluate provider performance and allocate billions of dollars in incentive payments each year \citep{cms_quality}. Because these models determine penalties, bonuses, and public rankings, they operate in a high-stakes regulatory environment where methodological choices must withstand scrutiny from providers, regulators, and the public. In such settings, interpretability is not merely a desirable feature but often a practical requirement for adoption: stakeholders demand models whose structure can be explained, audited, and defended, particularly when results may trigger financial penalties or allegations of poor care quality \citep{obermeyer2019, rajkomar2019, rudin2019}. Historically, this has led agencies such as the Centers for Medicare \& Medicaid Services to rely heavily on relatively transparent approaches, even when more flexible machine learning methods might offer improved predictive accuracy or better risk adjustment.
 
-Estimation of causal effects in high-dimensional and flexible modeling environments has been greatly advanced by Double Machine Learning (DML), a semiparametric framework that combines machine learning with orthogonalized score functions to produce asymptotically normal, root-$n$ consistent estimates even when complex models are used to estimate nuisance functions \citep{chernozhukov2018}. A key technical requirement is that nuisance estimators converge sufficiently fast---typically faster than $n^{-1/4}$ in mean squared error---so that their estimation error is effectively second-order in the orthogonal identifying equations. In practice, off-the-shelf machine learning methods such as random forests, gradient boosting, and neural networks are commonly employed within DML pipelines \citep{bach2021, susmann2025}, including for healthcare provider evaluation. While these flexible learners often achieve good predictive performance, they are generally black-box models whose internal structure cannot be easily interpreted. Interpretability can be critical in many application domains where stakeholders demand transparent models that offer clear decision rules or partitions of the covariate space.
+Estimation of causal effects in high-dimensional and flexible modeling environments relies on semiparametric methods using efficient influence functions (EIFs), which combine machine learning with orthogonalized score functions to produce asymptotically normal, root-$n$ consistent estimates even when complex models are used to estimate nuisance functions \citep{chernozhukov2018}. A key technical requirement is that nuisance estimators converge sufficiently fast---typically faster than $n^{-1/4}$ in mean squared error---so that their estimation error is effectively second-order in the orthogonal identifying equations. In practice, off-the-shelf machine learning methods such as random forests, gradient boosting, and neural networks are commonly employed in machine learning-based causal inference \citep{bach2021, susmann2025}, including for healthcare provider evaluation. While these flexible learners often achieve good predictive performance, they are generally black-box models whose internal structure cannot be easily interpreted. Interpretability can be critical in many application domains where stakeholders demand transparent models that offer clear decision rules or partitions of the covariate space.
 
-Optimal decision trees---including recent advances such as Generalized and Scalable Optimal Sparse Decision Trees (GOSDT)---offer a compelling trade-off: they are fully interpretable, provide globally optimized decision rules, and avoid some of the pathologies of greedy tree induction \citep{lin2020}. These optimal trees have been studied from a computational and predictive performance perspective, but their statistical properties in semiparametric inference contexts have received less theoretical attention. Several related strands of literature inform the theoretical development of tree-based estimation: \citet{nobel1996histogram} established general consistency results for data-dependent partitions including regression trees; \citet{chatterjee2019adaptive} derived oracle inequalities and risk bounds for optimal dyadic decision tree estimators in bounded variation and piecewise polynomial function classes; \citet{bertsimas2017optimal} studied globally optimal classification trees with sparsity constraints and established approximation guarantees for piecewise polynomial target functions; and \citet{mourtada2018minimax} proved minimax-optimal rates for Mondrian trees and forests, a specific class of random partition-based estimators. In the Bayesian framework, \citet{vanderpas2017bayesian} established near-minimax posterior concentration rates for dyadic tree priors. However, these results do not directly verify that globally optimal decision trees satisfy the stringent $o_p(n^{-1/4})$ condition required for valid inference in the DML framework.
+Optimal decision trees---including recent advances such as Generalized and Scalable Optimal Sparse Decision Trees (GOSDT)---offer a compelling trade-off: they are fully interpretable, provide globally optimized decision rules, and avoid some of the pathologies of greedy tree induction \citep{lin2020}. These optimal trees have been studied from a computational and predictive performance perspective, but their statistical properties in semiparametric inference contexts have received less theoretical attention. Several related strands of literature inform the theoretical development of tree-based estimation: \citet{nobel1996histogram} established general consistency results for data-dependent partitions including regression trees; \citet{chatterjee2019adaptive} derived oracle inequalities and risk bounds for optimal dyadic decision tree estimators in bounded variation and piecewise polynomial function classes; \citet{bertsimas2017optimal} studied globally optimal classification trees with sparsity constraints and established approximation guarantees for piecewise polynomial target functions; and \citet{mourtada2018minimax} proved minimax-optimal rates for Mondrian trees and forests, a specific class of random partition-based estimators. In the Bayesian framework, \citet{vanderpas2017bayesian} established near-minimax posterior concentration rates for dyadic tree priors. However, these results do not directly verify that globally optimal decision trees satisfy the stringent $o_p(n^{-1/4})$ condition required for valid inference with EIF-based estimators.
 
-In concurrent work, \citet{xuStatisticalOptimalityOptimal2026} established comprehensive statistical theory for empirical risk minimization (ERM) decision trees under random design in both regression and classification settings. They derive sharp oracle inequalities that bound excess risk relative to the best tree approximation with at most $L$ leaves, characterizing the interpretability-accuracy trade-off. They prove minimax-optimal rates over piecewise sparse heterogeneous anisotropic Besov (PSHAB) function classes, which capture sparsity, anisotropic smoothness, and spatial heterogeneity. Their framework introduces a novel uniform concentration approach based on empirically localized Rademacher complexity, providing theoretical tools broadly applicable beyond decision trees. These results establish the foundational statistical guarantees for optimal trees in prediction settings. Our work complements theirs by: (1) verifying that their rates satisfy the stringent requirements for valid causal inference in the DML framework; (2) deriving the explicit condition $\beta > d/2$ for DML validity; (3) introducing the Rashomon set intersection approach for interpretable reporting across cross-validation folds; and (4) providing practical implementation and validation in high-stakes healthcare applications.
+In concurrent work, \citet{xuStatisticalOptimalityOptimal2026} established comprehensive statistical theory for empirical risk minimization (ERM) decision trees under random design in both regression and classification settings. They derive sharp oracle inequalities that bound excess risk relative to the best tree approximation with at most $L$ leaves, characterizing the interpretability-accuracy trade-off. They prove minimax-optimal rates over piecewise sparse heterogeneous anisotropic Besov (PSHAB) function classes, which capture sparsity, anisotropic smoothness, and spatial heterogeneity. Their framework introduces a novel uniform concentration approach based on empirically localized Rademacher complexity, providing theoretical tools broadly applicable beyond decision trees. These results establish the foundational statistical guarantees for optimal trees in prediction settings. Our work complements theirs by: (1) verifying that their rates satisfy the stringent requirements for valid EIF-based causal inference; (2) deriving the explicit condition $\beta > d/2$ for achieving the necessary convergence rates; (3) introducing the Rashomon set intersection approach for interpretable reporting across cross-validation folds; and (4) providing practical implementation and validation in high-stakes healthcare applications.
 
-\textbf{In this paper, we bridge optimal tree theory to causal inference.} Building on the oracle inequality framework established by \citet{xuStatisticalOptimalityOptimal2026}, we verify that optimal decision tree estimators achieve rates sufficient for valid DML-based causal inference. Specifically, we derive the condition $\beta > d/2$ under which the minimax rate $n^{-\beta/(2\beta+d)}$ satisfies the $o_p(n^{-1/4})$ requirement of DML theory, enabling root-$n$ consistent and asymptotically normal estimation of treatment effects with interpretable nuisance functions. Beyond this theoretical verification, we introduce a novel \textbf{Rashomon set intersection approach} for selecting a single interpretable tree structure that remains near-optimal across cross-validation folds, enabling both theoretical guarantees and practical interpretability. Our contributions are threefold:
+\textbf{In this paper, we bridge optimal tree theory to causal inference.} Building on the oracle inequality framework established by \citet{xuStatisticalOptimalityOptimal2026}, we verify that optimal decision tree estimators achieve rates sufficient for valid EIF-based causal inference. Specifically, we derive the condition $\beta > d/2$ under which the minimax rate $n^{-\beta/(2\beta+d)}$ satisfies the $o_p(n^{-1/4})$ requirement for valid semiparametric inference, enabling root-$n$ consistent and asymptotically normal estimation of treatment effects with interpretable nuisance functions. Beyond this theoretical verification, we introduce a novel \textbf{Rashomon set intersection approach} for selecting a single interpretable tree structure that remains near-optimal across cross-validation folds, enabling both theoretical guarantees and practical interpretability. Our contributions are threefold:
 
-\textbf{1. Application of optimal tree theory to DML.} Building on the recent oracle inequality results of \citet{xuStatisticalOptimalityOptimal2026}, who establish that globally optimal penalized decision trees achieve minimax rates over PSHAB function classes (including Hölder spaces), we verify that these rates satisfy the stringent requirements for valid causal inference within the DML framework. Our key contributions: (a) we derive the explicit condition $\beta > d/2$ under which the tree rate $n^{-\beta/(2\beta+d)}$ satisfies the $o_p(n^{-1/4})$ requirement for DML, establishing that interpretable tree-based nuisance estimators enable $\sqrt{n}$-consistent and asymptotically normal causal inference; (b) we provide complete proofs connecting tree approximation theory, oracle inequalities, and the DML rate condition; and (c) we verify the loss-norm link required for the DML expansion under both squared loss and cross-entropy.
+\textbf{1. Application of optimal tree theory to EIF-based causal inference.} Building on the recent oracle inequality results of \citet{xuStatisticalOptimalityOptimal2026}, who establish that globally optimal penalized decision trees achieve minimax rates over PSHAB function classes (including Hölder spaces), we verify that these rates satisfy the stringent requirements for valid causal inference with efficient influence functions. Our key contributions: (a) we derive the explicit condition $\beta > d/2$ under which the tree rate $n^{-\beta/(2\beta+d)}$ satisfies the $o_p(n^{-1/4})$ requirement for valid semiparametric inference, establishing that interpretable tree-based nuisance estimators enable $\sqrt{n}$-consistent and asymptotically normal causal inference; (b) we provide complete proofs connecting tree approximation theory, oracle inequalities, and the semiparametric rate condition; and (c) we verify the loss-norm link required for the EIF expansion under both squared loss and cross-entropy.
 
-\textbf{2. Methodological innovation: Rashomon set intersection.} We introduce a principled approach for selecting a single interpretable tree structure across cross-validation folds while preserving theoretical guarantees. By taking the intersection of Rashomon sets (near-optimal solutions) across folds, we identify tree structures that remain robustly good when refit on different training data. This enables reporting of a single, interpretable decision rule to stakeholders while maintaining the cross-fitting structure essential for DML validity. We characterize conditions under which this intersection is non-empty and verify them empirically.
+\textbf{2. Methodological innovation: Rashomon set intersection.} We introduce a principled approach for selecting a single interpretable tree structure across cross-validation folds while preserving theoretical guarantees. By taking the intersection of Rashomon sets (near-optimal solutions) across folds, we identify tree structures that remain robustly good when refit on different training data. This enables reporting of a single, interpretable decision rule to stakeholders while maintaining the cross-fitting structure essential for valid inference. We characterize conditions under which this intersection is non-empty and verify them empirically.
 
 \textbf{3. Practical implementation and validation.} We develop software packages (optimaltrees and doubletree) implementing optimal tree estimation with Rashomon set computation, and provide comprehensive simulation studies demonstrating that interpretable trees within efficient influence function-based estimation achieve competitive estimation quality with transparent decision rules. We apply the methodology to healthcare quality measurement, illustrating its utility in high-stakes regulatory settings.
 
 By bridging the gap between interpretable machine learning and semiparametric causal inference, this work develops methods that are transparent enough for regulatory acceptance, flexible enough to capture complex risk structure, and theoretically grounded enough to support valid inference---particularly important for modern quality measurement, where methodological credibility is inseparable from stakeholder trust.
 
-The rest of the paper is organized as follows. Section~\ref{sec:methods} presents the DML framework with optimal tree nuisance learners and states the main theoretical results. Section~\ref{sec:rashomon} describes the use of Rashomon sets to obtain a single tree per nuisance across cross-fitting folds. Section~\ref{sec:results} reports simulation and empirical findings. Section~\ref{sec:discussion} discusses limitations and extensions, and Section~\ref{sec:conclusion} concludes.
+The rest of the paper is organized as follows. Section~\ref{sec:methods} presents the EIF-based estimation framework with optimal tree nuisance learners and states the main theoretical results. Section~\ref{sec:rashomon} describes the use of Rashomon sets to obtain a single tree per nuisance across cross-fitting folds. Section~\ref{sec:results} reports simulation and empirical findings. Section~\ref{sec:discussion} discusses limitations and extensions, and Section~\ref{sec:conclusion} concludes.
 
 \section{Methods}
 \label{sec:methods}
@@ -96,16 +96,16 @@ For each cross-fitting fold $k$, we train $\hat{e}^{(-k)}$ and $\hat{\mu}_0^{(-k
 
 We treat the nuisance estimators as \emph{penalized ERM} (as in \citet{xuStatisticalOptimalityOptimal2026}): they minimize empirical risk plus a penalty $\lambda_n \times (\text{number of leaves})$ over axis-aligned decision trees. The penalty controls complexity; the optimal complexity (balancing approximation and estimation) is $s_n \asymp n^{d/(2\beta+d)}$ (optimal for Hölder-$\beta$ functions). In practice we use a GOSDT-style solver that minimizes this objective; the same rates apply if the solver's suboptimality is $o(s_n \log n / n)$ (see Appendix).
 
-Under the following conditions, these tree nuisance estimators achieve the $o(n^{-1/4})$ $\MSE$ rate required for DML, so that the resulting DML estimator of the ATT is $\sqrt{n}$-consistent and asymptotically normal.
+Under the following conditions, these tree nuisance estimators achieve the $o(n^{-1/4})$ $\MSE$ rate required for valid inference, so that the resulting EIF-based estimator of the ATT is $\sqrt{n}$-consistent and asymptotically normal.
 
 \begin{itemize}
 \item \textbf{Identification:} Unconfoundedness and overlap hold; outcomes and the propensity score are bounded so that the relevant moments exist.
 \item \textbf{Approximation:} The support of $X$ is contained in $[0,1]^d$ (or a compact set, after transformation). The true nuisances $\eta_0 = (e_0, m_{0,0}, m_{1,0})$ lie in a H\"older class $H^\beta([0,1]^d)$ for some $\beta > 0$.
-\item \textbf{Loss:} The loss $L$ is such that excess risk $R(\hat\eta) - R(\eta_0)$ controls the $L^2(P)$ norm in the sense required by the DML expansion (e.g., squared error, or cross-entropy when $Y$ is binary).
+\item \textbf{Loss:} The loss $L$ is such that excess risk $R(\hat\eta) - R(\eta_0)$ controls the $L^2(P)$ norm in the sense required by the EIF expansion (e.g., squared error, or cross-entropy when $Y$ is binary).
 \item \textbf{Complexity:} The tree complexity (number of leaves) satisfies $s_n \asymp n^{d/(2\beta+d)}$.
-\item \textbf{DML rate:} The smoothness and dimension satisfy $\beta/(2\beta+d) > 1/4$, or equivalently $\beta > d/2$, so that the tree rate is faster than $n^{-1/4}$.
+\item \textbf{Nuisance convergence rate:} The smoothness and dimension satisfy $\beta/(2\beta+d) > 1/4$, or equivalently $\beta > d/2$, so that the tree rate is faster than $n^{-1/4}$.
 \end{itemize}
-Under these conditions, the penalized-ERM tree nuisance estimators $\hat{e}$, $\hat{m}_0$, and $\hat{m}_1$ (trained per fold as above) achieve $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$, hence $o_p(n^{-1/4})$, by the excess-risk rate and the loss--norm link (see Appendix). It follows from standard DML theory \citep{chernozhukov2018} that the estimator $\hat\theta$ defined by \eqref{eq:dml} satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the influence function $\psi(O; \theta_0, \eta_0)$. Formal statements and proof details are given in the Appendix.
+Under these conditions, the penalized-ERM tree nuisance estimators $\hat{e}$, $\hat{m}_0$, and $\hat{m}_1$ (trained per fold as above) achieve $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$, hence $o_p(n^{-1/4})$, by the excess-risk rate and the loss--norm link (see Appendix). It follows from semiparametric theory \citep{chernozhukov2018} that the estimator $\hat\theta$ defined by \eqref{eq:dml} satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the efficient influence function $\psi(O; \theta_0, \eta_0)$. Formal statements and proof details are given in the Appendix.
 
 In high dimensions, the complexity of the tree class can grow quickly; to retain the same rate, one may impose sparsity of the regression function, restricted splitting depth, or margin conditions (see Appendix).
 
@@ -137,15 +137,15 @@ The intersection is non-empty under a \textbf{stability condition} (Theorem~\ref
 
 One can compute the intersection by enumerating or approximating the Rashomon sets per fold and matching structures (e.g., via a canonical representation or JSON). We then choose one structure from the intersection per nuisance (e.g., the smallest or the first).
 
-For use in the DML estimator, for each fold $k$ we take $\tilde{\eta}^{(-k)}$ to be the tree from the intersection \emph{refit on $\mathcal{D}^{(-k)}$}---or equivalently, the fold-$k$ instance of that structure from the Rashomon set of fold $k$. The score $\psi(O_i; \theta, \tilde{\eta}^{(-k(i))})$ is evaluated with these fold-specific fitted nuisances, so that the orthogonality and cross-fitting structure of DML are preserved. The output is one reportable propensity tree and one reportable outcome tree for stakeholders, with fold-specific fitted versions used in the estimator.
+For use in the estimator, for each fold $k$ we take $\tilde{\eta}^{(-k)}$ to be the tree from the intersection \emph{refit on $\mathcal{D}^{(-k)}$}---or equivalently, the fold-$k$ instance of that structure from the Rashomon set of fold $k$. The score $\psi(O_i; \theta, \tilde{\eta}^{(-k(i))})$ is evaluated with these fold-specific fitted nuisances, so that the orthogonality and cross-fitting structure are preserved. The output is one reportable propensity tree and one reportable outcome tree for stakeholders, with fold-specific fitted versions used in the estimator.
 
 \subsection{Rationale and caveats}
 
 In high-stakes settings, a single stable tree per nuisance is more interpretable and auditable than $K$ fold-specific trees that may differ across folds. Stakeholders can inspect one propensity tree and one outcome tree rather than $K$ versions of each.
 
-From a theoretical standpoint, under the conditions of the Appendix (Definition~\ref{def:rashomon-fold}, Definition~\ref{def:intersection}, Proposition~\ref{prop:rashomon-dml}), choosing nuisances from the Rashomon set---or from the intersection, with refit per fold---yields $\tilde{\eta}^{(-k)}$ that are $o_p(n^{-1/4})$-close to $\eta_0$. The general theorem (Appendix~\ref{app:alt-nuisances}, Theorem~\ref{thm:dml-alt}) then implies that the DML estimator with these nuisances remains $\sqrt{n}$-consistent and asymptotically normal with the same limiting variance.
+From a theoretical standpoint, under the conditions of the Appendix (Definition~\ref{def:rashomon-fold}, Definition~\ref{def:intersection}, Proposition~\ref{prop:rashomon-dml}), choosing nuisances from the Rashomon set---or from the intersection, with refit per fold---yields $\tilde{\eta}^{(-k)}$ that are $o_p(n^{-1/4})$-close to $\eta_0$. The general theorem (Appendix~\ref{app:alt-nuisances}, Theorem~\ref{thm:dml-alt}) then implies that the EIF-based estimator with these nuisances remains $\sqrt{n}$-consistent and asymptotically normal with the same limiting variance.
 
-A caveat is that the intersection tree incurs a finite-sample bias penalty relative to the fold-specific optimal tree, quantified as $O_p(\varepsilon_n \cdot \text{best}^{(-k)})$ (Corollary~\ref{cor:intersection-overhead}), where $\varepsilon_n$ is the Rashomon tolerance and $\text{best}^{(-k)} = O_p(1)$ is the minimal penalized risk per fold. Under the DML condition $\varepsilon_n = o(n^{-1/2})$, this overhead is asymptotically negligible, but in finite samples it represents a bias--interpretability trade-off. This trade-off can be examined in simulations (Section~\ref{sec:results}), where we compare DML with fold-specific optimal trees versus DML with the Rashomon intersection.
+A caveat is that the intersection tree incurs a finite-sample bias penalty relative to the fold-specific optimal tree, quantified as $O_p(\varepsilon_n \cdot \text{best}^{(-k)})$ (Corollary~\ref{cor:intersection-overhead}), where $\varepsilon_n$ is the Rashomon tolerance and $\text{best}^{(-k)} = O_p(1)$ is the minimal penalized risk per fold. Under the condition $\varepsilon_n = o(n^{-1/2})$ for valid inference, this overhead is asymptotically negligible, but in finite samples it represents a bias--interpretability trade-off. This trade-off can be examined in simulations (Section~\ref{sec:results}), where we compare fold-specific optimal trees versus the Rashomon intersection.
 
 \section{Results}
 \label{sec:results}
@@ -153,19 +153,19 @@ A caveat is that the intersection tree incurs a finite-sample bias penalty relat
 \subsection{Simulation design}
 % DGPs: general causal model (not necessarily partially linear), nonlinear nuisances; at least one smooth, one piecewise/heterogeneous; design identifies ATT.
 % Sample sizes: e.g., $n \in \{500, 1000, 2000, 5000\}$.
-% Comparisons: (i) DML with optimal trees per fold, (ii) DML with Rashomon intersection, (iii) DML with random forest/gradient boosting, (iv) DML with linear/logistic nuisances.
+% Comparisons: (i) Tree-based estimation (fold-specific), (ii) Tree-based with Rashomon intersection, (iii) Random forest/gradient boosting, (iv) Linear/logistic nuisances.
 % Target: ATT. Metrics: bias, RMSE, coverage, 95\% CI length; optionally nuisance MSE. Replications: e.g., 500 or 1000.
 
 \subsection{Simulation results}
 % Tables/figures: bias, RMSE, coverage by method and $n$ for ATT.
-% Narrative: tree-DML comparable (or better in heterogeneous DGPs) to forest-DML; linear DML suffers when nuisances nonlinear.
+% Narrative: tree-based estimation comparable (or better in heterogeneous DGPs) to forest methods; linear methods suffer when nuisances nonlinear.
 % Rashomon intersection: compare fold-specific vs single-tree estimator; document bias/efficiency trade-off; discuss acceptability of bias for interpretability gain.
 % If available: nuisance MSE decay with $n$ (consistent with $o(n^{-1/4})$).
 
 \subsection{Real-data example: quality measurement for SUD treatment facilities}
 % Application: quality measurement for substance use disorder (SUD) treatment facilities (risk-adjusted outcomes or treatment effects, facility- or patient-level).
 % Nuisances: optimal trees; optionally Rashomon intersection for single reportable tree.
-% Report: point estimate and CI for ATT; brief comparison to black-box DML if feasible.
+% Report: point estimate and CI for ATT; brief comparison to black-box methods if feasible.
 % Interpretability: show one or two fitted trees (or rules); explain partition of covariate space (e.g., facility/patient characteristics defining risk subgroups).
 
 \subsection{Interpretability illustration}
@@ -180,20 +180,20 @@ Our results assume the true nuisances lie in a H\"older class and are well appro
 \subsection{Extensions}
 
 \paragraph{Other causal parameters.}
-The same DML-with-trees and Rashomon-intersection approach applies to the average treatment effect (ATE), with a different orthogonal score and nuisance set. Other parameters (e.g.\ CATE, LATE) or identifying assumptions can be accommodated with the appropriate scores and nuisances. Other interpretable learners (e.g.\ rule lists, sparse linear models) may be studied analogously; for high-dimensional $X$, sparsity or restricted depth (as in the Appendix) can retain the same rate guarantees.
+The same tree-based EIF estimation and Rashomon-intersection approach applies to the average treatment effect (ATE), with a different orthogonal score and nuisance set. Other parameters (e.g.\ CATE, LATE) or identifying assumptions can be accommodated with the appropriate scores and nuisances. Other interpretable learners (e.g.\ rule lists, sparse linear models) may be studied analogously; for high-dimensional $X$, sparsity or restricted depth (as in the Appendix) can retain the same rate guarantees.
 
 \paragraph{Computational improvements.}
-Several recent algorithmic advances could accelerate optimal tree search while preserving theoretical guarantees. \citet{zhangOptimalSparseRegression2023} introduce k-means-based lower bounds for branch-and-bound optimization of regression trees, achieving 2-4$\times$ speedup over standard distance-based bounds. Their approach could be integrated into TreeFARMS-based solvers (used in our implementation) while maintaining exact Rashomon set extraction. For extremely large problems, \citet{babbarNearOptimalDecisionTrees2025} propose a hierarchical strategy that generates optimal tree prefixes of limited depth and completes remaining branches via recursive optimal search or greedy heuristics, yielding 2-10$\times$ speedup for exact solutions. These computational enhancements are orthogonal to our theoretical results (which require only epsilon-optimal solutions) but could enable DML-with-trees at larger scales.
+Several recent algorithmic advances could accelerate optimal tree search while preserving theoretical guarantees. \citet{zhangOptimalSparseRegression2023} introduce k-means-based lower bounds for branch-and-bound optimization of regression trees, achieving 2-4$\times$ speedup over standard distance-based bounds. Their approach could be integrated into TreeFARMS-based solvers (used in our implementation) while maintaining exact Rashomon set extraction. For extremely large problems, \citet{babbarNearOptimalDecisionTrees2025} propose a hierarchical strategy that generates optimal tree prefixes of limited depth and completes remaining branches via recursive optimal search or greedy heuristics, yielding 2-10$\times$ speedup for exact solutions. These computational enhancements are orthogonal to our theoretical results (which require only epsilon-optimal solutions) but could enable tree-based EIF estimation at larger scales.
 
 \paragraph{Robust loss functions.}
-Our theory focuses on squared-error (L2) loss for continuous outcomes and cross-entropy for binary outcomes. Extension to L1 (mean absolute error) loss for robust regression would require developing analogous oracle inequalities and loss-norm links for median-based prediction, as median prediction interacts differently with the Neyman orthogonality condition in DML. While computationally feasible \citep{zhangOptimalSparseRegression2023}, theoretical verification of DML rate conditions under L1 loss remains an open question.
+Our theory focuses on squared-error (L2) loss for continuous outcomes and cross-entropy for binary outcomes. Extension to L1 (mean absolute error) loss for robust regression would require developing analogous oracle inequalities and loss-norm links for median-based prediction, as median prediction interacts differently with the Neyman orthogonality condition. While computationally feasible \citep{zhangOptimalSparseRegression2023}, theoretical verification of rate conditions under L1 loss remains an open question.
 
 \subsection{Implications for high-stakes settings}
-A central contribution of this work is to show that \emph{interpretable} learners (decision trees) can satisfy the DML nuisance-rate requirement and thus deliver valid inference---transparent models need not sacrifice statistical validity. Tree-DML is a candidate for settings like Medicare quality measurement: interpretable nuisances, valid confidence intervals, and transparent rules. Caveats include the need for validation, domain input, and regulatory alignment.
+A central contribution of this work is to show that \emph{interpretable} learners (decision trees) can satisfy the convergence requirements for valid inference and thus deliver valid inference---transparent models need not sacrifice statistical validity. Tree-based EIF estimation is a candidate for settings like Medicare quality measurement: interpretable nuisances, valid confidence intervals, and transparent rules. Caveats include the need for validation, domain input, and regulatory alignment.
 
 \section{Conclusion}
 \label{sec:conclusion}
-We addressed the lack of formal rate guarantees for interpretable nuisance learners in DML. We showed that optimal decision trees, used as nuisance estimators in DML for the ATT, can satisfy the $o(n^{-1/4})$ rate under identified conditions on smoothness and complexity, and we used Rashomon set intersection to select a single reportable tree per nuisance while preserving valid $\sqrt{n}$-inference. A general theorem (Appendix) guarantees that any fold-specific nuisances that are $o_p(n^{-1/4})$-close to the truth yield the same asymptotic normality.
+We addressed the lack of formal rate guarantees for interpretable nuisance learners in EIF-based causal inference. We showed that optimal decision trees, used as nuisance estimators for the ATT, can satisfy the $o(n^{-1/4})$ rate under identified conditions on smoothness and complexity, and we used Rashomon set intersection to select a single reportable tree per nuisance while preserving valid $\sqrt{n}$-inference. A general theorem (Appendix) guarantees that any fold-specific nuisances that are $o_p(n^{-1/4})$-close to the truth yield the same asymptotic normality.
 
 This work supports transparent, statistically principled causal estimation in high-stakes settings such as policy and healthcare: interpretable trees need not sacrifice validity, so stakeholders can rely on both clear decision rules and asymptotically valid confidence intervals.
 
@@ -357,7 +357,7 @@ This is the classical minimax rate for $H^\beta([0,1]^d)$.
 Set $s_n^{-2\beta/d} \asymp s_n (\log n)/n$ and solve for $s_n$; substitute into the oracle inequality to get the excess-risk rate; apply the loss--norm link to obtain the $L^2(P)$ rate.
 \end{proof}
 
-The following theorem combines the oracle inequality framework from \citet{xuStatisticalOptimalityOptimal2026} with the loss-norm link (Lemma~\ref{lem:loss-norm}) and the DML rate condition to establish the convergence rate of tree-based nuisance estimators for causal inference.
+The following theorem combines the oracle inequality framework from \citet{xuStatisticalOptimalityOptimal2026} with the loss-norm link (Lemma~\ref{lem:loss-norm}) and the semiparametric rate condition to establish the convergence rate of tree-based nuisance estimators for causal inference.
 
 \begin{theorem}[Nuisance rate]
 \label{thm:nuisance-rate}
@@ -435,21 +435,21 @@ Since $\|\hat\eta - \eta_0\|_{L^2(P)}^2 = O_p(n^{-2\beta/(2\beta+d)})$, taking s
 
 This is the classical minimax rate for estimating $\eta_0 \in H^\beta([0,1]^d)$ in $L^2$ norm, achieved by the tree estimator with optimal regularization $s_n \asymp n^{d/(2\beta+d)}$.
 
-\paragraph{Sufficiency for DML (second part of theorem).}
+\paragraph{Sufficiency for valid inference (second part of theorem).}
 The theorem also states that if $\beta/(2\beta+d) > 1/4$, then the rate $n^{-\beta/(2\beta+d)}$ is faster than $n^{-1/4}$, i.e., $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$.
 
 To verify: $\beta/(2\beta+d) > 1/4$ is equivalent to $4\beta > 2\beta + d$, which simplifies to $2\beta > d$, or $\beta > d/2$. This is the smoothness condition stated in the theorem.
 
-When $\beta > d/2$, the convergence rate $n^{-\beta/(2\beta+d)} = o(n^{-1/4})$, which by DML theory (Chernozhukov et al., 2018) is sufficient for $\sqrt{n}$-consistent and asymptotically normal estimation of the causal parameter (Corollary~\ref{cor:dml}). This completes the proof.
+When $\beta > d/2$, the convergence rate $n^{-\beta/(2\beta+d)} = o(n^{-1/4})$, which by semiparametric theory (Chernozhukov et al., 2018) is sufficient for $\sqrt{n}$-consistent and asymptotically normal estimation of the causal parameter (Corollary~\ref{cor:dml}). This completes the proof.
 \end{proof}
 
-\begin{corollary}[DML validity]
+\begin{corollary}[Valid inference with tree nuisances]
 \label{cor:dml}
-If each nuisance estimator satisfies $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ in the norms that appear in the orthogonal score expansion, then under identification (overlap, bounded moments) and $K$-fold cross-fitting, the DML estimator satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the influence function.
+If each nuisance estimator satisfies $\|\hat\eta - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ in the norms that appear in the orthogonal score expansion, then under identification (overlap, bounded moments) and $K$-fold cross-fitting, the EIF-based estimator satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the efficient influence function.
 \end{corollary}
 
 \begin{proof}
-We invoke the general DML theory of \citet{chernozhukov2018} and verify that their conditions hold for tree-based nuisance estimators.
+We invoke the general semiparametric theory of \citet{chernozhukov2018} and verify that their conditions hold for tree-based nuisance estimators.
 
 \paragraph{Chernozhukov et al.\ (2018) framework.}
 By Theorem~\ref{thm:nuisance-rate}, each tree nuisance estimator $\hat\eta^{(-k)}$ (trained on data not in fold $k$) achieves $\|\hat\eta^{(-k)} - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)}) = o_p(n^{-1/4})$ when $\beta > d/2$. This applies componentwise to propensity $\hat{e}^{(-k)}$ and outcome regression $\hat{\mu}_0^{(-k)}$.
@@ -461,7 +461,7 @@ Chernozhukov et al.\ (2018, Theorem~3.1) establish that under:
 \item \textbf{Identification:} $\E[\psi(O; \theta_0, \eta_0)] = 0$ uniquely identifies $\theta_0$, with non-singular Jacobian $J = \partial_\theta \E[\psi(O; \theta_0, \eta_0)]$.
 \item \textbf{Regularity:} Bounded moments, overlap, and cross-fitting with $K$ fixed.
 \end{enumerate}
-the DML estimator $\hat\theta$ defined by $(1/n)\sum_i \psi(O_i; \hat\theta, \hat\eta^{(-k(i))}) = 0$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, J^{-1} \Omega J^{-1})$ where $\Omega = \text{Var}[\psi(O; \theta_0, \eta_0)]$.
+the estimator $\hat\theta$ defined by $(1/n)\sum_i \psi(O_i; \hat\theta, \hat\eta^{(-k(i))}) = 0$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, J^{-1} \Omega J^{-1})$ where $\Omega = \text{Var}[\psi(O; \theta_0, \eta_0)]$.
 
 We now verify each condition for the ATT with tree nuisances.
 
@@ -504,19 +504,19 @@ All conditions of Chernozhukov et al.\ (2018, Theorem~3.1) are verified. Thus:
 where $\sigma^2 = J^{-1} \Omega J^{-1}$ with $\Omega = \text{Var}[\psi(O; \theta_0, \eta_0)]$ (the variance of the influence function). This can be estimated consistently using sample splitting (Chernozhukov et al., 2018, Section~4).
 \end{proof}
 
-\subsection{DML with alternative nuisances (general theorem)}
+\subsection{EIF-based inference with alternative nuisances (general theorem)}
 \label{app:alt-nuisances}
 
-The following result is of independent interest for DML with cross-fitting: it states that any fold-specific nuisance estimators that are ``close'' to the true nuisances in the sense that controls the DML remainder still yield $\sqrt{n}$-consistent, asymptotically normal inference. No structure (e.g., trees) is assumed; the result is generic.
+The following result is of independent interest for cross-fitted inference: it states that any fold-specific nuisance estimators that are ``close'' to the true nuisances in the sense that controls the remainder term still yield $\sqrt{n}$-consistent, asymptotically normal inference. No structure (e.g., trees) is assumed; the result is generic.
 
 \begin{definition}[$o_p(n^{-1/4})$-close nuisances]
 \label{def:close}
 For each fold $k \in \{1,\ldots,K\}$, let $\tilde{\eta}^{(-k)} = (\tilde{e}^{(-k)}, \tilde{m}_0^{(-k)}, \tilde{m}_1^{(-k)})$ be a nuisance estimator trained on data not in fold $k$. We say the $\tilde{\eta}^{(-k)}$ are \emph{$o_p(n^{-1/4})$-close} to $\eta_0$ if, for each $k$, we have $\|\tilde{e}^{(-k)} - e_0\|_{L^2(P)} = o_p(n^{-1/4})$, $\|\tilde{m}_0^{(-k)} - m_{0,0}\|_{L^2(P)} = o_p(n^{-1/4})$, and $\|\tilde{m}_1^{(-k)} - m_{1,0}\|_{L^2(P)} = o_p(n^{-1/4})$. Under the overlap condition ($0 < e_0(X) < 1$ bounded away from 0 and 1), these componentwise $L^2(P)$ norms are the relevant norms for the ATT score expansion; equivalently, $\max_{k=1,\ldots,K} \|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ when $\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)}$ denotes the maximum of the three component norms.
 \end{definition}
 
-\begin{theorem}[DML with alternative nuisances]
+\begin{theorem}[Valid inference with alternative nuisances]
 \label{thm:dml-alt}
-Assume $K$ is fixed. Under the same identification, overlap, and moment conditions as in \citet{chernozhukov2018} (unconfoundedness, overlap, bounded outcomes and propensity), suppose that for each fold $k$, $\tilde{\eta}^{(-k)}$ is trained on data not in fold $k$ and is $o_p(n^{-1/4})$-close to $\eta_0$ in the sense of Definition~\ref{def:close}. Let $\hat\theta$ be the DML estimator defined by
+Assume $K$ is fixed. Under the same identification, overlap, and moment conditions as in \citet{chernozhukov2018} (unconfoundedness, overlap, bounded outcomes and propensity), suppose that for each fold $k$, $\tilde{\eta}^{(-k)}$ is trained on data not in fold $k$ and is $o_p(n^{-1/4})$-close to $\eta_0$ in the sense of Definition~\ref{def:close}. Let $\hat\theta$ be the EIF-based estimator defined by
 \[
 \frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \hat\theta, \tilde{\eta}^{(-k(i))}\bigr) = 0.
 \]
@@ -545,7 +545,7 @@ By definition, $\text{best}^{(-k)} = \inf_{f \in \cT_{M_n}} [ R_n^{(-k)}(f) + \l
 
 \begin{theorem}[Intersection existence under stability]
 \label{thm:intersection-existence}
-Let $\varepsilon_n \to 0$ with $\varepsilon_n = o(n^{-1/2})$ as required for DML validity. Suppose the following \textbf{stability condition} holds:
+Let $\varepsilon_n \to 0$ with $\varepsilon_n = o(n^{-1/2})$ as required for valid inference. Suppose the following \textbf{stability condition} holds:
 \begin{equation}
 \label{eq:stability}
 \text{(A4) There exists a tree structure } \tau^* \text{ with } \#\text{leaves}(\tau^*) \le s_n \text{ such that, when refit on } \mathcal{D}^{(-k)} \text{ for each fold } k,
@@ -709,7 +709,7 @@ The approximation term $\inf_{f \in \cT_{s_n}}[R(f) - R(\eta_0)] = O(s_n^{-2\bet
 \[
 R(\tilde{\eta}^{(-k)}) - R(\eta_0) = O_p\bigl( \varepsilon_n + n^{-2\beta/(2\beta+d)} \bigr).
 \]
-Under the DML condition $\beta/(2\beta+d) > 1/4$, we have $n^{-2\beta/(2\beta+d)} = o(n^{-1/2})$, so $R(\tilde{\eta}^{(-k)}) - R(\eta_0) = o_p(n^{-1/2})$.
+Under the condition $\beta/(2\beta+d) > 1/4$ for valid inference, we have $n^{-2\beta/(2\beta+d)} = o(n^{-1/2})$, so $R(\tilde{\eta}^{(-k)}) - R(\eta_0) = o_p(n^{-1/2})$.
 
 \paragraph{Step 4: Apply the loss--norm link.}
 For squared error, $\|f - \eta_0\|_{L^2(P)}^2 \le R(f) - R(\eta_0)$, so
@@ -725,18 +725,18 @@ Under the conditions of Lemma~\ref{lem:intersection-bias}, the excess bias from 
 \[
 \bigl| R(\tilde{\eta}^{(-k)}) - R(\hat\eta^{(-k)}) \bigr| = O_p\bigl( \varepsilon_n \cdot \text{best}^{(-k)} \bigr) = O_p(\varepsilon_n),
 \]
-which is $o_p(n^{-1/2})$ under the DML condition $\varepsilon_n = o(n^{-1/2})$. Thus the intersection tree incurs an asymptotically negligible bias penalty relative to the fold-specific optimum, while gaining interpretability (a single reportable tree per nuisance instead of $K$ trees).
+which is $o_p(n^{-1/2})$ under the condition $\varepsilon_n = o(n^{-1/2})$ for valid inference. Thus the intersection tree incurs an asymptotically negligible bias penalty relative to the fold-specific optimum, while gaining interpretability (a single reportable tree per nuisance instead of $K$ trees).
 \end{corollary}
 
 \begin{proof}
 Both $\tilde{\eta}^{(-k)}$ and $\hat\eta^{(-k)}$ satisfy the oracle inequality; the only difference is the extra term $\varepsilon_n \cdot \text{best}^{(-k)}$ for $\tilde{\eta}^{(-k)}$ (from Lemma~\ref{lem:oracle-near}). By Lemma~\ref{lem:best-bounded}, $\text{best}^{(-k)} = O_p(1)$, so the overhead is $O_p(\varepsilon_n) = o_p(n^{-1/2})$.
 \end{proof}
 
-\subsubsection{DML validity with Rashomon selection}
+\subsubsection{Valid inference with Rashomon selection}
 
-\begin{proposition}[Rashomon selection and DML validity]
+\begin{proposition}[Rashomon selection and valid inference]
 \label{prop:rashomon-dml}
-Suppose that for each fold $k$, we choose $\tilde{\eta}^{(-k)} \in R_k(\varepsilon_n)$ (e.g., any tree in the fold-$k$ Rashomon set, or the refit of an intersection structure on $\mathcal{D}^{(-k)}$). A \emph{sufficient condition} for $\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ is: $\varepsilon_n \to 0$ and $\varepsilon_n = o(n^{-1/2})$ (so that $\varepsilon_n \cdot \text{best}^{(-k)} = o_p(n^{-1/2})$ since $\text{best}^{(-k)} = O_p(1)$), under the same sieve and rate conditions as Theorem~\ref{thm:nuisance-rate}. Then the DML estimator $\hat\theta$ defined with $\tilde{\eta}^{(-k)}$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$ by Theorem~\ref{thm:dml-alt}.
+Suppose that for each fold $k$, we choose $\tilde{\eta}^{(-k)} \in R_k(\varepsilon_n)$ (e.g., any tree in the fold-$k$ Rashomon set, or the refit of an intersection structure on $\mathcal{D}^{(-k)}$). A \emph{sufficient condition} for $\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ is: $\varepsilon_n \to 0$ and $\varepsilon_n = o(n^{-1/2})$ (so that $\varepsilon_n \cdot \text{best}^{(-k)} = o_p(n^{-1/2})$ since $\text{best}^{(-k)} = O_p(1)$), under the same sieve and rate conditions as Theorem~\ref{thm:nuisance-rate}. Then the EIF-based estimator $\hat\theta$ defined with $\tilde{\eta}^{(-k)}$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$ by Theorem~\ref{thm:dml-alt}.
 \end{proposition}
 \begin{proof}
 By Lemma~\ref{lem:oracle-near}, any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le s_n$ satisfies $R(f) - R(\eta_0) \le C( \varepsilon_n \cdot \text{best}^{(-k)} + s_n \log n / n + \inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)] ) + o_p(1)$. Under the theorem's conditions, the approximation term and $s_n \log n / n$ are $o_p(n^{-1/2})$; with $\varepsilon_n = o(n^{-1/2})$, we obtain $R(f) - R(\eta_0) = o_p(n^{-1/2})$. By the loss--norm link, $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$; for squared loss $\phi(\delta) = \delta$, so excess risk $o_p(n^{-1/2})$ gives $\|f - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$. Thus $\tilde{\eta}^{(-k)}$ is $o_p(n^{-1/4})$-close to $\eta_0$, and Theorem~\ref{thm:dml-alt} applies.
@@ -1338,8 +1338,8 @@ Decision trees fitted with cross-entropy naturally produce probabilities in $(0,
 
 In practice, trees fitted on reasonable data with regularization automatically avoid extreme probabilities (leaves with all 0's or all 1's are penalized by the regularization term and have high log-loss).
 
-\paragraph{Connection to DML.}
-For DML with ATT, the propensity score $e_0(x) = P(T=1|X=x)$ must satisfy overlap: $0 < e_0(x) < 1$ bounded away from 0 and 1. This is the same as Assumption~\ref{assump:bounded-probs}. Thus, the loss-norm link holds for propensity score estimation with cross-entropy under the standard DML overlap condition.
+\paragraph{Connection to EIF-based estimation.}
+For ATT estimation, the propensity score $e_0(x) = P(T=1|X=x)$ must satisfy overlap: $0 < e_0(x) < 1$ bounded away from 0 and 1. This is the same as Assumption~\ref{assump:bounded-probs}. Thus, the loss-norm link holds for propensity score estimation with cross-entropy under the standard overlap condition.
 
 \subsection{Summary}
 
