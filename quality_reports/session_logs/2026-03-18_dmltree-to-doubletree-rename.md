@@ -248,3 +248,22 @@ estimate_att(X, A, Y, K = 3)
 **Session End:** 2026-03-18
 **Total time:** ~5 hours
 **Status:** COMPLETED - Package fully functional, extensively tested
+
+---
+
+## Folder Rename (2026-03-18 afternoon)
+
+**Completed:** Renamed project folder from `dmltree` to `doubletree`
+- Old: `/Users/dagniel/RAND/rprojects/global-scholars/dmltree`
+- New: `/Users/dagniel/RAND/rprojects/global-scholars/doubletree`
+- Git remote: Unchanged (`dmltree.git` - package name ≠ repo name is acceptable)
+- All 58 tests passing from new location ✅
+- Package loads correctly from new location ✅
+
+**Additional commits after initial rename:**
+- 21f18b5: Fixed remaining comment references to dmltree/dml_att
+- 4ee02b1: Comprehensive cleanup - removed all dml/dmltree references (158 files)
+- 6d7ee85: Fixed simulation diagnostics function names
+- 7a9f247: Main package rename
+
+**Final status:** Project fully renamed. Zero active code references to dmltree/dml_att except in historical/deprecated files.
