@@ -21,8 +21,7 @@
 \maketitle
 
 \begin{abstract}
-    
-Interpretable nuisance learners in double machine learning (DML) rarely come with formal rate guarantees needed for valid inference. We use optimal decision trees as nuisance estimators in DML for the average treatment effect on the treated (ATT) and, for reporting, select a single tree per nuisance via the intersection of Rashomon sets across cross-fitting folds. Building on recent oracle inequality results for optimal decision trees \citep{xuStatisticalOptimalityOptimal2026}, we verify sufficient conditions on tree complexity and smoothness under which these nuisances achieve $o(n^{-1/4})$ convergence in the relevant norms, so that the DML estimator is $\sqrt{n}$-consistent and asymptotically normal. The paper focuses on theory and method; empirical performance can be evaluated in simulations.
+    Most causal inference focuses exclusively on eliminating bias when estimating causal quantities. Some settings require a focus on interpretability in addition to bias reduction because of the high-stakes nature of the application of causal techniques. For these cases, we introduce a fully interpretable and nonparametric method for estimating causal effects for high-stakes settings. Our approach takes advantage of recent advances in the estimation and understanding of optimal decision trees. Nuisance functions (propensity scores and outcome models) are estimated via optimal trees and are thus intepretable in terms of simple decision rules. We show that optimal trees can satisfy the rate conditions required for incorporation into augmented inverse propensity weighting/double machine learning estimators via cross-fitting, and we outline the conditions on tuning parameter selection and smoothness of underlying nuisance functions that yield asymptotic normality of resulting causal effect estimates. Further, we provide an alternative to cross-fitting that results in a single nuisance function tree for the entire dataset, unlike cross-fitting which has different nuisance function estimators for different folds of the dataset. Thus, in practice, effect estimates can be explained entirely by two nuisance trees. 
 \end{abstract}
 
 \section{Introduction}
@@ -41,7 +40,7 @@ In concurrent work, \citet{xuStatisticalOptimalityOptimal2026} established compr
 
 \textbf{2. Methodological innovation: Rashomon set intersection.} We introduce a principled approach for selecting a single interpretable tree structure across cross-validation folds while preserving theoretical guarantees. By taking the intersection of Rashomon sets (near-optimal solutions) across folds, we identify tree structures that remain robustly good when refit on different training data. This enables reporting of a single, interpretable decision rule to stakeholders while maintaining the cross-fitting structure essential for DML validity. We characterize conditions under which this intersection is non-empty and verify them empirically.
 
-\textbf{3. Practical implementation and validation.} We develop software packages (optimaltrees and dmltree) implementing optimal tree estimation with Rashomon set computation, and provide comprehensive simulation studies demonstrating that interpretable trees within DML achieve competitive estimation quality with transparent decision rules. We apply the methodology to healthcare quality measurement, illustrating its utility in high-stakes regulatory settings.
+\textbf{3. Practical implementation and validation.} We develop software packages (optimaltrees and doubletree) implementing optimal tree estimation with Rashomon set computation, and provide comprehensive simulation studies demonstrating that interpretable trees within efficient influence function-based estimation achieve competitive estimation quality with transparent decision rules. We apply the methodology to healthcare quality measurement, illustrating its utility in high-stakes regulatory settings.
 
 By bridging the gap between interpretable machine learning and semiparametric causal inference, this work develops methods that are transparent enough for regulatory acceptance, flexible enough to capture complex risk structure, and theoretically grounded enough to support valid inference---particularly important for modern quality measurement, where methodological credibility is inseparable from stakeholder trust.
 
@@ -1362,6 +1361,6 @@ This validates the use of cross-entropy (log-loss) in the tree nuisance estimati
 
 % Bibliography
 \bibliographystyle{apalike}
-\bibliography{dmltree-refs}
+\bibliography{refs}
 
 \end{document}

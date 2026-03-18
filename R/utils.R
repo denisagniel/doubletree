@@ -51,10 +51,10 @@ create_folds <- function(n, K, strata = NULL, seed = NULL) {
   fold_vec
 }
 
-#' Check (X, A, Y) inputs for DML ATT
+#' Check (X, A, Y) inputs for ATT estimation
 #'
 #' Validates presence, dimensions, binary A, and Y according to outcome_type.
-#' Called internally by dml_att.
+#' Called internally by estimate_att.
 #'
 #' @param X Data.frame or matrix of covariates (binary 0/1 for optimaltrees).
 #' @param A Integer or numeric vector of treatment (0/1).
@@ -63,7 +63,7 @@ create_folds <- function(n, K, strata = NULL, seed = NULL) {
 #' @param check_overlap Logical. If TRUE, warn when propensity range suggests weak overlap.
 #' @return Invisible NULL; stops on error.
 #' @noRd
-check_dml_att_data <- function(X, A, Y, outcome_type = "binary", check_overlap = TRUE) {
+check_att_data <- function(X, A, Y, outcome_type = "binary", check_overlap = TRUE) {
   if (is.null(X) || is.null(A) || is.null(Y)) {
     stop("X, A, and Y are required")
   }

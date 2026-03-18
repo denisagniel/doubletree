@@ -7,6 +7,6 @@
 # https://www.apache.org/licenses/LICENSE-2.0
 
 library(testthat)
-library(dmltree)
+library(doubletree)
 
-test_check("dmltree")
+test_check("doubletree")

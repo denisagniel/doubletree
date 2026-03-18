@@ -1,8 +1,8 @@
 # Integration tests for thread-safety with optimaltrees worker_limit > 1
 # Verifies that the thread-safety fixes in optimaltrees (2026-03-13) work
-# correctly in DML workflows.
+# correctly in cross-fitted ATT estimation workflows.
 
-test_that("dml_att produces identical results with worker_limit=1 vs worker_limit=4", {
+test_that("estimate_att produces identical results with worker_limit=1 vs worker_limit=4", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(42)
@@ -20,7 +20,7 @@ test_that("dml_att produces identical results with worker_limit=1 vs worker_limi
   Y <- rbinom(n, 1, plogis(-0.2 + 0.5 * X$X1 + 0.4 * X$X2 + tau * A))
 
   # Fit with worker_limit=1 (single-threaded)
-  fit1 <- dml_att(
+  fit1 <- estimate_att(
     X, A, Y,
     K = 3,
     regularization = 0.1,
@@ -30,7 +30,7 @@ test_that("dml_att produces identical results with worker_limit=1 vs worker_limi
   )
 
   # Fit with worker_limit=4 (multi-threaded)
-  fit4 <- dml_att(
+  fit4 <- estimate_att(
     X, A, Y,
     K = 3,
     regularization = 0.1,
@@ -50,7 +50,7 @@ test_that("dml_att produces identical results with worker_limit=1 vs worker_limi
   expect_equal(fit1$nuisance_fits$outcome_control, fit4$nuisance_fits$outcome_control, tolerance = 1e-10)
 })
 
-test_that("dml_att with continuous outcome and worker_limit=4 is stable", {
+test_that("estimate_att with continuous outcome and worker_limit=4 is stable", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(456)
@@ -67,7 +67,7 @@ test_that("dml_att with continuous outcome and worker_limit=4 is stable", {
   Y <- rnorm(n, mean = 1 + 0.6 * X$X1 + 0.4 * X$X2 + tau * A, sd = 0.8)
 
   # Fit with worker_limit=1
-  fit1 <- dml_att(
+  fit1 <- estimate_att(
     X, A, Y,
     K = 3,
     outcome_type = "continuous",
@@ -78,7 +78,7 @@ test_that("dml_att with continuous outcome and worker_limit=4 is stable", {
   )
 
   # Fit with worker_limit=4
-  fit4 <- dml_att(
+  fit4 <- estimate_att(
     X, A, Y,
     K = 3,
     outcome_type = "continuous",
@@ -94,7 +94,7 @@ test_that("dml_att with continuous outcome and worker_limit=4 is stable", {
   expect_equal(fit1$ci_95, fit4$ci_95, tolerance = 1e-10)
 })
 
-test_that("dml_att with use_rashomon=TRUE and worker_limit=4 works correctly", {
+test_that("estimate_att with use_rashomon=TRUE and worker_limit=4 works correctly", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(101)
@@ -107,8 +107,8 @@ test_that("dml_att with use_rashomon=TRUE and worker_limit=4 works correctly", {
   A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
   Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
 
-  # Fit Rashomon-DML with worker_limit=1
-  fit1 <- dml_att(
+  # Fit Rashomon-based estimation with worker_limit=1
+  fit1 <- estimate_att(
     X, A, Y,
     K = 3,
     use_rashomon = TRUE,
@@ -119,8 +119,8 @@ test_that("dml_att with use_rashomon=TRUE and worker_limit=4 works correctly", {
     worker_limit = 1
   )
 
-  # Fit Rashomon-DML with worker_limit=4
-  fit4 <- dml_att(
+  # Fit Rashomon-based estimation with worker_limit=4
+  fit4 <- estimate_att(
     X, A, Y,
     K = 3,
     use_rashomon = TRUE,
@@ -141,7 +141,7 @@ test_that("dml_att with use_rashomon=TRUE and worker_limit=4 works correctly", {
   expect_true(is.finite(fit4$theta))
 })
 
-test_that("stress test: multiple dml_att runs with worker_limit=4 are stable", {
+test_that("stress test: multiple estimate_att runs with worker_limit=4 are stable", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(303)
@@ -156,7 +156,7 @@ test_that("stress test: multiple dml_att runs with worker_limit=4 are stable", {
 
   # Run 10 times with same seed - should get identical results
   results <- replicate(10, {
-    fit <- dml_att(
+    fit <- estimate_att(
       X, A, Y,
       K = 3,
       regularization = 0.1,

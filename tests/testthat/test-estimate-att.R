@@ -1,5 +1,5 @@
-# DML ATT and score tests
-# Requires treefarmr to be installed (dmltree Imports treefarmr).
+# ATT estimation and score tests
+# Requires optimaltrees to be installed (doubletree Imports optimaltrees).
 
 test_that("psi_att returns vector of length n and is linear in theta", {
   n <- 5
@@ -15,14 +15,14 @@ test_that("psi_att returns vector of length n and is linear in theta", {
   expect_equal(s1, s0 - 1 * (A / pi_hat), tolerance = 1e-10)
 })
 
-test_that("dml_att returns list with theta, sigma, ci_95 and runs with binary data", {
-  skip_if_not_installed("treefarmr")
+test_that("estimate_att returns list with theta, sigma, ci_95 and runs with binary data", {
+  skip_if_not_installed("optimaltrees")
   set.seed(42)
   n <- 120
   X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
   A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
   Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-  fit <- dml_att(X, A, Y, K = 3)
+  fit <- estimate_att(X, A, Y, K = 3)
   expect_type(fit$theta, "double")
   expect_length(fit$theta, 1)
   expect_type(fit$sigma, "double")
@@ -40,14 +40,14 @@ test_that("create_folds returns integer vector 1..K", {
   expect_type(f, "integer")
 })
 
-test_that("dml_att with use_rashomon = TRUE runs and returns same structure", {
-  skip_if_not_installed("treefarmr")
+test_that("estimate_att with use_rashomon = TRUE runs and returns same structure", {
+  skip_if_not_installed("optimaltrees")
   set.seed(42)
   n <- 150
   X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
   A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
   Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-  fit <- dml_att(X, A, Y, K = 3, use_rashomon = TRUE, verbose = FALSE)
+  fit <- estimate_att(X, A, Y, K = 3, use_rashomon = TRUE, verbose = FALSE)
   expect_type(fit$theta, "double")
   expect_length(fit$theta, 1)
   expect_type(fit$sigma, "double")
@@ -60,19 +60,19 @@ test_that("dml_att with use_rashomon = TRUE runs and returns same structure", {
   expect_true(length(fit$fold_indices) == n)
 })
 
-test_that("dml_att_variance and dml_att_ci work", {
+test_that("att_se and att_ci work", {
   scores <- rnorm(100, 0, 1)
-  v <- dml_att_variance(scores)
-  expect_true(v > 0)
-  ci <- dml_att_ci(0.5, sqrt(v), 100, level = 0.95)
+  se <- att_se(scores)
+  expect_true(se > 0)
+  ci <- att_ci(0.5, se, 100, level = 0.95)
   expect_length(ci, 2)
   expect_true(ci[1] < 0.5)
   expect_true(ci[2] > 0.5)
 })
 
 # Continuous outcome tests (Sprint 2, MAJOR-5)
-test_that("dml_att works with continuous outcomes", {
-  skip_if_not_installed("treefarmr")
+test_that("estimate_att works with continuous outcomes", {
+  skip_if_not_installed("optimaltrees")
 
   set.seed(123)
   n <- 150
@@ -90,8 +90,8 @@ test_that("dml_att works with continuous outcomes", {
   tau <- 0.5
   Y <- rnorm(n, mean = 1 + 0.6 * X$X1 + 0.4 * X$X2 + tau * A, sd = 0.8)
 
-  # Fit DML with continuous outcome
-  fit <- dml_att(
+  # Fit with continuous outcome
+  fit <- estimate_att(
     X, A, Y,
     K = 3,
     outcome_type = "continuous",
@@ -116,7 +116,7 @@ test_that("dml_att works with continuous outcomes", {
 })
 
 test_that("continuous outcome uses squared_error loss", {
-  skip_if_not_installed("treefarmr")
+  skip_if_not_installed("optimaltrees")
 
   set.seed(456)
   n <- 100
@@ -125,7 +125,7 @@ test_that("continuous outcome uses squared_error loss", {
   Y <- rnorm(n, mean = 2 + 0.5 * A)
 
   # Fit with continuous outcome
-  fit <- dml_att(X, A, Y, K = 3, outcome_type = "continuous")
+  fit <- estimate_att(X, A, Y, K = 3, outcome_type = "continuous")
 
   # Verify structure
   expect_true("nuisance_fits" %in% names(fit))
@@ -133,8 +133,8 @@ test_that("continuous outcome uses squared_error loss", {
   expect_true(is.finite(fit$theta))
 })
 
-test_that("dml_att handles small K with continuous outcomes", {
-  skip_if_not_installed("treefarmr")
+test_that("estimate_att handles small K with continuous outcomes", {
+  skip_if_not_installed("optimaltrees")
 
   set.seed(789)
   n <- 60
@@ -143,12 +143,12 @@ test_that("dml_att handles small K with continuous outcomes", {
   Y <- rnorm(n, mean = 1 + 0.3 * A, sd = 0.5)
 
   # K=2 should work (may produce warnings from diagnostics - that's expected)
-  fit <- dml_att(X, A, Y, K = 2, outcome_type = "continuous")
+  fit <- estimate_att(X, A, Y, K = 2, outcome_type = "continuous")
   expect_true(is.finite(fit$theta))
 })
 
 test_that("continuous outcome validates input appropriately", {
-  skip_if_not_installed("treefarmr")
+  skip_if_not_installed("optimaltrees")
 
   set.seed(101)
   n <- 50
@@ -157,6 +157,6 @@ test_that("continuous outcome validates input appropriately", {
 
   # Continuous outcome should work (may produce warnings from diagnostics - that's expected)
   Y_continuous <- rnorm(n, mean = 1 + 0.5 * A)
-  fit <- dml_att(X, A, Y_continuous, K = 3, outcome_type = "continuous")
+  fit <- estimate_att(X, A, Y_continuous, K = 3, outcome_type = "continuous")
   expect_true(is.finite(fit$theta))
 })

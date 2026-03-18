@@ -1,13 +1,13 @@
-# dmltree: DML Causal Estimation with Interpretable Trees
+# doubletree: Causal Estimation with Interpretable Trees
 
-This package implements causal inference for the **Average Treatment effect on the Treated (ATT)** using Double Machine Learning (DML) with interpretable optimal decision trees. It depends on [optimaltrees](https://github.com/) for fitting the nuisance functions (propensity and outcome trees). Theory-aligned API expectations for the tree side are described in `paper/Implementation-requirements-Rashomon-DML.md`.
+This package implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with cross-fitting and interpretable optimal decision trees. It depends on [optimaltrees](https://github.com/) for fitting the nuisance functions (propensity and outcome trees). This is a doubly robust, semiparametric estimator. Theory-aligned API expectations for the tree side are described in `paper/Implementation-requirements-Rashomon-DML.md`.
 
 **Outcome:** Set `outcome_type = "binary"` (default) for binary Y (0/1); use `outcome_type = "continuous"` for continuous Y. For continuous Y, outcome trees use squared-error loss and **optimaltrees** must support `loss_function = "squared_error"` for regression.
 
 ## Project Structure
 
 ```
-dmltree/
+doubletree/
 ├── .Rprofile              # Auto-loads optimaltrees from local dev
 ├── .gitignore             # Standard R/research project ignores
 ├── README.md              # This file
@@ -56,7 +56,7 @@ Or install it locally:
 
 ```r
 devtools::install()
-library(dmltree)
+library(doubletree)
 ```
 
 ## Using optimaltrees
@@ -67,9 +67,9 @@ If `optimaltrees` is located elsewhere:
 - Update the path in `.Rprofile`, or
 - Manually load it: `devtools::load_all("/path/to/optimaltrees")`
 
-### Rashomon DML
+### Rashomon-Based Estimation
 
-The manuscript selects a **single interpretable tree per nuisance** via the intersection of Rashomon sets across cross-fitting folds, then refits that structure per fold for valid DML. **optimaltrees** implements the required API (`cross_fitted_rashomon`, intersection, refit per fold, `predict(..., fold_indices)`). dmltree supports the full Rashomon–DML workflow when `use_rashomon = TRUE`: one interpretable tree per nuisance (via intersection across folds) with fold-specific refits for valid DML. The same K and fold assignment are used for Rashomon fitting and the DML score. When `use_rashomon = FALSE` (default), the package fits one optimal tree per fold (no Rashomon or intersection).
+The manuscript selects a **single interpretable tree per nuisance** via the intersection of Rashomon sets across cross-fitting folds, then refits that structure per fold for valid cross-fitted estimation. **optimaltrees** implements the required API (`cross_fitted_rashomon`, intersection, refit per fold, `predict(..., fold_indices)`). doubletree supports the full Rashomon workflow when `use_rashomon = TRUE`: one interpretable tree per nuisance (via intersection across folds) with fold-specific refits for valid estimation. The same K and fold assignment are used for Rashomon fitting and the score. When `use_rashomon = FALSE` (default), the package fits one optimal tree per fold (no Rashomon or intersection).
 
 ## Minimal example
 
@@ -83,7 +83,7 @@ n <- 300
 X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
 A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
 Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-fit <- dml_att(X, A, Y, K = 5)
+fit <- estimate_att(X, A, Y, K = 5)
 fit$theta   # point estimate
 fit$ci_95   # 95% Wald CI
 ```

@@ -2,17 +2,19 @@
 # (sum(A/pi) < EPSILON implies all A=0 or pi extremely small)
 .NO_TREATED_THRESHOLD <- 1e-10
 
-#' DML estimator for the Average Treatment effect on the Treated (ATT)
+#' Estimate the Average Treatment Effect on the Treated (ATT)
 #'
-#' Estimates the ATT using double machine learning with optimal decision trees
-#' (via optimaltrees) for the nuisance functions e(X) and m0(X). Binary outcome
-#' uses log-loss for both nuisances; continuous outcome uses log-loss for propensity
-#' and squared_error for m0 (requires optimaltrees to support squared_error).
+#' Estimates the ATT using efficient influence function-based estimation with
+#' cross-fitting and optimal decision trees (via optimaltrees) for the nuisance
+#' functions e(X) and m0(X). This is a doubly robust, semiparametric estimator.
+#' Binary outcomes use log-loss for both nuisances; continuous outcomes use
+#' log-loss for propensity and squared_error for m0.
 #'
 #' When \code{use_rashomon = TRUE}, nuisances are fit via
 #' \code{optimaltrees::cross_fitted_rashomon}: one interpretable tree per nuisance
-#' (e, m0) via intersection of Rashomon sets across folds with fold-specific refits for
-#' valid DML. The same K and fold assignment are used for Rashomon and the score.
+#' (e, m0) via intersection of Rashomon sets across folds with fold-specific refits
+#' for valid cross-fitted estimation. The same K and fold assignment are used for
+#' Rashomon and the score.
 #'
 #' @param X Data.frame or matrix of covariates. Must be binary (0/1) for optimaltrees.
 #' @param A Integer or numeric vector of treatment (0/1).
@@ -47,13 +49,13 @@
 #'   \strong{Recommended:} Use theory-justified value via
 #'   \code{optimaltrees::select_epsilon_n(nrow(X), method = "fixed", c = 2)}.
 #'   This sets \eqn{\varepsilon_n = c\sqrt{(\log n)/n}}, which satisfies the
-#'   DML rate requirement \eqn{o(n^{-1/2})} for the 2-nuisance ATT score (manuscript Appendix A.5).
+#'   rate requirement \eqn{o(n^{-1/2})} for the 2-nuisance ATT score (manuscript Appendix A.5).
 #'
 #'   \strong{Trade-off:} Smaller \eqn{\varepsilon_n} yields trees closer to optimal
 #'   but higher risk of empty intersection. Larger \eqn{\varepsilon_n} facilitates
 #'   intersection (interpretability gain) but includes more sub-optimal trees.
 #'   Typical range: 0.02 (tight) to 0.10 (loose).
-#' @param rashomon_bound_adder Numeric. Additive Rashomon bound (not recommended for DML).
+#' @param rashomon_bound_adder Numeric. Additive Rashomon bound (not recommended for cross-fitted estimation).
 #'   Default: 0.
 #' @param max_leaves Optional integer. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Restricts Rashomon set to trees with at most this many leaves.
 #' @param auto_tune_intersecting Logical. If TRUE, automatically increase
@@ -75,7 +77,7 @@
 #' @param ... Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
-#' @references Manuscript equation (2) for the orthogonal score; Chernozhukov et al. for DML.
+#' @references Manuscript equation (2) for the orthogonal score.
 #' @examples
 #' \dontrun{
 #' # Decision guide for key parameters:
@@ -104,7 +106,7 @@
 #' epsilon_n <- optimaltrees::select_epsilon_n(n, method = "fixed", c = 2)
 #'
 #' # Recommended: Rashomon with CV regularization
-#' fit <- dml_att(
+#' fit <- estimate_att(
 #'   X, A, Y,
 #'   K = 5,
 #'   use_rashomon = TRUE,
@@ -115,11 +117,11 @@
 #' print(fit$ci_95)   # 95% Wald confidence interval
 #'
 #' # Alternative: Quick exploratory analysis
-#' fit_quick <- dml_att(X, A, Y, K = 5, regularization = 0.1)
+#' fit_quick <- estimate_att(X, A, Y, K = 5, regularization = 0.1)
 #' print(fit_quick$theta)
 #' }
 #' @export
-dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
+estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
                    regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
                    stratified = TRUE, seed = NULL, verbose = FALSE,
                    use_rashomon = FALSE, rashomon_bound_multiplier = 0.05,
@@ -129,7 +131,7 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
                    discretize_bins = "adaptive",
                    ...) {
   outcome_type <- match.arg(outcome_type)
-  check_dml_att_data(X, A, Y, outcome_type = outcome_type)
+  check_att_data(X, A, Y, outcome_type = outcome_type)
   if (is.matrix(X)) X <- as.data.frame(X)
   n <- nrow(X)
 
@@ -140,13 +142,27 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
 
   n_treated <- sum(A == 1)
   n_control <- sum(A == 0)
-  if (n_treated < K) {
-    stop("Insufficient treated units for K-fold cross-fitting. ",
-         "Need at least K=", K, " treated units, got: ", n_treated, call. = FALSE)
+
+  # Check for sufficient sample size PER FOLD (not just total)
+  # Need at least ~2 units per fold for meaningful training
+  min_treated_per_fold <- ceiling(n_treated / K)
+  min_control_per_fold <- ceiling(n_control / K)
+
+  if (min_treated_per_fold < 2) {
+    stop("Insufficient treated units per fold for K-fold cross-fitting. ",
+         "Need at least ", K * 2, " treated units for K=", K, ", got: ", n_treated, call. = FALSE)
   }
-  if (n_control < K) {
-    stop("Insufficient control units for K-fold cross-fitting. ",
-         "Need at least K=", K, " control units, got: ", n_control, call. = FALSE)
+  if (min_control_per_fold < 2) {
+    stop("Insufficient control units per fold for K-fold cross-fitting. ",
+         "Need at least ", K * 2, " control units for K=", K, ", got: ", n_control, call. = FALSE)
+  }
+
+  # Early validation: check that we have treated units and pi_hat is valid
+  # (do this BEFORE expensive nuisance fitting)
+  pi_hat <- mean(A)
+  if (pi_hat <= 0 || pi_hat >= 1) {
+    stop("Invalid treatment proportion: pi_hat = ", pi_hat,
+         ". All units are treated or all are controls.", call. = FALSE)
   }
 
   if (!cv_regularization && (!is.numeric(regularization) || length(regularization) != 1 || regularization <= 0)) {
@@ -192,10 +208,11 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
     eta <- get_fold_specific_eta(nuisance_fits, X, fold_indices)
   }
 
-  pi_hat <- mean(A)
-
+  # pi_hat already computed during validation above
   # Closed form: psi(theta) = psi(0) - theta*(A/pi), so sum(psi(theta)) = 0 => theta = sum(psi(0)) / sum(A/pi).
   sum_a_over_pi <- sum(A / pi_hat)
+  # Note: sum_a_over_pi check is redundant now (pi_hat already validated)
+  # But keep for extra safety in case of numerical issues
   if (sum_a_over_pi < .NO_TREATED_THRESHOLD) {
     stop("No treated units (sum(A) ~ 0) or pi_hat extremely small.", call. = FALSE)
   }
@@ -203,9 +220,8 @@ dml_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
   theta <- sum(score_at_zero) / sum_a_over_pi
 
   score_values <- psi_att(Y, A, theta, eta, pi_hat)
-  sigma_sq <- dml_att_variance(score_values, n)
-  sigma <- sqrt(sigma_sq)
-  ci_95 <- dml_att_ci(theta, sigma, n, level = 0.95)
+  sigma <- att_se(score_values, n)
+  ci_95 <- att_ci(theta, sigma, n, level = 0.95)
 
   # Add predictions to nuisance_fits for diagnostics
   nuisance_fits$propensity <- eta$e

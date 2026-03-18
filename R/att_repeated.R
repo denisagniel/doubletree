@@ -1,11 +1,11 @@
-#' DML-ATT with Repeated Cross-Fitting
+#' ATT Estimation with Repeated Cross-Fitting
 #'
 #' Implements repeated sample splitting (Chernozhukov et al. 2018) to account for
 #' fold-assignment randomness. Runs M independent cross-fits and combines:
 #' - Point estimate: median or mean of M estimates
 #' - Variance: accounts for both within-fold (influence function) and between-split variation
 #'
-#' @inheritParams dml_att
+#' @inheritParams estimate_att
 #' @param n_splits Integer. Number of independent cross-fit repetitions. Default 1 (no repetition).
 #' @param aggregation Character. How to aggregate M estimates: "median" (default) or "mean".
 #'
@@ -17,7 +17,7 @@
 #'   - sigma_splits: vector of M within-fold SEs
 #'   - between_var: variance across splits
 #'   - within_var: mean within-fold variance
-#'   - ... (other dml_att outputs)
+#'   - ... (other estimate_att outputs)
 #'
 #' @references Chernozhukov et al. (2018), "Double/debiased machine learning for treatment
 #'   and structural parameters", Econometrics Journal.
@@ -31,19 +31,19 @@
 #' A <- rbinom(n, 1, plogis(0.5 * X$X1))
 #' Y <- rbinom(n, 1, 0.4 + 0.2 * A + 0.1 * X$X1)
 #'
-#' # Standard DML (single split)
-#' fit_single <- dml_att_repeated(X, A, Y, K = 5, n_splits = 1)
+#' # Standard estimation (single split)
+#' fit_single <- att_repeated(X, A, Y, K = 5, n_splits = 1)
 #' print(fit_single$theta)
 #'
 #' # Repeated cross-fitting (M=5 splits)
-#' fit_repeated <- dml_att_repeated(X, A, Y, K = 5, n_splits = 5)
+#' fit_repeated <- att_repeated(X, A, Y, K = 5, n_splits = 5)
 #' print(fit_repeated$theta)  # Median of 5 estimates
 #' print(fit_repeated$sigma)  # Accounts for fold randomness
 #' print(fit_repeated$theta_splits)  # See variation across splits
 #' }
 #'
 #' @export
-dml_att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
+att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
                               regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
                               stratified = TRUE, seed = NULL,
                               verbose = FALSE, use_rashomon = FALSE,
@@ -58,8 +58,8 @@ dml_att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continu
   aggregation <- match.arg(aggregation)
 
   if (n_splits == 1) {
-    # No repetition - call standard dml_att
-    return(dml_att(X, A, Y, K = K, outcome_type = outcome_type,
+    # No repetition - call standard estimate_att
+    return(estimate_att(X, A, Y, K = K, outcome_type = outcome_type,
                    regularization = regularization,
                    cv_regularization = cv_regularization, cv_K = cv_K,
                    stratified = stratified,
@@ -79,7 +79,7 @@ dml_att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continu
     # Different seed for each split (if seed provided)
     split_seed <- if (!is.null(seed)) seed + m * 1000 else NULL
 
-    result_m <- dml_att(
+    result_m <- estimate_att(
       X, A, Y, K = K, outcome_type = outcome_type,
       regularization = regularization,
       cv_regularization = cv_regularization, cv_K = cv_K,
@@ -106,14 +106,14 @@ dml_att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continu
   # Variance estimation following Chernozhukov et al. (2018), Section 3.4
   #
   # Formula (3.13) for mean aggregation:
-  #   σ²_mean = (1/S) * Σ[σ²_s + (θ_s - θ_mean)²]
+  #   sigma^2_mean = (1/S) * Sum[sigma^2_s + (theta_s - theta_mean)^2]
   #
-  # where σ²_s is Var[√n·θ̃_s] and (θ_s - θ_mean)² is on the θ scale.
+  # where sigma^2_s is Var[sqrt(n)*theta_s] and (theta_s - theta_mean)^2 is on the theta scale.
   # To combine them, we need to scale the second term:
-  #   σ²_mean = (1/S) * Σ[σ²_s + n·(θ_s - θ_mean)²]
+  #   sigma^2_mean = (1/S) * Sum[sigma^2_s + n*(theta_s - theta_mean)^2]
   #
   # This accounts for both:
-  # - Within-split variance (σ²_s from influence function)
+  # - Within-split variance (sigma^2_s from influence function)
   # - Between-split variance (from randomness in fold assignment)
 
   n <- nrow(X)
@@ -139,14 +139,14 @@ dml_att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continu
   # Debug output
   if (verbose) {
     message("Variance estimation (Chernozhukov et al. 2018):")
-    message(sprintf("  Within variance (mean σ²): %.4f", within_var))
-    message(sprintf("  Between variance (n·var(θ)): %.4f", between_var))
+    message(sprintf("  Within variance (mean sigma^2): %.4f", within_var))
+    message(sprintf("  Between variance (n*var(theta)): %.4f", between_var))
     message(sprintf("  Total variance: %.4f", sigma_squared))
     message(sprintf("  sigma_scaled (sqrt(n) scale): %.4f", sigma_scaled))
     message(sprintf("  SE on theta scale: %.4f", sigma_scaled / sqrt(n)))
   }
 
-  # 95% CI: convert back to θ̂ scale
+  # 95% CI: convert back to theta-hat scale
   ci_95 <- theta + c(-1, 1) * qnorm(0.975) * sigma_scaled / sqrt(n)
 
   # Return result with additional diagnostics

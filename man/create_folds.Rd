@@ -24,3 +24,15 @@ Integer vector of length n with values in 1..K.
 Assigns each observation to one of K folds. Optionally stratifies by a
 binary variable (e.g. treatment A) so that fold proportions are balanced.
 }
+\examples{
+# Basic usage: 5-fold cross-fitting
+folds <- create_folds(n = 100, K = 5, seed = 42)
+table(folds)  # Each fold has ~20 observations
+
+# Stratified by treatment
+A <- rbinom(100, 1, 0.3)
+folds_stratified <- create_folds(n = 100, K = 5, strata = A, seed = 42)
+# Check balance: each fold has similar treatment proportions
+tapply(A, folds_stratified, mean)
+
+}

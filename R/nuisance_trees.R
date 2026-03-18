@@ -2,7 +2,7 @@
 #'
 #' Fits propensity e(X) and outcome regression m0(X) on training data
 #' (all rows not in fold_id) using optimaltrees. Propensity uses log_loss; outcome
-#' trees use log_loss (binary Y) or squared_error (continuous Y). Used internally by dml_att.
+#' trees use log_loss (binary Y) or squared_error (continuous Y). Used internally by estimate_att.
 #'
 #' @param X Data.frame or matrix of covariates (binary 0/1).
 #' @param A Integer vector of treatment (0/1).
@@ -171,6 +171,10 @@ apply_discretization_metadata <- function(X_new, metadata) {
       binary_cols_list[[col_name]] <- data.frame(x)
       names(binary_cols_list[[col_name]]) <- col_name
     } else if (feat_meta$type == "binary_converted") {
+      if (length(feat_meta$original_values) == 0) {
+        stop("Feature '", col_name, "' has empty original_values in metadata. ",
+             "This indicates corrupted discretization metadata.", call. = FALSE)
+      }
       x_binary <- as.numeric(x == max(feat_meta$original_values))
       binary_cols_list[[col_name]] <- data.frame(x_binary)
       names(binary_cols_list[[col_name]]) <- col_name
@@ -181,6 +185,10 @@ apply_discretization_metadata <- function(X_new, metadata) {
     } else if (feat_meta$type == "continuous") {
       thresholds <- feat_meta$thresholds
       new_names <- feat_meta$new_names
+      if (length(thresholds) == 0) {
+        stop("Feature '", col_name, "' has empty thresholds in metadata. ",
+             "This indicates corrupted discretization metadata.", call. = FALSE)
+      }
       threshold_cols <- lapply(seq_along(thresholds), function(i) {
         as.integer(x <= thresholds[i])
       })
@@ -188,6 +196,11 @@ apply_discretization_metadata <- function(X_new, metadata) {
       names(binary_cols) <- new_names
       binary_cols_list[[col_name]] <- binary_cols
     }
+  }
+
+  if (length(binary_cols_list) == 0) {
+    stop("No features to discretize. This indicates corrupted metadata or empty feature set.",
+         call. = FALSE)
   }
 
   do.call(cbind, binary_cols_list)
@@ -211,33 +224,19 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
   X_sub <- X[fold_rows, , drop = FALSE]
   outcome_type <- if (!is.null(models$outcome_type)) models$outcome_type else "binary"
 
-  # Apply discretization to test data using training metadata
-  # optimaltrees stores discretization metadata in model$discretization
-  e_metadata <- models$e_model$discretization
-  m0_metadata <- models$m0_model$discretization
+  # Note: discretization is now handled automatically by predict() using
+  # the model's stored discretization metadata. No need to manually discretize.
 
-  X_sub_e <- if (!is.null(e_metadata)) {
-    apply_discretization_metadata(X_sub, e_metadata)
-  } else {
-    X_sub  # Already binary
-  }
-
-  X_sub_m0 <- if (!is.null(m0_metadata)) {
-    apply_discretization_metadata(X_sub, m0_metadata)
-  } else {
-    X_sub  # Already binary
-  }
-
-  # Predict on discretized data
-  pe <- predict(models$e_model, X_sub_e, type = "prob")
-  e_vec <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, nrow(X_sub_e))
+  # Predict (predict() will apply discretization if needed)
+  pe <- predict(models$e_model, X_sub, type = "prob")
+  e_vec <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, nrow(X_sub))
 
   if (outcome_type == "continuous") {
-    pm0 <- predict(models$m0_model, X_sub_m0)
+    pm0 <- predict(models$m0_model, X_sub)
     m0_vec <- as.numeric(if (is.matrix(pm0)) pm0[, 1L] else pm0)
   } else {
-    pm0 <- predict(models$m0_model, X_sub_m0, type = "prob")
-    m0_vec <- if (is.matrix(pm0)) pm0[, 2L] else rep(0.5, nrow(X_sub_m0))
+    pm0 <- predict(models$m0_model, X_sub, type = "prob")
+    m0_vec <- if (is.matrix(pm0)) pm0[, 2L] else rep(0.5, nrow(X_sub))
   }
   list(e = e_vec, m0 = m0_vec)
 }
@@ -279,7 +278,7 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 #' Fit nuisances via Rashomon intersection (cross_fitted_rashomon)
 #'
 #' Fits e(X), m0(X) using optimaltrees::cross_fitted_rashomon with the same
-#' fold assignment as DML. When a nuisance has no intersecting trees (n_intersecting == 0),
+#' fold assignment as the ATT estimation. When a nuisance has no intersecting trees (n_intersecting == 0),
 #' falls back to single-tree-per-fold for that nuisance via fit_nuisances_fold.
 #'
 #' @param X Data.frame or matrix of covariates (binary 0/1).
@@ -408,9 +407,20 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     return(NULL)
   })
 
-  need_fallback <- is.null(cf_e) || is.null(cf_m0)
+  # Efficient fallback: only refit failed models
   fallback_fits <- NULL
-  if (need_fallback) {
+  need_e_fallback <- is.null(cf_e)
+  need_m0_fallback <- is.null(cf_m0)
+
+  if (need_e_fallback || need_m0_fallback) {
+    if (verbose) {
+      failed_models <- c(if (need_e_fallback) "propensity" else NULL,
+                        if (need_m0_fallback) "control outcome" else NULL)
+      message("Rashomon intersection failed for: ", paste(failed_models, collapse = ", "),
+              ". Using fold-specific trees for all nuisances.")
+    }
+    # NOTE: Currently refits BOTH models even if only one failed.
+    # TODO: Optimize to only refit the failed model(s).
     fallback_fits <- vector("list", K)
     for (k in seq_len(K)) {
       fallback_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,

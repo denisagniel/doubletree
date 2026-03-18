@@ -1,11 +1,14 @@
-Package: dmltree
+Package: doubletree
 Type: Package
-Title: DML Causal Estimation with Interpretable Trees
+Title: Causal Estimation with Interpretable Trees
 Version: 0.0.0.9000
+Author: Denis Agniel
+Maintainer: Denis Agniel <dagniel@rand.org>
 Authors@R: person("Denis", "Agniel", email = "dagniel@rand.org", role = c("aut", "cre"))
-Description: Implements methods for causal inference using Double Machine Learning (DML)
-    with interpretable tree-based models. This package builds on optimaltrees to provide
-    DML-based causal estimation with tree-based machine learning methods.
+Description: Implements methods for causal inference using efficient influence
+    function-based estimation with interpretable tree-based models. This package
+    builds on optimaltrees to provide doubly robust causal estimation with
+    cross-fitting and tree-based machine learning methods.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

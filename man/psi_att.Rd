@@ -4,7 +4,15 @@
 \alias{psi_att}
 \title{ATT orthogonal score (psi)}
 \usage{
-psi_att(Y, A, theta, eta, pi_hat, e_min = 1e-06, e_max = 1 - 1e-06)
+psi_att(
+  Y,
+  A,
+  theta,
+  eta,
+  pi_hat,
+  e_min = .PROPENSITY_LOWER_BOUND,
+  e_max = .PROPENSITY_UPPER_BOUND
+)
 }
 \arguments{
 \item{Y}{Numeric vector of length n (outcomes).}
@@ -13,20 +21,20 @@ psi_att(Y, A, theta, eta, pi_hat, e_min = 1e-06, e_max = 1 - 1e-06)
 
 \item{theta}{Scalar (candidate ATT value).}
 
-\item{eta}{List with elements \code{e}, \code{m0}, \code{m1}, each numeric vector of length n
-(propensity P(A=1|X), E[Y|A=0,X], E[Y|A=1,X]).}
+\item{eta}{List with elements \code{e}, \code{m0}, each numeric vector of length n
+(propensity P(A=1|X), E[Y|A=0,X]). Propensities must already be
+clamped to avoid division by zero (done at prediction time in nuisance fitting).}
 
 \item{pi_hat}{Scalar estimate of P(A=1) (e.g. mean(A)).}
 
-\item{e_min}{Lower bound for clamping propensity (avoid division by zero). Default 1e-6.}
-
-\item{e_max}{Upper bound for clamping propensity. Default 1 - 1e-6.}
+\item{e_min, e_max}{Deprecated. Clamping is now done at prediction time. These
+parameters are kept for backward compatibility but have no effect.}
 }
 \value{
 Numeric vector of length n (score values).
 }
 \description{
 Neyman-orthogonal score for the Average Treatment effect on the Treated (ATT).
-For observation i: psi_i = (A_i/pi)*(Y_i - m0_i - theta) - (1/pi)*((A_i - e_i)/(1 - e_i))*(m1_i - m0_i).
+For observation i: psi_i = (A_i/pi)*(Y_i - m0_i - theta) - (1/pi)*(e_i*(1 - A_i)/(1 - e_i))*(Y_i - m0_i).
 See manuscript equation (2).
 }
