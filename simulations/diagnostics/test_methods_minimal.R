@@ -22,7 +22,7 @@ cat(sprintf("  True ATT = %.4f\n\n", d$true_att))
 cat("Testing Forest-DML...\n")
 start_time <- Sys.time()
 result_forest <- tryCatch({
-  dml_att_forest(
+  att_forest(
     X = d$X, A = d$A, Y = d$Y,
     K = 3,  # Fewer folds for speed
     seed = 123,
@@ -48,7 +48,7 @@ if (is.null(result_forest$error)) {
 cat("Testing Linear-DML...\n")
 start_time <- Sys.time()
 result_linear <- tryCatch({
-  dml_att_linear(
+  att_linear(
     X = d$X, A = d$A, Y = d$Y,
     K = 3,
     seed = 123,

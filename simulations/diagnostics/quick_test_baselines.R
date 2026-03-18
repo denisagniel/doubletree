@@ -57,7 +57,7 @@ if (!is.null(result_tree)) {
 # Test 2: Forest-DML
 cat("Testing Forest-DML (ranger)...\n")
 result_forest <- tryCatch({
-  dml_att_forest(
+  att_forest(
     X = d$X, A = d$A, Y = d$Y,
     K = 5,
     seed = 123,
@@ -84,7 +84,7 @@ if (!is.null(result_forest)) {
 # Test 3: Linear-DML
 cat("Testing Linear-DML (GLM)...\n")
 result_linear <- tryCatch({
-  dml_att_linear(
+  att_linear(
     X = d$X, A = d$A, Y = d$Y,
     K = 5,
     seed = 123,

@@ -3,7 +3,7 @@
 
 # Load packages and functions
 devtools::load_all("../../../optimaltrees")
-devtools::load_all("../../")  # Load dmltree
+devtools::load_all("../../")  # Load doubletree
 source("../production/dgps/dgps_smooth.R")
 source("../production/methods/method_forest_dml.R")
 source("../production/methods/method_linear_dml.R")
@@ -46,7 +46,7 @@ cat(strrep("=", 60), "\n")
 cat("Test 2: Forest-DML (ranger baseline)\n")
 cat(strrep("=", 60), "\n")
 
-result_forest <- dml_att_forest(
+result_forest <- att_forest(
   X = d$X,
   A = d$A,
   Y = d$Y,
@@ -68,7 +68,7 @@ cat(strrep("=", 60), "\n")
 cat("Test 3: Linear-DML (GLM baseline)\n")
 cat(strrep("=", 60), "\n")
 
-result_linear <- dml_att_linear(
+result_linear <- att_linear(
   X = d$X,
   A = d$A,
   Y = d$Y,

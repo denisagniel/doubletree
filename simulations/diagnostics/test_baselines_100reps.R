@@ -40,7 +40,7 @@ for (i in 1:n_reps) {
 
   # Forest-DML
   res_forest <- tryCatch({
-    dml_att_forest(d$X, d$A, d$Y, K = K, seed = seed_offset + i,
+    att_forest(d$X, d$A, d$Y, K = K, seed = seed_offset + i,
                    num.trees = 500, verbose = FALSE)
   }, error = function(e) NULL)
 
@@ -58,7 +58,7 @@ for (i in 1:n_reps) {
 
   # Linear-DML
   res_linear <- tryCatch({
-    dml_att_linear(d$X, d$A, d$Y, K = K, seed = seed_offset + i,
+    att_linear(d$X, d$A, d$Y, K = K, seed = seed_offset + i,
                    verbose = FALSE)
   }, error = function(e) NULL)
 
