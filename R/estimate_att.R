@@ -136,8 +136,49 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   n <- nrow(X)
 
   # Validate parameters
+  # Issue #19: K must be integer >= 2
   if (!is.numeric(K) || length(K) != 1 || K < 2) {
     stop("K must be a single integer >= 2, got: ", K, call. = FALSE)
+  }
+  if (K != as.integer(K)) {
+    stop("K must be an integer, got: ", K, call. = FALSE)
+  }
+
+  # Issue #16: Validate logical parameters
+  if (!is.logical(verbose) || length(verbose) != 1) {
+    stop("verbose must be a single logical value (TRUE or FALSE)", call. = FALSE)
+  }
+  if (!is.logical(stratified) || length(stratified) != 1) {
+    stop("stratified must be a single logical value (TRUE or FALSE)", call. = FALSE)
+  }
+  if (!is.logical(cv_regularization) || length(cv_regularization) != 1) {
+    stop("cv_regularization must be a single logical value (TRUE or FALSE)", call. = FALSE)
+  }
+  if (!is.logical(use_rashomon) || length(use_rashomon) != 1) {
+    stop("use_rashomon must be a single logical value (TRUE or FALSE)", call. = FALSE)
+  }
+  if (!is.logical(auto_tune_intersecting) || length(auto_tune_intersecting) != 1) {
+    stop("auto_tune_intersecting must be a single logical value (TRUE or FALSE)", call. = FALSE)
+  }
+
+  # Issue #17: Validate seed
+  if (!is.null(seed) && !is.numeric(seed)) {
+    stop("seed must be NULL or numeric, got: ", class(seed), call. = FALSE)
+  }
+
+  # Issue #18: Validate max_leaves
+  if (!is.null(max_leaves)) {
+    if (!is.numeric(max_leaves) || length(max_leaves) != 1 || max_leaves < 1) {
+      stop("max_leaves must be NULL or a single positive integer, got: ", max_leaves, call. = FALSE)
+    }
+    if (max_leaves != as.integer(max_leaves)) {
+      stop("max_leaves must be an integer, got: ", max_leaves, call. = FALSE)
+    }
+  }
+
+  # Issue #20: Validate discretize_method
+  if (!discretize_method %in% c("quantiles", "median")) {
+    stop("discretize_method must be 'quantiles' or 'median', got: ", discretize_method, call. = FALSE)
   }
 
   n_treated <- sum(A == 1)
@@ -178,6 +219,12 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   if (!is.numeric(rashomon_bound_multiplier) || length(rashomon_bound_multiplier) != 1 || rashomon_bound_multiplier < 0) {
     stop("rashomon_bound_multiplier must be a single non-negative numeric value, got: ",
          rashomon_bound_multiplier, call. = FALSE)
+  }
+
+  # Issue #21: Validate rashomon_bound_adder
+  if (!is.numeric(rashomon_bound_adder) || length(rashomon_bound_adder) != 1 || rashomon_bound_adder < 0) {
+    stop("rashomon_bound_adder must be a single non-negative numeric value, got: ",
+         rashomon_bound_adder, call. = FALSE)
   }
 
   fold_indices <- create_folds(n, K, strata = if (stratified) A else NULL, seed = seed)

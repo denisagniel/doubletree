@@ -1,11 +1,11 @@
 # Intensive DML integration stress test
-# Verifies dmltree works correctly with updated optimaltrees thread-safety fixes
+# Verifies doubletree works correctly with updated optimaltrees thread-safety fixes
 
-library(dmltree)
+library(doubletree)
 
 cat("═══════════════════════════════════════════════════════\n")
 cat("DML INTEGRATION STRESS TEST\n")
-cat("Testing dmltree with optimaltrees thread-safety fixes\n")
+cat("Testing doubletree with optimaltrees thread-safety fixes\n")
 cat("═══════════════════════════════════════════════════════\n\n")
 
 # Setup DGP
@@ -212,7 +212,7 @@ cat("  ✓ Rashomon-DML integration\n")
 cat("  ✓ Stability over 20 runs\n\n")
 
 cat("Conclusion:\n")
-cat("  dmltree works correctly with optimaltrees v0.4.0\n")
+cat("  doubletree works correctly with optimaltrees v0.4.0\n")
 cat("  Thread-safety fixes do not break DML workflows\n")
 cat("  Multi-threading produces identical results to single-threading\n\n")
 

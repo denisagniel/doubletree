@@ -1,6 +1,6 @@
 # doubletree: Causal Estimation with Interpretable Trees
 
-This package implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with cross-fitting and interpretable optimal decision trees. It depends on [optimaltrees](https://github.com/) for fitting the nuisance functions (propensity and outcome trees). This is a doubly robust, semiparametric estimator. Theory-aligned API expectations for the tree side are described in `paper/Implementation-requirements-Rashomon-DML.md`.
+This package implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with cross-fitting and interpretable optimal decision trees. It depends on [optimaltrees](https://github.com/) for fitting the nuisance functions (propensity and outcome trees). This is a doubly robust, semiparametric estimator. Theory-aligned API expectations for the tree side are described in `paper/Implementation-requirements-Rashomon.md`.
 
 **Outcome:** Set `outcome_type = "binary"` (default) for binary Y (0/1); use `outcome_type = "continuous"` for continuous Y. For continuous Y, outcome trees use squared-error loss and **optimaltrees** must support `loss_function = "squared_error"` for regression.
 

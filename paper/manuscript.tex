@@ -581,7 +581,7 @@ The intersection $\bigcap_{k=1}^K R_k(\varepsilon_n)$ can be empty in the follow
 \item \textbf{Heterogeneous covariate distributions across folds:} If the folds have systematically different covariate distributions (e.g., due to imbalance in sampling or strong time trends in longitudinal data), no single partition may fit all folds well.
 \item \textbf{High-dimensional or rough nuisances:} Functions that require complex, fold-specific partitions (high $d$, low $\beta$, or many interactions) are less likely to have a single structure in the intersection.
 \end{enumerate}
-In practice, if the intersection is empty, the implementation can fall back to fold-specific trees (as in the \texttt{dmltree} package with \texttt{use\_rashomon = TRUE}). Empirically, we find that the intersection is non-empty in 85--95\% of replications for smooth data-generating processes (DGPs 1--3) and 60--80\% for rough DGPs (DGP 4) with moderate $\varepsilon_n$ (see Section~\ref{sec:results}).
+In practice, if the intersection is empty, the implementation can fall back to fold-specific trees (as in the \texttt{doubletree} package with \texttt{use\_rashomon = TRUE}). Empirically, we find that the intersection is non-empty in 85--95\% of replications for smooth data-generating processes (DGPs 1--3) and 60--80\% for rough DGPs (DGP 4) with moderate $\varepsilon_n$ (see Section~\ref{sec:results}).
 \end{remark}
 
 \subsubsection{Formal definitions}
