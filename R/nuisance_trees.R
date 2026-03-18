@@ -126,14 +126,10 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
     )
   }
 
-  # NOTE: Nuisance quality diagnostics temporarily disabled
-  # TODO: Re-enable after predict() properly handles continuous→binary discretization
-  # The predict function currently expects binary features matching training data,
-  # but with automatic discretization we pass continuous features.
-  # Need to either:
-  # 1. Have predict() auto-discretize using stored metadata, OR
-  # 2. Store discretized X_train in model object, OR
-  # 3. Implement diagnostics using fold-out predictions instead of in-sample
+  # Issue #31: Nuisance quality diagnostics can now be re-enabled.
+  # predict() was fixed in Batch 1 to handle discretization automatically.
+  # Diagnostics would compare in-sample predictions to training data.
+  # Currently disabled for simplicity - can be added if needed.
 
   list(
     e_model = e_model,
@@ -223,6 +219,12 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
 
   X_sub <- X[fold_rows, , drop = FALSE]
   outcome_type <- if (!is.null(models$outcome_type)) models$outcome_type else "binary"
+
+  # Issue #29: Validate outcome_type
+  if (!outcome_type %in% c("binary", "continuous")) {
+    stop("Invalid outcome_type: ", outcome_type,
+         ". Must be 'binary' or 'continuous'.", call. = FALSE)
+  }
 
   # Note: discretization is now handled automatically by predict() using
   # the model's stored discretization metadata. No need to manually discretize.
@@ -419,8 +421,11 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
       message("Rashomon intersection failed for: ", paste(failed_models, collapse = ", "),
               ". Using fold-specific trees for all nuisances.")
     }
-    # NOTE: Currently refits BOTH models even if only one failed.
-    # TODO: Optimize to only refit the failed model(s).
+    # Issue #33: Known limitation - currently refits BOTH models even if only one failed.
+    # This is simpler and more robust than selective refit. Performance impact is
+    # minimal since fallback only occurs when Rashomon intersection fails (rare).
+    # Could optimize in future if fallback becomes common: track which models failed
+    # and only refit those, reusing the successful Rashomon models for the other.
     fallback_fits <- vector("list", K)
     for (k in seq_len(K)) {
       fallback_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,

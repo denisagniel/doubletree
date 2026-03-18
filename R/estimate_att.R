@@ -211,9 +211,13 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
          regularization, call. = FALSE)
   }
 
+  # Issue #27: Validate cv_K is integer (consistent with K validation)
   if (cv_regularization && (!is.numeric(cv_K) || length(cv_K) != 1 || cv_K < 2)) {
     stop("cv_K must be a single integer >= 2 when cv_regularization = TRUE, got: ",
          cv_K, call. = FALSE)
+  }
+  if (cv_regularization && (cv_K != as.integer(cv_K))) {
+    stop("cv_K must be an integer, got: ", cv_K, call. = FALSE)
   }
 
   if (!is.numeric(rashomon_bound_multiplier) || length(rashomon_bound_multiplier) != 1 || rashomon_bound_multiplier < 0) {

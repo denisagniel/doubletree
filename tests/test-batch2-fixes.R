@@ -1,7 +1,8 @@
 # Quick integration test for Batch 2 fixes (dmltree)
 # Run with: Rscript tests/test-batch2-fixes.R
 
-# Load development version
+# Load development versions (optimaltrees first, then dmltree)
+devtools::load_all("../optimaltrees")
 devtools::load_all()
 
 cat("=== Testing Batch 2 Fixes (dmltree) ===\n\n")
