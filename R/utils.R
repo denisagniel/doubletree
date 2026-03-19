@@ -46,7 +46,16 @@ create_folds <- function(n, K, strata = NULL, seed = NULL) {
     n_s <- length(idx)
     if (n_s == 0) next
     perm <- sample.int(n_s)
-    fold_vec[idx] <- as.integer(cut(perm, breaks = min(K, n_s), labels = seq_len(min(K, n_s))))
+
+    actual_K <- min(K, n_s)
+    if (n_s < K) {
+      warning("Stratum '", s, "' has only ", n_s, " observations (less than K=", K, "). ",
+              "Using ", actual_K, " folds for this stratum instead. ",
+              "This may affect cross-validation balance.",
+              call. = FALSE, immediate. = TRUE)
+    }
+
+    fold_vec[idx] <- as.integer(cut(perm, breaks = actual_K, labels = seq_len(actual_K)))
   }
   fold_vec
 }
@@ -91,7 +100,14 @@ check_att_data <- function(X, A, Y, outcome_type = "binary", check_overlap = TRU
   if (check_overlap && length(unique(A)) == 2L) {
     p1 <- mean(A)
     if (p1 < 0.02 || p1 > 0.98) {
-      warning("Very few treated or controls; overlap may be weak.")
+      warning("Weak overlap detected: treatment proportion P(A=1) = ", round(p1, 3),
+              "\nWhen < 2% or > 98%, ATT estimates may be unstable due to extrapolation.",
+              "\nRecommendations:",
+              "\n  - Collect more data to improve balance",
+              "\n  - Consider trimming extreme propensity scores",
+              "\n  - Report limited generalizability in results",
+              "\n  - Check overlap plots before trusting estimates",
+              call. = FALSE, immediate. = TRUE)
     }
   }
   invisible(NULL)

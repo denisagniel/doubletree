@@ -1,7 +1,3 @@
-# Threshold for detecting no treated units
-# (sum(A/pi) < EPSILON implies all A=0 or pi extremely small)
-.NO_TREATED_THRESHOLD <- 1e-10
-
 #' Estimate the Average Treatment Effect on the Treated (ATT)
 #'
 #' Estimates the ATT using efficient influence function-based estimation with
@@ -76,7 +72,9 @@
 #'   for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary features.
 #' @param ... Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
-#'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
+#'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K,
+#'   converged (logical; TRUE if rashomon intersection succeeded or if use_rashomon=FALSE),
+#'   epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE, NA otherwise).
 #' @references Manuscript equation (2) for the orthogonal score.
 #' @examples
 #' \dontrun{
@@ -135,8 +133,9 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   if (is.matrix(X)) X <- as.data.frame(X)
   n <- nrow(X)
 
-  # Validate parameters
-  # Issue #19: K must be integer >= 2
+  # Validate critical parameters only (R's type coercion handles the rest)
+
+  # K must be integer >= 2
   if (!is.numeric(K) || length(K) != 1 || K < 2) {
     stop("K must be a single integer >= 2, got: ", K, call. = FALSE)
   }
@@ -144,29 +143,7 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     stop("K must be an integer, got: ", K, call. = FALSE)
   }
 
-  # Issue #16: Validate logical parameters
-  if (!is.logical(verbose) || length(verbose) != 1) {
-    stop("verbose must be a single logical value (TRUE or FALSE)", call. = FALSE)
-  }
-  if (!is.logical(stratified) || length(stratified) != 1) {
-    stop("stratified must be a single logical value (TRUE or FALSE)", call. = FALSE)
-  }
-  if (!is.logical(cv_regularization) || length(cv_regularization) != 1) {
-    stop("cv_regularization must be a single logical value (TRUE or FALSE)", call. = FALSE)
-  }
-  if (!is.logical(use_rashomon) || length(use_rashomon) != 1) {
-    stop("use_rashomon must be a single logical value (TRUE or FALSE)", call. = FALSE)
-  }
-  if (!is.logical(auto_tune_intersecting) || length(auto_tune_intersecting) != 1) {
-    stop("auto_tune_intersecting must be a single logical value (TRUE or FALSE)", call. = FALSE)
-  }
-
-  # Issue #17: Validate seed
-  if (!is.null(seed) && !is.numeric(seed)) {
-    stop("seed must be NULL or numeric, got: ", class(seed), call. = FALSE)
-  }
-
-  # Issue #18: Validate max_leaves
+  # max_leaves must be positive integer if provided
   if (!is.null(max_leaves)) {
     if (!is.numeric(max_leaves) || length(max_leaves) != 1 || max_leaves < 1) {
       stop("max_leaves must be NULL or a single positive integer, got: ", max_leaves, call. = FALSE)
@@ -176,48 +153,59 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     }
   }
 
-  # Issue #20: Validate discretize_method
-  if (!discretize_method %in% c("quantiles", "median")) {
-    stop("discretize_method must be 'quantiles' or 'median', got: ", discretize_method, call. = FALSE)
+  # Valid discretize_method
+  valid_methods <- c("quantiles", "median")
+  if (!discretize_method %in% valid_methods) {
+    stop("discretize_method must be one of: ", paste(valid_methods, collapse = ", "),
+         ", got: ", discretize_method, call. = FALSE)
   }
 
+  # Consolidated validation: check for sufficient treated/control units
+  # Need at least 2 units per fold for meaningful cross-fitting
   n_treated <- sum(A == 1)
   n_control <- sum(A == 0)
+  min_per_fold <- 2
 
-  # Check for sufficient sample size PER FOLD (not just total)
-  # Need at least ~2 units per fold for meaningful training
-  min_treated_per_fold <- ceiling(n_treated / K)
-  min_control_per_fold <- ceiling(n_control / K)
-
-  if (min_treated_per_fold < 2) {
-    stop("Insufficient treated units per fold for K-fold cross-fitting. ",
-         "Need at least ", K * 2, " treated units for K=", K, ", got: ", n_treated, call. = FALSE)
-  }
-  if (min_control_per_fold < 2) {
-    stop("Insufficient control units per fold for K-fold cross-fitting. ",
-         "Need at least ", K * 2, " control units for K=", K, ", got: ", n_control, call. = FALSE)
+  if (n_treated < K * min_per_fold) {
+    stop("Insufficient treated units for K=", K, " fold cross-fitting. ",
+         "Need at least ", K * min_per_fold, " treated units, got: ", n_treated, ". ",
+         "Either reduce K or collect more data.",
+         call. = FALSE)
   }
 
-  # Early validation: check that we have treated units and pi_hat is valid
-  # (do this BEFORE expensive nuisance fitting)
+  if (n_control < K * min_per_fold) {
+    stop("Insufficient control units for K=", K, " fold cross-fitting. ",
+         "Need at least ", K * min_per_fold, " control units, got: ", n_control, ". ",
+         "Either reduce K or collect more data.",
+         call. = FALSE)
+  }
+
+  # Validate treatment proportion (pi_hat) is in (0,1)
+  # This is redundant with the sample size checks above, but serves as explicit validation
   pi_hat <- mean(A)
   if (pi_hat <= 0 || pi_hat >= 1) {
     stop("Invalid treatment proportion: pi_hat = ", pi_hat,
-         ". All units are treated or all are controls.", call. = FALSE)
+         ". This should not happen after sample size validation.",
+         call. = FALSE)
   }
 
-  if (!cv_regularization && (!is.numeric(regularization) || length(regularization) != 1 || regularization <= 0)) {
-    stop("regularization must be a single positive numeric value, got: ",
-         regularization, call. = FALSE)
+  # Regularization must be positive if not using CV
+  if (!cv_regularization) {
+    if (!is.numeric(regularization) || length(regularization) != 1 || regularization <= 0) {
+      stop("regularization must be a single positive numeric value, got: ",
+           regularization, call. = FALSE)
+    }
   }
 
-  # Issue #27: Validate cv_K is integer (consistent with K validation)
-  if (cv_regularization && (!is.numeric(cv_K) || length(cv_K) != 1 || cv_K < 2)) {
-    stop("cv_K must be a single integer >= 2 when cv_regularization = TRUE, got: ",
-         cv_K, call. = FALSE)
-  }
-  if (cv_regularization && (cv_K != as.integer(cv_K))) {
-    stop("cv_K must be an integer, got: ", cv_K, call. = FALSE)
+  # cv_K must be integer >= 2 if using CV regularization
+  if (cv_regularization) {
+    if (!is.numeric(cv_K) || length(cv_K) != 1 || cv_K < 2) {
+      stop("cv_K must be a single integer >= 2 when cv_regularization = TRUE, got: ",
+           cv_K, call. = FALSE)
+    }
+    if (cv_K != as.integer(cv_K)) {
+      stop("cv_K must be an integer, got: ", cv_K, call. = FALSE)
+    }
   }
 
   if (!is.numeric(rashomon_bound_multiplier) || length(rashomon_bound_multiplier) != 1 || rashomon_bound_multiplier < 0) {
@@ -262,11 +250,6 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   # pi_hat already computed during validation above
   # Closed form: psi(theta) = psi(0) - theta*(A/pi), so sum(psi(theta)) = 0 => theta = sum(psi(0)) / sum(A/pi).
   sum_a_over_pi <- sum(A / pi_hat)
-  # Note: sum_a_over_pi check is redundant now (pi_hat already validated)
-  # But keep for extra safety in case of numerical issues
-  if (sum_a_over_pi < .NO_TREATED_THRESHOLD) {
-    stop("No treated units (sum(A) ~ 0) or pi_hat extremely small.", call. = FALSE)
-  }
   score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
   theta <- sum(score_at_zero) / sum_a_over_pi
 
@@ -278,6 +261,20 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   nuisance_fits$propensity <- eta$e
   nuisance_fits$outcome_control <- eta$m0
 
+  # Add convergence information for rashomon method
+  if (use_rashomon) {
+    # Rashomon converged if both models have intersecting trees (no fallback)
+    converged <- !is.null(nuisance_fits$cf_e) &&
+                 !is.null(nuisance_fits$cf_m0) &&
+                 nuisance_fits$cf_e$n_intersecting > 0 &&
+                 nuisance_fits$cf_m0$n_intersecting > 0
+    epsilon_n <- rashomon_bound_multiplier
+  } else {
+    # Non-rashomon always converges (uses fold-specific trees)
+    converged <- TRUE
+    epsilon_n <- NA_real_
+  }
+
   list(
     theta = theta,
     sigma = sigma,
@@ -286,6 +283,8 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     nuisance_fits = nuisance_fits,
     fold_indices = fold_indices,
     n = n,
-    K = K
+    K = K,
+    converged = converged,
+    epsilon_n = epsilon_n
   )
 }

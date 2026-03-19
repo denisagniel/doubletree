@@ -17,13 +17,20 @@
 #'   (propensity P(A=1|X), E[Y|A=0,X]). Propensities must already be
 #'   clamped to avoid division by zero (done at prediction time in nuisance fitting).
 #' @param pi_hat Scalar estimate of P(A=1) (e.g. mean(A)).
-#' @param e_min,e_max Deprecated. Clamping is now done at prediction time. These
-#'   parameters are kept for backward compatibility but have no effect.
+#' @param e_min,e_max DEPRECATED. These parameters are no longer used.
+#'   Propensity clamping is now done at prediction time. Providing these
+#'   arguments will trigger a warning.
 #' @return Numeric vector of length n (score values).
 #' @export
-psi_att <- function(Y, A, theta, eta, pi_hat,
-                    e_min = .PROPENSITY_LOWER_BOUND,
-                    e_max = .PROPENSITY_UPPER_BOUND) {
+psi_att <- function(Y, A, theta, eta, pi_hat, e_min = NULL, e_max = NULL) {
+  # Warn if deprecated parameters are provided
+  if (!is.null(e_min) || !is.null(e_max)) {
+    warning("e_min and e_max are deprecated and ignored. ",
+            "Propensity clamping is now done at prediction time in nuisance fitting. ",
+            "These parameters will be removed in a future version.",
+            call. = FALSE)
+  }
+
   e <- eta$e  # Already clamped at prediction time
   m0 <- eta$m0
   n <- length(Y)
@@ -33,10 +40,27 @@ psi_att <- function(Y, A, theta, eta, pi_hat,
   if (pi_hat <= 0 || pi_hat >= 1) {
     stop("pi_hat must be in (0, 1)")
   }
+
+  # Validate propensity scores are not too extreme (prevents non-finite values in term2)
+  # If e is very close to 0 or 1, term2 = (e/(1-e)) will be Inf or NaN
+  if (any(e >= 1 - 1e-6) || any(e <= 1e-6)) {
+    stop("Propensity scores too extreme (e very close to 0 or 1). ",
+         "This indicates numerical instability in the propensity model. ",
+         "Check that propensity bounds are enforced at prediction time.",
+         call. = FALSE)
+  }
+
   # No clamping needed - already done at prediction time
   # Correct Chernozhukov (2018) ATT score
   term1 <- (A / pi_hat) * (Y - m0 - theta)
   term2 <- (1 / pi_hat) * (e * (1 - A) / (1 - e)) * (Y - m0)
-  term2[!is.finite(term2)] <- 0  # Safety for any remaining edge cases
+
+  # If term2 has non-finite values after validation, that's a real error
+  if (any(!is.finite(term2))) {
+    stop("Non-finite values in score computation. This should not happen after ",
+         "propensity validation. Please report this as a bug.",
+         call. = FALSE)
+  }
+
   term1 - term2
 }

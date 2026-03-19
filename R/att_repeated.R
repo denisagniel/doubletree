@@ -7,7 +7,14 @@
 #'
 #' @inheritParams estimate_att
 #' @param n_splits Integer. Number of independent cross-fit repetitions. Default 1 (no repetition).
-#' @param aggregation Character. How to aggregate M estimates: "median" (default) or "mean".
+#' @param aggregation Character. How to combine M point estimates:
+#'   \itemize{
+#'     \item \code{"median"} (default): Robust to outlier splits. Recommended when
+#'       K is small (< 5), data is noisy, or model fitting is unstable.
+#'     \item \code{"mean"}: Efficient under normality. Use when splits are well-behaved
+#'       and you want to minimize variance. Theoretically aligned with Chernozhukov et al. (2018).
+#'   }
+#'   If unsure, use median (more robust). Mean is more efficient but sensitive to outliers.
 #'
 #' @return List with elements:
 #'   - theta: aggregated point estimate
@@ -105,16 +112,15 @@ att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
 
   # Variance estimation following Chernozhukov et al. (2018), Section 3.4
   #
-  # Formula (3.13) for mean aggregation:
-  #   sigma^2_mean = (1/S) * Sum[sigma^2_s + (theta_s - theta_mean)^2]
+  # We need to account for both within-split variance (from influence function)
+  # and between-split variance (from fold assignment randomness).
   #
-  # where sigma^2_s is Var[sqrt(n)*theta_s] and (theta_s - theta_mean)^2 is on the theta scale.
-  # To combine them, we need to scale the second term:
-  #   sigma^2_mean = (1/S) * Sum[sigma^2_s + n*(theta_s - theta_mean)^2]
+  # Since theta_hat is on the original scale but sigma is on sqrt(n) scale,
+  # we compute split-specific total variance as:
+  #   sigma^2_s + n * (theta_s - theta_agg)^2
   #
-  # This accounts for both:
-  # - Within-split variance (sigma^2_s from influence function)
-  # - Between-split variance (from randomness in fold assignment)
+  # The n factor converts theta variance to sqrt(n) scale so both terms align.
+  # This gives us the total variance on the sqrt(n) scale.
 
   n <- nrow(X)
 

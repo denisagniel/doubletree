@@ -1,3 +1,50 @@
+#' Fit tree with optional CV for regularization selection
+#' @param X Data.frame or matrix of features.
+#' @param y Vector of outcomes.
+#' @param loss_function Character. Loss function for optimaltrees.
+#' @param cv_reg Logical. Whether to use CV for regularization selection.
+#' @param cv_K Integer. Number of CV folds for lambda selection.
+#' @param reg Numeric. Fixed regularization value (used if cv_reg = FALSE).
+#' @param discretize_method Character. Discretization method.
+#' @param discretize_bins Integer or "adaptive". Number of bins.
+#' @param verbose Logical. Print messages.
+#' @param fold_id Integer. Current fold ID (for messages).
+#' @param model_name Character. Name of model (for messages, e.g. "e", "m0").
+#' @param ... Additional arguments passed to optimaltrees functions.
+#' @return optimaltrees model object.
+#' @noRd
+fit_tree_with_cv <- function(X, y, loss_function, cv_reg, cv_K, reg,
+                             discretize_method, discretize_bins,
+                             verbose, fold_id, model_name, ...) {
+  if (cv_reg) {
+    cv_result <- optimaltrees::cv_regularization(
+      X, y,
+      loss_function = loss_function,
+      discretize_method = discretize_method,
+      discretize_bins = discretize_bins,
+      K = cv_K,
+      refit = TRUE,
+      verbose = FALSE,
+      ...
+    )
+    if (verbose) {
+      message("  Fold ", fold_id, " ", model_name,
+              ": selected lambda = ", round(cv_result$best_lambda, 5))
+    }
+    return(cv_result$model)
+  } else {
+    return(optimaltrees::fit_tree(
+      X, y,
+      loss_function = loss_function,
+      discretize_method = discretize_method,
+      discretize_bins = discretize_bins,
+      regularization = reg,
+      verbose = verbose,
+      ...
+    ))
+  }
+}
+
 #' Fit nuisance trees for one cross-fitting fold
 #'
 #' Fits propensity e(X) and outcome regression m0(X) on training data
@@ -40,25 +87,19 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
 
   # Fit propensity model (optimaltrees handles discretization with threshold encoding)
-  if (cv_regularization) {
-    cv_e <- optimaltrees::cv_regularization(
-      X_tr, A_tr,  # Pass continuous features directly
-      loss_function = "log_loss",
-      discretize_method = discretize_method,
-      discretize_bins = discretize_bins,
-      K = cv_K, refit = TRUE, verbose = FALSE, ...
-    )
-    e_model <- cv_e$model
-    if (verbose) message("  Fold ", fold_id, " e: selected lambda = ", round(cv_e$best_lambda, 5))
-  } else {
-    e_model <- optimaltrees::fit_tree(
-      X_tr, A_tr,  # Pass continuous features directly
-      loss_function = "log_loss",
-      discretize_method = discretize_method,
-      discretize_bins = discretize_bins,
-      regularization = regularization, verbose = verbose, ...
-    )
-  }
+  e_model <- fit_tree_with_cv(
+    X_tr, A_tr,
+    loss_function = "log_loss",
+    cv_reg = cv_regularization,
+    cv_K = cv_K,
+    reg = regularization,
+    discretize_method = discretize_method,
+    discretize_bins = discretize_bins,
+    verbose = verbose,
+    fold_id = fold_id,
+    model_name = "e",
+    ...
+  )
 
   # Check for model fitting failure using n_trees instead of tree_json
   # (tree_json may be NULL for models with discretization, which is OK)
@@ -84,25 +125,19 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
 
   # Fit m0 model on controls (optimaltrees handles discretization with threshold encoding)
   X_tr_controls <- X_tr[A_tr == 0, , drop = FALSE]
-  if (cv_regularization) {
-    cv_m0 <- optimaltrees::cv_regularization(
-      X_tr_controls, Y_tr[A_tr == 0],  # Pass continuous features directly
-      loss_function = loss_outcome,
-      discretize_method = discretize_method,
-      discretize_bins = discretize_bins,
-      K = cv_K, refit = TRUE, verbose = FALSE, ...
-    )
-    m0_model <- cv_m0$model
-    if (verbose) message("  Fold ", fold_id, " m0: selected lambda = ", round(cv_m0$best_lambda, 5))
-  } else {
-    m0_model <- optimaltrees::fit_tree(
-      X_tr_controls, Y_tr[A_tr == 0],  # Pass continuous features directly
-      loss_function = loss_outcome,
-      discretize_method = discretize_method,
-      discretize_bins = discretize_bins,
-      regularization = regularization, verbose = verbose, ...
-    )
-  }
+  m0_model <- fit_tree_with_cv(
+    X_tr_controls, Y_tr[A_tr == 0],
+    loss_function = loss_outcome,
+    cv_reg = cv_regularization,
+    cv_K = cv_K,
+    reg = regularization,
+    discretize_method = discretize_method,
+    discretize_bins = discretize_bins,
+    verbose = verbose,
+    fold_id = fold_id,
+    model_name = "m0",
+    ...
+  )
 
   # Check for model fitting failure using n_trees instead of tree_json
   # (tree_json may be NULL for models with discretization, which is OK)
@@ -139,69 +174,6 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
   )
 }
 
-#' Apply discretization metadata to new data
-#'
-#' Helper to discretize test data using training discretization metadata.
-#' @param X_new Data.frame of continuous features
-#' @param metadata Discretization metadata from optimaltrees model
-#' @return Data.frame with binary features
-#' @noRd
-apply_discretization_metadata <- function(X_new, metadata) {
-  if (is.null(metadata) || is.null(metadata$features)) {
-    return(X_new)
-  }
-
-  binary_cols_list <- list()
-
-  for (col_name in names(X_new)) {
-    x <- X_new[[col_name]]
-    feat_meta <- metadata$features[[col_name]]
-
-    if (is.null(feat_meta)) {
-      binary_cols_list[[col_name]] <- data.frame(x)
-      names(binary_cols_list[[col_name]]) <- col_name
-      next
-    }
-
-    if (feat_meta$type == "binary") {
-      binary_cols_list[[col_name]] <- data.frame(x)
-      names(binary_cols_list[[col_name]]) <- col_name
-    } else if (feat_meta$type == "binary_converted") {
-      if (length(feat_meta$original_values) == 0) {
-        stop("Feature '", col_name, "' has empty original_values in metadata. ",
-             "This indicates corrupted discretization metadata.", call. = FALSE)
-      }
-      x_binary <- as.numeric(x == max(feat_meta$original_values))
-      binary_cols_list[[col_name]] <- data.frame(x_binary)
-      names(binary_cols_list[[col_name]]) <- col_name
-    } else if (feat_meta$type == "constant") {
-      x_binary <- rep(0, length(x))
-      binary_cols_list[[col_name]] <- data.frame(x_binary)
-      names(binary_cols_list[[col_name]]) <- feat_meta$new_names
-    } else if (feat_meta$type == "continuous") {
-      thresholds <- feat_meta$thresholds
-      new_names <- feat_meta$new_names
-      if (length(thresholds) == 0) {
-        stop("Feature '", col_name, "' has empty thresholds in metadata. ",
-             "This indicates corrupted discretization metadata.", call. = FALSE)
-      }
-      threshold_cols <- lapply(seq_along(thresholds), function(i) {
-        as.integer(x <= thresholds[i])
-      })
-      binary_cols <- as.data.frame(threshold_cols)
-      names(binary_cols) <- new_names
-      binary_cols_list[[col_name]] <- binary_cols
-    }
-  }
-
-  if (length(binary_cols_list) == 0) {
-    stop("No features to discretize. This indicates corrupted metadata or empty feature set.",
-         call. = FALSE)
-  }
-
-  do.call(cbind, binary_cols_list)
-}
-
 #' Predict nuisances for given rows using a fold's fitted models
 #'
 #' Returns e(X), m0(X) for the requested rows. Propensity e from
@@ -229,16 +201,39 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
   # Note: discretization is now handled automatically by predict() using
   # the model's stored discretization metadata. No need to manually discretize.
 
-  # Predict (predict() will apply discretization if needed)
+  # Predict propensity scores (predict() will apply discretization if needed)
   pe <- predict(models$e_model, X_sub, type = "prob")
-  e_vec <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, nrow(X_sub))
 
+  # Validate propensity prediction format
+  if (!is.matrix(pe) || ncol(pe) != 2) {
+    stop("Propensity model predict() returned unexpected format. ",
+         "Expected 2-column matrix (class 0/1 probabilities), got: ",
+         if (is.matrix(pe)) paste0("matrix with ", ncol(pe), " columns")
+         else paste0(class(pe), " (not a matrix)"),
+         call. = FALSE)
+  }
+  e_vec <- pe[, 2L]
+
+  # Predict control outcomes
   if (outcome_type == "continuous") {
     pm0 <- predict(models$m0_model, X_sub)
-    m0_vec <- as.numeric(if (is.matrix(pm0)) pm0[, 1L] else pm0)
+    if (!is.numeric(pm0) || length(pm0) != nrow(X_sub)) {
+      stop("Control outcome model predict() returned unexpected format. ",
+           "Expected numeric vector of length ", nrow(X_sub), ", got: ",
+           class(pm0), " with length ", length(pm0),
+           call. = FALSE)
+    }
+    m0_vec <- as.numeric(pm0)
   } else {
     pm0 <- predict(models$m0_model, X_sub, type = "prob")
-    m0_vec <- if (is.matrix(pm0)) pm0[, 2L] else rep(0.5, nrow(X_sub))
+    if (!is.matrix(pm0) || ncol(pm0) != 2) {
+      stop("Control outcome model predict() returned unexpected format. ",
+           "Expected 2-column matrix (class 0/1 probabilities), got: ",
+           if (is.matrix(pm0)) paste0("matrix with ", ncol(pm0), " columns")
+           else paste0(class(pm0), " (not a matrix)"),
+           call. = FALSE)
+    }
+    m0_vec <- pm0[, 2L]
   }
   list(e = e_vec, m0 = m0_vec)
 }
@@ -275,6 +270,59 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
   e_clamped <- pmax(e_min, pmin(e_max, e_out))
 
   list(e = e_clamped, m0 = m0_out)
+}
+
+#' Safe Rashomon fitting with automatic fallback
+#' @param X Data.frame or matrix of features.
+#' @param y Vector of outcomes.
+#' @param K Integer. Number of folds.
+#' @param loss_function Character. Loss function for optimaltrees.
+#' @param regularization Numeric. Regularization parameter.
+#' @param rashomon_bound_multiplier Numeric. Rashomon tolerance.
+#' @param rashomon_bound_adder Numeric. Additive Rashomon bound.
+#' @param max_leaves Integer or NULL. Maximum leaves constraint.
+#' @param fold_indices Integer vector. Fold assignments.
+#' @param auto_tune_intersecting Logical. Auto-tune epsilon_n.
+#' @param verbose Logical. Print messages.
+#' @param nuisance_name Character. Name for error messages ("propensity" or "control outcome").
+#' @param ... Additional arguments passed to cross_fitted_rashomon.
+#' @return cross_fitted_rashomon object or NULL if fallback needed.
+#' @noRd
+safe_rashomon_fit <- function(X, y, K, loss_function, regularization,
+                              rashomon_bound_multiplier, rashomon_bound_adder,
+                              max_leaves, fold_indices, auto_tune_intersecting,
+                              verbose, nuisance_name, ...) {
+  tryCatch({
+    out <- optimaltrees::cross_fitted_rashomon(
+      X, y,
+      K = K,
+      loss_function = loss_function,
+      regularization = regularization,
+      rashomon_bound_multiplier = rashomon_bound_multiplier,
+      rashomon_bound_adder = rashomon_bound_adder,
+      max_leaves = max_leaves,
+      fold_indices = fold_indices,
+      auto_tune_intersecting = auto_tune_intersecting,
+      verbose = verbose,
+      ...
+    )
+    if (out$n_intersecting > 0) out else NULL
+  }, error = function(e) {
+    msg <- conditionMessage(e)
+
+    # Data/parameter errors: stop immediately
+    if (grepl("must be|invalid|cannot", msg, ignore.case = TRUE)) {
+      stop("Error fitting ", nuisance_name, " model: ", msg,
+           "\nCheck your data and parameters.", call. = FALSE)
+    }
+
+    # Intersection empty or optimization issues: fallback
+    if (verbose) {
+      message("Rashomon fitting failed for ", nuisance_name, ": ", msg,
+              "\nFalling back to fold-specific trees.")
+    }
+    return(NULL)
+  })
 }
 
 #' Fit nuisances via Rashomon intersection (cross_fitted_rashomon)
@@ -330,84 +378,27 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     reg_m0 <- regularization
   }
 
-  cf_e <- tryCatch({
-    out <- optimaltrees::cross_fitted_rashomon(
-      X, A, K = K, loss_function = "log_loss", regularization = reg_e,
-      rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
-      max_leaves = max_leaves, fold_indices = fold_indices,
-      auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
-    )
-    if (out$n_intersecting > 0) out else NULL
-  }, error = function(e) {
-    # Distinguish error types for better diagnostics
-    msg <- conditionMessage(e)
-
-    # Data/parameter errors: should stop immediately
-    if (grepl("must be|invalid|cannot", msg, ignore.case = TRUE)) {
-      stop("Error fitting propensity model: ", msg,
-           "\nCheck your data and parameters.", call. = FALSE)
-    }
-
-    # Intersection empty: acceptable, use fallback
-    if (grepl("intersection.*empty", msg, ignore.case = TRUE)) {
-      if (verbose) {
-        message("No intersecting trees found for propensity model. ",
-                "Falling back to fold-specific trees.")
-      }
-      return(NULL)  # Fallback will handle
-    }
-
-    # Optimization/convergence issues: warn and fallback
-    if (verbose) {
-      warning("Rashomon fitting failed for propensity: ", msg,
-              "\nFalling back to fold-specific trees.",
-              call. = FALSE, immediate. = TRUE)
-    }
-    return(NULL)
-  })
+  cf_e <- safe_rashomon_fit(
+    X, A, K, "log_loss", reg_e,
+    rashomon_bound_multiplier, rashomon_bound_adder,
+    max_leaves, fold_indices, auto_tune_intersecting,
+    verbose, "propensity", ...
+  )
 
   idx0 <- which(A == 0)
   n0 <- length(idx0)
   if (n0 == 0) stop("No control units (A=0); cannot fit m0.")
 
-  cf_m0 <- tryCatch({
-    X0 <- X[idx0, , drop = FALSE]
-    Y0 <- Y[idx0]
-    fold0 <- fold_indices[idx0]
-    out <- optimaltrees::cross_fitted_rashomon(
-      X0, Y0, K = K, loss_function = loss_outcome, regularization = reg_m0,
-      rashomon_bound_multiplier = rashomon_bound_multiplier, rashomon_bound_adder = rashomon_bound_adder,
-      max_leaves = max_leaves, fold_indices = fold0,
-      auto_tune_intersecting = auto_tune_intersecting, verbose = verbose, ...
-    )
-    if (out$n_intersecting > 0) out else NULL
-  }, error = function(e) {
-    # Distinguish error types for better diagnostics
-    msg <- conditionMessage(e)
+  X0 <- X[idx0, , drop = FALSE]
+  Y0 <- Y[idx0]
+  fold0 <- fold_indices[idx0]
 
-    # Data/parameter errors: should stop immediately
-    if (grepl("must be|invalid|cannot", msg, ignore.case = TRUE)) {
-      stop("Error fitting control outcome model (m0): ", msg,
-           "\nCheck your data and parameters.", call. = FALSE)
-    }
-
-    # Intersection empty: acceptable, use fallback
-    if (grepl("intersection.*empty", msg, ignore.case = TRUE)) {
-      if (verbose) {
-        message("No intersecting trees found for control outcome model. ",
-                "Falling back to fold-specific trees.")
-      }
-      return(NULL)  # Fallback will handle
-    }
-
-    # Optimization/convergence issues: warn and fallback
-    if (verbose) {
-      warning("Rashomon fitting failed for control outcome model: ", msg,
-              "\nFalling back to fold-specific trees.",
-              call. = FALSE, immediate. = TRUE)
-    }
-    return(NULL)
-  })
+  cf_m0 <- safe_rashomon_fit(
+    X0, Y0, K, loss_outcome, reg_m0,
+    rashomon_bound_multiplier, rashomon_bound_adder,
+    max_leaves, fold0, auto_tune_intersecting,
+    verbose, "control outcome", ...
+  )
 
   # Efficient fallback: only refit failed models
   fallback_fits <- NULL
@@ -421,11 +412,6 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
       message("Rashomon intersection failed for: ", paste(failed_models, collapse = ", "),
               ". Using fold-specific trees for all nuisances.")
     }
-    # Issue #33: Known limitation - currently refits BOTH models even if only one failed.
-    # This is simpler and more robust than selective refit. Performance impact is
-    # minimal since fallback only occurs when Rashomon intersection fails (rare).
-    # Could optimize in future if fallback becomes common: track which models failed
-    # and only refit those, reusing the successful Rashomon models for the other.
     fallback_fits <- vector("list", K)
     for (k in seq_len(K)) {
       fallback_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,
