@@ -69,7 +69,8 @@ run_single_sim <- function(sim_id, grid, dgps, tau, k_folds, seed_offset) {
     if (row$method == "tree") {
       suppressWarnings(suppressMessages({
         fit <- estimate_att(X = d$X, A = d$A, Y = d$Y, K = k_folds,
-                       regularization = log(row$n) / row$n,
+                       cv_regularization = TRUE,  # AUTO-SELECT lambda via CV
+                       cv_K = 5,
                        use_rashomon = FALSE, verbose = FALSE)
       }))
       list(theta = fit$theta, sigma = fit$sigma,
@@ -79,7 +80,8 @@ run_single_sim <- function(sim_id, grid, dgps, tau, k_folds, seed_offset) {
     } else if (row$method == "rashomon") {
       suppressWarnings(suppressMessages({
         fit <- estimate_att(X = d$X, A = d$A, Y = d$Y, K = k_folds,
-                       regularization = log(row$n) / row$n,
+                       cv_regularization = TRUE,  # AUTO-SELECT lambda via CV
+                       cv_K = 5,
                        use_rashomon = TRUE,
                        rashomon_bound_multiplier = 2 * sqrt(log(row$n) / row$n),
                        auto_tune_intersecting = TRUE, verbose = FALSE)

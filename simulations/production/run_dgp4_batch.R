@@ -1,6 +1,12 @@
 #!/usr/bin/env Rscript
-# Batch: DGP1 (Moderate) - All methods, all sample sizes
+# Batch: DGP4 (Weak Overlap - Stress Test) - All methods, all sample sizes
 # Total: 6,000 simulations (4 methods × 3 n × 500 reps)
+#
+# Constitution §9: Include regimes where the method should struggle
+# This DGP pushes propensity scores near boundaries (0.05-0.95)
+# to test robustness under borderline positivity.
+#
+# Expected: Valid estimates but LARGE variance (2-3× wider CIs than DGP1)
 
 suppressMessages({
   library(dplyr)
@@ -16,28 +22,25 @@ invisible(sapply(c(
   "../../R/score_att.R",
   "../../R/inference.R",
   "../../R/utils.R",
-  "dgps/dgps_smooth.R",
+  "dgps/dgps_stress.R",
   "methods/method_forest.R",
   "methods/method_linear.R"
 ), safe_source))
 
-# Configuration
 N_VALUES <- c(400, 800, 1600)
 TAU <- 0.10
 K_FOLDS <- 5
 N_REPS <- 500
 SEED_OFFSET <- 10000
 
-# Single DGP
-DGPS <- list(dgp3 = generate_dgp_moderate_att)
+DGPS <- list(dgp4 = generate_dgp_weak_overlap)
 METHODS <- c("tree", "rashomon", "forest", "linear")
 
 cat(strrep("=", 70), "\n")
-cat("BATCH: DGP1 (Moderate Outcome)\n")
+cat("BATCH: DGP4 (Weak Overlap - Stress Test)\n")
 cat(strrep("=", 70), "\n\n")
 
-# Create output directory
-output_dir <- sprintf("results/dgp3_batch_%s", Sys.Date())
+output_dir <- sprintf("results/dgp4_batch_%s", Sys.Date())
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Create simulation grid
@@ -68,51 +71,59 @@ run_single_sim <- function(sim_id, grid, dgps, tau, k_folds, seed_offset) {
 
   result <- tryCatch({
     if (row$method == "tree") {
-      fit <- suppressWarnings(suppressMessages({
-        estimate_att(X = d$X, A = d$A, Y = d$Y, K = k_folds,
-                cv_regularization = TRUE,  # AUTO-SELECT lambda via CV
-                cv_K = 5,
-                use_rashomon = FALSE, verbose = FALSE)
+      suppressWarnings(suppressMessages({
+        fit <- estimate_att(X = d$X, A = d$A, Y = d$Y, K = k_folds,
+                       cv_regularization = TRUE,  # AUTO-SELECT lambda via CV
+                       cv_K = 5,
+                       use_rashomon = FALSE, verbose = FALSE)
       }))
       list(theta = fit$theta, sigma = fit$sigma,
            ci_lower = fit$ci_95[1], ci_upper = fit$ci_95[2],
            converged = TRUE, epsilon_n = NA)
 
     } else if (row$method == "rashomon") {
-      fit <- suppressWarnings(suppressMessages({
-        estimate_att(X = d$X, A = d$A, Y = d$Y, K = k_folds,
-                cv_regularization = TRUE,  # AUTO-SELECT lambda via CV
-                cv_K = 5,
-                use_rashomon = TRUE,
-                rashomon_bound_multiplier = 2 * sqrt(log(row$n) / row$n),
-                auto_tune_intersecting = TRUE,  # AUTO-TUNE epsilon_n for intersections
-                verbose = FALSE)
+      suppressWarnings(suppressMessages({
+        fit <- estimate_att(X = d$X, A = d$A, Y = d$Y, K = k_folds,
+                       cv_regularization = TRUE,  # AUTO-SELECT lambda via CV
+                       cv_K = 5,
+                       use_rashomon = TRUE,
+                       rashomon_bound_multiplier = 2 * sqrt(log(row$n) / row$n),
+                       auto_tune_intersecting = TRUE,  # AUTO-TUNE epsilon_n for intersections
+                       verbose = FALSE)
       }))
       list(theta = fit$theta, sigma = fit$sigma,
            ci_lower = fit$ci_95[1], ci_upper = fit$ci_95[2],
            converged = fit$converged, epsilon_n = fit$epsilon_n)
 
     } else if (row$method == "forest") {
-      fit <- suppressWarnings(suppressMessages({
-        att_forest(X = d$X, A = d$A, Y = d$Y, K = k_folds)
+      suppressWarnings(suppressMessages({
+        fit <- att_forest(X = d$X, A = d$A, Y = d$Y, K = k_folds)
       }))
       list(theta = fit$theta, sigma = fit$sigma,
            ci_lower = fit$ci[1], ci_upper = fit$ci[2],
            converged = TRUE, epsilon_n = NA)
 
     } else if (row$method == "linear") {
-      fit <- suppressWarnings(suppressMessages({
-        att_linear(X = d$X, A = d$A, Y = d$Y, K = k_folds)
+      suppressWarnings(suppressMessages({
+        fit <- att_linear(X = d$X, A = d$A, Y = d$Y, K = k_folds)
       }))
       list(theta = fit$theta, sigma = fit$sigma,
            ci_lower = fit$ci[1], ci_upper = fit$ci[2],
            converged = TRUE, epsilon_n = NA)
     }
   }, error = function(e) {
+    cat(sprintf("    Error in sim %d: %s\n", sim_id, conditionMessage(e)))
     list(theta = NA, sigma = NA, ci_lower = NA, ci_upper = NA,
          converged = FALSE, epsilon_n = NA)
   })
 
+  # Ensure result is a proper list
+  if (is.null(result) || !is.list(result)) {
+    result <- list(theta = NA, sigma = NA, ci_lower = NA, ci_upper = NA,
+                   converged = FALSE, epsilon_n = NA)
+  }
+
+  # Create result row
   data.frame(
     sim_id = sim_id,
     dgp = row$dgp_name,
@@ -120,12 +131,12 @@ run_single_sim <- function(sim_id, grid, dgps, tau, k_folds, seed_offset) {
     n = row$n,
     rep = row$rep,
     true_att = tau,
-    theta = result$theta,
-    sigma = result$sigma,
-    ci_lower = result$ci_lower,
-    ci_upper = result$ci_upper,
-    converged = result$converged,
-    epsilon_n = result$epsilon_n,
+    theta = if(is.null(result$theta)) NA else result$theta,
+    sigma = if(is.null(result$sigma)) NA else result$sigma,
+    ci_lower = if(is.null(result$ci_lower)) NA else result$ci_lower,
+    ci_upper = if(is.null(result$ci_upper)) NA else result$ci_upper,
+    converged = if(is.null(result$converged)) FALSE else result$converged,
+    epsilon_n = if(is.null(result$epsilon_n)) NA else result$epsilon_n,
     stringsAsFactors = FALSE
   )
 }
@@ -149,8 +160,8 @@ cat(sprintf("\n✓ Simulations complete in %.2f hours\n", elapsed))
 cat(sprintf("Convergence rate: %.1f%%\n", 100 * mean(results$converged, na.rm = TRUE)))
 
 # Save results
-saveRDS(results, file.path(output_dir, "dgp3_results.rds"))
-cat(sprintf("Results saved to: %s\n", file.path(output_dir, "dgp3_results.rds")))
+saveRDS(results, file.path(output_dir, "dgp4_results.rds"))
+cat(sprintf("Results saved to: %s\n", file.path(output_dir, "dgp4_results.rds")))
 
 # Summary stats
 summary_stats <- results %>%
@@ -161,13 +172,14 @@ summary_stats <- results %>%
     bias = mean(theta - true_att, na.rm = TRUE),
     rmse = sqrt(mean((theta - true_att)^2, na.rm = TRUE)),
     coverage = mean(ci_lower <= true_att & ci_upper >= true_att, na.rm = TRUE),
+    ci_width = mean(ci_upper - ci_lower, na.rm = TRUE),
     .groups = "drop"
   )
 
-write.csv(summary_stats, file.path(output_dir, "dgp3_summary.csv"), row.names = FALSE)
+write.csv(summary_stats, file.path(output_dir, "dgp4_summary.csv"), row.names = FALSE)
 cat("\nSummary Statistics:\n")
 print(summary_stats, n = Inf)
 
 cat("\n", strrep("=", 70), "\n")
-cat("DGP1 Batch Complete\n")
+cat("DGP4 Batch Complete\n")
 cat(strrep("=", 70), "\n")
