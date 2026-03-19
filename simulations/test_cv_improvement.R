@@ -6,12 +6,12 @@ suppressMessages(library(optimaltrees))
 
 # Source package functions
 invisible(sapply(c(
-  "../R/estimate_att.R",
-  "../R/nuisance_trees.R",
-  "../R/score_att.R",
-  "../R/inference.R",
-  "../R/utils.R",
-  "production/dgps/dgps_smooth.R"
+  "R/estimate_att.R",
+  "R/nuisance_trees.R",
+  "R/score_att.R",
+  "R/inference.R",
+  "R/utils.R",
+  "simulations/production/dgps/dgps_smooth.R"
 ), function(f) source(f, local = FALSE)))
 
 set.seed(42)

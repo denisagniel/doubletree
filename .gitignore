@@ -3,6 +3,8 @@
 .RData
 .Rproj.user/
 *.Rproj
+*.Rout
+*.Rout.save
 
 # LaTeX files
 *.aux
@@ -17,6 +19,14 @@
 *.toc
 *.bcf
 *.run.xml
+
+# Simulation output files (prevent log bloat)
+*_log.txt
+*_output.txt
+simulation_log*.txt
+simulation_output*.txt
+debug_*.log
+temp_*.log
 
 # Simulation results (keep directory structure)
 simulations/results/*
