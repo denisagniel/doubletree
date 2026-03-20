@@ -1,8 +1,25 @@
 # doubletree: Causal Estimation with Interpretable Trees
 
-This package implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with cross-fitting and interpretable optimal decision trees. It depends on [optimaltrees](https://github.com/) for fitting the nuisance functions (propensity and outcome trees). This is a doubly robust, semiparametric estimator. Theory-aligned API expectations for the tree side are described in `paper/Implementation-requirements-Rashomon.md`.
+Implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with cross-fitting and interpretable optimal decision trees. Doubly robust, semiparametric estimator with optional Rashomon set integration for interpretable, stable tree selection.
 
-**Outcome:** Set `outcome_type = "binary"` (default) for binary Y (0/1); use `outcome_type = "continuous"` for continuous Y. For continuous Y, outcome trees use squared-error loss and **optimaltrees** must support `loss_function = "squared_error"` for regression.
+**Current version:** 0.0.0.9000 (development)
+**Repository:** [github.com/denisagniel/doubletree](https://github.com/denisagniel/doubletree)
+**Depends on:** [optimaltrees](https://github.com/denisagniel/treefarmr) v0.4.0+
+
+## Features
+
+- **DML-ATT estimation** with tree-based nuisance functions (propensity and outcome models)
+- **Rashomon-DML integration** for interpretable tree selection via cross-validated structure intersection
+- **Binary and continuous outcomes** (via `outcome_type`)
+- **Parallel execution** on O2 cluster for large-scale simulations
+- **Theory-aligned implementation** with comprehensive simulation infrastructure
+
+## Recent Updates (March 2026)
+
+- **O2/SLURM Infrastructure:** Complete setup for distributed simulations (18,000+ replications in 30-60 minutes)
+- **S7 Integration:** Full compatibility with optimaltrees S7 class system
+- **Simulation Grid:** 3 DGPs × 4 methods × 3 sample sizes × 500 replications
+- **Methods:** tree-DML, Rashomon-DML, forest-DML (ranger), linear-DML
 
 ## Project Structure
 
@@ -26,50 +43,88 @@ doubletree/
 └── data/                  # Data files
 ```
 
-## Setup
+## Installation
 
-### Prerequisites
-
-1. **R** (version 4.0 or higher recommended)
-2. **optimaltrees package**: This project depends on `optimaltrees` for tree-based modeling. The `.Rprofile` file will automatically attempt to load it from a sibling directory (`../optimaltrees`) if available.
-
-### Installing Dependencies
+### From GitHub
 
 ```r
-# Install required packages
-install.packages(c("devtools", "testthat"))
+# Install optimaltrees first
+devtools::install_github("denisagniel/treefarmr")
 
-# If optimaltrees is not in ../optimaltrees, install it from its source
-# (Update path as needed)
-devtools::install("../optimaltrees")
+# Install doubletree
+devtools::install_github("denisagniel/doubletree")
 ```
 
-### Loading the Package
+### For Development
 
-Since this is both a research project and an R package, you can load the package in development mode:
+```bash
+# Clone repositories
+git clone git@github.com:denisagniel/treefarmr.git optimaltrees
+git clone git@github.com:denisagniel/doubletree.git
 
-```r
-devtools::load_all()
+# Install optimaltrees
+cd optimaltrees
+R CMD INSTALL .
+
+# Load doubletree in development mode
+cd ../doubletree
+R
 ```
 
-Or install it locally:
-
+In R:
 ```r
-devtools::install()
+devtools::load_all()  # Development mode
+# OR
+devtools::install()   # Install locally
 library(doubletree)
 ```
 
-## Using optimaltrees
+### Dependencies
 
-This project builds on the `optimaltrees` package. If `optimaltrees` is located in a sibling directory (`../optimaltrees`), it will be automatically loaded when you start R in this directory (via `.Rprofile`).
+Required R packages:
+- `optimaltrees` (>= 0.4.0)
+- `dplyr`
+- `ranger` (for forest-DML baseline)
 
-If `optimaltrees` is located elsewhere:
-- Update the path in `.Rprofile`, or
-- Manually load it: `devtools::load_all("/path/to/optimaltrees")`
+For O2 cluster simulations, also install:
+- `optparse` (command-line arguments)
 
-### Rashomon-Based Estimation
+## Methods
 
-The manuscript selects a **single interpretable tree per nuisance** via the intersection of Rashomon sets across cross-fitting folds, then refits that structure per fold for valid cross-fitted estimation. **optimaltrees** implements the required API (`cross_fitted_rashomon`, intersection, refit per fold, `predict(..., fold_indices)`). doubletree supports the full Rashomon workflow when `use_rashomon = TRUE`: one interpretable tree per nuisance (via intersection across folds) with fold-specific refits for valid estimation. The same K and fold assignment are used for Rashomon fitting and the score. When `use_rashomon = FALSE` (default), the package fits one optimal tree per fold (no Rashomon or intersection).
+### Tree-DML (Standard)
+
+Fits one optimal tree per fold for each nuisance function (propensity and outcome models):
+
+```r
+fit <- estimate_att(X, A, Y, K = 5, use_rashomon = FALSE)
+```
+
+### Rashomon-DML (Interpretable)
+
+Selects a **single interpretable tree per nuisance** via the intersection of Rashomon sets across cross-fitting folds, then refits that structure per fold for valid cross-fitted estimation:
+
+```r
+fit <- estimate_att(
+  X, A, Y,
+  K = 5,
+  use_rashomon = TRUE,
+  rashomon_bound_multiplier = 0.05
+)
+```
+
+**How it works:**
+1. Fit Rashomon sets (near-optimal trees) for each nuisance in each fold
+2. Find structural intersection across folds (stable tree structures)
+3. Refit the intersecting structure per fold for valid cross-fitting
+4. Use fold-specific predictions for DML estimation
+
+**Benefits:** Interpretable trees (single structure for each nuisance) with valid statistical inference.
+
+### Baseline Methods
+
+For comparison:
+- **forest-DML:** Random forests via `ranger` (see `simulations/production/methods/method_forest.R`)
+- **linear-DML:** Logistic regression (see `simulations/production/methods/method_linear.R`)
 
 ## Minimal example
 
@@ -92,7 +147,54 @@ fit$ci_95   # 95% Wald CI
 
 ## Running Simulations
 
-See `simulations/run_simulations.R` for a full example (DGP and replications).
+### Local Simulations
+
+```r
+# See simulations/run_simulations.R for examples
+source("simulations/production/dgps/dgps_smooth.R")
+
+# Generate data
+d <- generate_dgp_binary_att(n = 400, tau = 0.10, seed = 123)
+
+# Estimate ATT
+fit <- estimate_att(
+  X = d$X, A = d$A, Y = d$Y,
+  K = 5,
+  regularization = log(400) / 400,
+  use_rashomon = FALSE
+)
+
+print(fit$theta)  # Point estimate
+print(fit$ci)     # 95% CI
+```
+
+### Large-Scale Simulations on O2 Cluster
+
+Complete SLURM infrastructure for distributed simulations:
+
+```bash
+# On O2
+cd doubletree/simulations/production
+
+# Quick test (30 seconds)
+bash slurm/quick_test.sh
+
+# Launch all 18,000 simulations
+bash slurm/launch_all_simulations.sh
+
+# Monitor progress
+bash slurm/check_progress.sh
+
+# Combine results (after completion)
+Rscript slurm/combine_results.R
+```
+
+**Simulation grid:**
+- 3 DGPs × 4 methods × 3 sample sizes × 500 replications = 18,000 runs
+- Estimated time: 30-60 minutes (vs. 15 hours sequential)
+- Output: Individual .rds files → combined dataset + summary statistics
+
+See `simulations/production/slurm/README_O2.md` for complete documentation.
 
 ## Package Development
 
@@ -108,8 +210,24 @@ This project is structured as an R package at the root level, making it easy to 
 
 ## Links
 
-- **optimaltrees**: [Link to optimaltrees repository/package]
+- **GitHub Repository:** [github.com/denisagniel/doubletree](https://github.com/denisagniel/doubletree)
+- **optimaltrees (treefarmr):** [github.com/denisagniel/treefarmr](https://github.com/denisagniel/treefarmr)
+- **Manuscript:** `paper/manuscript.tex` (theory complete, restructuring in progress)
+- **O2 Simulation Docs:** `simulations/production/slurm/README_O2.md`
+
+## Citation
+
+If you use doubletree in your research, please cite:
+
+```bibtex
+@software{doubletree2026,
+  title = {doubletree: Causal Estimation with Interpretable Trees},
+  author = {Denis Agniel},
+  year = {2026},
+  url = {https://github.com/denisagniel/doubletree}
+}
+```
 
 ## License
 
-[To be determined]
+MIT License - see LICENSE file for details.
