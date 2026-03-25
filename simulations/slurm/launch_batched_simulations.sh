@@ -2,20 +2,20 @@
 
 # Launch DML-ATT Batched Simulations on O2
 #
-# Submits 36 configurations × variable batches = 420 total array jobs
+# Submits 36 configurations × variable batches = 84 total array jobs
 #
 # Configurations:
 #   3 DGPs: dgp1, dgp2, dgp3
 #   3 Sample sizes: 400, 800, 1600
 #   4 Methods: tree, rashomon, forest, linear
 #
-# Batching strategy (target: 5 minutes per batch):
-#   N=400:  100 reps/batch × 5 batches = 500 reps (60 jobs)
-#   N=800:  50 reps/batch × 10 batches = 500 reps (120 jobs)
-#   N=1600: 25 reps/batch × 20 batches = 500 reps (240 jobs)
-#   Total: 420 array jobs
+# Batching strategy (target: 5-10 minutes per batch, 1000 reps per config):
+#   N=400:  1000 reps/batch × 1 batch = 1000 reps (12 jobs)
+#   N=800:  500 reps/batch × 2 batches = 1000 reps (24 jobs)
+#   N=1600: 250 reps/batch × 4 batches = 1000 reps (48 jobs)
+#   Total: 84 array jobs
 #
-# Total replications: 36 configs × 500 reps = 18,000 replications
+# Total replications: 36 configs × 1000 reps = 36,000 replications
 
 set -e  # Exit on error
 
@@ -31,9 +31,9 @@ echo "==========================================="
 echo ""
 echo "Configuration:"
 echo "  - 36 total configurations (3 DGPs × 3 sample sizes × 4 methods)"
-echo "  - 500 replications per configuration"
-echo "  - 420 total batched array jobs"
-echo "  - Target: 5 minutes per batch"
+echo "  - 1000 replications per configuration"
+echo "  - 84 total batched array jobs"
+echo "  - Target: 5-10 minutes per batch"
 echo ""
 
 # Counter for submitted jobs
@@ -45,12 +45,13 @@ for DGP in dgp1 dgp2 dgp3; do
     for METHOD in tree rashomon forest linear; do
 
       # Calculate number of batches based on sample size
+      # 1000 reps per config: N=400 (1 batch), N=800 (2 batches), N=1600 (4 batches)
       if [ "$N" -eq 400 ]; then
-        N_BATCHES=5
+        N_BATCHES=1
       elif [ "$N" -eq 800 ]; then
-        N_BATCHES=10
+        N_BATCHES=2
       elif [ "$N" -eq 1600 ]; then
-        N_BATCHES=20
+        N_BATCHES=4
       fi
 
       echo "Submitting: ${DGP} n=${N} ${METHOD} (${N_BATCHES} batches)"

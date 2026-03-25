@@ -10,19 +10,19 @@
 # DML-ATT Batched Simulations for O2 Cluster
 #
 # Usage:
-#   sbatch --export=DGP=dgp1,N=400,METHOD=tree --array=1-5 slurm/run_dml_batch.slurm
+#   sbatch --export=DGP=dgp1,N=400,METHOD=tree --array=1 slurm/run_dml_batch.slurm
 #
 # Required environment variables:
 #   DGP     : dgp1, dgp2, or dgp3
 #   N       : sample size (400, 800, or 1600)
 #   METHOD  : tree, rashomon, forest, or linear
 #
-# Array job size depends on sample size:
-#   N=400:  --array=1-5   (100 reps per batch, 5 batches)
-#   N=800:  --array=1-10  (50 reps per batch, 10 batches)
-#   N=1600: --array=1-20  (25 reps per batch, 20 batches)
+# Array job size depends on sample size (1000 reps total per config):
+#   N=400:  --array=1     (1000 reps per batch, 1 batch, ~5 min)
+#   N=800:  --array=1-2   (500 reps per batch, 2 batches, ~5 min each)
+#   N=1600: --array=1-4   (250 reps per batch, 4 batches, ~5 min each)
 #
-# Target: 5 minutes per batch (15 minute limit provides safety margin)
+# Target: 5-10 minutes per batch (15 minute limit provides safety margin)
 #
 # O2 Configuration:
 # - partition=short: 12 hour limit, faster scheduling
@@ -48,22 +48,22 @@ if [ -z "$METHOD" ]; then
 fi
 
 # Calculate batch size based on sample size
-# Target: ~5 minutes per batch
+# Target: 1000 reps per config, 5-10 minutes per batch
 if [ "$N" -eq 400 ]; then
-    BATCH_SIZE=100
+    BATCH_SIZE=1000  # 1 batch per config
 elif [ "$N" -eq 800 ]; then
-    BATCH_SIZE=50
+    BATCH_SIZE=500   # 2 batches per config
 elif [ "$N" -eq 1600 ]; then
-    BATCH_SIZE=25
+    BATCH_SIZE=250   # 4 batches per config
 else
     echo "ERROR: Invalid sample size N=${N} (must be 400, 800, or 1600)"
     exit 1
 fi
 
 # Calculate starting replication for this batch
-# Batch 1: reps 1-100 (or 1-50, 1-25)
-# Batch 2: reps 101-200 (or 51-100, 26-50)
-# etc.
+# N=400, Batch 1: reps 1-1000
+# N=800, Batch 1: reps 1-500, Batch 2: reps 501-1000
+# N=1600, Batch 1: reps 1-250, Batch 2: reps 251-500, etc.
 BATCH_START=$(( (SLURM_ARRAY_TASK_ID - 1) * BATCH_SIZE + 1 ))
 
 echo "Configuration: DGP=${DGP}, N=${N}, METHOD=${METHOD}"
