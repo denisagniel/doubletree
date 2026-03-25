@@ -103,7 +103,10 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
 
   # Check for model fitting failure using n_trees instead of tree_json
   # (tree_json may be NULL for models with discretization, which is OK)
-  if (is.null(e_model$n_trees) || e_model$n_trees == 0) {
+  # optimaltrees is now fully S7, so use @ accessor
+  n_trees_e <- e_model@n_trees
+
+  if (is.null(n_trees_e) || n_trees_e == 0) {
     stop(
       "TreeFARMS model fitting failed for propensity model in fold ", fold_id, ".\n",
       "This indicates:\n",
@@ -141,7 +144,10 @@ fit_nuisances_fold <- function(X, A, Y, fold_id, fold_indices, outcome_type = "b
 
   # Check for model fitting failure using n_trees instead of tree_json
   # (tree_json may be NULL for models with discretization, which is OK)
-  if (is.null(m0_model$n_trees) || m0_model$n_trees == 0) {
+  # optimaltrees is now fully S7, so use @ accessor
+  n_trees_m0 <- m0_model@n_trees
+
+  if (is.null(n_trees_m0) || n_trees_m0 == 0) {
     stop(
       "TreeFARMS model fitting failed for control outcome model (m0) in fold ", fold_id, ".\n",
       "This indicates:\n",
@@ -306,7 +312,7 @@ safe_rashomon_fit <- function(X, y, K, loss_function, regularization,
       verbose = verbose,
       ...
     )
-    if (out$n_intersecting > 0) out else NULL
+    if (out@n_intersecting > 0) out else NULL
   }, error = function(e) {
     msg <- conditionMessage(e)
 
@@ -450,7 +456,7 @@ get_fold_specific_eta_rashomon <- function(rashomon_list, X, fold_indices,
   m0_out <- numeric(n)
   outcome_type <- rashomon_list$outcome_type
 
-  if (!is.null(rashomon_list$cf_e) && rashomon_list$cf_e$n_intersecting > 0) {
+  if (!is.null(rashomon_list$cf_e) && rashomon_list$cf_e@n_intersecting > 0) {
     pe <- predict(rashomon_list$cf_e, X, fold_indices = fold_indices, type = "prob")
     e_out <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, n)
   } else if (!is.null(rashomon_list$fallback_fits)) {
@@ -458,7 +464,7 @@ get_fold_specific_eta_rashomon <- function(rashomon_list, X, fold_indices,
     e_out <- eta_fb$e
   }
 
-  if (!is.null(rashomon_list$cf_m0) && rashomon_list$cf_m0$n_intersecting > 0) {
+  if (!is.null(rashomon_list$cf_m0) && rashomon_list$cf_m0@n_intersecting > 0) {
     if (outcome_type == "continuous") {
       m0_out <- as.numeric(predict(rashomon_list$cf_m0, X, fold_indices = fold_indices))
     } else {

@@ -266,8 +266,8 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     # Rashomon converged if both models have intersecting trees (no fallback)
     converged <- !is.null(nuisance_fits$cf_e) &&
                  !is.null(nuisance_fits$cf_m0) &&
-                 nuisance_fits$cf_e$n_intersecting > 0 &&
-                 nuisance_fits$cf_m0$n_intersecting > 0
+                 nuisance_fits$cf_e@n_intersecting > 0 &&
+                 nuisance_fits$cf_m0@n_intersecting > 0
     epsilon_n <- rashomon_bound_multiplier
   } else {
     # Non-rashomon always converges (uses fold-specific trees)
