@@ -1,8 +1,9 @@
 # Propensity score bounds for numerical stability
-# Chosen to prevent division by near-zero while being negligible for inference
-# (propensity clamping affects < 0.01% of typical samples with proper regularization)
-.PROPENSITY_LOWER_BOUND <- 1e-6
-.PROPENSITY_UPPER_BOUND <- 1 - 1e-6
+# Following standard practice in causal inference (Crump et al. 2009, Li et al. 2018),
+# clip to [0.01, 0.99] to prevent extreme inverse probability weights in the EIF.
+# With these bounds, e/(1-e) is bounded by [0.01, 99], preventing numerical instability.
+.PROPENSITY_LOWER_BOUND <- 0.01
+.PROPENSITY_UPPER_BOUND <- 0.99
 
 #' ATT orthogonal score (psi)
 #'
@@ -41,10 +42,11 @@ psi_att <- function(Y, A, theta, eta, pi_hat, e_min = NULL, e_max = NULL) {
     stop("pi_hat must be in (0, 1)")
   }
 
-  # Validate propensity scores are not too extreme (prevents non-finite values in term2)
-  # If e is very close to 0 or 1, term2 = (e/(1-e)) will be Inf or NaN
-  if (any(e >= 1 - 1e-6) || any(e <= 1e-6)) {
-    stop("Propensity scores too extreme (e very close to 0 or 1). ",
+  # Validate propensity scores are within acceptable bounds
+  # With clipping to [0.01, 0.99], e/(1-e) is bounded by [0.01, 99]
+  # Use strict inequalities since clamping may produce values exactly at bounds
+  if (any(e > 0.99) || any(e < 0.01)) {
+    stop("Propensity scores outside acceptable bounds [0.01, 0.99]. ",
          "This indicates numerical instability in the propensity model. ",
          "Check that propensity bounds are enforced at prediction time.",
          call. = FALSE)
