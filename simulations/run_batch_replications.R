@@ -44,8 +44,8 @@ if (is.null(opt$dgp)) {
   stop("Must specify --dgp (dgp1, dgp2, or dgp3)")
 }
 
-if (!opt$dgp %in% c("dgp1", "dgp2", "dgp3")) {
-  stop("Invalid DGP: ", opt$dgp, " (must be dgp1, dgp2, or dgp3)")
+if (!opt$dgp %in% c("dgp1", "dgp2", "dgp3", "dgp4", "dgp5", "dgp6")) {
+  stop("Invalid DGP: ", opt$dgp, " (must be dgp1, dgp2, dgp3, dgp4, dgp5, or dgp6)")
 }
 
 if (!opt$method %in% c("tree", "rashomon", "forest", "linear")) {
@@ -60,6 +60,7 @@ suppressMessages({
 
 # Source DGPs and baseline methods
 source("dgps/dgps_smooth.R")
+source("dgps/dgps_continuous.R")
 source("methods/method_forest.R")
 source("methods/method_linear.R")
 
@@ -90,10 +91,22 @@ for (rep_num in opt$`batch-start`:batch_end) {
   # Generate data based on DGP
   if (opt$dgp == "dgp1") {
     d <- generate_dgp_binary_att(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "binary"
   } else if (opt$dgp == "dgp2") {
     d <- generate_dgp_continuous_att(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "binary"
   } else if (opt$dgp == "dgp3") {
     d <- generate_dgp_moderate_att(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "binary"
+  } else if (opt$dgp == "dgp4") {
+    d <- generate_dgp_continuous_binary(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "binary"
+  } else if (opt$dgp == "dgp5") {
+    d <- generate_dgp_continuous_continuous(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "continuous"
+  } else if (opt$dgp == "dgp6") {
+    d <- generate_dgp_mixed(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "binary"
   }
 
   # Fit model based on method
@@ -104,6 +117,7 @@ for (rep_num in opt$`batch-start`:batch_end) {
       fit <- estimate_att(
         X = d$X, A = d$A, Y = d$Y,
         K = opt$`k-folds`,
+        outcome_type = outcome_type,
         regularization = log(opt$`sample-size`) / opt$`sample-size`,
         cv_regularization = FALSE,
         use_rashomon = FALSE,
@@ -128,6 +142,7 @@ for (rep_num in opt$`batch-start`:batch_end) {
       fit <- estimate_att(
         X = d$X, A = d$A, Y = d$Y,
         K = opt$`k-folds`,
+        outcome_type = outcome_type,
         regularization = log(opt$`sample-size`) / opt$`sample-size`,
         cv_regularization = FALSE,
         use_rashomon = TRUE,

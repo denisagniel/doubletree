@@ -2,20 +2,20 @@
 
 # Launch DML-ATT Batched Simulations on O2
 #
-# Submits 36 configurations × variable batches = 84 total array jobs
+# Submits 72 configurations × variable batches = 168 total array jobs
 #
 # Configurations:
-#   3 DGPs: dgp1, dgp2, dgp3
+#   6 DGPs: dgp1-3 (binary features), dgp4-6 (continuous/mixed features)
 #   3 Sample sizes: 400, 800, 1600
 #   4 Methods: tree, rashomon, forest, linear
 #
 # Batching strategy (target: 5-10 minutes per batch, 1000 reps per config):
-#   N=400:  1000 reps/batch × 1 batch = 1000 reps (12 jobs)
-#   N=800:  500 reps/batch × 2 batches = 1000 reps (24 jobs)
-#   N=1600: 250 reps/batch × 4 batches = 1000 reps (48 jobs)
-#   Total: 84 array jobs
+#   N=400:  1000 reps/batch × 1 batch = 1000 reps (24 jobs)
+#   N=800:  500 reps/batch × 2 batches = 1000 reps (48 jobs)
+#   N=1600: 250 reps/batch × 4 batches = 1000 reps (96 jobs)
+#   Total: 168 array jobs
 #
-# Total replications: 36 configs × 1000 reps = 36,000 replications
+# Total replications: 72 configs × 1000 reps = 72,000 replications
 
 set -e  # Exit on error
 
@@ -30,17 +30,23 @@ echo "DML-ATT Batched Simulations Launcher"
 echo "==========================================="
 echo ""
 echo "Configuration:"
-echo "  - 36 total configurations (3 DGPs × 3 sample sizes × 4 methods)"
+echo "  - 72 total configurations (6 DGPs × 3 sample sizes × 4 methods)"
 echo "  - 1000 replications per configuration"
-echo "  - 84 total batched array jobs"
+echo "  - 168 total batched array jobs"
 echo "  - Target: 5-10 minutes per batch"
+echo ""
+echo "DGPs:"
+echo "  - dgp1-3: Binary features (original)"
+echo "  - dgp4: Continuous features, binary outcome"
+echo "  - dgp5: Continuous features, continuous outcome"
+echo "  - dgp6: Mixed features (2 binary + 2 continuous)"
 echo ""
 
 # Counter for submitted jobs
 TOTAL_JOBS=0
 
 # Loop over all configurations
-for DGP in dgp1 dgp2 dgp3; do
+for DGP in dgp1 dgp2 dgp3 dgp4 dgp5 dgp6; do
   for N in 400 800 1600; do
     for METHOD in tree rashomon forest linear; do
 
