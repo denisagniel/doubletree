@@ -11,7 +11,7 @@
 #'
 #' @param X Data.frame of covariates
 #' @param A Binary treatment (0/1)
-#' @param Y Binary outcome (0/1)
+#' @param Y Outcome (binary 0/1 or continuous)
 #' @param K Number of folds for cross-fitting (default 5)
 #' @param seed Random seed for fold creation
 #' @param interactions Include two-way interactions (default FALSE)
@@ -30,11 +30,15 @@
 #' 2. For each fold k:
 #'    - Train e(X) on folds != k using glm (binomial family)
 #'    - Predict e(X) on fold k
-#'    - Train m0(X) on control units in folds != k (binomial family)
+#'    - Train m0(X) on control units in folds != k (binomial or gaussian)
 #'    - Predict m0(X) on fold k
 #' 3. Compute orthogonal score: ψ = (Y - m0(X)) * A / e(X)
 #' 4. θ̂ = E[ψ] / E[A/e(X)]
 #' 5. Inference via EIF-based variance estimator
+#'
+#' Outcome type is auto-detected:
+#' - Binary (Y in {0,1}): Uses logistic regression (glm with binomial family)
+#' - Continuous: Uses linear regression (lm)
 #'
 #' If interactions = TRUE, includes all two-way interactions in the model.
 #' This can improve fit but increases risk of overfitting with small samples.
@@ -57,8 +61,11 @@ att_linear <- function(X, A, Y, K = 5, seed = NULL,
   if (!all(A %in% c(0, 1))) {
     stop("A must be binary (0/1)")
   }
-  if (!all(Y %in% c(0, 1))) {
-    stop("Y must be binary (0/1)")
+
+  # Detect outcome type
+  outcome_type <- if (all(Y %in% c(0, 1))) "binary" else "continuous"
+  if (verbose) {
+    cat(sprintf("Detected %s outcome\n", outcome_type))
   }
 
   n_treated <- sum(A == 1)
@@ -140,27 +147,50 @@ att_linear <- function(X, A, Y, K = 5, seed = NULL,
       formula_m0 <- as.formula("Y ~ .")
     }
 
-    glm_m0 <- tryCatch({
-      glm(formula_m0, data = train_data_m0, family = binomial())
-    }, warning = function(w) {
-      convergence_issues <<- TRUE
-      glm(formula_m0, data = train_data_m0, family = binomial())
-    }, error = function(e) {
-      convergence_issues <<- TRUE
-      # Fallback: main effects only
-      glm(Y ~ ., data = train_data_m0, family = binomial())
-    })
+    if (outcome_type == "binary") {
+      # Logistic regression for binary outcomes
+      glm_m0 <- tryCatch({
+        glm(formula_m0, data = train_data_m0, family = binomial())
+      }, warning = function(w) {
+        convergence_issues <<- TRUE
+        glm(formula_m0, data = train_data_m0, family = binomial())
+      }, error = function(e) {
+        convergence_issues <<- TRUE
+        # Fallback: main effects only
+        glm(Y ~ ., data = train_data_m0, family = binomial())
+      })
 
-    # Predict on test fold
-    pred_m0 <- predict(glm_m0, newdata = X[test_idx, , drop = FALSE],
-                       type = "response")
-    m0_hat[test_idx] <- pred_m0
+      # Predict on test fold (get P(Y=1|X, A=0))
+      pred_m0 <- predict(glm_m0, newdata = X[test_idx, , drop = FALSE],
+                         type = "response")
+      m0_hat[test_idx] <- pred_m0
+    } else {
+      # Linear regression for continuous outcomes
+      lm_m0 <- tryCatch({
+        lm(formula_m0, data = train_data_m0)
+      }, warning = function(w) {
+        convergence_issues <<- TRUE
+        lm(formula_m0, data = train_data_m0)
+      }, error = function(e) {
+        convergence_issues <<- TRUE
+        # Fallback: main effects only
+        lm(Y ~ ., data = train_data_m0)
+      })
+
+      # Predict on test fold (get E[Y|X, A=0])
+      pred_m0 <- predict(lm_m0, newdata = X[test_idx, , drop = FALSE])
+      m0_hat[test_idx] <- pred_m0
+    }
   }
 
   # Clip propensity scores to avoid extreme weights
-  # Use same bounds as doubletree (1e-6, 1-1e-6)
-  e_hat <- pmax(pmin(e_hat, 1 - 1e-6), 1e-6)
-  m0_hat <- pmax(pmin(m0_hat, 1 - 1e-6), 1e-6)
+  e_hat <- pmax(pmin(e_hat, 0.99), 0.01)
+
+  # For binary outcomes, clip m0_hat probabilities
+  if (outcome_type == "binary") {
+    m0_hat <- pmax(pmin(m0_hat, 0.99), 0.01)
+  }
+  # For continuous outcomes, no clipping needed (m0_hat is on natural scale)
 
   # --- Orthogonal Score and Point Estimate ---
   # ATT orthogonal score (Chernozhukov et al. 2018):

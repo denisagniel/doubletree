@@ -8,7 +8,7 @@
 #'
 #' @param X Data.frame of covariates
 #' @param A Binary treatment (0/1)
-#' @param Y Binary outcome (0/1)
+#' @param Y Outcome (binary 0/1 or continuous)
 #' @param K Number of folds for cross-fitting (default 5)
 #' @param seed Random seed for fold creation
 #' @param num.trees Number of trees in forest (default 500)
@@ -30,11 +30,15 @@
 #' 2. For each fold k:
 #'    - Train e(X) on folds != k using ranger (binary classification)
 #'    - Predict e(X) on fold k
-#'    - Train m0(X) on control units in folds != k (binary classification)
+#'    - Train m0(X) on control units in folds != k (classification or regression)
 #'    - Predict m0(X) on fold k
 #' 3. Compute orthogonal score: ψ = (Y - m0(X)) * A / e(X)
 #' 4. θ̂ = E[ψ] / E[A/e(X)]
 #' 5. Inference via EIF-based variance estimator
+#'
+#' Outcome type is auto-detected:
+#' - Binary (Y in {0,1}): Uses probability forest (probability=TRUE)
+#' - Continuous: Uses regression forest (probability=FALSE)
 #'
 #' @examples
 #' source("production/dgps/dgps_smooth.R")
@@ -60,8 +64,11 @@ att_forest <- function(X, A, Y, K = 5, seed = NULL,
   if (!all(A %in% c(0, 1))) {
     stop("A must be binary (0/1)")
   }
-  if (!all(Y %in% c(0, 1))) {
-    stop("Y must be binary (0/1)")
+
+  # Detect outcome type
+  outcome_type <- if (all(Y %in% c(0, 1))) "binary" else "continuous"
+  if (verbose) {
+    cat(sprintf("Detected %s outcome\n", outcome_type))
   }
 
   n_treated <- sum(A == 1)
@@ -133,26 +140,47 @@ att_forest <- function(X, A, Y, K = 5, seed = NULL,
     train_data_m0 <- cbind(X[control_train_idx, , drop = FALSE],
                            Y = Y[control_train_idx])
 
-    rf_m0 <- ranger::ranger(
-      Y ~ .,
-      data = train_data_m0,
-      num.trees = num.trees,
-      mtry = mtry,
-      min.node.size = min.node.size,
-      probability = TRUE,
-      num.threads = 1,
-      verbose = FALSE
-    )
-
-    # Predict on test fold (get P(Y=1|X, A=0))
-    pred_m0 <- predict(rf_m0, X[test_idx, , drop = FALSE])
-    m0_hat[test_idx] <- pred_m0$predictions[, 2]  # Column 2 is P(Y=1)
+    if (outcome_type == "binary") {
+      # Classification: probability forest
+      rf_m0 <- ranger::ranger(
+        Y ~ .,
+        data = train_data_m0,
+        num.trees = num.trees,
+        mtry = mtry,
+        min.node.size = min.node.size,
+        probability = TRUE,
+        num.threads = 1,
+        verbose = FALSE
+      )
+      # Predict on test fold (get P(Y=1|X, A=0))
+      pred_m0 <- predict(rf_m0, X[test_idx, , drop = FALSE])
+      m0_hat[test_idx] <- pred_m0$predictions[, 2]  # Column 2 is P(Y=1)
+    } else {
+      # Regression: standard regression forest
+      rf_m0 <- ranger::ranger(
+        Y ~ .,
+        data = train_data_m0,
+        num.trees = num.trees,
+        mtry = mtry,
+        min.node.size = min.node.size,
+        probability = FALSE,
+        num.threads = 1,
+        verbose = FALSE
+      )
+      # Predict on test fold (get E[Y|X, A=0])
+      pred_m0 <- predict(rf_m0, X[test_idx, , drop = FALSE])
+      m0_hat[test_idx] <- pred_m0$predictions
+    }
   }
 
   # Clip propensity scores to avoid extreme weights
-  # Use same bounds as doubletree (1e-6, 1-1e-6)
-  e_hat <- pmax(pmin(e_hat, 1 - 1e-6), 1e-6)
-  m0_hat <- pmax(pmin(m0_hat, 1 - 1e-6), 1e-6)
+  e_hat <- pmax(pmin(e_hat, 0.99), 0.01)
+
+  # For binary outcomes, clip m0_hat probabilities
+  if (outcome_type == "binary") {
+    m0_hat <- pmax(pmin(m0_hat, 0.99), 0.01)
+  }
+  # For continuous outcomes, no clipping needed (m0_hat is on natural scale)
 
   # --- Orthogonal Score and Point Estimate ---
   # ATT orthogonal score (Chernozhukov et al. 2018):
