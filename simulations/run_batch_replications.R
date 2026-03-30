@@ -61,6 +61,7 @@ suppressMessages({
 # Source DGPs and baseline methods
 source("dgps/dgps_smooth.R")
 source("dgps/dgps_continuous.R")
+source("dgps/dgps_phase2.R")
 source("methods/method_forest.R")
 source("methods/method_linear.R")
 
@@ -107,6 +108,17 @@ for (rep_num in opt$`batch-start`:batch_end) {
   } else if (opt$dgp == "dgp6") {
     d <- generate_dgp_mixed(n = opt$`sample-size`, tau = opt$tau, seed = seed)
     outcome_type <- "binary"
+  } else if (opt$dgp == "dgp7") {
+    d <- generate_dgp7(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "binary"
+  } else if (opt$dgp == "dgp8") {
+    d <- generate_dgp8(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "continuous"
+  } else if (opt$dgp == "dgp9") {
+    d <- generate_dgp9(n = opt$`sample-size`, tau = opt$tau, seed = seed)
+    outcome_type <- "binary"
+  } else {
+    stop(sprintf("Unknown DGP: %s", opt$dgp))
   }
 
   # Fit model based on method
