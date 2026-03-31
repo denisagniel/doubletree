@@ -14,7 +14,7 @@ library(optparse)
 # Parse command-line arguments
 option_list <- list(
   make_option(c("-d", "--dgp"), type = "character", default = NULL,
-              help = "DGP name: dgp1, dgp2, or dgp3", metavar = "character"),
+              help = "DGP name: dgp1 through dgp9", metavar = "character"),
   make_option(c("-n", "--sample-size"), type = "integer", default = 400,
               help = "Sample size [default %default]", metavar = "number"),
   make_option(c("-m", "--method"), type = "character", default = "tree",
@@ -41,11 +41,11 @@ opt <- parse_args(opt_parser)
 
 # Validate inputs
 if (is.null(opt$dgp)) {
-  stop("Must specify --dgp (dgp1, dgp2, or dgp3)")
+  stop("Must specify --dgp (dgp1 through dgp9)")
 }
 
-if (!opt$dgp %in% c("dgp1", "dgp2", "dgp3", "dgp4", "dgp5", "dgp6")) {
-  stop("Invalid DGP: ", opt$dgp, " (must be dgp1, dgp2, dgp3, dgp4, dgp5, or dgp6)")
+if (!opt$dgp %in% c("dgp1", "dgp2", "dgp3", "dgp4", "dgp5", "dgp6", "dgp7", "dgp8", "dgp9")) {
+  stop("Invalid DGP: ", opt$dgp, " (must be dgp1 through dgp9)")
 }
 
 if (!opt$method %in% c("tree", "rashomon", "forest", "linear")) {
