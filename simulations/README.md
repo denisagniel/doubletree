@@ -398,5 +398,5 @@ Before using results in manuscript:
 - Root project: `../../../session_notes/`
 
 **Paper:**
-- Manuscript: `../../paper/manuscript.tex`
+- Manuscript: `../../inst/paper/manuscript.tex`
 - Section 4 (simulations) to be completed using these outputs

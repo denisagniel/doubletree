@@ -33,10 +33,11 @@ doubletree/
 ├── R/                     # R source code
 ├── man/                   # Package documentation
 ├── tests/                 # Test files
-├── paper/                 # Manuscript and related files
-│   ├── manuscript.tex
-│   ├── figures/
-│   └── references.bib
+├── inst/
+│   └── paper/             # Manuscript and related files
+│       ├── manuscript.tex
+│       ├── figures/
+│       └── references.bib
 ├── simulations/           # Simulation scripts and results
 │   ├── run_simulations.R
 │   └── results/
@@ -212,7 +213,7 @@ This project is structured as an R package at the root level, making it easy to 
 
 - **GitHub Repository:** [github.com/denisagniel/doubletree](https://github.com/denisagniel/doubletree)
 - **optimaltrees (treefarmr):** [github.com/denisagniel/treefarmr](https://github.com/denisagniel/treefarmr)
-- **Manuscript:** `paper/manuscript.tex` (theory complete, restructuring in progress)
+- **Manuscript:** `inst/paper/manuscript.tex` (theory complete, restructuring in progress)
 - **O2 Simulation Docs:** `simulations/production/slurm/README_O2.md`
 
 ## Citation
