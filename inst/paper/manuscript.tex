@@ -18,126 +18,145 @@
 \title{Interpretable causal inference for high-stakes settings with decision trees}
 \author{Denis Agniel}
 \date{\today}
-
 \begin{document}
 
 \maketitle
 \begin{abstract}
-    High-stakes policy decisions---such as Medicare quality measurement programs that allocate billions in incentive payments---require statistical methods that are both causally valid and interpretable to stakeholders. While recent advances in causal inference allow the use of flexible machine learning methods via cross-fitting, the resulting black-box models fail to meet the transparency requirements of regulatory environments. We introduce a fully interpretable and nonparametric method for estimating causal effects in such settings using optimal decision trees as nuisance function estimators within the efficient influence function framework. We establish that optimal trees can satisfy the $o(n^{-1/4})$ convergence rate required for valid $\sqrt{n}$-inference when the underlying nuisance functions lie in a H\"older class and tree complexity is appropriately controlled. Furthermore, we propose the \textit{doubletree} algorithm, which uses Rashomon set intersection across cross-validation folds to produce a single tree per nuisance function---one propensity tree and one outcome tree---rather than fold-specific estimators. This preserves asymptotic validity while maximizing interpretability: effect estimates can be explained entirely by two transparent decision rules. Simulations demonstrate good finite-sample performance, and we apply the method to quality measurement for substance use disorder treatment facilities.
+    High-stakes policy decisions require statistical methods that are both causally valid and interpretable to stakeholders. Recent advances in causal inference have incorporated the use of flexible machine learning methods via cross-fitting and have arguably made these methods more generally applicable due to reduced reliance on parametric models. However, the black-box models that are used to replace the parametric ones fail to meet the transparency requirements of regulatory environments. We introduce a fully interpretable and nonparametric method for estimating causal effects in such settings using optimal decision trees as nuisance function estimators. We establish that optimal trees can satisfy the $o(n^{-1/4})$ convergence rate required for valid asymptotic inference when the underlying nuisance functions lie in a H\"older class and tree complexity is appropriately controlled. Furthermore, we propose the \textit{doubletree} algorithm, which uses Rashomon set intersection across cross-validation folds to produce a single tree per nuisance function---one propensity tree and one outcome tree---rather than fold-specific estimators. This preserves asymptotic validity while maximizing interpretability: effect estimates can be explained entirely by two transparent decision rules. Simulations demonstrate good finite-sample performance, and we apply the method to quality measurement for substance use disorder treatment facilities.
 \end{abstract}
 
 \section{Introduction}
 
-Many consequential policy decisions rely on statistical models whose outputs directly affect financial payments, public reporting, and organizational reputation. These decisions often require causal estimates of treatment effects or policy interventions, not just predictions. Medicare quality measurement programs---including the Hospital Readmissions Reduction Program, Hospital Value-Based Purchasing, and Medicare Advantage Star Ratings---use risk-adjusted outcome models to evaluate provider performance and allocate billions of dollars in incentive payments each year \citep{cms_quality}. Because these models determine penalties, bonuses, and public rankings, they operate in a high-stakes regulatory environment where methodological choices must withstand scrutiny from providers, regulators, and the public. In such settings, interpretability is not merely a desirable feature but often a practical requirement for adoption: stakeholders demand models whose structure can be explained, audited, and defended, particularly when results may trigger financial penalties or allegations of poor care quality \citep{obermeyer2019, rajkomar2019, rudin2019}. Historically, this has led agencies such as the Centers for Medicare \& Medicaid Services to rely heavily on relatively transparent approaches, even when more flexible machine learning methods might offer improved predictive accuracy or better risk adjustment.
+Many policy decisions that rely on statistical models directly affect financial payments, criminal justice outcomes, organizational reputation, and many other sensitive or high-risk outcomes. These decisions often require causal estimates of treatment effects or policy interventions, not just predictions. As one example, Medicare quality measurement programs---including the Hospital Readmissions Reduction Program, Hospital Value-Based Purchasing, and Medicare Advantage Star Ratings---use risk-adjusted outcome models to evaluate provider performance and allocate billions of dollars in incentive payments each year \citep{cms_quality}. Because these models determine penalties, bonuses, and public rankings, they operate in a high-stakes regulatory environment where methodological choices must withstand scrutiny from providers, regulators, and the public. In such settings, interpretability is not merely a desirable feature but often a practical requirement for adoption: stakeholders demand models whose structure can be explained, audited, and defended, particularly when results may trigger financial penalties or allegations of poor care quality \citep{obermeyer2019, rajkomar2019, rudin2019}. Historically, this has led stakeholders to rely heavily on relatively transparent approaches, even when more flexible machine learning methods might offer improved predictive accuracy, better risk adjustment, or more appropriate causal effects.
 
 Recent advances in causal inference have allowed the use of data-adaptive machine learning methods in causal estimation while still maintaining asymptotically normal, root-$n$ consistent estimates by using cross-fitting \citep{chernozhukov2018}. Cross-fitting separates the estimation of nuisance functions (propensity scores and outcome functions) from their evaluation in the efficient influence function by splitting the data into multiple folds and repeatedly estimating nuisances on the complement of each fold. A key technical requirement in these methods is that nuisance estimators converge sufficiently fast---typically faster than $n^{-1/4}$ in mean squared error. In practice, off-the-shelf machine learning methods such as random forests, gradient boosting, and neural networks are commonly employed\citep{bach2021, susmann2025}. While these flexible learners often achieve good predictive performance, they are generally black-box models whose internal structure cannot be easily interpreted. 
 
-Optimal decision trees offer a compelling alternative: they are fully interpretable, provide globally optimized decision rules, and avoid some of the pathologies of greedy tree induction \citep{lin2020}. While their computational properties have been extensively studied, their statistical properties in causal inference remain underexplored. We build on recent developments in optimal tree theory to show under what conditions optimal trees satisfy the stringent requirements for valid causal inference via cross-fitting. Furthermore, we introduce a novel estimation alternative to cross-fitting, which we call the \textit{doubletree} algorithm. Doubletree combines Rashomon set theory---the study of near-optimal model sets---with cross-validation fold intersection to produce a single tree per nuisance function. Unlike cross-fitting, which produces $K$ distinct trees for each nuisance function (one per fold), doubletree uses one propensity tree and one outcome tree. This maximizes interpretability and auditability for high-stakes settings: stakeholders need only understand two decision trees rather than examining fold-varying nuisance estimators. We show that doubletree is asymptotically equivalent to cross-fitting, and we demonstrate its good performance in simulation.
+Optimal decision trees offer a compelling alternative: they are fully interpretable, provide globally optimized decision rules, and avoid the pathologies of greedy tree induction \citep{lin2020}. While their computational properties have been extensively studied, their statistical properties in causal inference remain underexplored. We build on recent developments in optimal tree theory to show under what conditions optimal trees satisfy the stringent requirements for valid causal inference via cross-fitting. Furthermore, we introduce a novel estimation alternative to cross-fitting, which we call the \textit{doubletree} algorithm. Doubletree combines Rashomon set theory---the study of near-optimal model sets---with cross-validation fold intersection to produce a single tree per nuisance function. Unlike cross-fitting, which produces $K$ distinct trees for each nuisance function (one per fold), doubletree uses one propensity tree and one outcome tree. This maximizes interpretability and auditability for high-stakes settings: stakeholders need only understand two decision trees rather than examining fold-varying nuisance estimators. We show that doubletree is asymptotically equivalent to cross-fitting, and we demonstrate its good performance in simulation.
 
-The rest of the paper is organized as follows. Section~\ref{sec:methods} presents the EIF-based estimation framework with optimal tree nuisance learners. Section~\ref{sec:rashomon} describes the doubletree algorithm and states the main theoretical results of the paper. Section~\ref{sec:results} reports simulation and empirical findings. Section~\ref{sec:discussion} discusses limitations and extensions, and Section~\ref{sec:conclusion} concludes.
+The rest of the paper is organized as follows. Section~\ref{sec:methods} presents the efficient influence function and an estimator based on it using optimal tree nuisance learners. Section~\ref{sec:rashomon} describes the doubletree algorithm and states the main theoretical results of the paper. Section~\ref{sec:results} reports simulation and empirical findings. Section~\ref{sec:discussion} discusses limitations and extensions, and Section~\ref{sec:conclusion} concludes.
 
 \section{Methods}
 \label{sec:methods}
 
-We now formalize the statistical framework. We focus on the average treatment effect on the treated (ATT) as the target causal parameter, though our approach extends to other causal estimands (Section~\ref{sec:discussion}). The key challenge is to embed interpretable optimal decision trees as nuisance function estimators within the efficient influence function framework, while ensuring they achieve the convergence rates required for valid inference. We first present the standard cross-fitting approach with tree nuisances, establishing conditions under which trees satisfy the $o(n^{-1/4})$ rate. We then introduce the doubletree algorithm (Section~\ref{sec:rashomon}), which produces a single interpretable tree per nuisance function.
+We now formalize the statistical framework. We focus on the average treatment effect on the treated (ATT) as the target causal parameter, though our approach extends easily to other causal estimands (Section~\ref{sec:discussion}). The key challenge is to embed interpretable optimal decision trees as nuisance function estimators within the efficient influence function framework, while ensuring they achieve the convergence rates required for valid inference. We first present the standard cross-fitting approach with tree nuisances, establishing conditions under which trees satisfy the $o(n^{-1/4})$ rate. We then introduce the doubletree algorithm (Section~\ref{sec:rashomon}), which gives a more interpretable alternative to cross-fitting.
 
 \subsection{Setting and target parameter}
 
-We observe $n$ observations $O_1, \ldots, O_n$ each \iid draws from the random variable $\bO = (\bX, A, Y) \sim \Prob$. The observed data $\bO$ consists of a covariate vector $\bX \in \cX \subset \R^p$, a binary treatment $A \in \{0,1\}$, and an outcome $Y \in \cY \subset \R$. Let $Y(a)$ denote the potential outcome under treatment $A = a$. Our target parameter is the average treatment effect on the treated (ATT),
+We observe $n$ observations $O_1, \ldots, O_n$ each an \iid draw from the random variable $\bO = (\bX, A, Y) \sim \Prob$. The observed data $\bO$ consists of a covariate vector $\bX \in \cX \subset \R^p$, a binary treatment $A \in \{0,1\}$, and an outcome $Y \in \cY \subset \R$. Let $Y(a)$ denote the potential outcome under treatment $A = a$. Our target parameter is the average treatment effect on the treated (ATT),
 \begin{equation}
 \label{eq:att}
 \theta_0 = \E[Y(1) - Y(0) \mid A=1].
 \end{equation}
 
-A common strategy for estimating the ATT without placing many restrictions on the distribution of $\bO$ is to define an estimator via the efficient influence function (EIF) $\psi(O; \theta, \eta)$.
+Under the following assumptions, we may identify the ATT from the observed data:
+\begin{assumption}\label{assump:causal-inf-assumps}
+    We require the following:
+\begin{itemize}
+\item \textbf{Consistency:} $Y = Y(a), a = 0, 1$.
+\item \textbf{Strong positivity:} There exists $c > 0$ such that $c \le e(\bx) \le 1-c$ almost surely, where $e(\bx) = \Prob(A=1|\bX=\bx)$ is the propensity score.
+\item \textbf{No unmeasured confounding:} $Y(0) \perp A \mid \bX$.
+\end{itemize} 
+\end{assumption}
+These are standard assumptions in the causal inference literature. Consistency ensures that there aren't multiple versions of treatment and that we observe one of the counterfactuals for each observation. Positivity ensures that there is sufficient overlap between the treated and control groups, and the no unmeasured confounding assumption ensures that we have measured all relevant sources of confounding. Note that we require strong positivity and bound the propensity score both below and above. This is stronger than what is required only for identification of the ATT, but we require this stricter positivity for some of the technical development later.
+
+Under these assumptions, we may identify the ATT as $\theta_0 = \E\left\{\E(Y | \bX, A = 1) - \E(Y | \bX, A = 0) | A = 1 \right\}$. The efficient influence function (EIF) $\psi(O; \theta, \eta)$ for this functional is well known to be
 \begin{equation}
 \label{eq:score}
-\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl( Y - \mu_0(\bX) - \theta \bigr) + \frac{1-A}{\pi} \, \frac{e(\bX)}{1 - e(\bX)} \bigl( Y - \mu_0(\bX) \bigr)
+\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl\{ Y - \mu_0(\bX) - \theta \bigr\} + \frac{(1-A)e(\bX)}{\pi\{1 - e(\bX)\}} \bigl\{ Y - \mu_0(\bX) \bigr\}
 \end{equation}
-where $\pi = \E(A) = \Prob(A=1)$ is the marginal proportion of treated observations, $e(\bX) = \E(A | \bX)$ is the propensity score, and $\mu_0(\bx) = \E(Y | A = 0, \bX)$ is the outcome function. We can construct an estimator $\thetahat$ by solving the sample moment condition
-\begin{equation}
-\label{eq:dml-moment}
-\frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \thetahat, \hat\eta\bigr) = 0,
-\end{equation}
-where $\hat\eta = (\hat{e}, \hat{\mu}_0)$ are estimated on held out data or via cross-fitting. This yields the estimator
+where $\pi = \Prob(A=1)$ is the marginal proportion of treated observations, and $\mu_0(\bx) = \E(Y | A = 0, \bX)$ is the outcome function. We can construct an estimator $\thetahat$ by solving the sample moment condition $\frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \thetahat, \hat\eta\bigr) = 0$,
+where $\hat\eta = (\hat{e}, \hat{\mu}_0)$ are estimated via cross-fitting. Partition the sample $\{O_i\}_{i=1}^n$ into $K$ folds $I_1, \ldots, I_K$ of approximately equal size $n/K$. For each fold $k \in \{1,\ldots,K\}$, estimate $\hat{e}^{(k)}$ and $\hat{\mu}_0^{(k)}$ using only the observations in the training set $I_{-k} := \{1,\ldots,n\} \setminus I_k$ (which has size $m_k \approx n(K-1)/K$). For each observation $i \in I_k$, use the nuisance estimates $\hat\eta^{(k)}(\bX_i) = (\hat{e}^{(k)}(\bX_i), \hat{\mu}_0^{(k)}(\bX_i))$ trained on data excluding fold $k$. The nuisances are then constructed as $\hat\eta(\bX_i) = \hat\eta^{(k(i))}(\bX_i)$ where $k(i)$ denotes the fold containing observation $i$.
+
+This yields the estimator
 \begin{equation}
 \label{eq:att-estimator}
-\thetahat = \frac{1}{n} \sum_{i=1}^n \Biggl[ \frac{A_i}{\hat\pi}\bigl( Y_i - \hat\mu_0(\bX_i) \bigr) + \frac{1-A_i}{\hat\pi} \, \frac{\hat{e}(\bX_i)}{1 - \hat{e}(\bX_i)} \bigl( Y_i - \hat\mu_0(\bX_i) \bigr) \Biggr],
+\thetahat = \frac{1}{n} \sum_{i=1}^n \Biggl[ \frac{A_i}{\hat\pi}\bigl\{ Y_i - \hat\mu_0(\bX_i) \bigr\} + \frac{(1-A_i)\hat{e}(\bX_i)}{\pihat\{1 - \hat{e}(\bX_i)\}} \bigl\{ Y_i - \hat\mu_0(\bX_i) \bigr\} \Biggr],
 \end{equation}
 where $\hat\pi = n^{-1}\sum_{i=1}^n A_i$ is the sample proportion treated.
 
-We require the following standard assumptions for causal identification of the ATT:
-\begin{itemize}
-\item \textbf{Consistency:} $Y = Y(A)$ (no multiple versions of treatment; we observe the potential outcome corresponding to the received treatment).
-\item \textbf{Positivity (strong overlap):} There exists $c > 0$ such that $c \le e_0(X) \le 1-c$ almost surely, where $e_0(X) = P(A=1|X)$. This ensures sufficient overlap between treated and control groups and is required for the cross-entropy loss-norm link (Appendix~\ref{app:loss-norm}).
-\item \textbf{Exchangeability (unconfoundedness):} $Y(a) \perp A \mid X$ for $a \in \{0,1\}$ (no unmeasured confounding).
-\end{itemize} 
+Under some additional regularity conditions (see Appendix XX), it has been previously shown \cite{chernozhukov2018, kennedy2016semiparametric} that $\sqrt{n}(\thetahat - \theta_0) \leadsto N(0, \sigma^2)$ for $\sigma^2 = \Var[\psi(O; \theta_0, \eta_0)]$ as long as 
+\begin{align*}
+\label{eq:product-rate}
+\|\hat{e} - e_0\|_2 \cdot \|\hat{\mu}_0 - \mu_0\|_{2} = o_p(n^{-1/2}).
+\end{align*}
+The variance $\sigma^2$ may be estimated by its empirical counterpart: \begin{equation}
+\hat\sigma^2 = \frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \hat\theta, \hat\eta^{(-k(i))}\bigr)^2,
+\end{equation}
+and confidence intervals may be constructed from $\sigmahat^2$.
 
-Under these assumptions, 
-
+We will examine in the next section whether and in what cases optimal decision trees can be used to estimate the nuisance functions under these rate requirements for the asymptotic normality of the ATT estimator. 
 
 \subsection{Optimal decision trees as nuisance learners}
 
-We estimate the nuisance functions $e$ and $\mu_0$ using optimal decision trees. A decision tree partitions the covariate space $\cX$ into regions (leaves) and assigns a constant prediction to each region. Optimal trees, such as those produced by the Generalized and Scalable Optimal Sparse Decision Trees (GOSDT) algorithm \citep{lin2020}, minimize empirical risk plus a complexity penalty (e.g., on the number of leaves or tree depth), yielding globally optimized partitions and predictions. Trees are flexible in both the partition structure and the leaf values, and they yield interpretable rules.
+We estimate the nuisance functions $e$ and $\mu_0$ using optimal decision trees. A decision tree partitions the covariate space $\cX$ into regions (leaves) and assigns a constant prediction to each region. We consider trees that minimize empirical risk plus a complexity penalty. Formally, given a training sample of size $m$, we solve
+\begin{equation}
+\label{eq:tree-optimization}
+\hat{\gamma} = \argmin_{\gamma \in \mathcal{T}} \left\{ \frac{1}{m} \sum_{i=1}^m L(Z_i, \gamma(\bX_i)) + \lambda_m \cdot \cN(\gamma) \right\},
+\end{equation}
+where $Z_i$ is the target ($A_i$ for propensity score estimation or $Y_i$ for outcome regression), $\mathcal{T}$ is the class of axis-aligned decision trees, $L$ is a loss function (squared error for regression, cross-entropy for classification), $\lambda_m > 0$ is a regularization parameter, and $\cN(\gamma)$ denotes the number of leaves in the tree $\gamma$.
 
-We use a single \emph{loss} $L$ (e.g., squared error for continuous outcomes, cross-entropy for binary outcomes) and a complexity penalty for both nuisances. For the propensity score $e(X)$, we fit a tree that predicts $A$ given $X$; for the outcome regression $\mu_0(X) = \E[Y | A=0, X]$, we fit a tree on control units (with $A=0$) to predict $Y$ given $X$. Thus we obtain two trees: $\hat{e}$ and $\hat{\mu}_0$.
-
-For each cross-fitting fold $k$, we train $\hat{e}^{(-k)}$ and $\hat{\mu}_0^{(-k)}$ on the training sample (the complement of fold $k$) using the chosen tree learner. The predictions $\hat\eta^{(-k)}(X) = (\hat{e}^{(-k)}(X), \hat{\mu}_0^{(-k)}(X))$ are then used in the score \eqref{eq:score} and estimator \eqref{eq:att-estimator} for observations in fold $k$. The fitted $\hat\eta$ thus consists of optimal-tree nuisance learners that are interpretable and that we will show can satisfy the rate conditions required for valid inference.
-
-\subsection{Main result}
-
-We treat the nuisance estimators as \emph{penalized ERM} (as in \citet{xuStatisticalOptimalityOptimal2026}): they minimize empirical risk plus a penalty $\lambda_n \times (\text{number of leaves})$ over axis-aligned decision trees. The penalty controls complexity; the optimal complexity (balancing approximation and estimation) is $s_n \asymp n^{d/(2\beta+d)}$ (optimal for Hölder-$\beta$ functions). In practice we use a GOSDT-style solver that minimizes this objective; the same rates apply if the solver's suboptimality is $o(s_n \log n / n)$ (see Appendix).
-
-Under the following conditions, these tree nuisance estimators achieve the $o(n^{-1/4})$ $\MSE$ rate required for valid inference, so that the resulting EIF-based estimator of the ATT is $\sqrt{n}$-consistent and asymptotically normal.
-
+We require some additional regularity conditions for establishing the properties of the optimal decision tree estimators. 
+\begin{assumption}\label{assump:regularity}
+Additional regularity conditions:
 \begin{itemize}
-\item \textbf{Identification:} Unconfoundedness and overlap hold; outcomes and the propensity score are bounded so that the relevant moments exist.
-\item \textbf{Approximation:} The support of $X$ is contained in $[0,1]^d$ (or a compact set, after transformation). The true nuisances $\eta_0 = (e_0, m_{0,0}, m_{1,0})$ lie in a H\"older class $H^\beta([0,1]^d)$ for some $\beta > 0$.
-\item \textbf{Loss:} The loss $L$ is such that excess risk $R(\hat\eta) - R(\eta_0)$ controls the $L^2(P)$ norm in the sense required by the EIF expansion (e.g., squared error, or cross-entropy when $Y$ is binary).
-\item \textbf{Complexity:} The tree complexity (number of leaves) satisfies $s_n \asymp n^{d/(2\beta+d)}$.
-\item \textbf{Nuisance convergence rate:} The smoothness and dimension satisfy $\beta/(2\beta+d) > 1/4$, or equivalently $\beta > d/2$, so that the tree rate is faster than $n^{-1/4}$.
+\item  $\cX \in [0,1]^p$ (or a compact set, after transformation). 
+\item The true nuisance $\gamma_0$ lies in a H\"older class $H^\beta([0,1]^p)$ for some $\beta > p/2$, where $\gamma_0$ is either the propensity score $e(\bx)$ or the outcome function $m_0(\bx)$.
+\item For a function $f(\bx): \cX \rightarrow \R$, define the risk $R(f) = \mathbb{E}[L(Z, f(X))]$. There exists a constant $C > 0$ such that
+\[
+R(f) - R(\gamma_0) \le \delta \quad \Rightarrow \quad \|f - \gamma_0\|_2^2 \le C\delta.
+\]
 \end{itemize}
-Under these conditions, the penalized-ERM tree nuisance estimators $\hat{e}$, $\hat{m}_0$, and $\hat{m}_1$ (trained per fold as above) achieve $\|\hat\eta - \eta_0\|_{L^2(P)} = O_p(n^{-\beta/(2\beta+d)})$, hence $o_p(n^{-1/4})$, by the excess-risk rate and the loss--norm link (see Appendix). It follows from semiparametric theory \citep{chernozhukov2018} that the estimator $\hat\theta$ defined by \eqref{eq:dml} satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$, where $\sigma^2$ is the variance of the efficient influence function $\psi(O; \theta_0, \eta_0)$. Formal statements and proof details are given in the Appendix.
+\end{assumption}
+The first item in the assumption is just a technical condition on the covariates. The second condition ensures that the nuisance function is not too wiggly and may be approximated well. The third item ensures the loss function is well behaved and is known to be satisfied for the loss functions we use in this paper: $C = 1$ if $L(z, f) = (z - f)^2$ (squared error), and $C$ depends on $c$ from Assumption \ref{assump:causal-inf-assumps} when $L(z, f) = -z \log f - (1-z) \log(1-f)$ (cross-entropy for binary $z \in \{0,1\}$).
 
-In high dimensions, the complexity of the tree class can grow quickly; to retain the same rate, one may impose sparsity of the regression function, restricted splitting depth, or margin conditions (see Appendix).
+The conditions allow us to write out the convergence rate of optimal decision trees as estimators for the nuisance functions.
+\begin{proposition}[Convergence rate of tree-based nuisance estimators]
+\label{prop:tree-rate}
+Let $\hat{\gamma}$ solve \eqref{eq:tree-optimization} with $\lambda_m \asymp (\log m)/m$. Under Assumption \ref{assump:regularity}, $\hat{\gamma}$ has complexity $\cN(\hat{\gamma}) = O_p(m^{p/(2\beta+p)})$ and achieves
+\[
+\|\hat{\gamma} - \gamma_0\|_2 = O_p(m^{-\beta/(2\beta+p)}) = o_p(m^{-1/4}).
+\]
+\end{proposition}
+The result follows from three components: (1) the oracle inequality of \citet{xuStatisticalOptimalityOptimal2026}, Theorem 3.1, which bounds excess risk by approximation error plus $(\log m)/m$ per leaf; (2) the approximation rate $s^{-2\beta/p}$ for Hölder-$\beta$ functions by trees with $s$ leaves; and (3) the loss-norm link (Assumption \ref{assump:regularity}), which converts risk bounds to $L^2$ convergence. The complexity bound follows from balancing approximation and estimation errors. See Appendix~\ref{app:tree-rate} for details.
 
-\subsection{Estimation and inference}
+This result allows us to lay out conditions for using optimal trees as nuisance functions in estimating the ATT. 
+\begin{proposition}
+Let $\ehat(\bx)$ and $\muhat_0(\bx)$ be estimated by solving \eqref{eq:tree-optimization} via cross-fitting with $\lambda_n \asymp (\log n)/n$. Let $\thetahat_{\text{crossfit}}$ be the ATT estimator \eqref{eq:att-estimator} plugging in these cross-fit nuisance functions. Then under Assumptions \ref{assump:causal-inf-assumps} and \ref{assump:regularity}, we have
+$\sqrt{n}(\thetahat_{\text{crossfit}} - \theta_0) \leadsto N(0, \sigma^2)$.
+\end{proposition}
 
-In practice we use $K$-fold cross-fitting with $K = 5$ or $K = 10$ (or another user-specified value). The regularization parameter $\lambda$ (penalty per leaf) can be chosen by cross-validation: for each nuisance, minimize held-out loss (the chosen loss $L$ on a validation split) over a grid of $\lambda$ values. A theory-driven default is $\lambda \propto (\log n)/n$ (e.g.\ $\lambda = (\log n)/n$), which matches the rate conditions in the Appendix and typically yields trees with $O(n^{d/(2\beta+d)})$ leaves under the conditions of the theorem; the proportionality constant can be tuned by cross-validation if desired. Sensitivity to the choice of $\lambda$ can be examined in simulations. In practice, complexity is controlled by the penalty $\lambda$ and the maximum number of leaves (or the solver's complexity bound), which play the role of the theoretical rate index $s_n$.
+\begin{remark}
+Assumption \ref{assump:regularity} establishes sufficient conditions for ensuring optimal trees may be used as nuisance function estimators in cross-fitting. However, the smoothness condition in Assumption \ref{assump:regularity} may seem surprising -- we are requiring smoothness, but we are using a fundamentally non-smooth estimator. The smoothness is required so that a piecewise constant function can well approximate the underlying function, and it rules out functions that are too wiggly. However, there are many types of non-smoothness that optimal trees will perform really well on, so one could think of this as a conservative condition.
+\end{remark}
 
-The asymptotic variance $\sigma^2$ of $\sqrt{n}(\hat\theta - \theta_0)$ is the variance of $\psi(O; \theta_0, \eta_0)$. We estimate it by the empirical variance of the estimated influence function,
-\begin{equation}
-\hat\sigma^2 = \frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \hat\theta, \hat\eta^{(-k(i))}\bigr)^2.
-\end{equation}
-When evaluating $\psi$ in this formula, $\pi$ is estimated by $\hat{\pi} = n^{-1} \sum_{i=1}^n A_i$, and the same fold-specific nuisances $\hat{\eta}^{(-k(i))}$ as in the score are used. A Wald-type 95\% confidence interval for $\theta_0$ is
-\begin{equation}
-\hat\theta \pm 1.96 \, \frac{\hat\sigma}{\sqrt{n}}.
-\end{equation}
+One could proceed from here using optimal trees in causal estimation, but some interpretability challenges remain. Each tree is arguably interpretable -- users and stakeholders can examine any given tree and presumably understand how it operates and audit it for acceptability. However, in the context of cross-fitting, the number of trees grows with the number of folds $K$. Users may be confused why some observations are governed by a tree with one structure and other observations are governed by another tree with a completely different structure. In the next section, we reduce this complexity and provide the doubletree algorithm, which uses a single tree structure per nuisance function.
 
-\section{The Doubletree Algorithm}
+\section{The doubletree algorithm}
 \label{sec:rashomon}
 
-Standard cross-fitting produces $K$ distinct trees per nuisance function (one per fold), which hinders interpretability: a stakeholder inspecting the propensity model must understand $K$ different trees rather than a single stable rule. The doubletree algorithm addresses this by using Rashomon set theory to identify a single tree structure per nuisance that is robustly good across all folds. The result is one propensity tree and one outcome tree for stakeholder communication, with fold-specific fitted versions used internally to preserve cross-fitting's statistical validity.
+Standard cross-fitting produces $K$ distinct trees per nuisance function (one per fold), which hinders interpretability: a stakeholder inspecting the propensity model must understand $K$ different trees rather than a single stable rule. The doubletree algorithm addresses this by using Rashomon set theory to identify a single tree structure per nuisance that is robustly good across all folds. The result is one propensity tree and one outcome tree for stakeholder communication.
 
-\subsection{Rashomon set per fold}
+\subsection{Rashomon sets and the doubletree algorithm}
 
-For each cross-fitting fold $k$, we fit optimal trees on the training part (data not in fold $k$) as in Section~\ref{sec:methods}. The \emph{Rashomon set} for fold $k$ is the set of trees that are ``almost as good'' as the best tree on that training set: trees (in $\cT_{M_n}$ or $\cT_{s_n}$) whose empirical penalized risk on $\mathcal{D}^{(-k)}$ is within a factor $(1+\varepsilon)$ of the minimum, or within an additive $\varepsilon$ of the best. Formally, $R_k(\varepsilon) = \{ f \in \cT_{M_n} : R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon) \cdot \text{best}^{(-k)} \}$, where $\text{best}^{(-k)}$ is the minimal penalized risk on the training data for fold $k$ (see Appendix~\ref{app:rashomon}). Thus we obtain multiple trees that are good enough on that fold, rather than a single optimal tree. Algorithms such as SPLIT \citep{babbarNearOptimalDecisionTrees2025} or GOSDT-style solvers can enumerate or approximate the Rashomon set for decision trees; methods that enumerate the full Rashomon set for sparse trees have been studied by \citet{xinExploringWholeRashomon2022}. For the validity result in Proposition~\ref{prop:rashomon-dml} (Appendix), the tolerance must be chosen as a sequence $\varepsilon_n$ with $\varepsilon_n \to 0$ and $\varepsilon_n = o(n^{-1/2})$ so that nuisances selected from $R_k(\varepsilon_n)$ satisfy the conditions for $\sqrt{n}$-inference. For the theory in the Appendix (Lemma~\ref{lem:oracle-near}, Proposition~\ref{prop:rashomon-dml}) to apply, we restrict the Rashomon set (and thus the intersection) to trees with at most $s_n$ leaves (or $O(s_n)$), consistent with the sieve and rate conditions there.
+For a given nuisance function $\gamma$ and fold $k$, the \emph{Rashomon set} for $\gamma$ is the set of trees that are ``almost as good'' as the best tree on that training set. Formally, 
+\begin{align*}
+\cR_k(\varepsilon_n; \gamma) = \left\{\gamma \in \cT : \left[ \frac{1}{m_k} \sum_{i\in I_{-k}} L\{Z_i, \gamma(\bX_i)\} + \lambda_m \cdot \cN(\gamma) \right] \le (1+\varepsilon_n) \cdot \left[ \frac{1}{m} \sum_{i=1}^m L\{Z_i, \gammahat^{(k)}(\bX_i)\} + \lambda_m \cdot \cN(\gammahat^{(k)})\right]\right\}.
+\end{align*}
+The Rashomon set is the set of all trees that have empirical pemalized risk within a given multiplicative factor ($1 + \varepsilon_n$) of the empirical penalized risk of the best tree. 
+Thus we obtain multiple trees that are, in some sense (if $\varepsilon_n$ is chosen appropriately) good enough on that fold, rather than a single optimal tree. Doing this for each fold, we have $K$ Rashomon sets $\{cR_k(\varepsilon_n)\}_{k=1,..,K}$.
 
-\subsection{Intersection across folds}
+The doubletree algorithm selects a single tree from the $K$ fold-specific Rashomon sets for each nuisance function. Specifically, we obtain a single tree for each nuisance function by taking the tree in the intersection of all the Rashomon sets with the lowest penalized risk (on its training data):
+\begin{align}\label{doubletree-nuisances}
+\ehat(\cdot) &= \argmin_{e \in \bigcap_k \cR_k(\varepsilon_n; e)} \Bigl\{ \frac{1}{m_k} \sum_{i\in I_{-k}} L\{Z_i, e(\bX_i)\} + \lambda_m \cdot \cN(e)  \Bigr\}\\
+\muhat_0(\cdot) &= \argmin_{\mu \in \bigcap_k \cR_k(\varepsilon_n; \mu_0)} \Bigl\{ \frac{1}{m_k} \sum_{i\in I_{-k}} L\{Z_i, \mu(\bX_i)\} + \lambda_m \cdot \cN(\mu)  \Bigr\}.
+\end{align}
 
-The goal is to select a \emph{single} tree per nuisance (one propensity tree and one outcome tree for $\mu_0$) for interpretability and reporting, while preserving valid inference. To that end, we define the \emph{intersection} of the Rashomon sets across folds: the set of tree \emph{structures} (splits) that appear in every fold's Rashomon set when each fold's trees are fitted on their respective training data $\mathcal{D}^{(-k)}$. A structure in the intersection is one that, when refit on each fold's training data, has penalized risk within $(1+\varepsilon_n)$ of the best for that fold.
+Define the doubletree estimator $\thetahat_{\text{doubletree}}$ as the EIF-based ATT estimator with these nuisances plugged in. We then have the following result
+\begin{proposition}
+Let $\ehat(\bx)$ and $\muhat_0(\bx)$ be estimated as in \eqref{doubletree-nuisances} with $\lambda_n \asymp (\log n)/n$ and $\varepsilon = o(n^{-1/2})$. Let $\thetahat_{\text{doubletree}}$ be the ATT estimator \eqref{eq:att-estimator} plugging in these nuisance functions. Then under Assumptions \ref{assump:causal-inf-assumps} and \ref{assump:regularity}, we have
+$\sqrt{n}(\thetahat_{\text{doubletree}} - \theta_0) \leadsto N(0, \sigma^2)$.
+\end{proposition}
 
-The intersection is non-empty under a \textbf{stability condition} (Theorem~\ref{thm:intersection-existence}, Appendix): there exists a tree structure that is robustly good across folds---that is, when refit on each fold's training data, it remains $(1+\varepsilon_n)$-near-optimal. This is an interpretable assumption that leaves failure modes explicit; we verify it empirically in simulations (Section~\ref{sec:results}), where the intersection is non-empty in 85--95\% of replications for smooth DGPs and 60--80\% for rough DGPs. When the intersection is empty, the implementation falls back to fold-specific trees.
-
-One can compute the intersection by enumerating or approximating the Rashomon sets per fold and matching structures (e.g., via a canonical representation or JSON). We then choose one structure from the intersection per nuisance (e.g., the smallest or the first).
-
-For use in the estimator, for each fold $k$ we take $\tilde{\eta}^{(-k)}$ to be the tree from the intersection \emph{refit on $\mathcal{D}^{(-k)}$}---or equivalently, the fold-$k$ instance of that structure from the Rashomon set of fold $k$. The score $\psi(O_i; \theta, \tilde{\eta}^{(-k(i))})$ is evaluated with these fold-specific fitted nuisances, so that the orthogonality and cross-fitting structure are preserved. The output is one reportable propensity tree and one reportable outcome tree for stakeholders, with fold-specific fitted versions used in the estimator.
-
-\subsection{Rationale and caveats}
-
-The doubletree algorithm directly addresses the interpretability challenge in high-stakes settings. Consider Medicare quality measurement: when a hospital faces financial penalties based on risk-adjusted readmission rates, administrators need to understand \emph{exactly which patient characteristics} drive the risk adjustment. With standard cross-fitting, the answer depends on which fold the patient falls into. With doubletree, there is one propensity tree and one outcome tree---stakeholders can inspect, audit, and challenge these rules without navigating fold-specific variations.
-
-From a theoretical standpoint, under the conditions of the Appendix (Definition~\ref{def:rashomon-fold}, Definition~\ref{def:intersection}, Proposition~\ref{prop:rashomon-dml}), choosing nuisances from the Rashomon set---or from the intersection, with refit per fold---yields $\tilde{\eta}^{(-k)}$ that are $o_p(n^{-1/4})$-close to $\eta_0$. The general theorem (Appendix~\ref{app:alt-nuisances}, Theorem~\ref{thm:dml-alt}) then implies that the EIF-based estimator with these nuisances remains $\sqrt{n}$-consistent and asymptotically normal with the same limiting variance.
 
 A caveat is that the intersection tree incurs a finite-sample bias penalty relative to the fold-specific optimal tree, quantified as $O_p(\varepsilon_n \cdot \text{best}^{(-k)})$ (Corollary~\ref{cor:intersection-overhead}), where $\varepsilon_n$ is the Rashomon tolerance and $\text{best}^{(-k)} = O_p(1)$ is the minimal penalized risk per fold. Under the condition $\varepsilon_n = o(n^{-1/2})$ for valid inference, this overhead is asymptotically negligible, but in finite samples it represents a bias--interpretability trade-off. This trade-off can be examined in simulations (Section~\ref{sec:results}), where we compare fold-specific optimal trees versus the Rashomon intersection.
 
@@ -437,7 +456,7 @@ The following oracle inequality is a direct application of \citet{xuStatisticalO
 \label{lem:oracle}
 For $\hat\eta$ the penalized ERM~\eqref{eq:perm} (minimize $R_n(f) + \lambda_n \cdot (\#\text{leaves of } f)$ over $\cT_{M_n}$) with $\lambda_n \asymp (\log n)/n$ and $s_n$ as above,
 \[
-R(\hat\eta) - R(\eta_0) \le C \Bigl( \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] + \frac{s_n \log n}{n} \Bigr) + o_p(1).
+R(\hat\eta) - R(\eta_0) \le C \Bigl[ \inf_{f \in \cT_{s_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} + \frac{s_n \log n}{n} \Bigr] + o_p(1).
 \]
 \end{lemma}
 
@@ -480,7 +499,7 @@ We combine Lemmas~\ref{lem:approx}--\ref{lem:optimal-sn} to obtain the stated ra
 \noindent\textbf{Step 1: Apply the oracle inequality (Lemma~\ref{lem:oracle}).}
 By Lemma~\ref{lem:oracle}, for $\hat\eta$ the penalized ERM with $\lambda_n \asymp (\log n)/n$:
 \[
-R(\hat\eta) - R(\eta_0) \le C \Bigl( \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] + \frac{s_n \log n}{n} \Bigr) + o_p(1).
+R(\hat\eta) - R(\eta_0) \le C \Bigl[ \inf_{f \in \cT_{s_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} + \frac{s_n \log n}{n} \Bigr] + o_p(1).
 \]
 
 \noindent\textbf{Step 2: Apply the approximation bound (Lemma~\ref{lem:approx}).}
@@ -532,7 +551,7 @@ For squared loss, $\phi(\delta) = \delta$ (identity). For cross-entropy with bou
 
 From Step~3, $R(\hat\eta) - R(\eta_0) = O_p(n^{-2\beta/(2\beta+d)})$. Applying the loss--norm link:
 \[
-\|\hat\eta - \eta_0\|_{L^2(P)}^2 \le \phi\bigl( O_p(n^{-2\beta/(2\beta+d)}) \bigr) = O_p(n^{-2\beta/(2\beta+d)}),
+\|\hat\eta - \eta_0\|_{L^2(P)}^2 \le \phi\bigl\{ O_p(n^{-2\beta/(2\beta+d)}) \bigr\} = O_p(n^{-2\beta/(2\beta+d)}),
 \]
 where the last equality uses $\phi(\delta) \lesssim \delta$.
 
@@ -577,7 +596,7 @@ We now verify each condition for the ATT with tree nuisances.
 \noindent\textbf{Condition (i): Neyman orthogonality.}
 For ATT, the orthogonal score is (e.g., Hahn 1998; Chernozhukov et al.\ 2018, Example~2):
 \[
-\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl( Y - \mu_0(X) - \theta \bigr) + \frac{1-A}{1-\pi} \, \frac{e(X)}{1 - e(X)} \bigl( Y - \mu_0(X) \bigr),
+\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl\{ Y - \mu_0(X) - \theta \bigr\} + \frac{1-A}{1-\pi} \, \frac{e(X)}{1 - e(X)} \bigl\{ Y - \mu_0(X) \bigr\},
 \]
 where $\eta = (e, \mu_0)$, $\pi = \Prob(A=1)$, $e(X) = \Prob(A=1|X)$, and $\mu_0(X) = \E[Y|A=0,X]$. This score satisfies $\partial_\eta \E[\psi(O; \theta_0, \eta_0)] = 0$ at $(\theta_0, \eta_0)$ by construction (this is the defining property of Neyman-orthogonal scores). See Chernozhukov et al.\ (2018), Section~3.2 for the derivation. $\checkmark$
 
@@ -708,7 +727,7 @@ Optionally one restricts to trees with $\#\text{leaves} \le s_n$ so that the set
 \label{lem:oracle-near}
 Under the same conditions as Lemma~\ref{lem:oracle} (with $R_n^{(-k)}$, $\mathcal{D}^{(-k)}$, and $\text{best}^{(-k)}$ in place of $R_n$, $n$, and the fold-$k$ minimizer). For any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le s_n$ (or $\#\text{leaves}(f) = O_p(s_n)$ under the same $\lambda_n$ logic as Lemma~\ref{lem:hats}),
 \[
-R(f) - R(\eta_0) \le C \Bigl( \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f' \in \cT_{s_n}} \bigl[ R(f') - R(\eta_0) \bigr] \Bigr) + o_p(1).
+R(f) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f' \in \cT_{s_n}} \bigl\{ R(f') - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
 \end{lemma}
 \begin{proof}
@@ -727,8 +746,8 @@ R_n^{(-k)}(f) \le (1+\varepsilon_n) \cdot \text{best}^{(-k)} \le (1+\varepsilon_
 \noindent\textbf{Step 2: Decomposition.}
 Decompose the excess risk $R(f) - R(\eta_0)$ as
 \begin{align*}
-R(f) - R(\eta_0) &= \underbrace{\bigl( R(f) - R_n^{(-k)}(f) \bigr)}_{\text{(I)}} + \underbrace{\bigl( R_n^{(-k)}(f) - R_n^{(-k)}(f^*) \bigr)}_{\text{(II)}} \\
-&\quad + \underbrace{\bigl( R_n^{(-k)}(f^*) - R(f^*) \bigr)}_{\text{(III)}} + \underbrace{\bigl( R(f^*) - R(\eta_0) \bigr)}_{\text{(IV)}}.
+R(f) - R(\eta_0) &= \underbrace{\bigl\{ R(f) - R_n^{(-k)}(f) \bigr\}}_{\text{(I)}} + \underbrace{\bigl\{ R_n^{(-k)}(f) - R_n^{(-k)}(f^*) \bigr\}}_{\text{(II)}} \\
+&\quad + \underbrace{\bigl\{ R_n^{(-k)}(f^*) - R(f^*) \bigr\}}_{\text{(III)}} + \underbrace{\bigl\{ R(f^*) - R(\eta_0) \bigr\}}_{\text{(IV)}}.
 \end{align*}
 
 \noindent\textbf{Step 3: Bound term (II).}
@@ -759,7 +778,7 @@ R(f) - R(\eta_0) &\le O_p\bigl( \sqrt{s_n \log n / n} \bigr) + \varepsilon_n \cd
 \end{align*}
 All $O_p(\sqrt{s_n \log n / n})$ terms sum to $O_p(s_n \log n / n)$ after squaring. Taking $C$ large enough,
 \[
-R(f) - R(\eta_0) \le C \Bigl( \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)] \Bigr) + o_p(1).
+R(f) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f' \in \cT_{s_n}} \bigl\{ R(f') - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
 \end{proof}
 
@@ -791,7 +810,7 @@ With $s_n = n^{d/(2\beta+d)}$, all terms are $O_p(1)$ (or $o_p(1)$), so $\text{b
 \label{lem:intersection-bias}
 Suppose the intersection $\bigcap_{k=1}^K R_k(\varepsilon_n)$ is non-empty, and let $\tilde{\eta}^{(-k)}$ be the refit of an intersection structure on fold $k$'s training data. Then, for each fold $k$,
 \[
-R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl( \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] \Bigr) + o_p(1).
+R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f \in \cT_{s_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
 Under the conditions of Theorem~\ref{thm:nuisance-rate} (with $s_n \asymp n^{d/(2\beta+d)}$ and $\varepsilon_n = o(n^{-1/2})$), this simplifies to
 \[
@@ -807,7 +826,7 @@ and by the loss--norm link,
 \noindent\textbf{Step 1: Apply Lemma~\ref{lem:oracle-near}.}
 By assumption, the intersection structure, when refit on $\mathcal{D}^{(-k)}$, yields a tree $\tilde{\eta}^{(-k)} \in R_k(\varepsilon_n)$ with $\#\text{leaves}(\tilde{\eta}^{(-k)}) \le s_n$. Lemma~\ref{lem:oracle-near} gives
 \[
-R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl( \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f \in \cT_{s_n}} \bigl[ R(f) - R(\eta_0) \bigr] \Bigr) + o_p(1).
+R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f \in \cT_{s_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
 
 \noindent\textbf{Step 2: Use boundedness.}
@@ -1033,7 +1052,7 @@ Once we have $V_{\text{sub}}(\cT_s) = O(s \log s)$, the covering number bound fo
 \label{cor:covering-app}
 Let $\cF$ be a uniformly bounded function class with VC subgraph dimension $V$ and $\sup_{f \in \cF} \|f\|_\infty = M$. Then for $\epsilon > 0$,
 \[
-\log N(\epsilon, \cF, L^2(P)) \le K V \bigl( 1 + \log(M/\epsilon) \bigr),
+\log N(\epsilon, \cF, L^2(P)) \le K V \bigl\{ 1 + \log(M/\epsilon) \bigr\},
 \]
 where $K$ is a universal constant, and $P$ is any probability measure on $\cX$.
 \end{corollary}
@@ -1259,7 +1278,7 @@ The oracle inequality in Lemma~\ref{lem:oracle} bounds $R(\hat\eta) - R(\eta_0)$
 
 Thus, when the empirical process bound gives $O_p(\sqrt{s \log n / n})$ for the supremum of $(P_n - P)f$, the contribution to the excess risk (which involves products or squares of such terms) is:
 \[
-\Bigl( O_p\Bigl(\sqrt{\frac{s \log n}{n}}\Bigr) \Bigr)^2 = O_p\Bigl( \frac{s \log n}{n} \Bigr).
+\Bigl\{ O_p\Bigl(\sqrt{\frac{s \log n}{n}}\Bigr) \Bigr\}^2 = O_p\Bigl( \frac{s \log n}{n} \Bigr).
 \]
 
 This is the rate stated in Lemma~\ref{lem:oracle}, Step~3: terms (I) and (II) together contribute $O_p(s_n \log n / n)$.
