@@ -23,7 +23,7 @@ test_that("select_structure_modal works", {
   result <- select_structure_modal(structures)
 
   expect_type(result, "list")
-  expect_s3_class(result$structure, "TreeStructure")
+  expect_true(S7::S7_inherits(result$structure, optimaltrees::TreeStructure))
   expect_true(result$frequency > 0 && result$frequency <= 1)
   expect_type(result$hash, "character")
   expect_s3_class(result$counts, "table")
@@ -104,9 +104,9 @@ test_that("estimate_att_msplit works with M=1 (single split)", {
   expect_equal(result$diagnostics$structure_frequency_e, 1.0)
   expect_equal(result$diagnostics$structure_frequency_m0, 1.0)
 
-  # Prediction variance should be 0 (only one prediction per obs)
-  expect_equal(result$diagnostics$mean_prediction_variance_e, 0)
-  expect_equal(result$diagnostics$mean_prediction_variance_m0, 0)
+  # Prediction variance is NA for M=1 (cannot compute variance from single value)
+  expect_true(is.na(result$diagnostics$mean_prediction_variance_e))
+  expect_true(is.na(result$diagnostics$mean_prediction_variance_m0))
 })
 
 test_that("estimate_att_msplit works with continuous outcomes", {
