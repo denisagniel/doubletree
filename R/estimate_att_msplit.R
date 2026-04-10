@@ -229,7 +229,8 @@ estimate_att_msplit <- function(X, A, Y,
         preds_m0 <- predict(tree_m0_mk, X_test, type = "prob")
         predictions_m0[test_idx, m] <- preds_m0[, 2]  # P(Y=1|A=0,X)
       } else {
-        preds_m0 <- predict(tree_m0_mk, X_test, type = "response")
+        # Regression: use get_fitted_from_tree directly
+        preds_m0 <- optimaltrees::get_fitted_from_tree(tree_m0_mk@trees[[1]], X_test)
         predictions_m0[test_idx, m] <- preds_m0  # E[Y|A=0,X]
       }
     }
