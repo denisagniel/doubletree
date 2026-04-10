@@ -96,7 +96,14 @@ Default: 0.}
 
 \item{n_splits}{Integer. Number of independent cross-fit repetitions. Default 1 (no repetition).}
 
-\item{aggregation}{Character. How to aggregate M estimates: "median" (default) or "mean".}
+\item{aggregation}{Character. How to combine M point estimates:
+\itemize{
+  \item \code{"median"} (default): Robust to outlier splits. Recommended when
+    K is small (< 5), data is noisy, or model fitting is unstable.
+  \item \code{"mean"}: Efficient under normality. Use when splits are well-behaved
+    and you want to minimize variance. Theoretically aligned with Chernozhukov et al. (2018).
+}
+If unsure, use median (more robust). Mean is more efficient but sensitive to outliers.}
 
 \item{...}{Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
 }

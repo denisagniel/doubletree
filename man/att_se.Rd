@@ -16,5 +16,6 @@ Scalar (estimated standard error of the ATT estimator).
 }
 \description{
 Computes the standard error from the influence function (score) values
-as sqrt((1/n) * sum_i psi_i^2).
+as sqrt((1/n) * sum_i psi_i^2). Also validates that the estimating equation
+is satisfied (E[ψ(θ̂)] ≈ 0).
 }

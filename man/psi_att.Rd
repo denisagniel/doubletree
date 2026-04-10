@@ -4,15 +4,7 @@
 \alias{psi_att}
 \title{ATT orthogonal score (psi)}
 \usage{
-psi_att(
-  Y,
-  A,
-  theta,
-  eta,
-  pi_hat,
-  e_min = .PROPENSITY_LOWER_BOUND,
-  e_max = .PROPENSITY_UPPER_BOUND
-)
+psi_att(Y, A, theta, eta, pi_hat, e_min = NULL, e_max = NULL)
 }
 \arguments{
 \item{Y}{Numeric vector of length n (outcomes).}
@@ -27,8 +19,9 @@ clamped to avoid division by zero (done at prediction time in nuisance fitting).
 
 \item{pi_hat}{Scalar estimate of P(A=1) (e.g. mean(A)).}
 
-\item{e_min, e_max}{Deprecated. Clamping is now done at prediction time. These
-parameters are kept for backward compatibility but have no effect.}
+\item{e_min, e_max}{DEPRECATED. These parameters are no longer used.
+Propensity clamping is now done at prediction time. Providing these
+arguments will trigger a warning.}
 }
 \value{
 Numeric vector of length n (score values).

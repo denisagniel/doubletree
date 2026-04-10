@@ -107,7 +107,9 @@ for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary fe
 }
 \value{
 List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
-  score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K.
+  score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K,
+  converged (logical; TRUE if rashomon intersection succeeded or if use_rashomon=FALSE),
+  epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE, NA otherwise).
 }
 \description{
 Estimates the ATT using efficient influence function-based estimation with

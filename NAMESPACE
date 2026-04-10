@@ -5,3 +5,14 @@ export(att_se)
 export(att_ci)
 export(estimate_att)
 export(att_repeated)
+
+# M-split functionality
+export(estimate_att_msplit)
+export(select_structure_modal)
+export(analyze_structure_diversity)
+export(compute_functional_consistency)
+
+# S3 methods for msplit_att
+S3method(print, msplit_att)
+S3method(summary, msplit_att)
+S3method(plot, msplit_att)
