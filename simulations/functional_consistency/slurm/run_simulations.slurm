@@ -3,7 +3,7 @@
 #SBATCH --output=logs/fc_sim_%A_%a.out
 #SBATCH --error=logs/fc_sim_%A_%a.err
 #SBATCH --array=1-50
-#SBATCH --time=30:00
+#SBATCH --time=2:00:00
 #SBATCH --mem=4G
 #SBATCH --partition=short
 
