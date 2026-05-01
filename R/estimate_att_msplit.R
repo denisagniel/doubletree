@@ -15,7 +15,6 @@
 #' @param verbose Logical. Print progress (default TRUE)
 #' @param regularization Numeric. Tree complexity penalty (default 0.1)
 #' @param outcome_type "binary" or "continuous" (default "binary")
-#' @param ... Additional arguments passed to optimaltrees::fit_tree
 #'
 #' @return List with class "msplit_att" containing:
 #' \describe{
@@ -85,8 +84,7 @@ estimate_att_msplit <- function(X, A, Y,
                                 seed_base = NULL,
                                 verbose = TRUE,
                                 regularization = 0.1,
-                                outcome_type = "binary",
-                                ...) {
+                                outcome_type = "binary") {
   # Validate inputs
   n <- nrow(X)
 
@@ -139,8 +137,7 @@ estimate_att_msplit <- function(X, A, Y,
       loss_function = "log_loss",
       regularization = regularization,
       store_training_data = TRUE,
-      verbose = FALSE,
-      ...
+      verbose = FALSE
     )
     structures_e[[m]] <- optimaltrees::extract_tree_structure(model_e)
 
@@ -157,8 +154,7 @@ estimate_att_msplit <- function(X, A, Y,
       loss_function = outcome_loss,
       regularization = regularization,
       store_training_data = TRUE,
-      verbose = FALSE,
-      ...
+      verbose = FALSE
     )
     structures_m0[[m]] <- optimaltrees::extract_tree_structure(model_m0)
 
