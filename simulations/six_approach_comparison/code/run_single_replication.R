@@ -30,9 +30,21 @@ if (is.null(opt$rep_end)) {
 }
 
 # Load required packages
-suppressPackageStartupMessages({
-  library(optimaltrees)
-  library(doubletree)
+cat("Loading packages...\n")
+tryCatch({
+  suppressPackageStartupMessages({
+    library(optimaltrees)
+    library(doubletree)
+  })
+  cat(sprintf("  optimaltrees: %s\n", packageVersion("optimaltrees")))
+  cat(sprintf("  doubletree: %s\n", packageVersion("doubletree")))
+}, error = function(e) {
+  cat(sprintf("\n✗ FATAL: Failed to load required packages\n"))
+  cat(sprintf("Error: %s\n", conditionMessage(e)))
+  cat("\nMake sure packages are installed:\n")
+  cat("  R CMD INSTALL optimaltrees\n")
+  cat("  R CMD INSTALL doubletree\n")
+  quit(status = 1)
 })
 
 # Source helper functions
@@ -106,7 +118,10 @@ for (i in 1:n_reps) {
   data <- tryCatch({
     dgp_fun(n = opt$n)
   }, error = function(e) {
-    list(error = paste("DGP error:", as.character(e)))
+    msg <- paste("DGP error:", conditionMessage(e))
+    # Print to stderr for immediate visibility
+    message(sprintf("[Rep %d] %s", rep, msg))
+    list(error = msg)
   })
 
   if (!is.null(data$error)) {
@@ -133,7 +148,10 @@ for (i in 1:n_reps) {
   result <- tryCatch({
     estimator(X = data$X, A = data$A, Y = data$Y)
   }, error = function(e) {
-    list(theta = NA_real_, se = NA_real_, error = as.character(e))
+    msg <- conditionMessage(e)
+    # Print to stderr for immediate visibility
+    message(sprintf("[Rep %d] Estimator error: %s", rep, msg))
+    list(theta = NA_real_, se = NA_real_, error = msg)
   })
 
   elapsed_time <- as.numeric(Sys.time() - start_time, units = "secs")
@@ -183,15 +201,51 @@ results_df <- do.call(rbind, lapply(results, function(x) {
 }))
 
 # Add summary stats
+n_success <- sum(!is.na(results_df$theta_hat))
+n_total <- nrow(results_df)
+success_rate <- n_success / n_total
+
 cat(sprintf("\nResults summary:\n"))
-cat(sprintf("  Successful: %d / %d\n", sum(!is.na(results_df$theta_hat)), nrow(results_df)))
+cat(sprintf("  Successful: %d / %d (%.1f%%)\n", n_success, n_total, 100 * success_rate))
 cat(sprintf("  Mean bias: %.4f\n", mean(results_df$bias, na.rm = TRUE)))
 cat(sprintf("  Mean RMSE: %.4f\n", sqrt(mean(results_df$bias^2, na.rm = TRUE))))
 cat(sprintf("  Coverage: %.3f\n", mean(results_df$coverage, na.rm = TRUE)))
 cat(sprintf("  Mean time: %.2f sec\n", mean(results_df$elapsed_time, na.rm = TRUE)))
 
+# Report errors if any occurred
+n_errors <- sum(!is.na(results_df$error))
+if (n_errors > 0) {
+  cat(sprintf("\n✗ ERRORS OCCURRED: %d / %d replications failed\n", n_errors, n_total))
+
+  # Show first 5 unique errors
+  unique_errors <- unique(results_df$error[!is.na(results_df$error)])
+  cat(sprintf("\nFirst %d unique error(s):\n", min(5, length(unique_errors))))
+  for (i in 1:min(5, length(unique_errors))) {
+    cat(sprintf("  %d. %s\n", i, unique_errors[i]))
+  }
+
+  # Show which reps failed
+  failed_reps <- results_df$rep[!is.na(results_df$error)]
+  if (length(failed_reps) <= 10) {
+    cat(sprintf("\nFailed replications: %s\n", paste(failed_reps, collapse=", ")))
+  } else {
+    cat(sprintf("\nFailed replications: %s ... (and %d more)\n",
+                paste(head(failed_reps, 10), collapse=", "),
+                length(failed_reps) - 10))
+  }
+}
+
 # Save results
 cat(sprintf("\nSaving results to: %s\n", opt$output))
 saveRDS(results_df, file = opt$output)
 
-cat("\n✓ Job complete!\n")
+# Exit with appropriate code
+if (success_rate < 0.5) {
+  cat(sprintf("\n✗ JOB FAILED: Only %.1f%% success rate (threshold: 50%%)\n", 100 * success_rate))
+  cat("Fix errors above and rerun.\n")
+  quit(status = 1)
+} else if (n_errors > 0) {
+  cat(sprintf("\n⚠ Job complete with warnings (%d errors)\n", n_errors))
+} else {
+  cat("\n✓ Job complete - all replications successful!\n")
+}
