@@ -25,8 +25,8 @@ att_se <- function(score_values, n = NULL) {
             call. = FALSE)
   }
 
-  # Standard error: sqrt(Var[√n θ̂]) = sqrt(E[ψ²]) when E[ψ] ≈ 0
-  sqrt(mean(score_values^2))
+  # Standard error: SE(θ̂) = sqrt(E[ψ²] / n) when E[ψ] ≈ 0
+  sqrt(mean(score_values^2) / n)
 }
 
 #' Wald confidence interval for ATT

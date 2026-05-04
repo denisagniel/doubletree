@@ -252,9 +252,9 @@ estimate_att_msplit <- function(X, A, Y,
   score <- psi_att(Y, A, theta = 0, eta = eta_bar, pi_hat = pi_hat)
   theta_msplit <- sum(score) / sum(A / pi_hat)
 
-  # Standard error
+  # Standard error: SE(θ̂) = sqrt(Var[ψ] / n) = sqrt(E[(ψ - E[ψ])²] / n)
   score_centered <- score - mean(score)
-  sigma_msplit <- sqrt(mean(score_centered^2))
+  sigma_msplit <- sqrt(mean(score_centered^2) / n)
 
   # Confidence interval
   ci_95 <- theta_msplit + c(-1, 1) * qnorm(0.975) * sigma_msplit / sqrt(n)
