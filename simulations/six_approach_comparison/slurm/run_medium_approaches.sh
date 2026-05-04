@@ -6,7 +6,7 @@
 #SBATCH --time=02:30:00
 #SBATCH --mem=8G
 #SBATCH --cpus-per-task=1
-#SBATCH --partition=shared
+#SBATCH --partition=short
 
 # Array 2: Medium approaches (ii, iii)
 # 24 jobs = 2 approaches × 4 DGPs × 3 n

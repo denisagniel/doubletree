@@ -6,7 +6,7 @@
 #SBATCH --time=02:30:00
 #SBATCH --mem=12G
 #SBATCH --cpus-per-task=1
-#SBATCH --partition=shared
+#SBATCH --partition=short
 
 # Array 3: M-split approach (v)
 # 60 jobs = 4 DGPs × 3 n × 5 batches
