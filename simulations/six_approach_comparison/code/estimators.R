@@ -36,17 +36,19 @@ compute_att <- function(Y, A, e_hat, m0_hat) {
     stop("Predictions contain non-finite values (Inf/NaN).")
   }
 
-  if (any(e_hat <= 0) || any(e_hat >= 1)) {
-    stop("Propensity scores must be in (0,1). Got range: [",
+  # Check predictions are in valid range (but allow 0 and 1 - will be clipped)
+  if (any(e_hat < 0) || any(e_hat > 1)) {
+    stop("Propensity scores outside [0,1]. Got range: [",
          min(e_hat), ", ", max(e_hat), "]")
   }
 
   if (any(m0_hat < 0) || any(m0_hat > 1)) {
-    stop("Outcome probabilities must be in [0,1]. Got range: [",
+    stop("Outcome probabilities outside [0,1]. Got range: [",
          min(m0_hat), ", ", max(m0_hat), "]")
   }
 
-  # Apply bounds for numerical stability (explicit and logged)
+  # Clip away from boundaries to avoid division by zero in EIF
+  # Trees can legitimately predict 0 or 1 (certain predictions)
   n_clipped_e <- sum(e_hat < 0.01 | e_hat > 0.99)
   n_clipped_m0 <- sum(m0_hat < 0.01 | m0_hat > 0.99)
 
@@ -103,8 +105,8 @@ compute_se <- function(Y, A, e_hat, m0_hat, theta_hat) {
     stop("Predictions contain non-finite values (Inf/NaN).")
   }
 
-  if (any(e_hat <= 0) || any(e_hat >= 1)) {
-    stop("Propensity scores must be in (0,1). Got range: [",
+  if (any(e_hat < 0) || any(e_hat > 1)) {
+    stop("Propensity scores must be in [0,1]. Got range: [",
          min(e_hat), ", ", max(e_hat), "]")
   }
 
