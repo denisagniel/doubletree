@@ -12,7 +12,7 @@
 # 60 jobs = 4 DGPs × 3 n × 5 batches
 # Each job: 100 replications (total 500 per DGP×n)
 
-module load gcc/9.2.0 R/4.2.1
+module load gcc/14.2.0 R/4.4.2
 
 cd $SLURM_SUBMIT_DIR
 

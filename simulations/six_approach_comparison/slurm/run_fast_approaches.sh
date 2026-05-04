@@ -12,8 +12,8 @@
 # 36 jobs = 3 approaches × 4 DGPs × 3 n
 # Each job: 500 replications
 
-# Load R module (adjust for your cluster)
-module load gcc/9.2.0 R/4.2.1
+# Load R module (O2 cluster)
+module load gcc/14.2.0 R/4.4.2
 
 # Change to simulation directory
 cd $SLURM_SUBMIT_DIR
