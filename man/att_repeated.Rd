@@ -37,23 +37,27 @@ att_repeated(
 
 \item{outcome_type}{Character. "binary" (default) or "continuous". Continuous requires optimaltrees squared_error loss for m0, m1.}
 
-\item{regularization}{Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1. Ignored if \code{cv_regularization = TRUE}.}
+\item{regularization}{Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1.
+Only used if \code{cv_regularization = FALSE}. For most applications, use
+\code{cv_regularization = TRUE} (default) for data-adaptive selection.}
 
-\item{cv_regularization}{Logical. If TRUE, use cross-validation to select
+\item{cv_regularization}{Logical. If TRUE (default), use cross-validation to select
   regularization parameter \eqn{\lambda} separately for each nuisance function
-  (e, m0). If FALSE (default), use fixed \code{regularization} value.
+  (e, m0) using a theory-driven grid centered on \eqn{(\log n)/n}. If FALSE, use
+  fixed \code{regularization} value.
 
-  \strong{When to use TRUE:} You don't know the right penalty or want robustness
-  across varied data structures. Adds computational cost (nested CV) but improves
-  model selection.
+  \strong{When to use TRUE (recommended):} You don't know the right penalty or want
+  robustness across varied data structures. Uses theory-driven grid:
+  \eqn{(\log n)/n \times [0.25, 0.5, 1, 2, 4]}. Adds computational cost (nested CV)
+  but improves model selection and inference quality.
 
-  \strong{When to use FALSE:} You have a theory-justified choice (e.g., from
-  \code{optimaltrees::cv_regularization()} on pilot data) or want speed. Fixed
-  \code{regularization} is faster and reproducible.
+  \strong{When to use FALSE:} You have a theory-justified fixed value (e.g., from
+  \code{optimaltrees::cv_regularization()} on pilot data) or need maximum speed.
+  Set \code{cv_regularization = FALSE} only when you have strong theoretical
+  justification for a specific \eqn{\lambda} value.
 
   \strong{Theory:} Manuscript recommends \eqn{\lambda \propto (\log n)/n} for
-  minimax-optimal trees. See \code{optimaltrees::cv_regularization()} for automatic
-  selection implementing this rate.}
+  minimax-optimal trees. CV automatically implements this recommendation.}
 
 \item{cv_K}{Integer. Number of folds for cross-validation of regularization. Default 5. Only used if \code{cv_regularization = TRUE}.}
 

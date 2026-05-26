@@ -47,17 +47,34 @@ select_structure_modal <- function(structures) {
     stop("structures must be a non-empty list", call. = FALSE)
   }
 
+  # Detect format: new (list with structure + metadata) or old (TreeStructure directly)
+  first_elem <- structures[[1]]
+  is_new_format <- is.list(first_elem) &&
+                   !S7::S7_inherits(first_elem, optimaltrees::TreeStructure) &&
+                   "structure" %in% names(first_elem)
+
+  # Extract TreeStructure objects for comparison
+  if (is_new_format) {
+    # New format: list(structure = TreeStructure, discretization_metadata = ...)
+    tree_structures <- lapply(structures, function(s) s$structure)
+    metadata_list <- lapply(structures, function(s) s$discretization_metadata)
+  } else {
+    # Old format: TreeStructure directly (backward compatibility)
+    tree_structures <- structures
+    metadata_list <- NULL
+  }
+
   # Check all elements are TreeStructure
-  is_tree_struct <- vapply(structures, function(s) {
+  is_tree_struct <- vapply(tree_structures, function(s) {
     S7::S7_inherits(s, optimaltrees::TreeStructure)
   }, logical(1))
 
   if (!all(is_tree_struct)) {
-    stop("All elements of structures must be TreeStructure objects", call. = FALSE)
+    stop("All elements must be TreeStructure objects or lists with 'structure' field", call. = FALSE)
   }
 
   # Compute hashes
-  hashes <- vapply(structures, optimaltrees::structure_hash, character(1))
+  hashes <- vapply(tree_structures, optimaltrees::structure_hash, character(1))
 
   # Count frequencies
   counts <- table(hashes)
@@ -66,12 +83,20 @@ select_structure_modal <- function(structures) {
   modal_hash <- names(counts)[which.max(counts)]
   modal_idx <- which(hashes == modal_hash)[1]  # First occurrence
 
-  list(
-    structure = structures[[modal_idx]],
+  # Return in new format (with metadata if available)
+  result <- list(
+    structure = tree_structures[[modal_idx]],
     frequency = as.numeric(max(counts)) / length(structures),
     counts = counts,
     hash = modal_hash
   )
+
+  # Add discretization_metadata if available
+  if (is_new_format) {
+    result$discretization_metadata <- metadata_list[[modal_idx]]
+  }
+
+  result
 }
 
 #' Analyze Structure Diversity

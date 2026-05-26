@@ -179,14 +179,31 @@ create_folds <- function(n, K = 5) {
 estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
   n <- nrow(X)
 
-  # Fit propensity tree on all data
-  e_tree <- optimaltrees::fit_tree(
+  # NOTE: CV-selected regularization (2026-05-23)
+  # Use cross-validation to select lambda for each nuisance function
+  # Theory-driven grid: (log n / n) * [0.25, 0.5, 1, 2, 4]
+
+  # Fit propensity tree on all data with CV-selected lambda
+  cv_e <- optimaltrees::cv_regularization(
     X = X,
     y = A,
     loss_function = "log_loss",
-    regularization = regularization,
+    K = 5,
+    refit = TRUE,
     verbose = FALSE
   )
+
+  # Handle CV failure gracefully
+  if (is.na(cv_e$best_lambda)) {
+    warning("CV failed for propensity model. Using fixed regularization = ", regularization)
+    e_tree <- optimaltrees::fit_tree(
+      X = X, y = A, loss_function = "log_loss",
+      regularization = regularization, verbose = FALSE
+    )
+  } else {
+    e_tree <- cv_e$model
+  }
+
   e_pred <- predict(e_tree, X, type = "prob")
   if (!is.matrix(e_pred) || ncol(e_pred) != 2) {
     stop("Propensity tree predict() returned unexpected format. Expected 2-column matrix, got: ",
@@ -194,15 +211,28 @@ estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
   }
   e_hat <- e_pred[, 2]  # P(A=1|X)
 
-  # Fit outcome tree on controls (all data)
+  # Fit outcome tree on controls (all data) with CV-selected lambda
   control_idx <- A == 0
-  m0_tree <- optimaltrees::fit_tree(
+  cv_m0 <- optimaltrees::cv_regularization(
     X = X[control_idx, , drop = FALSE],
     y = Y[control_idx],
     loss_function = "log_loss",
-    regularization = regularization,
+    K = 5,
+    refit = TRUE,
     verbose = FALSE
   )
+
+  # Handle CV failure gracefully
+  if (is.na(cv_m0$best_lambda)) {
+    warning("CV failed for outcome model. Using fixed regularization = ", regularization)
+    m0_tree <- optimaltrees::fit_tree(
+      X = X[control_idx, , drop = FALSE], y = Y[control_idx],
+      loss_function = "log_loss", regularization = regularization, verbose = FALSE
+    )
+  } else {
+    m0_tree <- cv_m0$model
+  }
+
   m0_pred <- predict(m0_tree, X, type = "prob")
   if (!is.matrix(m0_pred) || ncol(m0_pred) != 2) {
     stop("Outcome tree predict() returned unexpected format. Expected 2-column matrix, got: ",
@@ -249,18 +279,34 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
   e_hat <- numeric(n)
   m0_hat <- numeric(n)
 
+  # NOTE: CV-selected regularization per fold (2026-05-23)
+  # Each fold uses CV to select its own lambda
+
   for (k in 1:K) {
     train_idx <- folds != k
     test_idx <- folds == k
 
-    # Fit propensity tree on training fold
-    e_tree_k <- optimaltrees::fit_tree(
+    # Fit propensity tree on training fold with CV-selected lambda
+    cv_e_k <- optimaltrees::cv_regularization(
       X = X[train_idx, , drop = FALSE],
       y = A[train_idx],
       loss_function = "log_loss",
-      regularization = regularization,
+      K = 5,
+      refit = TRUE,
       verbose = FALSE
     )
+
+    # Handle CV failure gracefully
+    if (is.na(cv_e_k$best_lambda)) {
+      warning("CV failed for propensity model (fold ", k, "). Using fixed regularization = ", regularization)
+      e_tree_k <- optimaltrees::fit_tree(
+        X = X[train_idx, , drop = FALSE], y = A[train_idx],
+        loss_function = "log_loss", regularization = regularization, verbose = FALSE
+      )
+    } else {
+      e_tree_k <- cv_e_k$model
+    }
+
     e_pred_k <- predict(e_tree_k, X[test_idx, , drop = FALSE], type = "prob")
     if (!is.matrix(e_pred_k) || ncol(e_pred_k) != 2) {
       stop("Propensity tree predict() (fold ", k, ") returned unexpected format. Expected 2-column matrix, got: ",
@@ -268,15 +314,28 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
     }
     e_hat[test_idx] <- e_pred_k[, 2]  # P(A=1|X)
 
-    # Fit outcome tree on controls in training fold
+    # Fit outcome tree on controls in training fold with CV-selected lambda
     control_train_idx <- train_idx & (A == 0)
-    m0_tree_k <- optimaltrees::fit_tree(
+    cv_m0_k <- optimaltrees::cv_regularization(
       X = X[control_train_idx, , drop = FALSE],
       y = Y[control_train_idx],
       loss_function = "log_loss",
-      regularization = regularization,
+      K = 5,
+      refit = TRUE,
       verbose = FALSE
     )
+
+    # Handle CV failure gracefully
+    if (is.na(cv_m0_k$best_lambda)) {
+      warning("CV failed for outcome model (fold ", k, "). Using fixed regularization = ", regularization)
+      m0_tree_k <- optimaltrees::fit_tree(
+        X = X[control_train_idx, , drop = FALSE], y = Y[control_train_idx],
+        loss_function = "log_loss", regularization = regularization, verbose = FALSE
+      )
+    } else {
+      m0_tree_k <- cv_m0_k$model
+    }
+
     m0_pred_k <- predict(m0_tree_k, X[test_idx, , drop = FALSE], type = "prob")
     if (!is.matrix(m0_pred_k) || ncol(m0_pred_k) != 2) {
       stop("Outcome tree predict() (fold ", k, ") returned unexpected format. Expected 2-column matrix, got: ",
@@ -314,12 +373,16 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' @export
 estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
   # Use doubletree package implementation with Rashomon
+  # NOTE: cv_regularization = TRUE is now the default (2026-05-22)
+  # Lambda is selected via CV using theory-driven grid: (log n / n) * [0.25, 0.5, 1, 2, 4]
+  # The regularization parameter in the function signature is retained for API compatibility
+  # but is no longer used (CV selects lambda automatically)
   result <- doubletree::estimate_att(
     X = X,
     A = A,
     Y = Y,
     K = K,
-    regularization = regularization,
+    # regularization parameter removed - CV is used by default
     outcome_type = "binary",
     use_rashomon = TRUE,
     rashomon_bound_multiplier = 0.05,
@@ -365,99 +428,50 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
     structures = list(
       e = if (!is.null(result$nuisance_fits$cf_e)) result$nuisance_fits$cf_e$structure else NULL,
       m0 = if (!is.null(result$nuisance_fits$cf_m0)) result$nuisance_fits$cf_m0$structure else NULL
-    )
+    ),
+    # Also return the full CF objects (for approach iv to access fold_refits)
+    cf_e = result$nuisance_fits$cf_e,
+    cf_m0 = result$nuisance_fits$cf_m0
   )
 }
 
 # ============================================================================
-# Approach (iv): Doubletree Structure + Single Fit
+# Approach (iv): Doubletree Structure + Averaged Leaves
 # ============================================================================
 
-#' Estimate ATT using doubletree structure fitted once
+#' Estimate ATT using doubletree with averaged leaf values
 #'
-#' Gets structure from cross-fit intersection, but refits on all data
+#' Wrapper for doubletree::estimate_att_doubletree_averaged()
+#' NOTE: Uses CV-selected lambda (2026-05-26). regularization is fallback only.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
 #' @param Y Outcome vector
 #' @param K Number of folds (for structure selection)
-#' @param regularization Tree complexity penalty
+#' @param regularization Fallback tree complexity penalty if CV fails
 #' @return List with theta, se, structures
 #' @export
-estimate_att_doubletree_singlefit <- function(X, A, Y, K = 5, regularization = 0.1) {
-  # Stage 1: Get structures from doubletree
-  # Catch errors from doubletree call
-  result_doubletree <- tryCatch({
-    estimate_att_doubletree(X, A, Y, K, regularization)
-  }, error = function(e) {
-    return(list(
-      theta = NA_real_,
-      se = NA_real_,
-      e_hat = rep(NA_real_, nrow(X)),
-      m0_hat = rep(NA_real_, nrow(X)),
-      structures = list(e = NULL, m0 = NULL),
-      error = paste("doubletree call failed:", e$message)
-    ))
-  })
-
-  # Check if doubletree call failed
-  if (!is.null(result_doubletree$error)) {
-    return(result_doubletree)
-  }
-
-  e_structure <- result_doubletree$structures$e
-  m0_structure <- result_doubletree$structures$m0
-
-  # Check if structures were successfully found
-  if (is.null(e_structure) || is.null(m0_structure)) {
-    return(list(
-      theta = NA_real_,
-      se = NA_real_,
-      e_hat = rep(NA_real_, nrow(X)),
-      m0_hat = rep(NA_real_, nrow(X)),
-      structures = list(e = NULL, m0 = NULL),
-      error = "Rashomon intersection failed - no common structure found"
-    ))
-  }
-
-  # Stage 2: Refit structures on ALL data
-  e_refit <- optimaltrees::refit_tree_structure(
-    structure = e_structure,
+estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.1) {
+  # Use package function (uses CV internally as of 2026-05-26)
+  result <- doubletree::estimate_att_doubletree_averaged(
     X = X,
-    y = A,
-    loss_function = "log_loss"
+    A = A,
+    Y = Y,
+    K = K,
+    regularization = regularization,
+    outcome_type = "binary",
+    verbose = FALSE
   )
-  e_pred <- predict(e_refit, X, type = "prob")
-  if (!is.matrix(e_pred) || ncol(e_pred) != 2) {
-    stop("Refitted propensity tree predict() returned unexpected format. Expected 2-column matrix, got: ",
-         class(e_pred), " with dims: ", paste(dim(e_pred), collapse="x"))
-  }
-  e_hat <- e_pred[, 2]  # P(A=1|X)
 
-  control_idx <- A == 0
-  m0_refit <- optimaltrees::refit_tree_structure(
-    structure = m0_structure,
-    X = X[control_idx, , drop = FALSE],
-    y = Y[control_idx],
-    loss_function = "log_loss"
-  )
-  m0_pred <- predict(m0_refit, X, type = "prob")
-  if (!is.matrix(m0_pred) || ncol(m0_pred) != 2) {
-    stop("Refitted outcome tree predict() returned unexpected format. Expected 2-column matrix, got: ",
-         class(m0_pred), " with dims: ", paste(dim(m0_pred), collapse="x"))
-  }
-  m0_hat <- m0_pred[, 2]  # P(Y=1|A=0,X)
-
-  # Compute ATT and SE
-  theta_hat <- compute_att(Y, A, e_hat, m0_hat)
-  se <- compute_se(Y, A, e_hat, m0_hat, theta_hat)
-
+  # Convert to simulation format (theta → theta, sigma → se)
   list(
-    theta = theta_hat,
-    se = se,
-    e_hat = e_hat,
-    m0_hat = m0_hat,
-    structures = list(e = e_structure, m0 = m0_structure)
+    theta = result$theta,
+    se = result$sigma,
+    e_hat = result$e_hat,
+    m0_hat = result$m0_hat,
+    structures = result$structures,
+    averaged_trees = if(!is.null(result$averaged_trees)) result$averaged_trees else NULL,
+    error = if (!is.null(result$error)) result$error else NULL
   )
 }
 
@@ -502,65 +516,45 @@ estimate_att_msplit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
 }
 
 # ============================================================================
-# Approach (vi): M-Split Structure + Single Fit
+# Approach (vi): M-Split Structure + M×K Averaged Leaves
 # ============================================================================
 
-#' Estimate ATT using M-split structure fitted once
+#' Estimate ATT using M-split with M×K leaf averaging
 #'
-#' Gets modal structure from M-split, but refits on all data
+#' Gets modal structure from M splits, then averages leaf values across
+#' all M×K cross-fitted trees (K trees per split, M splits).
+#' NOTE: Uses CV-selected lambda (2026-05-26). regularization is fallback only.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
 #' @param Y Outcome vector
 #' @param M Number of splits (for structure selection)
 #' @param K Number of folds per split
-#' @param regularization Tree complexity penalty
+#' @param regularization Fallback tree complexity penalty if CV fails
 #' @return List with theta, se, structures, diagnostics
 #' @export
-estimate_att_msplit_singlefit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
-  # Stage 1: Get modal structure from M-split
-  result_msplit <- estimate_att_msplit(X, A, Y, M, K, regularization)
-  e_structure <- result_msplit$structures$e
-  m0_structure <- result_msplit$structures$m0
-
-  # Stage 2: Refit structures on ALL data
-  e_refit <- optimaltrees::refit_tree_structure(
-    structure = e_structure,
+estimate_att_msplit_averaged <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
+  # Use package function (uses CV internally as of 2026-05-26)
+  result <- doubletree::estimate_att_msplit_averaged(
     X = X,
-    y = A,
-    loss_function = "log_loss"
+    A = A,
+    Y = Y,
+    M = M,
+    K = K,
+    regularization = regularization,
+    outcome_type = "binary",
+    verbose = FALSE
   )
-  e_pred <- predict(e_refit, X, type = "prob")
-  if (!is.matrix(e_pred) || ncol(e_pred) != 2) {
-    stop("Refitted propensity tree (M-split) predict() returned unexpected format. Expected 2-column matrix, got: ",
-         class(e_pred), " with dims: ", paste(dim(e_pred), collapse="x"))
-  }
-  e_hat <- e_pred[, 2]  # P(A=1|X)
 
-  control_idx <- A == 0
-  m0_refit <- optimaltrees::refit_tree_structure(
-    structure = m0_structure,
-    X = X[control_idx, , drop = FALSE],
-    y = Y[control_idx],
-    loss_function = "log_loss"
-  )
-  m0_pred <- predict(m0_refit, X, type = "prob")
-  if (!is.matrix(m0_pred) || ncol(m0_pred) != 2) {
-    stop("Refitted outcome tree (M-split) predict() returned unexpected format. Expected 2-column matrix, got: ",
-         class(m0_pred), " with dims: ", paste(dim(m0_pred), collapse="x"))
-  }
-  m0_hat <- m0_pred[, 2]  # P(Y=1|A=0,X)
-
-  # Compute ATT and SE
-  theta_hat <- compute_att(Y, A, e_hat, m0_hat)
-  se <- compute_se(Y, A, e_hat, m0_hat, theta_hat)
-
+  # Convert to simulation format (theta → theta, sigma → se)
   list(
-    theta = theta_hat,
-    se = se,
-    e_hat = e_hat,
-    m0_hat = m0_hat,
-    structures = list(e = e_structure, m0 = m0_structure),
-    diagnostics = result_msplit$diagnostics
+    theta = result$theta,
+    se = result$sigma,
+    e_hat = result$e_hat,
+    m0_hat = result$m0_hat,
+    structures = result$structures,
+    n_trees_averaged = if(!is.null(result$n_trees_averaged)) result$n_trees_averaged else NULL,
+    averaged_trees = if(!is.null(result$averaged_trees)) result$averaged_trees else NULL,
+    error = if (!is.null(result$error)) result$error else NULL
   )
 }

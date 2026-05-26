@@ -139,7 +139,10 @@ estimate_att_msplit <- function(X, A, Y,
       store_training_data = TRUE,
       verbose = FALSE
     )
-    structures_e[[m]] <- optimaltrees::extract_tree_structure(model_e)
+    structures_e[[m]] <- list(
+      structure = optimaltrees::extract_tree_structure(model_e),
+      discretization_metadata = model_e@discretization_metadata
+    )
 
     # Fit outcome model (control outcomes only)
     control_idx <- which(A_train == 0)
@@ -156,7 +159,10 @@ estimate_att_msplit <- function(X, A, Y,
       store_training_data = TRUE,
       verbose = FALSE
     )
-    structures_m0[[m]] <- optimaltrees::extract_tree_structure(model_m0)
+    structures_m0[[m]] <- list(
+      structure = optimaltrees::extract_tree_structure(model_m0),
+      discretization_metadata = model_m0@discretization_metadata
+    )
 
     if (verbose && m %% max(1, M %/% 10) == 0) {
       cat(sprintf("  Extracted structures from %d/%d splits\n", m, M))
@@ -195,10 +201,12 @@ estimate_att_msplit <- function(X, A, Y,
       A_train <- A[train_idx]
 
       tree_e_mk <- optimaltrees::refit_tree_structure(
-        s_star_e$structure,
-        X_train, A_train,
+        structure = s_star_e$structure,
+        X_new = X_train,
+        y_new = A_train,
         loss_function = "log_loss",
-        store_training_data = FALSE
+        store_training_data = FALSE,
+        discretization_metadata = s_star_e$discretization_metadata
       )
 
       # Refit outcome tree (control outcomes only)
@@ -209,10 +217,12 @@ estimate_att_msplit <- function(X, A, Y,
       outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
 
       tree_m0_mk <- optimaltrees::refit_tree_structure(
-        s_star_m0$structure,
-        X_train_control, Y_train_control,
+        structure = s_star_m0$structure,
+        X_new = X_train_control,
+        y_new = Y_train_control,
         loss_function = outcome_loss,
-        store_training_data = FALSE
+        store_training_data = FALSE,
+        discretization_metadata = s_star_m0$discretization_metadata
       )
 
       # Predict on test fold

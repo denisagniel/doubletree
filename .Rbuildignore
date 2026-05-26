@@ -1,0 +1,6 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^simulations/
+^dev-docs/
+^\.git/
+^\.github/

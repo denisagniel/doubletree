@@ -17,22 +17,26 @@
 #' @param Y Numeric vector of outcome. Binary (0/1) when outcome_type is "binary"; any numeric when "continuous".
 #' @param K Number of cross-fitting folds. Default 5.
 #' @param outcome_type Character. "binary" (default) or "continuous". Continuous requires optimaltrees squared_error loss for m0, m1.
-#' @param regularization Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1. Ignored if \code{cv_regularization = TRUE}.
-#' @param cv_regularization Logical. If TRUE, use cross-validation to select
+#' @param regularization Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1.
+#'   Only used if \code{cv_regularization = FALSE}. For most applications, use
+#'   \code{cv_regularization = TRUE} (default) for data-adaptive selection.
+#' @param cv_regularization Logical. If TRUE (default), use cross-validation to select
 #'   regularization parameter \eqn{\lambda} separately for each nuisance function
-#'   (e, m0). If FALSE (default), use fixed \code{regularization} value.
+#'   (e, m0) using a theory-driven grid centered on \eqn{(\log n)/n}. If FALSE, use
+#'   fixed \code{regularization} value.
 #'
-#'   \strong{When to use TRUE:} You don't know the right penalty or want robustness
-#'   across varied data structures. Adds computational cost (nested CV) but improves
-#'   model selection.
+#'   \strong{When to use TRUE (recommended):} You don't know the right penalty or want
+#'   robustness across varied data structures. Uses theory-driven grid:
+#'   \eqn{(\log n)/n \times [0.25, 0.5, 1, 2, 4]}. Adds computational cost (nested CV)
+#'   but improves model selection and inference quality.
 #'
-#'   \strong{When to use FALSE:} You have a theory-justified choice (e.g., from
-#'   \code{optimaltrees::cv_regularization()} on pilot data) or want speed. Fixed
-#'   \code{regularization} is faster and reproducible.
+#'   \strong{When to use FALSE:} You have a theory-justified fixed value (e.g., from
+#'   \code{optimaltrees::cv_regularization()} on pilot data) or need maximum speed.
+#'   Set \code{cv_regularization = FALSE} only when you have strong theoretical
+#'   justification for a specific \eqn{\lambda} value.
 #'
 #'   \strong{Theory:} Manuscript recommends \eqn{\lambda \propto (\log n)/n} for
-#'   minimax-optimal trees. See \code{optimaltrees::cv_regularization()} for automatic
-#'   selection implementing this rate.
+#'   minimax-optimal trees. CV automatically implements this recommendation.
 #' @param cv_K Integer. Number of folds for cross-validation of regularization. Default 5. Only used if \code{cv_regularization = TRUE}.
 #' @param stratified Logical. If TRUE (default), fold assignment is stratified by A.
 #' @param seed Optional. Random seed for fold creation.
@@ -71,6 +75,15 @@
 #'   Uses b_n = max(2, ceiling(log(n)/3)) as suggested by nonparametric theory
 #'   for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary features.
 #' @param ... Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
+#'
+#' @details
+#' \strong{Regularization Selection:} By default (\code{cv_regularization = TRUE}),
+#' the regularization parameter \eqn{\lambda} is selected via 5-fold cross-validation
+#' on each training fold, using a theory-driven grid: \eqn{(\log n / n) \times [0.25, 0.5, 1, 2, 4]}.
+#' This implements the manuscript's recommendation that \eqn{\lambda \propto (\log n)/n} for
+#' minimax-optimal trees. Fixed regularization (\code{cv_regularization = FALSE}) should
+#' only be used when you have strong theoretical justification for a specific value.
+#'
 #' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K,
 #'   converged (logical; TRUE if rashomon intersection succeeded or if use_rashomon=FALSE),
@@ -85,8 +98,8 @@
 #' #    - Quick exploratory: rashomon_bound_multiplier = 0.05 (default)
 #'
 #' # 2. regularization:
-#' #    - Use CV if unsure: cv_regularization = TRUE
-#' #    - Fixed if known: regularization = 0.1 (or from pilot CV)
+#' #    - Default (recommended): cv_regularization = TRUE (data-adaptive)
+#' #    - Fixed only when theory-justified: cv_regularization = FALSE, regularization = 0.05
 #'
 #' # 3. Rashomon vs fold-specific:
 #' #    - Rashomon (use_rashomon = TRUE): interpretability, single tree/nuisance
@@ -103,24 +116,29 @@
 #' # Theory-justified epsilon_n
 #' epsilon_n <- optimaltrees::select_epsilon_n(n, method = "fixed", c = 2)
 #'
-#' # Recommended: Rashomon with CV regularization
-#' fit <- estimate_att(
+#' # Default: CV-selected lambda (recommended)
+#' fit1 <- estimate_att(
 #'   X, A, Y,
 #'   K = 5,
 #'   use_rashomon = TRUE,
-#'   rashomon_bound_multiplier = epsilon_n,
-#'   cv_regularization = TRUE  # Auto-select lambda
+#'   rashomon_bound_multiplier = epsilon_n
+#'   # cv_regularization = TRUE is the default
 #' )
-#' print(fit$theta)   # Point estimate
-#' print(fit$ci_95)   # 95% Wald confidence interval
+#' print(fit1$theta)   # Point estimate
+#' print(fit1$ci_95)   # 95% Wald confidence interval
 #'
-#' # Alternative: Quick exploratory analysis
-#' fit_quick <- estimate_att(X, A, Y, K = 5, regularization = 0.1)
-#' print(fit_quick$theta)
+#' # Alternative: Fixed lambda (when theory-justified)
+#' fit2 <- estimate_att(
+#'   X, A, Y,
+#'   K = 5,
+#'   cv_regularization = FALSE,
+#'   regularization = 0.05
+#' )
+#' print(fit2$theta)
 #' }
 #' @export
 estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
-                   regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
+                   regularization = 0.1, cv_regularization = TRUE, cv_K = 5,
                    stratified = TRUE, seed = NULL, verbose = FALSE,
                    use_rashomon = FALSE, rashomon_bound_multiplier = 0.05,
                    rashomon_bound_adder = 0, max_leaves = NULL,

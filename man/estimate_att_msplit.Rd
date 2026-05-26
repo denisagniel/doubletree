@@ -14,8 +14,7 @@ estimate_att_msplit(
   seed_base = NULL,
   verbose = TRUE,
   regularization = 0.1,
-  outcome_type = "binary",
-  ...
+  outcome_type = "binary"
 )
 }
 \arguments{
@@ -38,8 +37,6 @@ estimate_att_msplit(
 \item{regularization}{Numeric. Tree complexity penalty (default 0.1)}
 
 \item{outcome_type}{"binary" or "continuous" (default "binary")}
-
-\item{...}{Additional arguments passed to optimaltrees::fit_tree}
 }
 \value{
 List with class "msplit_att" containing:

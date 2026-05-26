@@ -12,6 +12,11 @@ export(select_structure_modal)
 export(analyze_structure_diversity)
 export(compute_functional_consistency)
 
+# Averaged-tree estimators
+export(estimate_att_doubletree_averaged)
+export(estimate_att_msplit_averaged)
+export(average_trees)
+
 # S3 methods for msplit_att
 S3method(print, msplit_att)
 S3method(summary, msplit_att)

@@ -58,14 +58,14 @@ approach_map <- list(
   `1` = estimate_att_fullsample,
   `2` = estimate_att_crossfit,
   `3` = estimate_att_doubletree,
-  `4` = estimate_att_doubletree_singlefit,
+  `4` = estimate_att_doubletree_averaged,
   `5` = estimate_att_msplit,
-  `6` = estimate_att_msplit_singlefit
+  `6` = estimate_att_msplit_averaged
 )
 
 approach_names <- c(
   "full_sample", "crossfit_separate", "doubletree",
-  "doubletree_singlefit", "msplit", "msplit_singlefit"
+  "doubletree_averaged", "msplit", "msplit_averaged"
 )
 
 # Map DGP number to function (now 4 DGPs)
