@@ -120,20 +120,31 @@ extract_leaf_values <- function(tree_node, path = integer(0)) {
   c(left_values, right_values)
 }
 
-#' Average Leaf Values Across K Trees
+#' Average Leaf Values Across K Trees (Weighted by Sample Size)
 #'
 #' Given K trees with the same structure but different leaf values,
-#' compute the average leaf value for each leaf position.
+#' compute weighted average leaf values where weights are the number
+#' of observations in each leaf.
 #'
 #' @param tree_list List of K trees (each from refit_structure_on_data or fold_refits)
+#' @param weight_list List of K weight vectors. Each element is a named integer
+#'   vector where names are leaf IDs and values are observation counts.
 #'
-#' @return Named numeric vector of averaged leaf values
+#' @return Named numeric vector of weighted averaged leaf values
 #'
 #' @keywords internal
-average_leaf_values <- function(tree_list) {
+average_leaf_values <- function(tree_list, weight_list) {
   # Validate input
   if (!is.list(tree_list) || length(tree_list) == 0) {
     stop("tree_list must be a non-empty list of trees", call. = FALSE)
+  }
+
+  if (!is.list(weight_list) || length(weight_list) == 0) {
+    stop("weight_list must be a non-empty list of weight vectors", call. = FALSE)
+  }
+
+  if (length(tree_list) != length(weight_list)) {
+    stop("tree_list and weight_list must have same length", call. = FALSE)
   }
 
   K <- length(tree_list)
@@ -149,47 +160,43 @@ average_leaf_values <- function(tree_list) {
     })
   }
 
-  # Check all trees have same structure (same leaf paths)
-  leaf_paths_list <- lapply(leaf_values_list, names)
+  # Get union of all leaf paths across trees
+  all_paths <- unique(unlist(lapply(leaf_values_list, names)))
 
-  # Validate all extractions succeeded
-  if (length(leaf_paths_list) != K) {
-    stop("Expected ", K, " trees but only extracted ", length(leaf_paths_list),
-         " leaf path sets", call. = FALSE)
-  }
+  # Compute weighted mean for each leaf
+  weighted_means <- numeric(length(all_paths))
+  names(weighted_means) <- all_paths
 
-  first_paths <- sort(leaf_paths_list[[1]])
+  for (path in all_paths) {
+    sum_weighted <- 0
+    sum_weights <- 0
 
-  for (k in 2:K) {
-    current_paths <- sort(leaf_paths_list[[k]])
-    if (!identical(first_paths, current_paths)) {
-      stop("Trees have different structures. Cannot average.\n",
-           "Tree 1 leaves: ", paste(first_paths, collapse = ", "), "\n",
-           "Tree ", k, " leaves: ", paste(current_paths, collapse = ", "),
-           call. = FALSE)
+    for (k in 1:K) {
+      # Does this tree have this leaf?
+      if (path %in% names(leaf_values_list[[k]])) {
+        value_k <- leaf_values_list[[k]][[path]]
+
+        # Get weight (could be 0 if leaf collapsed)
+        weight_k <- if (path %in% names(weight_list[[k]])) {
+          weight_list[[k]][[path]]
+        } else {
+          0
+        }
+
+        sum_weighted <- sum_weighted + (value_k * weight_k)
+        sum_weights <- sum_weights + weight_k
+      }
+    }
+
+    if (sum_weights > 0) {
+      weighted_means[[path]] <- sum_weighted / sum_weights
+    } else {
+      # All trees had this leaf collapse → use neutral value
+      weighted_means[[path]] <- 0.5
     }
   }
 
-  # Convert to matrix: rows = trees, cols = leaves
-  leaf_paths <- first_paths
-  n_leaves <- length(leaf_paths)
-  leaf_matrix <- matrix(NA_real_, nrow = K, ncol = n_leaves)
-  colnames(leaf_matrix) <- leaf_paths
-
-  for (k in 1:K) {
-    # Match leaf values to standardized order
-    leaf_matrix[k, ] <- leaf_values_list[[k]][leaf_paths]
-  }
-
-  # Average across K trees (down columns)
-  averaged <- colMeans(leaf_matrix, na.rm = FALSE)
-
-  # Validate no NAs in result
-  if (any(is.na(averaged))) {
-    stop("Averaged leaf values contain NA. This should not happen.", call. = FALSE)
-  }
-
-  return(averaged)
+  return(weighted_means)
 }
 
 #' Rebuild Tree with Averaged Leaf Values
@@ -269,36 +276,47 @@ rebuild_tree_with_averaged_values <- function(tree_template, averaged_values, pa
   )
 }
 
-#' Average Trees with Same Structure
+#' Average Trees with Same Structure (Weighted by Sample Size)
 #'
 #' Takes K trees with the same structure but different leaf values (from cross-fitting),
-#' averages the leaf values, and returns a single tree. This maintains cross-fit validity
-#' while producing one interpretable tree.
+#' averages the leaf values weighted by sample size, and returns a single tree.
+#' This maintains cross-fit validity while producing one interpretable tree.
 #'
 #' @param tree_list List of K trees (from fold_refits). Each tree should be a nested list
 #'   from \code{optimaltrees::refit_structure_on_data()} or similar.
+#' @param weight_list List of K weight vectors (sample counts per leaf).
+#'   Each element is a named integer vector from \code{refit_result$n_per_leaf}.
 #'
-#' @return Single tree (nested list) with averaged leaf values
+#' @return Single tree (nested list) with weighted averaged leaf values
 #'
 #' @details
 #' This function is used by \code{\link{estimate_att_doubletree_averaged}} and
 #' \code{\link{estimate_att_msplit_averaged}} to create a single interpretable tree
 #' from K cross-fitted trees.
 #'
+#' The weighted averaging pools all observations across M×K training folds:
+#' \code{averaged_leaf_value = sum(n_k × value_k) / sum(n_k)}
+#'
+#' This is superior to simple averaging because:
+#' - Leaves with more observations get more weight (theoretically sound)
+#' - Naturally handles empty leaves (weight = 0)
+#' - Solves structure mismatch problem (leaves that collapse get zero weight)
+#'
 #' The averaging maintains cross-fit validity because each tree's leaf values were
 #' fitted on training data (excluding the test fold), so averaging them preserves
 #' the cross-fit property.
 #'
-#' All trees must have identical structure (same splits). If trees have different
-#' structures, the function will error.
-#'
 #' @seealso \code{\link{estimate_att_doubletree_averaged}}, \code{\link{estimate_att_msplit_averaged}}
 #'
 #' @export
-average_trees <- function(tree_list) {
+average_trees <- function(tree_list, weight_list) {
   # Validate
   if (!is.list(tree_list) || length(tree_list) == 0) {
     stop("tree_list must be a non-empty list", call. = FALSE)
+  }
+
+  if (!is.list(weight_list) || length(weight_list) != length(tree_list)) {
+    stop("weight_list must be a list with same length as tree_list", call. = FALSE)
   }
 
   # Validate each tree structure
@@ -310,8 +328,8 @@ average_trees <- function(tree_list) {
     })
   }
 
-  # Compute averaged leaf values
-  averaged_values <- average_leaf_values(tree_list)
+  # Compute weighted averaged leaf values
+  averaged_values <- average_leaf_values(tree_list, weight_list)
 
   # Rebuild tree using first tree as template
   single_tree <- rebuild_tree_with_averaged_values(tree_list[[1]], averaged_values)

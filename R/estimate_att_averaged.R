@@ -499,602 +499,527 @@ find_trees_through_tiers <- function(X, outcome, K, fold_indices, nuisance_name,
 # Approach 4: Doubletree Averaged (K-fold with Rashomon)
 # =============================================================================
 
-#' Estimate ATT with Doubletree and Averaged Leaves
+#' Extract K Trees from Cross-Fitted Rashomon Object
 #'
-#' Estimates the Average Treatment Effect on the Treated (ATT) using doubletree
-#' (Rashomon intersection) with robust five-tier fallback to find a common tree
-#' structure, then averages leaf values across K cross-fitted trees to create a
-#' single interpretable tree. Uses CV-selected lambda for all tree fits (2026-05-26).
+#' Extract one tree per fold from a cross_fitted_rashomon object.
+#' Each tree has the same structure (from Rashomon intersection) but different
+#' leaf values (fit on that fold's training data).
+#'
+#' @param cf_rashomon_obj A cross_fitted_rashomon S7 object from fit_nuisances_rashomon()
+#'
+#' @return List of K trees (nested lists), one per fold
+#'
+#' @keywords internal
+extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
+  # Validate input
+  if (cf_rashomon_obj@n_intersecting == 0) {
+    stop("Cannot extract K trees: Rashomon intersection is empty", call. = FALSE)
+  }
+
+  K <- cf_rashomon_obj@K
+  fold_refits <- cf_rashomon_obj@fold_refits
+
+  # Extract first intersecting structure from each fold
+  trees <- vector("list", K)
+  for (k in 1:K) {
+    # fold_refits[[k]] is a list of refit_result objects (one per intersecting structure)
+    # We want the FIRST intersecting structure only
+    # refit_result is a nested list tree from refit_structure_on_data()
+    if (length(fold_refits[[k]]) == 0) {
+      stop("Fold ", k, " has no refit results, but intersection claimed to exist", call. = FALSE)
+    }
+
+    trees[[k]] <- fold_refits[[k]][[1]]  # First intersecting structure
+  }
+
+  return(trees)
+}
+
+#' Estimate ATT with Doubletree and Averaged Leaves (Approach 4)
+#'
+#' Estimates the Average Treatment Effect on the Treated (ATT) using Rashomon
+#' intersection to find K trees with a common structure, then averages their
+#' leaf values to create a single interpretable tree. No cross-fitting in final
+#' predictions (all observations use the same averaged tree).
 #'
 #' @inheritParams estimate_att
-#' @param K Number of cross-fitting folds. Default 5.
-#' @param regularization Numeric. Not used (CV selects lambda). Kept for backward compatibility.. Default 0.1.
+#' @param K Number of cross-fitting folds. Default: 5
+#' @param outcome_type Character: "binary" or "continuous"
+#' @param cv_regularization Logical. Use CV to select lambda? Default: TRUE
+#' @param cv_K Integer. Number of folds for lambda CV. Default: 5
+#' @param regularization Numeric. Fixed lambda (only used if cv_regularization=FALSE). Default: 0.1
+#' @param stratified Logical. Stratify folds by treatment? Default: TRUE
+#' @param seed Integer. Random seed for reproducibility. Default: NULL
+#' @param verbose Logical. Print progress? Default: FALSE
+#' @param rashomon_bound_multiplier Numeric. Rashomon bound multiplier (epsilon_n). Default: 0.05
+#' @param rashomon_bound_adder Numeric. Additive Rashomon bound. Default: 0
+#' @param max_leaves Integer. Maximum number of leaves (optional sieve). Default: NULL
+#' @param auto_tune_intersecting Logical. Auto-tune epsilon_n to find intersection? Default: FALSE
+#' @param discretize_method Character. "quantiles" or other. Default: "quantiles"
+#' @param discretize_bins Integer or "adaptive". Default: "adaptive"
+#' @param ... Additional arguments passed to optimaltrees functions
 #'
 #' @return List with elements:
 #'   \item{theta}{ATT point estimate}
 #'   \item{sigma}{Standard error}
 #'   \item{ci_95}{95\% confidence interval}
+#'   \item{score_values}{EIF score values}
 #'   \item{e_hat}{Propensity score predictions (from averaged tree)}
 #'   \item{m0_hat}{Control outcome predictions (from averaged tree)}
-#'   \item{structures}{List with e and m0 structures}
-#'   \item{averaged_trees}{List with e and m0 averaged trees}
-#'   \item{n_folds}{Number of folds (K)}
-#'   \item{tier_used}{List with e and m0 tier information}
-#'   \item{rashomon_tolerance_used}{List with e and m0 tolerance values}
-#'   \item{theory_warning}{Character or NULL (if any nuisance used ε > 0.05)}
-#'   \item{n_trees_matched_modal}{List with e and m0 (for modal tiers only)}
-#'   \item{modal_frequency}{List with e and m0 (for modal tiers only)}
+#'   \item{averaged_trees}{List with e and m0 averaged trees (nested lists)}
+#'   \item{structures}{List with e and m0 TreeStructure objects}
+#'   \item{n}{Sample size}
+#'   \item{K}{Number of folds}
+#'   \item{n_treated}{Number of treated observations}
+#'   \item{outcome_type}{Outcome type ("binary" or "continuous")}
+#'   \item{converged}{Logical (TRUE if Rashomon intersection succeeded)}
+#'   \item{epsilon_n}{Rashomon bound multiplier used}
+#'   \item{n_trees_averaged}{Number of trees averaged (always K)}
 #'
 #' @details
-#' This estimator combines the interpretability of a single tree with the validity
-#' of cross-fitting, using a robust five-tier fallback strategy:
-#'
-#' \strong{Five-Tier Fallback (Per Nuisance):}
+#' \strong{Algorithm:}
 #' \enumerate{
-#'   \item Rashomon intersection at ε = 0.05 (theory-compliant)
-#'   \item Expanded intersection at ε = 0.10, 0.15, 0.20 (with warning)
-#'   \item Modal structure across K Rashomon sets at ε = 0.05 (theory-compliant)
-#'   \item Modal structure with expanded ε = 0.10, 0.15, 0.20 (with warning)
-#'   \item Fold-specific trees with modal structure selection (no Rashomon)
+#'   \item Run Rashomon intersection via \code{fit_nuisances_rashomon()} for both e and m0
+#'   \item Check intersection succeeded (n_intersecting > 0) for both nuisances
+#'   \item Extract K trees with common structure from each nuisance
+#'   \item Average leaf values across K trees using \code{average_trees()}
+#'   \item Predict for ALL observations with averaged trees (no cross-fitting)
+#'   \item Compute ATT via EIF
 #' }
 #'
-#' \strong{Key features:}
-#' - Each nuisance (e, m0) progresses through tiers independently
-#' - Theory warnings issued when ε > 0.05 used (violates rate condition)
-#' - Minimum 3 trees required for averaging (ensures robustness)
-#' - All tier transitions are explicit (no silent failures)
-#' - CV always selects lambda (no fallback to fixed regularization)
+#' \strong{Key differences from old implementation:}
+#' - Uses Rashomon intersection directly (no tier system)
+#' - Fails loudly if intersection is empty (no fallback)
+#' - Averages exactly K trees (one per fold, all with same structure)
+#' - No cross-fitting in final predictions (all obs use averaged tree)
+#'
+#' \strong{Error handling:}
+#' If Rashomon intersection is empty for either nuisance, the function stops
+#' with an informative error suggesting:
+#' - Increase rashomon_bound_multiplier
+#' - Use estimate_att() with use_rashomon=FALSE
+#' - Use estimate_att_msplit_averaged() (more robust to empty intersection)
 #'
 #' @seealso \code{\link{estimate_att}}, \code{\link{estimate_att_msplit_averaged}},
-#'   \code{\link{average_trees}}
+#'   \code{\link{fit_nuisances_rashomon}}, \code{\link{average_trees}}
 #'
 #' @export
-estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.1,
-                                             outcome_type = c("binary", "continuous"),
-                                             rashomon_bound_multiplier = 0.05,
-                                             verbose = FALSE, ...) {
+estimate_att_doubletree_averaged <- function(
+  X, A, Y,
+  K = 5,
+  outcome_type = c("binary", "continuous"),
+  cv_regularization = TRUE,
+  cv_K = 5,
+  regularization = 0.1,
+  stratified = TRUE,
+  seed = NULL,
+  verbose = FALSE,
+  rashomon_bound_multiplier = 0.05,
+  rashomon_bound_adder = 0,
+  max_leaves = NULL,
+  auto_tune_intersecting = FALSE,
+  discretize_method = "quantiles",
+  discretize_bins = "adaptive",
+  ...
+) {
+  # Input validation
   outcome_type <- match.arg(outcome_type)
   n <- nrow(X)
   check_att_data(X, A, Y, outcome_type = outcome_type)
   if (is.matrix(X)) X <- as.data.frame(X)
 
-  # Create fold indices (stratified by A)
-  fold_indices <- create_folds(n, K, strata = A, seed = NULL)
+  if (verbose) {
+    message("=== Approach 4: Doubletree Averaged ===")
+    message("Using Rashomon intersection + tree averaging")
+  }
 
-  # Separate control outcomes for m0
-  Y_control <- Y[A == 0]
-  X_control <- X[A == 0, , drop = FALSE]
-  n_control <- length(Y_control)
-  fold_indices_control <- lapply(fold_indices, function(idx) {
-    idx[idx <= n_control]  # Map to control indices
+  # Create fold indices
+  fold_indices <- create_folds(n, K, strata = if (stratified) A else NULL, seed = seed)
+
+  # Fit both nuisances with Rashomon intersection
+  if (verbose) message("\n--- Fitting nuisances with Rashomon intersection ---")
+
+  nuisance_fits <- tryCatch({
+    fit_nuisances_rashomon(
+      X = X,
+      A = A,
+      Y = Y,
+      fold_indices = fold_indices,
+      outcome_type = outcome_type,
+      regularization = regularization,
+      cv_regularization = cv_regularization,
+      cv_K = cv_K,
+      verbose = verbose,
+      rashomon_bound_multiplier = rashomon_bound_multiplier,
+      rashomon_bound_adder = rashomon_bound_adder,
+      max_leaves = max_leaves,
+      auto_tune_intersecting = auto_tune_intersecting,
+      discretize_method = discretize_method,
+      discretize_bins = discretize_bins,
+      ...
+    )
+  }, error = function(e) {
+    stop("Failed to fit nuisance models: ", e$message, call. = FALSE)
   })
 
-  # Find trees for propensity (e)
-  if (verbose) message("\n=== Fitting propensity (e) ===")
-  e_result <- find_trees_through_tiers(
-    X = X,
-    outcome = A,
-    K = K,
-    fold_indices = fold_indices,
-    nuisance_name = "propensity",
-    regularization = regularization,
-    outcome_type = "binary",
-    verbose = verbose,
-    ...
-  )
+  # Extract Rashomon objects
+  cf_e <- nuisance_fits$cf_e
+  cf_m0 <- nuisance_fits$cf_m0
 
-  # Find trees for outcome (m0)
-  if (verbose) message("\n=== Fitting outcome (m0) ===")
-  m0_result <- find_trees_through_tiers(
-    X = X_control,
-    outcome = Y_control,
-    K = K,
-    fold_indices = fold_indices_control,
-    nuisance_name = "outcome",
-    regularization = regularization,
-    outcome_type = outcome_type,
-    verbose = verbose,
-    ...
-  )
-
-  # Check both succeeded
-  if (is.null(e_result$trees) || is.null(m0_result$trees)) {
-    error_parts <- c()
-    if (is.null(e_result$trees)) error_parts <- c(error_parts, "propensity (e) failed: all tiers exhausted")
-    if (is.null(m0_result$trees)) error_parts <- c(error_parts, "outcome (m0) failed: all tiers exhausted")
-
-    return(list(
-      theta = NA_real_,
-      sigma = NA_real_,
-      ci_95 = c(NA_real_, NA_real_),
-      e_hat = rep(NA_real_, n),
-      m0_hat = rep(NA_real_, n),
-      error = paste(error_parts, collapse = "; ")
-    ))
+  # Check intersection succeeded for propensity
+  if (is.null(cf_e) || cf_e@n_intersecting == 0) {
+    stop(
+      "Rashomon intersection empty for propensity.\n",
+      "Suggestions:\n",
+      "  1. Increase rashomon_bound_multiplier (current: ", rashomon_bound_multiplier, ")\n",
+      "  2. Use estimate_att() with use_rashomon=FALSE\n",
+      "  3. Use estimate_att_msplit_averaged() (more robust to empty intersection)",
+      call. = FALSE
+    )
   }
 
-  # Average trees for each nuisance
+  # Check intersection succeeded for outcome
+  if (is.null(cf_m0) || cf_m0@n_intersecting == 0) {
+    stop(
+      "Rashomon intersection empty for outcome.\n",
+      "Suggestions:\n",
+      "  1. Increase rashomon_bound_multiplier (current: ", rashomon_bound_multiplier, ")\n",
+      "  2. Use estimate_att() with use_rashomon=FALSE\n",
+      "  3. Use estimate_att_msplit_averaged() (more robust to empty intersection)",
+      call. = FALSE
+    )
+  }
+
+  # Extract K trees with common structure from each fold
+  if (verbose) message("\n--- Extracting K trees from each nuisance ---")
+
+  e_trees <- extract_k_trees_from_rashomon(cf_e)
+  m0_trees <- extract_k_trees_from_rashomon(cf_m0)
+
   if (verbose) {
-    message(sprintf("Averaging %d propensity trees", length(e_result$trees)))
-    message(sprintf("Averaging %d outcome trees", length(m0_result$trees)))
+    message(sprintf("Extracted %d propensity trees", length(e_trees)))
+    message(sprintf("Extracted %d outcome trees", length(m0_trees)))
   }
+
+  # Average trees
+  if (verbose) message("\n--- Averaging leaf values ---")
+
+  # TODO: Update to use actual leaf counts from fold_refits
+  # For now, use uniform weights (unweighted averaging)
+  uniform_weights_e <- lapply(e_trees, function(tree) {
+    leaf_values <- extract_leaf_values(tree)
+    setNames(rep(1L, length(leaf_values)), names(leaf_values))
+  })
+
+  uniform_weights_m0 <- lapply(m0_trees, function(tree) {
+    leaf_values <- extract_leaf_values(tree)
+    setNames(rep(1L, length(leaf_values)), names(leaf_values))
+  })
 
   e_averaged <- tryCatch({
-    average_trees(e_result$trees)
+    average_trees(e_trees, uniform_weights_e)
   }, error = function(e) {
-    stop("Failed to average propensity trees: ", e$message,
-         "\nNumber of trees: ", length(e_result$trees),
-         "\nTier used: ", e_result$tier, call. = FALSE)
+    stop("Failed to average propensity trees: ", e$message, call. = FALSE)
   })
 
   m0_averaged <- tryCatch({
-    average_trees(m0_result$trees)
+    average_trees(m0_trees, uniform_weights_m0)
   }, error = function(e) {
-    stop("Failed to average outcome trees: ", e$message,
-         "\nNumber of trees: ", length(m0_result$trees),
-         "\nTier used: ", m0_result$tier, call. = FALSE)
+    stop("Failed to average outcome trees: ", e$message, call. = FALSE)
   })
 
-  # Predict using averaged trees
+  # Predict for ALL observations (no cross-fitting)
+  if (verbose) message("\n--- Generating predictions with averaged trees ---")
+
   e_hat <- predict_from_tree(e_averaged, X)
   m0_hat <- predict_from_tree(m0_averaged, X)
 
-  # Compute ATT using the core inference functions
+  # Compute ATT via EIF
+  if (verbose) message("\n--- Computing ATT estimate ---")
+
   pi_hat <- mean(A)
   eta <- list(e = e_hat, m0 = m0_hat, m1 = NULL)
+
+  # Solve for theta
   score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
   sum_a_over_pi <- sum(A / pi_hat)
   theta_hat <- sum(score_at_zero) / sum_a_over_pi
 
+  # Compute standard error
   score_values <- psi_att(Y, A, theta_hat, eta, pi_hat)
-  sigma <- att_se(score_values, n)
-  ci_95 <- att_ci(theta_hat, sigma, n, level = 0.95)
+  sigma <- sqrt(mean((score_values - mean(score_values))^2) / n)
 
-  # Combine warnings if both nuisances have them
-  combined_warning <- NULL
-  if (!is.null(e_result$warning) || !is.null(m0_result$warning)) {
-    warning_parts <- c()
-    if (!is.null(e_result$warning)) warning_parts <- c(warning_parts, paste("e:", e_result$warning))
-    if (!is.null(m0_result$warning)) warning_parts <- c(warning_parts, paste("m0:", m0_result$warning))
-    combined_warning <- paste(warning_parts, collapse = " | ")
+  # Confidence interval
+  ci_95 <- theta_hat + c(-1, 1) * qnorm(0.975) * sigma / sqrt(n)
+
+  # Extract structures for interpretability
+  e_structure <- optimaltrees::extract_tree_structure(cf_e@intersecting_trees[[1]])
+  m0_structure <- optimaltrees::extract_tree_structure(cf_m0@intersecting_trees[[1]])
+
+  if (verbose) {
+    message(sprintf("\n=== Results ==="))
+    message(sprintf("ATT estimate: %.4f", theta_hat))
+    message(sprintf("Standard error: %.4f", sigma))
+    message(sprintf("95%% CI: [%.4f, %.4f]", ci_95[1], ci_95[2]))
   }
 
-  # Use structures from tier results
-  e_structure <- e_result$structure
-  m0_structure <- m0_result$structure
-
-  list(
+  # Return structure
+  structure(list(
     theta = theta_hat,
     sigma = sigma,
     ci_95 = ci_95,
     score_values = score_values,
     e_hat = e_hat,
     m0_hat = m0_hat,
-    structures = list(e = e_structure, m0 = m0_structure),
     averaged_trees = list(e = e_averaged, m0 = m0_averaged),
-    n_folds = K,
+    structures = list(e = e_structure, m0 = m0_structure),
     n = n,
+    K = K,
+    n_treated = sum(A),
+    outcome_type = outcome_type,
     converged = TRUE,
-    tier_used = list(e = e_result$tier, m0 = m0_result$tier),
-    rashomon_tolerance_used = list(e = e_result$tolerance, m0 = m0_result$tolerance),
-    theory_warning = combined_warning,
-    n_trees_matched_modal = list(e = e_result$n_matched, m0 = m0_result$n_matched),
-    n_trees_total = list(e = e_result$n_total, m0 = m0_result$n_total),
-    modal_frequency = list(e = e_result$modal_frequency, m0 = m0_result$modal_frequency)
-  )
+    epsilon_n = rashomon_bound_multiplier,
+    n_trees_averaged = K
+  ), class = c("doubletree_att_averaged", "list"))
 }
+
 
 # =============================================================================
 # Approach 6: M-Split Averaged
 # =============================================================================
 
-#' Try M-Split with Fold-Specific Trees (Tier 1)
+#' M-Split ATT with Tree Averaging (Approach 6)
 #'
-#' Collect M×K fold-specific trees, find modal structure, filter and average.
+#' @description
+#' Estimates ATT using M-split with tree averaging: Find modal structure across
+#' M×K trees, refit that structure M×K times, average leaf values across all
+#' M×K trees to create single averaged tree.
 #'
-#' @keywords internal
-try_msplit_fold_specific <- function(X, A, Y, M, K, regularization, outcome_type, verbose, ...) {
+#' @param X Data.frame or matrix of covariates
+#' @param A Treatment vector (0/1)
+#' @param Y Outcome vector
+#' @param M Number of independent sample splits (default 10)
+#' @param K Number of cross-validation folds per split (default 5)
+#' @param seed_base Base seed for reproducibility
+#' @param verbose Logical
+#' @param outcome_type "binary" or "continuous"
+#'
+#' @return List with class "msplit_att_averaged"
+#'
+#' @details
+#' Algorithm:
+#' 1. Stage 1: Find modal structure (same as approach 5)
+#' 2. Stage 2: Refit modal structure M×K times (same as approach 5)
+#' 3. Stage 3: **Average leaf values** across all M×K trees → 1 averaged tree
+#' 4. Predict all observations using single averaged tree (no cross-fitting)
+#'
+#' @export
+estimate_att_msplit_averaged <- function(X, A, Y,
+                                            M = 10,
+                                            K = 5,
+                                            seed_base = NULL,
+                                            verbose = TRUE,
+                                            outcome_type = "binary") {
   n <- nrow(X)
 
-  # Separate control data for m0
-  Y_control <- Y[A == 0]
-  X_control <- X[A == 0, , drop = FALSE]
+  if (!is.data.frame(X) && !is.matrix(X)) {
+    stop("X must be a data.frame or matrix", call. = FALSE)
+  }
+  if (length(A) != n || length(Y) != n) {
+    stop("length(A) and length(Y) must equal nrow(X)", call. = FALSE)
+  }
 
-  # Collect M×K fold-specific trees for each nuisance
-  all_e_trees <- list()
-  all_m0_trees <- list()
+  if (verbose) {
+    cat(sprintf("M-split averaged: M=%d splits, K=%d folds, n=%d\n", M, K, n))
+  }
 
-  for (m in 1:M) {
-    if (verbose && m %% max(1, M %/% 4) == 0) {
-      message(sprintf("M-split fold-specific: Split %d/%d", m, M))
+  # ============================================================
+  # Stage 1: Structure Selection (same as approach 5)
+  # ============================================================
+  if (verbose) cat("Stage 1: Selecting modal structures...\n")
+
+  structures_e <- vector("list", M)
+  structures_m0 <- vector("list", M)
+
+  for (m in seq_len(M)) {
+    seed_m <- if (!is.null(seed_base)) seed_base + m else NULL
+    folds_m <- create_folds(n, K, strata = A, seed = seed_m)
+
+    # Use fold 1's training set for structure discovery
+    train_idx <- which(folds_m != 1)
+    X_train <- X[train_idx, , drop = FALSE]
+    A_train <- A[train_idx]
+    Y_train <- Y[train_idx]
+
+    # Fit propensity with CV
+    cv_e <- optimaltrees::cv_regularization(
+      X = X_train, y = A_train, loss_function = "log_loss",
+      K = 5, refit = TRUE, verbose = FALSE
+    )
+
+    if (is.na(cv_e$best_lambda)) {
+      stop("CV failed for propensity in split ", m, call. = FALSE)
     }
 
-    # Create fold indices for this split
-    fold_indices <- create_folds(n, K, strata = A, seed = NULL)
+    model_e <- cv_e$model
+    structures_e[[m]] <- list(
+      structure = optimaltrees::extract_tree_structure(model_e),
+      discretization_metadata = model_e@discretization_metadata
+    )
 
-    # Fit K trees for propensity with CV-selected lambda (2026-05-26)
-    for (k in 1:K) {
-      test_idx <- fold_indices[[k]]
-      train_idx <- setdiff(1:n, test_idx)
+    # Fit outcome on controls with CV
+    control_idx <- which(A_train == 0)
+    X_control <- X_train[control_idx, , drop = FALSE]
+    Y_control <- Y_train[control_idx]
 
+    outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
+
+    cv_m0 <- optimaltrees::cv_regularization(
+      X = X_control, y = Y_control, loss_function = outcome_loss,
+      K = 5, refit = TRUE, verbose = FALSE
+    )
+
+    if (is.na(cv_m0$best_lambda)) {
+      stop("CV failed for outcome in split ", m, call. = FALSE)
+    }
+
+    model_m0 <- cv_m0$model
+    structures_m0[[m]] <- list(
+      structure = optimaltrees::extract_tree_structure(model_m0),
+      discretization_metadata = model_m0@discretization_metadata
+    )
+
+    if (verbose && m %% max(1, M %/% 10) == 0) {
+      cat(sprintf("  Structure discovery: %d/%d splits\n", m, M))
+    }
+  }
+
+  # Select modal structures
+  s_star_e <- select_structure_modal(structures_e)
+  s_star_m0 <- select_structure_modal(structures_m0)
+
+  if (verbose) {
+    cat(sprintf("  Modal propensity: %.1f%% agreement\n", s_star_e$frequency * 100))
+    cat(sprintf("  Modal outcome: %.1f%% agreement\n", s_star_m0$frequency * 100))
+  }
+
+  # ============================================================
+  # Stage 2: Refit Modal Structure M×K Times
+  # ============================================================
+  if (verbose) cat("Stage 2: Refitting modal structure M×K times...\n")
+
+  # Store all M×K trees (as tree structure objects, not models)
+  trees_e <- vector("list", M * K)
+  trees_m0 <- vector("list", M * K)
+  leaf_counts_e <- vector("list", M * K)    # NEW: Store leaf counts
+  leaf_counts_m0 <- vector("list", M * K)   # NEW: Store leaf counts
+  tree_idx <- 1
+
+  for (m in seq_len(M)) {
+    seed_m <- if (!is.null(seed_base)) seed_base + m else NULL
+    folds_m <- create_folds(n, K, strata = A, seed = seed_m)
+
+    for (k in seq_len(K)) {
+      test_idx <- which(folds_m == k)
+      train_idx <- which(folds_m != k)
+
+      # Refit propensity tree with modal structure
       X_train <- X[train_idx, , drop = FALSE]
       A_train <- A[train_idx]
 
-      # Select lambda via CV
-      cv_e <- tryCatch({
-        optimaltrees::cv_regularization(
-          X = X_train, y = A_train, loss_function = "log_loss",
-          K = 5, refit = TRUE, verbose = FALSE
-        )
-      }, error = function(e) list(best_lambda = NA_real_, model = NULL))
+      refit_result_e <- optimaltrees::refit_tree_structure(
+        structure = s_star_e$structure,
+        X_new = X_train,
+        y_new = A_train,
+        loss_function = "log_loss",
+        store_training_data = FALSE,
+        discretization_metadata = s_star_e$discretization_metadata
+      )
 
-      # No fallback - CV must succeed
-      if (is.na(cv_e$best_lambda) || is.null(cv_e$model)) {
-        stop(
-          "CV failed for propensity model in fold ", k, " during tree collection.\n",
-          "Possible fixes:\n",
-          "  1. Check data quality (enough variation in A in this fold?)\n",
-          "  2. Try different lambda_grid in cv_regularization()\n",
-          "  3. Increase K in cv_regularization() for more stable CV\n",
-          "  4. Check for numerical issues (NaN, Inf in data)\n",
-          "  5. Try different random seed",
-          call. = FALSE
-        )
-      }
+      # Extract tree structure and leaf counts
+      trees_e[[tree_idx]] <- optimaltrees::get_rashomon_trees(refit_result_e$model)[[1]]
+      leaf_counts_e[[tree_idx]] <- refit_result_e$n_per_leaf
 
-      all_e_trees[[length(all_e_trees) + 1]] <- cv_e$model
-    }
+      # Refit outcome tree with modal structure
+      control_idx <- which(A_train == 0)
+      Y_train_control <- Y[train_idx][A_train == 0]
+      X_train_control <- X_train[control_idx, , drop = FALSE]
 
-    # Fit K trees for outcome with CV-selected lambda (2026-05-26)
-    fold_indices_control <- lapply(fold_indices, function(idx) idx[idx <= nrow(X_control)])
-
-    for (k in 1:K) {
-      test_idx <- fold_indices_control[[k]]
-      train_idx <- setdiff(1:nrow(X_control), test_idx)
-
-      X_train <- X_control[train_idx, , drop = FALSE]
-      Y_train <- Y_control[train_idx]
-
-      # Select lambda via CV
       outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
-      cv_m0 <- tryCatch({
-        optimaltrees::cv_regularization(
-          X = X_train, y = Y_train, loss_function = outcome_loss,
-          K = 5, refit = TRUE, verbose = FALSE
-        )
-      }, error = function(e) list(best_lambda = NA_real_, model = NULL))
 
-      # No fallback - CV must succeed
-      if (is.na(cv_m0$best_lambda) || is.null(cv_m0$model)) {
-        stop(
-          "CV failed for outcome model in fold ", k, " during tree collection.\n",
-          "Possible fixes:\n",
-          "  1. Check data quality (enough control units in fold? variation in Y?)\n",
-          "  2. Try different lambda_grid in cv_regularization()\n",
-          "  3. Increase K in cv_regularization() for more stable CV\n",
-          "  4. Check for numerical issues (NaN, Inf in data)\n",
-          "  5. Try different random seed",
-          call. = FALSE
-        )
-      }
+      refit_result_m0 <- optimaltrees::refit_tree_structure(
+        structure = s_star_m0$structure,
+        X_new = X_train_control,
+        y_new = Y_train_control,
+        loss_function = outcome_loss,
+        store_training_data = FALSE,
+        discretization_metadata = s_star_m0$discretization_metadata
+      )
 
-      all_m0_trees[[length(all_m0_trees) + 1]] <- cv_m0$model
+      # Extract tree structure and leaf counts
+      trees_m0[[tree_idx]] <- optimaltrees::get_rashomon_trees(refit_result_m0$model)[[1]]
+      leaf_counts_m0[[tree_idx]] <- refit_result_m0$n_per_leaf
+
+      tree_idx <- tree_idx + 1
+    }
+
+    if (verbose && m %% max(1, M %/% 10) == 0) {
+      cat(sprintf("  Refitting: %d/%d splits complete\n", m, M))
     }
   }
 
-  # Find modal structures
-  if (length(all_e_trees) == 0 || length(all_m0_trees) == 0) {
-    return(list(success = FALSE, reason = "No trees collected"))
-  }
+  # ============================================================
+  # Stage 3: Average Leaf Values Across All M×K Trees (Weighted)
+  # ============================================================
+  if (verbose) cat("Stage 3: Averaging leaf values (weighted by sample size)...\n")
 
-  # Extract structures from model objects
-  e_structures <- lapply(all_e_trees, optimaltrees::extract_tree_structure)
-  m0_structures <- lapply(all_m0_trees, optimaltrees::extract_tree_structure)
+  e_averaged <- average_trees(trees_e, leaf_counts_e)
+  m0_averaged <- average_trees(trees_m0, leaf_counts_m0)
 
-  e_modal <- select_structure_modal(e_structures)
-  m0_modal <- select_structure_modal(m0_structures)
+  # ============================================================
+  # Stage 4: Predict and Compute ATT
+  # ============================================================
+  if (verbose) cat("Stage 4: Computing ATT with averaged tree...\n")
 
-  # Convert models to tree structures (nested lists) for averaging
-  e_tree_structures <- lapply(all_e_trees, function(model) {
-    optimaltrees::get_rashomon_trees(model)[[1]]
-  })
-  m0_tree_structures <- lapply(all_m0_trees, function(model) {
-    optimaltrees::get_rashomon_trees(model)[[1]]
-  })
-
-  # Filter to matching trees
-  e_filtered <- filter_trees_by_structure(e_tree_structures, e_structures, e_modal$structure)
-  m0_filtered <- filter_trees_by_structure(m0_tree_structures, m0_structures, m0_modal$structure)
-
-  list(
-    success = TRUE,
-    e_trees = e_filtered$matched_trees,
-    m0_trees = m0_filtered$matched_trees,
-    n_matched_e = e_filtered$n_matched,
-    n_matched_m0 = m0_filtered$n_matched,
-    n_total_e = length(all_e_trees),
-    n_total_m0 = length(all_m0_trees),
-    modal_freq_e = e_modal$frequency,
-    modal_freq_m0 = m0_modal$frequency,
-    structures = list(e = e_modal$structure, m0 = m0_modal$structure)
-  )
-}
-
-#' Try M-Split with Rashomon Sets (Tier 2)
-#'
-#' Collect all trees from M×K Rashomon sets, find modal structure, filter and average.
-#'
-#' @keywords internal
-try_msplit_rashomon_sets <- function(X, A, Y, M, K, regularization, outcome_type,
-                                     tolerance, verbose, ...) {
-  n <- nrow(X)
-
-  Y_control <- Y[A == 0]
-  X_control <- X[A == 0, , drop = FALSE]
-
-  all_e_trees <- list()
-  all_e_structures <- list()
-  all_m0_trees <- list()
-  all_m0_structures <- list()
-
-  for (m in 1:M) {
-    if (verbose && m %% max(1, M %/% 4) == 0) {
-      message(sprintf("M-split Rashomon: Split %d/%d at ε = %.2f", m, M, tolerance))
-    }
-
-    fold_indices <- create_folds(n, K, strata = A, seed = NULL)
-
-    # Collect Rashomon trees for propensity
-    e_result <- collect_rashomon_trees_at_tolerance(
-      X, A, K, fold_indices, tolerance, regularization, "binary", verbose = FALSE, ...
-    )
-    all_e_trees <- c(all_e_trees, e_result$all_trees)
-    all_e_structures <- c(all_e_structures, e_result$all_structures)
-
-    # Collect Rashomon trees for outcome
-    fold_indices_control <- lapply(fold_indices, function(idx) idx[idx <= nrow(X_control)])
-    m0_result <- collect_rashomon_trees_at_tolerance(
-      X_control, Y_control, K, fold_indices_control, tolerance, regularization, outcome_type,
-      verbose = FALSE, ...
-    )
-    all_m0_trees <- c(all_m0_trees, m0_result$all_trees)
-    all_m0_structures <- c(all_m0_structures, m0_result$all_structures)
-  }
-
-  if (length(all_e_trees) == 0 || length(all_m0_trees) == 0) {
-    return(list(success = FALSE, reason = "No Rashomon trees collected"))
-  }
-
-  # Find modal structures using pre-extracted structures
-  e_modal <- select_structure_modal(all_e_structures)
-  m0_modal <- select_structure_modal(all_m0_structures)
-
-  # Filter to matching trees
-  e_filtered <- filter_trees_by_structure(all_e_trees, all_e_structures, e_modal$structure)
-  m0_filtered <- filter_trees_by_structure(all_m0_trees, all_m0_structures, m0_modal$structure)
-
-  list(
-    success = TRUE,
-    e_trees = e_filtered$matched_trees,
-    m0_trees = m0_filtered$matched_trees,
-    n_matched_e = e_filtered$n_matched,
-    n_matched_m0 = m0_filtered$n_matched,
-    n_total_e = length(all_e_trees),
-    n_total_m0 = length(all_m0_trees),
-    modal_freq_e = e_modal$frequency,
-    modal_freq_m0 = m0_modal$frequency,
-    structures = list(e = e_modal$structure, m0 = m0_modal$structure)
-  )
-}
-
-#' Finalize M-Split Result
-#'
-#' Average filtered trees, compute ATT, add diagnostics.
-#'
-#' @keywords internal
-finalize_msplit_result <- function(result, X, A, Y, tier, M_used, M_expanded, verbose) {
-  n <- nrow(X)
-
-  # Check minimum threshold
-  if (result$n_matched_e < 3 || result$n_matched_m0 < 3) {
-    return(list(
-      theta = NA_real_,
-      sigma = NA_real_,
-      ci_95 = c(NA_real_, NA_real_),
-      e_hat = rep(NA_real_, n),
-      m0_hat = rep(NA_real_, n),
-      error = sprintf("Insufficient trees: e=%d, m0=%d (need ≥3 each)",
-                      result$n_matched_e, result$n_matched_m0),
-      tier_used = tier,
-      M_used = M_used,
-      M_expanded = M_expanded
-    ))
-  }
-
-  # Issue warning if low agreement but ≥3
-  if (result$modal_freq_e < 0.5 || result$modal_freq_m0 < 0.5) {
-    low_agreement_msg <- sprintf(
-      "Low modal agreement: e=%.1f%%, m0=%.1f%%. Consider increasing M.",
-      result$modal_freq_e * 100, result$modal_freq_m0 * 100
-    )
-    if (verbose) message("WARNING: ", low_agreement_msg)
-  }
-
-  # Average trees
-  e_averaged <- average_trees(result$e_trees)
-  m0_averaged <- average_trees(result$m0_trees)
-
-  # Predict
+  # Predict for all observations using single averaged tree
   e_hat <- predict_from_tree(e_averaged, X)
   m0_hat <- predict_from_tree(m0_averaged, X)
 
   # Compute ATT
   pi_hat <- mean(A)
   eta <- list(e = e_hat, m0 = m0_hat, m1 = NULL)
-  score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
-  sum_a_over_pi <- sum(A / pi_hat)
-  theta_hat <- sum(score_at_zero) / sum_a_over_pi
+  score <- psi_att(Y, A, theta = 0, eta = eta, pi_hat = pi_hat)
+  theta_hat <- sum(score) / sum(A / pi_hat)
 
-  score_values <- psi_att(Y, A, theta_hat, eta, pi_hat)
-  sigma <- att_se(score_values, n)
-  ci_95 <- att_ci(theta_hat, sigma, n, level = 0.95)
+  # Standard error
+  score_centered <- score - mean(score)
+  sigma <- sqrt(mean(score_centered^2) / n)
 
-  list(
+  # CI
+  ci_95 <- theta_hat + c(-1, 1) * qnorm(0.975) * sigma / sqrt(n)
+
+  # ============================================================
+  # Return
+  # ============================================================
+  structure(list(
     theta = theta_hat,
     sigma = sigma,
     ci_95 = ci_95,
-    score_values = score_values,
+    score_values = score,
     e_hat = e_hat,
     m0_hat = m0_hat,
-    structures = result$structures,
-    averaged_trees = list(e = e_averaged, m0 = m0_averaged),
-    n_trees_matched_modal = list(e = result$n_matched_e, m0 = result$n_matched_m0),
-    n_trees_total = list(e = result$n_total_e, m0 = result$n_total_m0),
-    modal_frequency = list(e = result$modal_freq_e, m0 = result$modal_freq_m0),
-    tier_used = tier,
-    M_used = M_used,
-    M_expanded = M_expanded,
-    theory_warning = NULL,  # Tier 2 always uses ε = 0.05
+    structures = list(
+      modal = list(e = s_star_e$structure, m0 = s_star_m0$structure)
+    ),
+    structure_selection = list(
+      modal_freq_e = s_star_e$frequency,
+      modal_freq_m0 = s_star_m0$frequency
+    ),
+    M = M,
+    K = K,
     n = n,
-    converged = TRUE
-  )
-}
-
-#' Estimate ATT with M-Split and Averaged Leaves
-#'
-#' Estimates the ATT using M-split doubletree to find a modal tree structure
-#' across M independent splits, then averages leaf values across all M×K
-#' cross-fitted trees to create a single interpretable tree. Uses CV-selected
-#' lambda for all tree fits (2026-05-26).
-#'
-#' @inheritParams estimate_att
-#' @param M Number of independent splits. Default 10.
-#' @param K Number of folds per split. Default 5.
-#' @param regularization Numeric. Not used (CV selects lambda). Kept for backward compatibility.. Default 0.1.
-#'
-#' @return List with elements:
-#'   \item{theta}{ATT point estimate}
-#'   \item{sigma}{Standard error}
-#'   \item{ci_95}{95\% confidence interval}
-#'   \item{e_hat}{Propensity score predictions (from averaged tree)}
-#'   \item{m0_hat}{Control outcome predictions (from averaged tree)}
-#'   \item{structures}{List with e and m0 modal structures}
-#'   \item{averaged_trees}{List with e and m0 averaged trees}
-#'   \item{n_trees_matched_modal}{List with number of trees matching modal (e and m0)}
-#'   \item{n_trees_total}{List with total trees collected (e and m0)}
-#'   \item{modal_frequency}{List with modal frequency (e and m0)}
-#'   \item{tier_used}{Character indicating which tier succeeded}
-#'   \item{M_used}{Integer showing final M value (may be > input M if expanded)}
-#'   \item{M_expanded}{Logical indicating if M was increased}
-#'   \item{n_splits}{Number of splits (M from input)}
-#'   \item{n_folds}{Number of folds per split (K)}
-#'
-#' @details
-#' This estimator combines the stability of M-split with the interpretability of
-#' a single tree, using a three-tier fallback strategy that increases M rather
-#' than changing tolerance:
-#'
-#' \strong{Three-Tier Fallback:}
-#' \enumerate{
-#'   \item Modal across M×K fold-specific trees (no Rashomon)
-#'   \item Modal across M×K Rashomon set trees at ε = 0.05 (theory-compliant)
-#'   \item Increase M and retry Tiers 1-2
-#' }
-#'
-#' \strong{Key features:}
-#' - Leverages M-split philosophy: more splits provide more diverse trees
-#' - Always uses ε = 0.05 for Rashomon (no theory violations)
-#' - Dynamically increases M if modal structure doesn't emerge
-#' - Minimum 3 trees required for averaging
-#'
-#' @seealso \code{\link{estimate_att_doubletree_averaged}}, \code{\link{estimate_att_msplit}},
-#'   \code{\link{average_trees}}
-#'
-#' @export
-estimate_att_msplit_averaged <- function(X, A, Y, M = 10, K = 5, regularization = 0.1,
-                                        outcome_type = c("binary", "continuous"),
-                                        rashomon_bound_multiplier = 0.05,
-                                        verbose = FALSE, ...) {
-  outcome_type <- match.arg(outcome_type)
-  n <- nrow(X)
-  check_att_data(X, A, Y, outcome_type = outcome_type)
-  if (is.matrix(X)) X <- as.data.frame(X)
-
-  M_original <- M
-
-  # Tier 1: Modal across M×K fold-specific trees
-  if (verbose) message(sprintf("\n=== Tier 1: Fold-specific with M=%d ===", M))
-  tier1_result <- try_msplit_fold_specific(X, A, Y, M, K, regularization, outcome_type, verbose, ...)
-
-  if (tier1_result$success && tier1_result$n_matched_e >= 3 && tier1_result$n_matched_m0 >= 3) {
-    if (verbose) message(sprintf("Tier 1 succeeded: e=%d/%d (%.1f%%), m0=%d/%d (%.1f%%)",
-                                  tier1_result$n_matched_e, tier1_result$n_total_e,
-                                  tier1_result$modal_freq_e * 100,
-                                  tier1_result$n_matched_m0, tier1_result$n_total_m0,
-                                  tier1_result$modal_freq_m0 * 100))
-    return(finalize_msplit_result(tier1_result, X, A, Y,
-                                   tier = "tier1_fold_specific",
-                                   M_used = M, M_expanded = FALSE, verbose))
-  }
-
-  # Tier 2: Modal across M×K Rashomon set trees at ε = 0.05
-  if (verbose) message(sprintf("\n=== Tier 2: Rashomon sets at ε=0.05 with M=%d ===", M))
-  tier2_result <- try_msplit_rashomon_sets(X, A, Y, M, K, regularization, outcome_type,
-                                          tolerance = 0.05, verbose, ...)
-
-  if (tier2_result$success && tier2_result$n_matched_e >= 3 && tier2_result$n_matched_m0 >= 3) {
-    if (verbose) message(sprintf("Tier 2 succeeded: e=%d/%d (%.1f%%), m0=%d/%d (%.1f%%)",
-                                  tier2_result$n_matched_e, tier2_result$n_total_e,
-                                  tier2_result$modal_freq_e * 100,
-                                  tier2_result$n_matched_m0, tier2_result$n_total_m0,
-                                  tier2_result$modal_freq_m0 * 100))
-    return(finalize_msplit_result(tier2_result, X, A, Y,
-                                   tier = "tier2_rashomon_0.05",
-                                   M_used = M, M_expanded = FALSE, verbose))
-  }
-
-  # Tier 3: Increase M and retry
-  M_increment <- max(5, M %/% 2)
-  M_max <- 50
-
-  while (M < M_max) {
-    M_new <- M + M_increment
-    if (verbose) message(sprintf("\n=== Tier 3: Increasing M from %d to %d ===", M, M_new))
-
-    # Retry Tier 1 with larger M
-    tier1_expanded <- try_msplit_fold_specific(X, A, Y, M_new, K, regularization, outcome_type, verbose, ...)
-    if (tier1_expanded$success && tier1_expanded$n_matched_e >= 3 && tier1_expanded$n_matched_m0 >= 3) {
-      if (verbose) message(sprintf("Tier 3 (fold-specific) succeeded with M=%d", M_new))
-      return(finalize_msplit_result(tier1_expanded, X, A, Y,
-                                     tier = "tier1_fold_specific",
-                                     M_used = M_new, M_expanded = TRUE, verbose))
-    }
-
-    # Retry Tier 2 with larger M
-    tier2_expanded <- try_msplit_rashomon_sets(X, A, Y, M_new, K, regularization, outcome_type,
-                                              tolerance = 0.05, verbose, ...)
-    if (tier2_expanded$success && tier2_expanded$n_matched_e >= 3 && tier2_expanded$n_matched_m0 >= 3) {
-      if (verbose) message(sprintf("Tier 3 (Rashomon) succeeded with M=%d", M_new))
-      return(finalize_msplit_result(tier2_expanded, X, A, Y,
-                                     tier = "tier2_rashomon_0.05",
-                                     M_used = M_new, M_expanded = TRUE, verbose))
-    }
-
-    M <- M_new
-  }
-
-  # All tiers failed
-  return(list(
-    theta = NA_real_,
-    sigma = NA_real_,
-    ci_95 = c(NA_real_, NA_real_),
-    e_hat = rep(NA_real_, n),
-    m0_hat = rep(NA_real_, n),
-    error = sprintf("All tiers failed: <3 trees matched modal even with M=%d", M),
-    tier_used = "failed",
-    M_used = M,
-    M_expanded = TRUE,
-    n_splits = M_original,
-    n_folds = K
-  ))
+    n_treated = sum(A),
+    outcome_type = outcome_type,
+    n_trees_averaged = M * K
+  ), class = c("msplit_att_averaged", "list"))
 }
