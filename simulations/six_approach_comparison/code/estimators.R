@@ -173,7 +173,7 @@ create_folds <- function(n, K = 5) {
 #' @param X Covariate data.frame
 #' @param A Treatment vector
 #' @param Y Outcome vector
-#' @param regularization Tree complexity penalty
+#' @param regularization Not used (CV selects lambda). Kept for backward compatibility.
 #' @return List with theta, se, trees
 #' @export
 estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
@@ -193,16 +193,20 @@ estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
     verbose = FALSE
   )
 
-  # Handle CV failure gracefully
+  # No fallback - CV must succeed
   if (is.na(cv_e$best_lambda)) {
-    warning("CV failed for propensity model. Using fixed regularization = ", regularization)
-    e_tree <- optimaltrees::fit_tree(
-      X = X, y = A, loss_function = "log_loss",
-      regularization = regularization, verbose = FALSE
+    stop(
+      "CV failed for propensity model in fullsample approach.\n",
+      "Possible fixes:\n",
+      "  1. Check data quality (enough variation in A?)\n",
+      "  2. Try different lambda_grid in cv_regularization()\n",
+      "  3. Increase K in cv_regularization() for more stable CV\n",
+      "  4. Check for numerical issues (NaN, Inf in X or A)",
+      call. = FALSE
     )
-  } else {
-    e_tree <- cv_e$model
   }
+
+  e_tree <- cv_e$model
 
   e_pred <- predict(e_tree, X, type = "prob")
   if (!is.matrix(e_pred) || ncol(e_pred) != 2) {
@@ -222,16 +226,20 @@ estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
     verbose = FALSE
   )
 
-  # Handle CV failure gracefully
+  # No fallback - CV must succeed
   if (is.na(cv_m0$best_lambda)) {
-    warning("CV failed for outcome model. Using fixed regularization = ", regularization)
-    m0_tree <- optimaltrees::fit_tree(
-      X = X[control_idx, , drop = FALSE], y = Y[control_idx],
-      loss_function = "log_loss", regularization = regularization, verbose = FALSE
+    stop(
+      "CV failed for outcome model in fullsample approach.\n",
+      "Possible fixes:\n",
+      "  1. Check data quality (enough control units? variation in Y?)\n",
+      "  2. Try different lambda_grid in cv_regularization()\n",
+      "  3. Increase K in cv_regularization() for more stable CV\n",
+      "  4. Check for numerical issues (NaN, Inf in X or Y)",
+      call. = FALSE
     )
-  } else {
-    m0_tree <- cv_m0$model
   }
+
+  m0_tree <- cv_m0$model
 
   m0_pred <- predict(m0_tree, X, type = "prob")
   if (!is.matrix(m0_pred) || ncol(m0_pred) != 2) {
@@ -269,7 +277,7 @@ estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
 #' @param A Treatment vector
 #' @param Y Outcome vector
 #' @param K Number of folds
-#' @param regularization Tree complexity penalty
+#' @param regularization Not used (CV selects lambda). Kept for backward compatibility.
 #' @return List with theta, se
 #' @export
 estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
@@ -296,16 +304,21 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
       verbose = FALSE
     )
 
-    # Handle CV failure gracefully
+    # No fallback - CV must succeed
     if (is.na(cv_e_k$best_lambda)) {
-      warning("CV failed for propensity model (fold ", k, "). Using fixed regularization = ", regularization)
-      e_tree_k <- optimaltrees::fit_tree(
-        X = X[train_idx, , drop = FALSE], y = A[train_idx],
-        loss_function = "log_loss", regularization = regularization, verbose = FALSE
+      stop(
+        "CV failed for propensity model in crossfit approach (fold ", k, ").\n",
+        "Possible fixes:\n",
+        "  1. Check data quality (enough variation in A in this fold?)\n",
+        "  2. Try different lambda_grid in cv_regularization()\n",
+        "  3. Increase K in cv_regularization() for more stable CV\n",
+        "  4. Check for numerical issues (NaN, Inf in X or A)\n",
+        "  5. Try different random seed (fold might have unusual split)",
+        call. = FALSE
       )
-    } else {
-      e_tree_k <- cv_e_k$model
     }
+
+    e_tree_k <- cv_e_k$model
 
     e_pred_k <- predict(e_tree_k, X[test_idx, , drop = FALSE], type = "prob")
     if (!is.matrix(e_pred_k) || ncol(e_pred_k) != 2) {
@@ -325,16 +338,21 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
       verbose = FALSE
     )
 
-    # Handle CV failure gracefully
+    # No fallback - CV must succeed
     if (is.na(cv_m0_k$best_lambda)) {
-      warning("CV failed for outcome model (fold ", k, "). Using fixed regularization = ", regularization)
-      m0_tree_k <- optimaltrees::fit_tree(
-        X = X[control_train_idx, , drop = FALSE], y = Y[control_train_idx],
-        loss_function = "log_loss", regularization = regularization, verbose = FALSE
+      stop(
+        "CV failed for outcome model in crossfit approach (fold ", k, ").\n",
+        "Possible fixes:\n",
+        "  1. Check data quality (enough control units in this fold? variation in Y?)\n",
+        "  2. Try different lambda_grid in cv_regularization()\n",
+        "  3. Increase K in cv_regularization() for more stable CV\n",
+        "  4. Check for numerical issues (NaN, Inf in X or Y)\n",
+        "  5. Try different random seed (fold might have unusual split)",
+        call. = FALSE
       )
-    } else {
-      m0_tree_k <- cv_m0_k$model
     }
+
+    m0_tree_k <- cv_m0_k$model
 
     m0_pred_k <- predict(m0_tree_k, X[test_idx, , drop = FALSE], type = "prob")
     if (!is.matrix(m0_pred_k) || ncol(m0_pred_k) != 2) {
@@ -368,7 +386,7 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' @param A Treatment vector
 #' @param Y Outcome vector
 #' @param K Number of folds
-#' @param regularization Tree complexity penalty
+#' @param regularization Not used (CV selects lambda). Kept for backward compatibility.
 #' @return List with theta, se, structures
 #' @export
 estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
@@ -442,13 +460,13 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' Estimate ATT using doubletree with averaged leaf values
 #'
 #' Wrapper for doubletree::estimate_att_doubletree_averaged()
-#' NOTE: Uses CV-selected lambda (2026-05-26). regularization is fallback only.
+#' NOTE: Uses CV-selected lambda (2026-05-26). No fallback - CV must succeed.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
 #' @param Y Outcome vector
 #' @param K Number of folds (for structure selection)
-#' @param regularization Fallback tree complexity penalty if CV fails
+#' @param regularization Not used (CV selects lambda). Kept for backward compatibility.
 #' @return List with theta, se, structures
 #' @export
 estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.1) {
@@ -481,14 +499,15 @@ estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.
 
 #' Estimate ATT using M-split doubletree
 #'
-#' Finds modal structure across M splits, averages predictions
+#' Finds modal structure across M splits, averages predictions.
+#' NOTE: Uses CV-selected lambda for each tree (2026-05-26). regularization is fallback only.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
 #' @param Y Outcome vector
 #' @param M Number of independent splits
 #' @param K Number of folds per split
-#' @param regularization Tree complexity penalty
+#' @param regularization Not used (CV selects lambda). Kept for backward compatibility.
 #' @return List with theta, se, structures, diagnostics
 #' @export
 estimate_att_msplit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
@@ -523,14 +542,14 @@ estimate_att_msplit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
 #'
 #' Gets modal structure from M splits, then averages leaf values across
 #' all M×K cross-fitted trees (K trees per split, M splits).
-#' NOTE: Uses CV-selected lambda (2026-05-26). regularization is fallback only.
+#' NOTE: Uses CV-selected lambda (2026-05-26). No fallback - CV must succeed.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
 #' @param Y Outcome vector
 #' @param M Number of splits (for structure selection)
 #' @param K Number of folds per split
-#' @param regularization Fallback tree complexity penalty if CV fails
+#' @param regularization Not used (CV selects lambda). Kept for backward compatibility.
 #' @return List with theta, se, structures, diagnostics
 #' @export
 estimate_att_msplit_averaged <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {

@@ -13,7 +13,8 @@
 #' @param structure_selection "modal" (most frequent), "first", or "lowest_risk" (default "modal")
 #' @param seed_base Base seed for reproducibility. Split m uses seed = seed_base + m.
 #' @param verbose Logical. Print progress (default TRUE)
-#' @param regularization Numeric. Tree complexity penalty (default 0.1)
+#' @param regularization Numeric. Not used - CV always selects lambda. Parameter kept for
+#'   backward compatibility but will be ignored.
 #' @param outcome_type "binary" or "continuous" (default "binary")
 #'
 #' @return List with class "msplit_att" containing:
@@ -130,15 +131,30 @@ estimate_att_msplit <- function(X, A, Y,
     A_train <- A[train_idx]
     Y_train <- Y[train_idx]
 
-    # Fit propensity model
-    model_e <- optimaltrees::fit_tree(
+    # Fit propensity model with CV-selected lambda
+    cv_e <- optimaltrees::cv_regularization(
       X = X_train,
       y = A_train,
       loss_function = "log_loss",
-      regularization = regularization,
-      store_training_data = TRUE,
+      K = 5,
+      refit = TRUE,
       verbose = FALSE
     )
+
+    # No fallback - CV must succeed
+    if (is.na(cv_e$best_lambda)) {
+      stop(
+        "CV failed for propensity model in split ", m, ". ",
+        "Possible fixes:\n",
+        "  1. Check data quality (enough variation in A?)\n",
+        "  2. Try different lambda_grid in cv_regularization()\n",
+        "  3. Increase K in cv_regularization() for more stable CV\n",
+        "  4. Check for numerical issues (NaN, Inf in X or A)",
+        call. = FALSE
+      )
+    }
+
+    model_e <- cv_e$model
     structures_e[[m]] <- list(
       structure = optimaltrees::extract_tree_structure(model_e),
       discretization_metadata = model_e@discretization_metadata
@@ -151,14 +167,31 @@ estimate_att_msplit <- function(X, A, Y,
 
     outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
 
-    model_m0 <- optimaltrees::fit_tree(
+    # Fit outcome model with CV-selected lambda
+    cv_m0 <- optimaltrees::cv_regularization(
       X = X_control,
       y = Y_control,
       loss_function = outcome_loss,
-      regularization = regularization,
-      store_training_data = TRUE,
+      K = 5,
+      refit = TRUE,
       verbose = FALSE
     )
+
+    # No fallback - CV must succeed
+    if (is.na(cv_m0$best_lambda)) {
+      stop(
+        "CV failed for outcome model in split ", m, ". ",
+        "Possible fixes:\n",
+        "  1. Check data quality (enough control units? variation in Y?)\n",
+        "  2. Try different lambda_grid in cv_regularization()\n",
+        "  3. Increase K in cv_regularization() for more stable CV\n",
+        "  4. Check for numerical issues (NaN, Inf in X or Y)\n",
+        "  5. For continuous outcomes, check for extreme values",
+        call. = FALSE
+      )
+    }
+
+    model_m0 <- cv_m0$model
     structures_m0[[m]] <- list(
       structure = optimaltrees::extract_tree_structure(model_m0),
       discretization_metadata = model_m0@discretization_metadata

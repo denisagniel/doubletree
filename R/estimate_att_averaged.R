@@ -4,7 +4,7 @@
 # to produce a single interpretable tree while maintaining cross-fit validity.
 
 # =============================================================================
-# Helper Functions for Robust Fallback
+# Helper Functions for Tree Averaging
 # =============================================================================
 
 #' Collect Rashomon Trees at Given Tolerance with CV-Selected Lambda
@@ -17,7 +17,7 @@
 #' @param K Number of folds
 #' @param fold_indices List of length K with test indices per fold
 #' @param tolerance Numeric. Rashomon bound multiplier (epsilon_n)
-#' @param regularization Numeric. Fallback tree complexity penalty if CV fails
+#' @param regularization Numeric. Not used (CV selects lambda). Kept for backward compatibility.
 #' @param outcome_type Character. "binary" or "continuous"
 #' @param verbose Logical
 #' @param ... Additional arguments for optimaltrees
@@ -62,13 +62,21 @@ collect_rashomon_trees_at_tolerance <- function(X, outcome, K, fold_indices,
       return(list(best_lambda = NA_real_))
     })
 
-    # Use CV-selected lambda or fallback to fixed
-    lambda_k <- if (!is.na(cv_result$best_lambda)) {
-      cv_result$best_lambda
-    } else {
-      if (verbose) message("Fold ", k, " using fallback regularization = ", regularization)
-      regularization
+    # No fallback - CV must succeed
+    if (is.na(cv_result$best_lambda)) {
+      stop(
+        "CV failed for ", nuisance_type, " in fold ", k, " during Rashomon collection.\n",
+        "Possible fixes:\n",
+        "  1. Check data quality (enough variation in outcome for this fold?)\n",
+        "  2. Try different lambda_grid in cv_regularization()\n",
+        "  3. Increase K in cv_regularization() for more stable CV\n",
+        "  4. Check for numerical issues (NaN, Inf in data)\n",
+        "  5. Try different random seed (fold might have unusual split)",
+        call. = FALSE
+      )
     }
+
+    lambda_k <- cv_result$best_lambda
 
     # Fit Rashomon set for this fold with selected lambda
     rashomon_model <- tryCatch({
@@ -387,7 +395,7 @@ find_trees_through_tiers <- function(X, outcome, K, fold_indices, nuisance_name,
     }
   }
 
-  # Tier 5: Fold-specific fallback with CV-selected lambda
+  # Tier 5: Fold-specific trees with CV-selected lambda (no fallback - CV must succeed)
   if (verbose) message(sprintf("%s: Tier 5 - Fold-specific trees (no Rashomon)", nuisance_name))
 
   fold_trees <- list()
@@ -414,25 +422,26 @@ find_trees_through_tiers <- function(X, outcome, K, fold_indices, nuisance_name,
       return(list(best_lambda = NA_real_, model = NULL))
     })
 
-    # Use CV-selected model or fit with fallback lambda
-    tree_k <- if (!is.na(cv_result$best_lambda) && !is.null(cv_result$model)) {
-      cv_result$model
-    } else {
-      if (verbose) message("Fold ", k, " using fallback regularization = ", regularization)
-      tryCatch({
-        optimaltrees::fit_tree(
-          X = X_train,
-          y = outcome_train,
-          loss_function = loss_fn,
-          regularization = regularization,
-          verbose = FALSE,
-          ...
-        )
-      }, error = function(e) {
-        if (verbose) message("Fold ", k, " tree fit failed: ", e$message)
-        return(NULL)
-      })
+    # No fallback - CV must succeed
+    if (is.na(cv_result$best_lambda) || is.null(cv_result$model)) {
+      stop(
+        "CV failed for ", nuisance_type, " in fold ", k, " (Tier 5 fallback).\n",
+        "Possible fixes:\n",
+        "  1. Check data quality (enough variation in outcome for this fold?)\n",
+        "  2. Try different lambda_grid in cv_regularization()\n",
+        "  3. Increase K in cv_regularization() for more stable CV\n",
+        "  4. Check for numerical issues (NaN, Inf in data)\n",
+        "  5. Try different random seed (fold might have unusual split)",
+        call. = FALSE
+      )
     }
+
+    tree_k <- tryCatch({
+      cv_result$model
+    }, error = function(e) {
+      if (verbose) message("Fold ", k, " tree fit failed: ", e$message)
+      return(NULL)
+    })
 
     if (!is.null(tree_k)) {
       fold_trees[[length(fold_trees) + 1]] <- tree_k
@@ -499,7 +508,7 @@ find_trees_through_tiers <- function(X, outcome, K, fold_indices, nuisance_name,
 #'
 #' @inheritParams estimate_att
 #' @param K Number of cross-fitting folds. Default 5.
-#' @param regularization Numeric. Fallback tree complexity penalty if CV fails. Default 0.1.
+#' @param regularization Numeric. Not used (CV selects lambda). Kept for backward compatibility.. Default 0.1.
 #'
 #' @return List with elements:
 #'   \item{theta}{ATT point estimate}
@@ -533,7 +542,8 @@ find_trees_through_tiers <- function(X, outcome, K, fold_indices, nuisance_name,
 #' - Each nuisance (e, m0) progresses through tiers independently
 #' - Theory warnings issued when ε > 0.05 used (violates rate condition)
 #' - Minimum 3 trees required for averaging (ensures robustness)
-#' - All fallback paths are explicit (no silent failures)
+#' - All tier transitions are explicit (no silent failures)
+#' - CV always selects lambda (no fallback to fixed regularization)
 #'
 #' @seealso \code{\link{estimate_att}}, \code{\link{estimate_att_msplit_averaged}},
 #'   \code{\link{average_trees}}
@@ -718,21 +728,21 @@ try_msplit_fold_specific <- function(X, A, Y, M, K, regularization, outcome_type
         )
       }, error = function(e) list(best_lambda = NA_real_, model = NULL))
 
-      # Use CV-selected model or fallback
-      tree_e <- if (!is.na(cv_e$best_lambda) && !is.null(cv_e$model)) {
-        cv_e$model
-      } else {
-        tryCatch({
-          optimaltrees::fit_tree(
-            X = X_train, y = A_train, loss_function = "log_loss",
-            regularization = regularization, verbose = FALSE, ...
-          )
-        }, error = function(e) NULL)
+      # No fallback - CV must succeed
+      if (is.na(cv_e$best_lambda) || is.null(cv_e$model)) {
+        stop(
+          "CV failed for propensity model in fold ", k, " during tree collection.\n",
+          "Possible fixes:\n",
+          "  1. Check data quality (enough variation in A in this fold?)\n",
+          "  2. Try different lambda_grid in cv_regularization()\n",
+          "  3. Increase K in cv_regularization() for more stable CV\n",
+          "  4. Check for numerical issues (NaN, Inf in data)\n",
+          "  5. Try different random seed",
+          call. = FALSE
+        )
       }
 
-      if (!is.null(tree_e)) {
-        all_e_trees[[length(all_e_trees) + 1]] <- tree_e
-      }
+      all_e_trees[[length(all_e_trees) + 1]] <- cv_e$model
     }
 
     # Fit K trees for outcome with CV-selected lambda (2026-05-26)
@@ -754,21 +764,21 @@ try_msplit_fold_specific <- function(X, A, Y, M, K, regularization, outcome_type
         )
       }, error = function(e) list(best_lambda = NA_real_, model = NULL))
 
-      # Use CV-selected model or fallback
-      tree_m0 <- if (!is.na(cv_m0$best_lambda) && !is.null(cv_m0$model)) {
-        cv_m0$model
-      } else {
-        tryCatch({
-          optimaltrees::fit_tree(
-            X = X_train, y = Y_train, loss_function = outcome_loss,
-            regularization = regularization, verbose = FALSE, ...
-          )
-        }, error = function(e) NULL)
+      # No fallback - CV must succeed
+      if (is.na(cv_m0$best_lambda) || is.null(cv_m0$model)) {
+        stop(
+          "CV failed for outcome model in fold ", k, " during tree collection.\n",
+          "Possible fixes:\n",
+          "  1. Check data quality (enough control units in fold? variation in Y?)\n",
+          "  2. Try different lambda_grid in cv_regularization()\n",
+          "  3. Increase K in cv_regularization() for more stable CV\n",
+          "  4. Check for numerical issues (NaN, Inf in data)\n",
+          "  5. Try different random seed",
+          call. = FALSE
+        )
       }
 
-      if (!is.null(tree_m0)) {
-        all_m0_trees[[length(all_m0_trees) + 1]] <- tree_m0
-      }
+      all_m0_trees[[length(all_m0_trees) + 1]] <- cv_m0$model
     }
   }
 
@@ -960,7 +970,7 @@ finalize_msplit_result <- function(result, X, A, Y, tier, M_used, M_expanded, ve
 #' @inheritParams estimate_att
 #' @param M Number of independent splits. Default 10.
 #' @param K Number of folds per split. Default 5.
-#' @param regularization Numeric. Fallback tree complexity penalty if CV fails. Default 0.1.
+#' @param regularization Numeric. Not used (CV selects lambda). Kept for backward compatibility.. Default 0.1.
 #'
 #' @return List with elements:
 #'   \item{theta}{ATT point estimate}
