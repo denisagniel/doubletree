@@ -131,12 +131,13 @@ estimate_att_msplit <- function(X, A, Y,
     A_train <- A[train_idx]
     Y_train <- Y[train_idx]
 
-    # Fit propensity model with CV-selected lambda
-    cv_e <- optimaltrees::cv_regularization(
+    # Fit propensity model with adaptive CV-selected lambda
+    cv_e <- optimaltrees::cv_regularization_adaptive(
       X = X_train,
       y = A_train,
       loss_function = "log_loss",
       K = 5,
+      max_iterations = 10,
       refit = TRUE,
       verbose = FALSE
     )
@@ -167,12 +168,13 @@ estimate_att_msplit <- function(X, A, Y,
 
     outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
 
-    # Fit outcome model with CV-selected lambda
-    cv_m0 <- optimaltrees::cv_regularization(
+    # Fit outcome model with adaptive CV-selected lambda
+    cv_m0 <- optimaltrees::cv_regularization_adaptive(
       X = X_control,
       y = Y_control,
       loss_function = outcome_loss,
       K = 5,
+      max_iterations = 10,
       refit = TRUE,
       verbose = FALSE
     )

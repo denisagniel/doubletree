@@ -17,19 +17,22 @@ fit_tree_with_cv <- function(X, y, loss_function, cv_reg, cv_K, reg,
                              discretize_method, discretize_bins,
                              verbose, fold_id, model_name, ...) {
   if (cv_reg) {
-    cv_result <- optimaltrees::cv_regularization(
+    cv_result <- optimaltrees::cv_regularization_adaptive(
       X, y,
       loss_function = loss_function,
       discretize_method = discretize_method,
       discretize_bins = discretize_bins,
       K = cv_K,
+      max_iterations = 10,
       refit = TRUE,
       verbose = FALSE,
       ...
     )
     if (verbose) {
       message("  Fold ", fold_id, " ", model_name,
-              ": selected lambda = ", round(cv_result$best_lambda, 5))
+              ": selected lambda = ", round(cv_result$best_lambda, 5),
+              " (", cv_result$iterations, " iter, ",
+              if (cv_result$converged) "converged" else "max iter", ")")
     }
     return(cv_result$model)
   } else {
@@ -362,22 +365,32 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
 
   # If CV requested, select regularization for each nuisance
   if (cv_regularization) {
-    if (verbose) message("Selecting regularization via CV...")
+    if (verbose) message("Selecting regularization via adaptive CV...")
 
-    # CV for propensity
-    cv_e <- optimaltrees::cv_regularization(X, A, loss_function = "log_loss",
-                                         K = cv_K, refit = FALSE, verbose = FALSE, ...)
+    # Adaptive CV for propensity
+    cv_e <- optimaltrees::cv_regularization_adaptive(X, A, loss_function = "log_loss",
+                                         K = cv_K, max_iterations = 10,
+                                         refit = FALSE, verbose = FALSE, ...)
     reg_e <- cv_e$best_lambda
-    if (verbose) message("  e: selected lambda = ", round(reg_e, 5))
+    if (verbose) {
+      message("  e: selected lambda = ", round(reg_e, 5),
+              " (", cv_e$iterations, " iter, ",
+              if (cv_e$converged) "converged" else "max iter", ")")
+    }
 
-    # CV for m0
+    # Adaptive CV for m0
     idx0 <- which(A == 0)
     X0 <- X[idx0, , drop = FALSE]
     Y0 <- Y[idx0]
-    cv_m0 <- optimaltrees::cv_regularization(X0, Y0, loss_function = loss_outcome,
-                                          K = cv_K, refit = FALSE, verbose = FALSE, ...)
+    cv_m0 <- optimaltrees::cv_regularization_adaptive(X0, Y0, loss_function = loss_outcome,
+                                          K = cv_K, max_iterations = 10,
+                                          refit = FALSE, verbose = FALSE, ...)
     reg_m0 <- cv_m0$best_lambda
-    if (verbose) message("  m0: selected lambda = ", round(reg_m0, 5))
+    if (verbose) {
+      message("  m0: selected lambda = ", round(reg_m0, 5),
+              " (", cv_m0$iterations, " iter, ",
+              if (cv_m0$converged) "converged" else "max iter", ")")
+    }
   } else {
     # Use fixed regularization
     reg_e <- regularization

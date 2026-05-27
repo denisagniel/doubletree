@@ -46,14 +46,15 @@ collect_rashomon_trees_at_tolerance <- function(X, outcome, K, fold_indices,
     X_train <- X[train_idx, , drop = FALSE]
     outcome_train <- outcome[train_idx]
 
-    # Select lambda via CV on training fold (2026-05-26)
+    # Select lambda via adaptive CV on training fold (2026-05-27)
     loss_fn <- if (outcome_type == "binary") "log_loss" else "squared_error"
     cv_result <- tryCatch({
-      optimaltrees::cv_regularization(
+      optimaltrees::cv_regularization_adaptive(
         X = X_train,
         y = outcome_train,
         loss_function = loss_fn,
         K = 5,
+        max_iterations = 10,
         refit = FALSE,
         verbose = FALSE
       )
@@ -406,14 +407,15 @@ find_trees_through_tiers <- function(X, outcome, K, fold_indices, nuisance_name,
     X_train <- X[train_idx, , drop = FALSE]
     outcome_train <- outcome[train_idx]
 
-    # Select lambda via CV (2026-05-26)
+    # Select lambda via adaptive CV (2026-05-27)
     loss_fn <- if (outcome_type == "binary") "log_loss" else "squared_error"
     cv_result <- tryCatch({
-      optimaltrees::cv_regularization(
+      optimaltrees::cv_regularization_adaptive(
         X = X_train,
         y = outcome_train,
         loss_function = loss_fn,
         K = 5,
+        max_iterations = 10,
         refit = TRUE,
         verbose = FALSE
       )
@@ -851,10 +853,10 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     A_train <- A[train_idx]
     Y_train <- Y[train_idx]
 
-    # Fit propensity with CV
-    cv_e <- optimaltrees::cv_regularization(
+    # Fit propensity with adaptive CV
+    cv_e <- optimaltrees::cv_regularization_adaptive(
       X = X_train, y = A_train, loss_function = "log_loss",
-      K = 5, refit = TRUE, verbose = FALSE
+      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE
     )
 
     if (is.na(cv_e$best_lambda)) {
@@ -874,9 +876,9 @@ estimate_att_msplit_averaged <- function(X, A, Y,
 
     outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
 
-    cv_m0 <- optimaltrees::cv_regularization(
+    cv_m0 <- optimaltrees::cv_regularization_adaptive(
       X = X_control, y = Y_control, loss_function = outcome_loss,
-      K = 5, refit = TRUE, verbose = FALSE
+      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE
     )
 
     if (is.na(cv_m0$best_lambda)) {
