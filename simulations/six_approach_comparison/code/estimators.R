@@ -554,15 +554,15 @@ estimate_att_msplit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
 #' @export
 estimate_att_msplit_averaged <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
   # Use package function (uses CV internally as of 2026-05-26)
+  # NOTE: regularization parameter kept for API compatibility but not used (CV selects lambda)
   result <- doubletree::estimate_att_msplit_averaged(
     X = X,
     A = A,
     Y = Y,
     M = M,
     K = K,
-    regularization = regularization,
     outcome_type = "binary",
-    verbose = FALSE
+    seed_base = NULL
   )
 
   # Convert to simulation format (theta → theta, sigma → se)
