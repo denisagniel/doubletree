@@ -263,15 +263,15 @@ estimate_att_msplit <- function(X, A, Y,
       # Predict on test fold
       X_test <- X[test_idx, , drop = FALSE]
 
-      preds_e <- predict(tree_e_mk, X_test, type = "prob")
+      preds_e <- predict(tree_e_mk$model, X_test, type = "prob")
       predictions_e[test_idx, m] <- preds_e[, 2]  # P(A=1|X)
 
       if (outcome_loss == "log_loss") {
-        preds_m0 <- predict(tree_m0_mk, X_test, type = "prob")
+        preds_m0 <- predict(tree_m0_mk$model, X_test, type = "prob")
         predictions_m0[test_idx, m] <- preds_m0[, 2]  # P(Y=1|A=0,X)
       } else {
         # Regression: use get_fitted_from_tree directly
-        preds_m0 <- optimaltrees::get_fitted_from_tree(tree_m0_mk@trees[[1]], X_test)
+        preds_m0 <- optimaltrees::get_fitted_from_tree(tree_m0_mk$model@trees[[1]], X_test)
         predictions_m0[test_idx, m] <- preds_m0  # E[Y|A=0,X]
       }
     }
