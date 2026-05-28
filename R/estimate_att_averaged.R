@@ -939,7 +939,7 @@ estimate_att_msplit_averaged <- function(X, A, Y,
       )
 
       # Extract tree structure and leaf counts
-      trees_e[[tree_idx]] <- optimaltrees::get_rashomon_trees(refit_result_e$model)[[1]]
+      trees_e[[tree_idx]] <- refit_result_e$model@trees[[1]]
       leaf_counts_e[[tree_idx]] <- refit_result_e$n_per_leaf
 
       # Refit outcome tree with modal structure
@@ -959,7 +959,7 @@ estimate_att_msplit_averaged <- function(X, A, Y,
       )
 
       # Extract tree structure and leaf counts
-      trees_m0[[tree_idx]] <- optimaltrees::get_rashomon_trees(refit_result_m0$model)[[1]]
+      trees_m0[[tree_idx]] <- refit_result_m0$model@trees[[1]]
       leaf_counts_m0[[tree_idx]] <- refit_result_m0$n_per_leaf
 
       tree_idx <- tree_idx + 1
