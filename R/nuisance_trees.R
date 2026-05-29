@@ -309,6 +309,7 @@ safe_rashomon_fit <- function(X, y, K, loss_function, regularization,
       regularization = regularization,
       rashomon_bound_multiplier = rashomon_bound_multiplier,
       rashomon_bound_adder = rashomon_bound_adder,
+      rashomon_ignore_trivial_extensions = FALSE,  # CRITICAL: Keep all trivial extensions for fold intersection
       max_leaves = max_leaves,
       fold_indices = fold_indices,
       auto_tune_intersecting = auto_tune_intersecting,
