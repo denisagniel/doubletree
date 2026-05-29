@@ -2,17 +2,26 @@
 % Please edit documentation in R/estimate_att_averaged.R
 \name{estimate_att_doubletree_averaged}
 \alias{estimate_att_doubletree_averaged}
-\title{Estimate ATT with Doubletree and Averaged Leaves}
+\title{Estimate ATT with Doubletree and Averaged Leaves (Approach 4)}
 \usage{
 estimate_att_doubletree_averaged(
   X,
   A,
   Y,
   K = 5,
-  regularization = 0.1,
   outcome_type = c("binary", "continuous"),
-  rashomon_bound_multiplier = 0.05,
+  cv_regularization = TRUE,
+  cv_K = 5,
+  regularization = 0.1,
+  stratified = TRUE,
+  seed = NULL,
   verbose = FALSE,
+  rashomon_bound_multiplier = 0.05,
+  rashomon_bound_adder = 0,
+  max_leaves = NULL,
+  auto_tune_intersecting = FALSE,
+  discretize_method = "quantiles",
+  discretize_bins = "adaptive",
   ...
 )
 }
@@ -23,72 +32,85 @@ estimate_att_doubletree_averaged(
 
 \item{Y}{Numeric vector of outcome. Binary (0/1) when outcome_type is "binary"; any numeric when "continuous".}
 
-\item{K}{Number of cross-fitting folds. Default 5.}
+\item{K}{Number of cross-fitting folds. Default: 5}
 
-\item{regularization}{Numeric. Fallback tree complexity penalty if CV fails. Default 0.1.}
+\item{outcome_type}{Character: "binary" or "continuous"}
 
-\item{outcome_type}{Character. "binary" (default) or "continuous". Continuous requires optimaltrees squared_error loss for m0, m1.}
+\item{cv_regularization}{Logical. Use CV to select lambda? Default: TRUE}
 
-\item{rashomon_bound_multiplier}{Numeric. Rashomon tolerance \eqn{\varepsilon_n}
-  controlling the size of the Rashomon set (trees with penalized risk
-  \eqn{\le (1 + \varepsilon) \cdot \text{best}}). Default: 0.05 (for quick exploration).
+\item{cv_K}{Integer. Number of folds for lambda CV. Default: 5}
 
-  \strong{Recommended:} Use theory-justified value via
-  \code{optimaltrees::select_epsilon_n(nrow(X), method = "fixed", c = 2)}.
-  This sets \eqn{\varepsilon_n = c\sqrt{(\log n)/n}}, which satisfies the
-  rate requirement \eqn{o(n^{-1/2})} for the 2-nuisance ATT score (manuscript Appendix A.5).
+\item{regularization}{Numeric. Fixed lambda (only used if cv_regularization=FALSE). Default: 0.1}
 
-  \strong{Trade-off:} Smaller \eqn{\varepsilon_n} yields trees closer to optimal
-  but higher risk of empty intersection. Larger \eqn{\varepsilon_n} facilitates
-  intersection (interpretability gain) but includes more sub-optimal trees.
-  Typical range: 0.02 (tight) to 0.10 (loose).}
+\item{stratified}{Logical. Stratify folds by treatment? Default: TRUE}
 
-\item{verbose}{Logical. Passed to optimaltrees. Default FALSE.}
+\item{seed}{Integer. Random seed for reproducibility. Default: NULL}
 
-\item{...}{Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
+\item{verbose}{Logical. Print progress? Default: FALSE}
+
+\item{rashomon_bound_multiplier}{Numeric. Rashomon bound multiplier (epsilon_n). Default: 0.05}
+
+\item{rashomon_bound_adder}{Numeric. Additive Rashomon bound. Default: 0}
+
+\item{max_leaves}{Integer. Maximum number of leaves (optional sieve). Default: NULL}
+
+\item{auto_tune_intersecting}{Logical. Auto-tune epsilon_n to find intersection? Default: FALSE}
+
+\item{discretize_method}{Character. "quantiles" or other. Default: "quantiles"}
+
+\item{discretize_bins}{Integer or "adaptive". Default: "adaptive"}
+
+\item{...}{Additional arguments passed to optimaltrees functions}
 }
 \value{
 List with elements:
   \item{theta}{ATT point estimate}
   \item{sigma}{Standard error}
   \item{ci_95}{95\% confidence interval}
+  \item{score_values}{EIF score values}
   \item{e_hat}{Propensity score predictions (from averaged tree)}
   \item{m0_hat}{Control outcome predictions (from averaged tree)}
-  \item{structures}{List with e and m0 structures}
-  \item{averaged_trees}{List with e and m0 averaged trees}
-  \item{n_folds}{Number of folds (K)}
-  \item{tier_used}{List with e and m0 tier information}
-  \item{rashomon_tolerance_used}{List with e and m0 tolerance values}
-  \item{theory_warning}{Character or NULL (if any nuisance used ε > 0.05)}
-  \item{n_trees_matched_modal}{List with e and m0 (for modal tiers only)}
-  \item{modal_frequency}{List with e and m0 (for modal tiers only)}
+  \item{averaged_trees}{List with e and m0 averaged trees (nested lists)}
+  \item{structures}{List with e and m0 TreeStructure objects}
+  \item{n}{Sample size}
+  \item{K}{Number of folds}
+  \item{n_treated}{Number of treated observations}
+  \item{outcome_type}{Outcome type ("binary" or "continuous")}
+  \item{converged}{Logical (TRUE if Rashomon intersection succeeded)}
+  \item{epsilon_n}{Rashomon bound multiplier used}
+  \item{n_trees_averaged}{Number of trees averaged (always K)}
 }
 \description{
-Estimates the Average Treatment Effect on the Treated (ATT) using doubletree
-(Rashomon intersection) with robust five-tier fallback to find a common tree
-structure, then averages leaf values across K cross-fitted trees to create a
-single interpretable tree. Uses CV-selected lambda for all tree fits (2026-05-26).
+Estimates the Average Treatment Effect on the Treated (ATT) using Rashomon
+intersection to find K trees with a common structure, then averages their
+leaf values to create a single interpretable tree. No cross-fitting in final
+predictions (all observations use the same averaged tree).
 }
 \details{
-This estimator combines the interpretability of a single tree with the validity
-of cross-fitting, using a robust five-tier fallback strategy:
-
-\strong{Five-Tier Fallback (Per Nuisance):}
+\strong{Algorithm:}
 \enumerate{
-  \item Rashomon intersection at ε = 0.05 (theory-compliant)
-  \item Expanded intersection at ε = 0.10, 0.15, 0.20 (with warning)
-  \item Modal structure across K Rashomon sets at ε = 0.05 (theory-compliant)
-  \item Modal structure with expanded ε = 0.10, 0.15, 0.20 (with warning)
-  \item Fold-specific trees with modal structure selection (no Rashomon)
+  \item Run Rashomon intersection via \code{fit_nuisances_rashomon()} for both e and m0
+  \item Check intersection succeeded (n_intersecting > 0) for both nuisances
+  \item Extract K trees with common structure from each nuisance
+  \item Average leaf values across K trees using \code{average_trees()}
+  \item Predict for ALL observations with averaged trees (no cross-fitting)
+  \item Compute ATT via EIF
 }
 
-\strong{Key features:}
-- Each nuisance (e, m0) progresses through tiers independently
-- Theory warnings issued when ε > 0.05 used (violates rate condition)
-- Minimum 3 trees required for averaging (ensures robustness)
-- All fallback paths are explicit (no silent failures)
+\strong{Key differences from old implementation:}
+- Uses Rashomon intersection directly (no tier system)
+- Fails loudly if intersection is empty (no fallback)
+- Averages exactly K trees (one per fold, all with same structure)
+- No cross-fitting in final predictions (all obs use averaged tree)
+
+\strong{Error handling:}
+If Rashomon intersection is empty for either nuisance, the function stops
+with an informative error suggesting:
+- Increase rashomon_bound_multiplier
+- Use estimate_att() with use_rashomon=FALSE
+- Use estimate_att_msplit_averaged() (more robust to empty intersection)
 }
 \seealso{
 \code{\link{estimate_att}}, \code{\link{estimate_att_msplit_averaged}},
-  \code{\link{average_trees}}
+  \code{\link{fit_nuisances_rashomon}}, \code{\link{average_trees}}
 }

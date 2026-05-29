@@ -754,10 +754,6 @@ estimate_att_doubletree_averaged <- function(
   # Confidence interval
   ci_95 <- theta_hat + c(-1, 1) * qnorm(0.975) * sigma / sqrt(n)
 
-  # Extract structures for interpretability
-  e_structure <- optimaltrees::extract_tree_structure(cf_e@intersecting_trees[[1]])
-  m0_structure <- optimaltrees::extract_tree_structure(cf_m0@intersecting_trees[[1]])
-
   if (verbose) {
     message(sprintf("\n=== Results ==="))
     message(sprintf("ATT estimate: %.4f", theta_hat))
@@ -774,7 +770,7 @@ estimate_att_doubletree_averaged <- function(
     e_hat = e_hat,
     m0_hat = m0_hat,
     averaged_trees = list(e = e_averaged, m0 = m0_averaged),
-    structures = list(e = e_structure, m0 = m0_structure),
+    structures = NULL,  # Averaged trees contain full structure information
     n = n,
     K = K,
     n_treated = sum(A),

@@ -27,7 +27,7 @@ collect_rashomon_trees_at_tolerance(
 
 \item{tolerance}{Numeric. Rashomon bound multiplier (epsilon_n)}
 
-\item{regularization}{Numeric. Fallback tree complexity penalty if CV fails}
+\item{regularization}{Numeric. Not used (CV selects lambda). Kept for backward compatibility.}
 
 \item{outcome_type}{Character. "binary" or "continuous"}
 

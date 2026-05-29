@@ -34,8 +34,8 @@ estimate_att_msplit(
 
 \item{verbose}{Logical. Print progress (default TRUE)}
 
-\item{regularization}{Numeric. Fallback tree complexity penalty if CV fails (default 0.1).
-By default, CV is used to select lambda for each tree in Stage 1.}
+\item{regularization}{Numeric. Not used - CV always selects lambda. Parameter kept for
+backward compatibility but will be ignored.}
 
 \item{outcome_type}{"binary" or "continuous" (default "binary")}
 }
