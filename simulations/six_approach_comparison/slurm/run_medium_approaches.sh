@@ -3,14 +3,17 @@
 #SBATCH --output=logs/medium_%a.out
 #SBATCH --error=logs/medium_%a.err
 #SBATCH --array=1-24
-#SBATCH --time=02:30:00
-#SBATCH --mem=8G
+#SBATCH --time=04:00:00
+#SBATCH --mem=16G
 #SBATCH --cpus-per-task=1
 #SBATCH --partition=short
 
 # Array 2: Medium approaches (ii, iii)
 # 24 jobs = 2 approaches × 4 DGPs × 3 n
 # Each job: 500 replications
+#
+# Updated 2026-05-29: Increased memory 8G→16G and time 2.5h→4h
+# For safety after fixes to approach 3 (doubletree)
 
 module load gcc/14.2.0 R/4.4.2
 

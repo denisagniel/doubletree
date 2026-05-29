@@ -3,14 +3,17 @@
 #SBATCH --output=logs/fast_%a.out
 #SBATCH --error=logs/fast_%a.err
 #SBATCH --array=1-36
-#SBATCH --time=02:00:00
-#SBATCH --mem=8G
+#SBATCH --time=03:00:00
+#SBATCH --mem=32G
 #SBATCH --cpus-per-task=1
 #SBATCH --partition=short
 
 # Array 1: Fast approaches (i, iv, vi)
 # 36 jobs = 3 approaches × 4 DGPs × 3 n
 # Each job: 500 replications
+#
+# Updated 2026-05-29: Increased memory 8G→32G and time 2h→3h
+# Previous run had OUT_OF_MEMORY errors for approach 1 + DGP 3 (complex)
 
 # Load R module (O2 cluster)
 module load gcc/14.2.0 R/4.4.2
