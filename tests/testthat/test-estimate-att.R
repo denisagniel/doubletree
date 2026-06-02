@@ -204,3 +204,52 @@ test_that("estimate_att with cv_regularization = FALSE uses fixed lambda", {
   expect_false(is.na(result$sigma))
   expect_true(result$sigma > 0)
 })
+
+# ============================================================================
+# Tests for continuous covariate support
+# ============================================================================
+
+test_that("estimate_att works with continuous covariates (binary outcome)", {
+  skip_if_not_installed("optimaltrees")
+
+  set.seed(42)
+  n <- 150
+  X <- data.frame(
+    x_cont1 = rnorm(n),
+    x_cont2 = runif(n),
+    x_bin   = rbinom(n, 1, 0.5)
+  )
+  A <- rbinom(n, 1, plogis(0.5 * X$x_cont1 - 0.3 * X$x_bin))
+  Y <- rbinom(n, 1, 0.3 + 0.2 * (X$x_cont1 > 0) + 0.15 * A)
+
+  fit <- estimate_att(X, A, Y, K = 3, outcome_type = "binary",
+                      cv_regularization = FALSE, regularization = 0.1)
+
+  expect_type(fit$theta, "double")
+  expect_true(is.finite(fit$theta))
+  expect_true(fit$sigma > 0)
+  expect_length(fit$ci_95, 2)
+  expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
+})
+
+test_that("estimate_att works with continuous covariates and continuous outcome", {
+  skip_if_not_installed("optimaltrees")
+
+  set.seed(99)
+  n <- 150
+  X <- data.frame(
+    x_cont = rnorm(n),
+    x_bin  = rbinom(n, 1, 0.5)
+  )
+  A <- rbinom(n, 1, plogis(0.3 * X$x_cont))
+  Y <- rnorm(n, mean = 1 + 0.5 * X$x_cont + 0.4 * A, sd = 0.8)
+
+  fit <- estimate_att(X, A, Y, K = 3, outcome_type = "continuous",
+                      cv_regularization = FALSE, regularization = 0.1)
+
+  expect_type(fit$theta, "double")
+  expect_true(is.finite(fit$theta))
+  expect_true(fit$sigma > 0)
+  expect_length(fit$ci_95, 2)
+  expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
+})
