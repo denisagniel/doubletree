@@ -273,7 +273,7 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
 
   score_values <- psi_att(Y, A, theta, eta, pi_hat)
   sigma <- att_se(score_values, n)
-  ci_95 <- att_ci(theta, sigma, n, level = 0.95)
+  ci_95 <- att_ci(theta, sigma, level = 0.95)
 
   # Add predictions to nuisance_fits for diagnostics
   nuisance_fits$propensity <- eta$e

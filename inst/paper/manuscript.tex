@@ -62,7 +62,7 @@ These are standard assumptions in the causal inference literature. Consistency e
 Under these assumptions, we may identify the ATT as $\theta_0 = \E\left\{\E(Y | \bX, A = 1) - \E(Y | \bX, A = 0) | A = 1 \right\}$. The efficient influence function (EIF) $\psi(O; \theta, \eta)$ for this functional is well known to be
 \begin{equation}
 \label{eq:score}
-\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl\{ Y - \mu_0(\bX) - \theta \bigr\} + \frac{(1-A)e(\bX)}{\pi\{1 - e(\bX)\}} \bigl\{ Y - \mu_0(\bX) \bigr\}
+\psi(O; \theta, \eta) = \frac{A}{\pi}\bigl\{ Y - \mu_0(\bX) - \theta \bigr\} - \frac{(1-A)e(\bX)}{\pi\{1 - e(\bX)\}} \bigl\{ Y - \mu_0(\bX) \bigr\}
 \end{equation}
 where $\pi = \Prob(A=1)$ is the marginal proportion of treated observations, and $\mu_0(\bx) = \E(Y | A = 0, \bX)$ is the outcome function. We can construct an estimator $\thetahat$ by solving the sample moment condition $\frac{1}{n} \sum_{i=1}^n \psi\bigl(O_i; \thetahat, \hat\eta\bigr) = 0$,
 where $\hat\eta = (\hat{e}, \hat{\mu}_0)$ are estimated via cross-fitting. Partition the sample $\{O_i\}_{i=1}^n$ into $K$ folds $I_1, \ldots, I_K$ of approximately equal size $n/K$. For each fold $k \in \{1,\ldots,K\}$, estimate $\hat{e}^{(k)}$ and $\hat{\mu}_0^{(k)}$ using only the observations in the training set $I_{-k} := \{1,\ldots,n\} \setminus I_k$ (which has size $m_k \approx n(K-1)/K$). For each observation $i \in I_k$, use the nuisance estimates $\hat\eta^{(k)}(\bX_i) = (\hat{e}^{(k)}(\bX_i), \hat{\mu}_0^{(k)}(\bX_i))$ trained on data excluding fold $k$. The nuisances are then constructed as $\hat\eta(\bX_i) = \hat\eta^{(k(i))}(\bX_i)$ where $k(i)$ denotes the fold containing observation $i$.

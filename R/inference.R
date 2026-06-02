@@ -33,12 +33,11 @@ att_se <- function(score_values, n = NULL) {
 #'
 #' @param theta Point estimate (scalar).
 #' @param sigma Numeric. Estimated standard error (from att_se(...)).
-#' @param n Sample size (for sqrt(n) scaling).
 #' @param level Numeric. Confidence level (default 0.95).
 #' @return Numeric vector of length 2 (lower, upper).
 #' @export
-att_ci <- function(theta, sigma, n, level = 0.95) {
+att_ci <- function(theta, sigma, level = 0.95) {
   z <- qnorm(0.5 + level / 2)
-  half <- z * sigma / sqrt(n)
+  half <- z * sigma
   c(theta - half, theta + half)
 }

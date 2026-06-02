@@ -64,7 +64,7 @@ test_that("att_se and att_ci work", {
   scores <- rnorm(100, 0, 1)
   se <- att_se(scores)
   expect_true(se > 0)
-  ci <- att_ci(0.5, se, 100, level = 0.95)
+  ci <- att_ci(0.5, se, level = 0.95)
   expect_length(ci, 2)
   expect_true(ci[1] < 0.5)
   expect_true(ci[2] > 0.5)

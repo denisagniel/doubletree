@@ -67,7 +67,7 @@ compute_att <- function(Y, A, e_hat, m0_hat) {
   pi_hat <- mean(A)
 
   # EIF for ATT
-  psi <- (A / pi_hat) * (Y - m0_hat) +
+  psi <- (A / pi_hat) * (Y - m0_hat) -
          ((1 - A) * e_hat) / (pi_hat * (1 - e_hat)) * (Y - m0_hat)
 
   # Final validation of EIF scores
@@ -134,7 +134,7 @@ compute_se <- function(Y, A, e_hat, m0_hat, theta_hat) {
   pi_hat <- mean(A)
 
   # EIF scores
-  psi <- (A / pi_hat) * (Y - m0_hat - theta_hat) +
+  psi <- (A / pi_hat) * (Y - m0_hat - theta_hat) -
          ((1 - A) * e_hat) / (pi_hat * (1 - e_hat)) * (Y - m0_hat)
 
   # Validate EIF scores
@@ -178,10 +178,6 @@ create_folds <- function(n, K = 5) {
 #' @export
 estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
   n <- nrow(X)
-
-  # NOTE: CV-selected regularization (2026-05-23)
-  # Use cross-validation to select lambda for each nuisance function
-  # Theory-driven grid: (log n / n) * [0.25, 0.5, 1, 2, 4]
 
   # Fit propensity tree on all data with CV-selected lambda
   cv_e <- optimaltrees::cv_regularization(
@@ -287,9 +283,6 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
   e_hat <- numeric(n)
   m0_hat <- numeric(n)
 
-  # NOTE: CV-selected regularization per fold (2026-05-23)
-  # Each fold uses CV to select its own lambda
-
   for (k in 1:K) {
     train_idx <- folds != k
     test_idx <- folds == k
@@ -391,10 +384,6 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' @export
 estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
   # Use doubletree package implementation with Rashomon
-  # NOTE: cv_regularization = TRUE is now the default (2026-05-22)
-  # Lambda is selected via CV using theory-driven grid: (log n / n) * [0.25, 0.5, 1, 2, 4]
-  # The regularization parameter in the function signature is retained for API compatibility
-  # but is no longer used (CV selects lambda automatically)
   result <- doubletree::estimate_att(
     X = X,
     A = A,
@@ -460,7 +449,6 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' Estimate ATT using doubletree with averaged leaf values
 #'
 #' Wrapper for doubletree::estimate_att_doubletree_averaged()
-#' NOTE: Uses CV-selected lambda (2026-05-26). No fallback - CV must succeed.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
@@ -470,7 +458,6 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' @return List with theta, se, structures
 #' @export
 estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.1) {
-  # Use package function (uses CV internally as of 2026-05-26)
   result <- doubletree::estimate_att_doubletree_averaged(
     X = X,
     A = A,
@@ -478,6 +465,8 @@ estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.
     K = K,
     regularization = regularization,
     outcome_type = "binary",
+    rashomon_bound_multiplier = 0.05,
+    auto_tune_intersecting = TRUE,
     verbose = FALSE
   )
 
@@ -500,7 +489,6 @@ estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.
 #' Estimate ATT using M-split doubletree
 #'
 #' Finds modal structure across M splits, averages predictions.
-#' NOTE: Uses CV-selected lambda for each tree (2026-05-26). regularization is fallback only.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
@@ -511,8 +499,6 @@ estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.
 #' @return List with theta, se, structures, diagnostics
 #' @export
 estimate_att_msplit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
-  # Use the doubletree package implementation
-  # This was already implemented in earlier session
   result <- doubletree::estimate_att_msplit(
     X = X,
     A = A,
@@ -542,7 +528,6 @@ estimate_att_msplit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
 #'
 #' Gets modal structure from M splits, then averages leaf values across
 #' all M×K cross-fitted trees (K trees per split, M splits).
-#' NOTE: Uses CV-selected lambda (2026-05-26). No fallback - CV must succeed.
 #'
 #' @param X Covariate data.frame
 #' @param A Treatment vector
@@ -553,8 +538,6 @@ estimate_att_msplit <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
 #' @return List with theta, se, structures, diagnostics
 #' @export
 estimate_att_msplit_averaged <- function(X, A, Y, M = 10, K = 5, regularization = 0.1) {
-  # Use package function (uses CV internally as of 2026-05-26)
-  # NOTE: regularization parameter kept for API compatibility but not used (CV selects lambda)
   result <- doubletree::estimate_att_msplit_averaged(
     X = X,
     A = A,
