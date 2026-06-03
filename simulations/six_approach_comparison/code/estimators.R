@@ -433,8 +433,8 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
       rep(NA, nrow(X))
     },
     structures = list(
-      e = if (!is.null(result$nuisance_fits$cf_e)) result$nuisance_fits$cf_e$structure else NULL,
-      m0 = if (!is.null(result$nuisance_fits$cf_m0)) result$nuisance_fits$cf_m0$structure else NULL
+      e = if (!is.null(result$nuisance_fits$cf_e)) result$nuisance_fits$cf_e@structure else NULL,
+      m0 = if (!is.null(result$nuisance_fits$cf_m0)) result$nuisance_fits$cf_m0@structure else NULL
     ),
     # Also return the full CF objects (for approach iv to access fold_refits)
     cf_e = result$nuisance_fits$cf_e,

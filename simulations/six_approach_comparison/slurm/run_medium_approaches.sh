@@ -2,18 +2,19 @@
 #SBATCH --job-name=medium_approach
 #SBATCH --output=logs/medium_%a.out
 #SBATCH --error=logs/medium_%a.err
-#SBATCH --array=1-24
-#SBATCH --time=04:00:00
+#SBATCH --array=1-120
+#SBATCH --time=06:00:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=1
 #SBATCH --partition=short
 
-# Array 2: Medium approaches (ii, iii)
-# 24 jobs = 2 approaches × 4 DGPs × 3 n
-# Each job: 500 replications
+# Array 2: Medium approaches (ii, iii) — batched
+# 120 jobs = 2 approaches × 4 DGPs × 3 n × 5 batches
+# Each job: 100 replications (500 total per approach×DGP×n combination)
 #
 # Updated 2026-05-29: Increased memory 8G→16G and time 2.5h→4h
-# For safety after fixes to approach 3 (doubletree)
+# Updated 2026-06-03: Split into 5 batches of 100 reps each (was 1×500).
+#   CV-based approach 2 at n=2000/DGP3 was OOM-killed at 6h with 500 reps.
 
 module load gcc/14.2.0 R/4.4.2
 
@@ -21,23 +22,26 @@ cd $SLURM_SUBMIT_DIR
 
 JOB_ID=$SLURM_ARRAY_TASK_ID
 
-# Mapping: 24 jobs = 2 approaches × 4 DGPs × 3 n
+# Mapping: 120 jobs = 2 approaches × 4 DGPs × 3 n × 5 batches
 # approach ∈ {2, 3} (crossfit-separate, doubletree)
 # dgp ∈ {1, 2, 3, 4}
-# n_idx ∈ {1, 2, 3}
+# n_idx ∈ {1, 2, 3} → n ∈ {500, 1000, 2000}
+# batch ∈ {1, 2, 3, 4, 5} → reps 1-100, 101-200, ..., 401-500
 
-# Decode approach (groups of 12)
-APPROACH_IDX=$(( (JOB_ID - 1) / 12 + 1 ))
+# Decode approach (groups of 60)
+APPROACH_IDX=$(( (JOB_ID - 1) / 60 + 1 ))
 if [ $APPROACH_IDX -eq 1 ]; then
   APPROACH=2
 else
   APPROACH=3
 fi
 
-# Decode DGP and n within group of 12
-REMAINDER=$(( (JOB_ID - 1) % 12 ))
-DGP=$(( REMAINDER / 3 + 1 ))
-N_IDX=$(( REMAINDER % 3 + 1 ))
+# Decode DGP, n, batch within group of 60
+REMAINDER=$(( (JOB_ID - 1) % 60 ))
+DGP=$(( REMAINDER / 15 + 1 ))
+SUBREMAINDER=$(( REMAINDER % 15 ))
+N_IDX=$(( SUBREMAINDER / 5 + 1 ))
+BATCH=$(( SUBREMAINDER % 5 + 1 ))
 
 # Map n_idx to actual n
 if [ $N_IDX -eq 1 ]; then
@@ -48,13 +52,18 @@ else
   N=2000
 fi
 
+# Determine rep range for this batch
+REP_START=$(( (BATCH - 1) * 100 + 1 ))
+REP_END=$(( BATCH * 100 ))
+
 echo "=========================================="
 echo "Medium Approach Job $JOB_ID"
 echo "=========================================="
 echo "Approach: $APPROACH"
 echo "DGP: $DGP"
 echo "Sample size: $N"
-echo "Replications: 500"
+echo "Batch: $BATCH / 5"
+echo "Replications: $REP_START to $REP_END"
 echo "Start time: $(date)"
 echo "=========================================="
 echo ""
@@ -64,7 +73,8 @@ Rscript code/run_single_replication.R \
   --approach $APPROACH \
   --dgp $DGP \
   --n $N \
-  --reps 500 \
+  --rep_start $REP_START \
+  --rep_end $REP_END \
   --output results/raw/medium_approach_${JOB_ID}.rds
 
 EXIT_CODE=$?

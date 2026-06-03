@@ -18,12 +18,12 @@ all_files <- c(fast_files, medium_files, msplit_files)
 
 cat(sprintf("Found %d result files:\n", length(all_files)))
 cat(sprintf("  Fast approaches:   %d / 36\n", length(fast_files)))
-cat(sprintf("  Medium approaches: %d / 24\n", length(medium_files)))
+cat(sprintf("  Medium approaches: %d / 120  (batched: 5x100 reps each)\n", length(medium_files)))
 cat(sprintf("  M-split approach:  %d / 60\n", length(msplit_files)))
 cat("\n")
 
-if (length(all_files) != 120) {
-  warning(sprintf("Expected 120 files, found %d. Some jobs may have failed.\n", length(all_files)))
+if (length(all_files) != 216) {
+  warning(sprintf("Expected 216 files, found %d. Some jobs may have failed.\n", length(all_files)))
 }
 
 if (length(all_files) == 0) {

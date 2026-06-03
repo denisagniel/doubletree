@@ -3,7 +3,7 @@
 #SBATCH --output=logs/msplit_%a.out
 #SBATCH --error=logs/msplit_%a.err
 #SBATCH --array=1-60
-#SBATCH --time=04:00:00
+#SBATCH --time=06:00:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=1
 #SBATCH --partition=short
@@ -13,7 +13,7 @@
 # Each job: 100 replications (total 500 per DGP×n)
 #
 # Updated 2026-05-29: Increased memory 12G→16G and time 2.5h→4h
-# M-split is computationally expensive (M=10 splits × K=5 folds)
+# Updated 2026-06-03: Increased 4h→6h; DGP3 n=500 observed at ~6h
 
 module load gcc/14.2.0 R/4.4.2
 

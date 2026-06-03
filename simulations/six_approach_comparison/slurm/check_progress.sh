@@ -12,18 +12,19 @@ FAST_COMPLETE=$(ls results/raw/fast_approach_*.rds 2>/dev/null | wc -l)
 MEDIUM_COMPLETE=$(ls results/raw/medium_approach_*.rds 2>/dev/null | wc -l)
 MSPLIT_COMPLETE=$(ls results/raw/msplit_approach_*.rds 2>/dev/null | wc -l)
 TOTAL_COMPLETE=$((FAST_COMPLETE + MEDIUM_COMPLETE + MSPLIT_COMPLETE))
+TOTAL_EXPECTED=216  # 36 fast + 120 medium (batched) + 60 msplit
 
-echo "Completed jobs: $TOTAL_COMPLETE / 120"
+echo "Completed jobs: $TOTAL_COMPLETE / $TOTAL_EXPECTED"
 echo ""
 echo "By array:"
 echo "  Fast approaches (i, iv, vi):   $FAST_COMPLETE / 36"
-echo "  Medium approaches (ii, iii):   $MEDIUM_COMPLETE / 24"
+echo "  Medium approaches (ii, iii):   $MEDIUM_COMPLETE / 120  (batched: 5x100 reps each)"
 echo "  M-split approach (v):          $MSPLIT_COMPLETE / 60"
 echo ""
 
 # Calculate percentage
 if [ $TOTAL_COMPLETE -gt 0 ]; then
-  PERCENT=$((100 * TOTAL_COMPLETE / 120))
+  PERCENT=$((100 * TOTAL_COMPLETE / TOTAL_EXPECTED))
   echo "Progress: $PERCENT% complete"
   echo ""
 fi
@@ -63,9 +64,9 @@ fi
 echo ""
 
 # Final status
-if [ $TOTAL_COMPLETE -eq 120 ]; then
+if [ $TOTAL_COMPLETE -eq $TOTAL_EXPECTED ]; then
   echo "=============================================="
-  echo "✓ All 120 jobs complete!"
+  echo "✓ All $TOTAL_EXPECTED jobs complete!"
   echo "=============================================="
   echo ""
   echo "Next steps:"
@@ -77,10 +78,10 @@ if [ $TOTAL_COMPLETE -eq 120 ]; then
   echo ""
 elif [ $TOTAL_COMPLETE -gt 0 ] && [ $RUNNING -eq 0 ]; then
   echo "=============================================="
-  echo "⚠️  WARNING: Jobs completed but count < 120"
+  echo "⚠️  WARNING: Jobs completed but count < $TOTAL_EXPECTED"
   echo "=============================================="
   echo ""
-  echo "Expected 120, found $TOTAL_COMPLETE"
+  echo "Expected $TOTAL_EXPECTED, found $TOTAL_COMPLETE"
   echo "Some jobs may have failed. Check logs above."
   echo ""
 elif [ $RUNNING -gt 0 ]; then
