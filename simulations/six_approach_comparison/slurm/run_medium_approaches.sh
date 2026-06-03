@@ -16,7 +16,8 @@
 # Updated 2026-06-03: Split into 5 batches of 100 reps each (was 1×500).
 #   CV-based approach 2 at n=2000/DGP3 was OOM-killed at 6h with 500 reps.
 # Updated 2026-06-03: 50 batches of 10 reps; 6h wall time (conservative).
-#   Approach 3 (doubletree) never profiled; Rashomon cost unknown at n=2000.
+#   Profiled: approach 3 DGP3 n=2000 = 345 sec/rep local (~690 cluster).
+#   At 10 reps: worst case = 1.9h (3x buffer within 6h wall).
 
 module load gcc/14.2.0 R/4.4.2
 
