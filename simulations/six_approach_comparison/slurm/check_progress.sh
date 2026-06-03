@@ -12,14 +12,14 @@ FAST_COMPLETE=$(ls results/raw/fast_approach_*.rds 2>/dev/null | wc -l)
 MEDIUM_COMPLETE=$(ls results/raw/medium_approach_*.rds 2>/dev/null | wc -l)
 MSPLIT_COMPLETE=$(ls results/raw/msplit_approach_*.rds 2>/dev/null | wc -l)
 TOTAL_COMPLETE=$((FAST_COMPLETE + MEDIUM_COMPLETE + MSPLIT_COMPLETE))
-TOTAL_EXPECTED=816  # 36 fast + 480 medium (20x25 reps) + 300 msplit (25x20 reps)
+TOTAL_EXPECTED=1836  # 36 fast + 1200 medium (50x10 reps) + 600 msplit (50x10 reps)
 
 echo "Completed jobs: $TOTAL_COMPLETE / $TOTAL_EXPECTED"
 echo ""
 echo "By array:"
 echo "  Fast approaches (i, iv, vi):   $FAST_COMPLETE / 36"
-echo "  Medium approaches (ii, iii):   $MEDIUM_COMPLETE / 480  (batched: 20x25 reps each)"
-echo "  M-split approach (v):          $MSPLIT_COMPLETE / 300  (batched: 25x20 reps each)"
+echo "  Medium approaches (ii, iii):   $MEDIUM_COMPLETE / 1200  (batched: 50x10 reps each)"
+echo "  M-split approach (v):          $MSPLIT_COMPLETE / 600   (batched: 50x10 reps each)"
 echo ""
 
 # Calculate percentage

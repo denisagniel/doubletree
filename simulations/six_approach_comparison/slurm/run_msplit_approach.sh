@@ -2,20 +2,20 @@
 #SBATCH --job-name=msplit_approach
 #SBATCH --output=logs/msplit_%a.out
 #SBATCH --error=logs/msplit_%a.err
-#SBATCH --array=1-300
-#SBATCH --time=04:00:00
+#SBATCH --array=1-600
+#SBATCH --time=06:00:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=1
 #SBATCH --partition=short
 
 # Array 3: M-split approach (v)
-# 300 jobs = 4 DGPs × 3 n × 25 batches
-# Each job: 20 replications (total 500 per DGP×n)
+# 600 jobs = 4 DGPs × 3 n × 50 batches
+# Each job: 10 replications (total 500 per DGP×n)
 #
 # Updated 2026-05-29: Increased memory 12G→16G and time 2.5h→4h
 # Updated 2026-06-03: Increased 4h→6h; DGP3 n=500 observed at ~6h
-# Updated 2026-06-03: 25 batches of 20 reps; targeting 1-2h/job.
-#   DGP3 n=1000: ~352 sec/rep × 20 = 1.96h ✓; n=2000 timing uncharted.
+# Updated 2026-06-03: 50 batches of 10 reps; 6h wall time (conservative).
+#   DGP3 n=1000: ~352 sec/rep × 10 = 58 min; n=2000 extrapolated ~93 min.
 
 module load gcc/14.2.0 R/4.4.2
 
@@ -23,16 +23,16 @@ cd $SLURM_SUBMIT_DIR
 
 JOB_ID=$SLURM_ARRAY_TASK_ID
 
-# Mapping: 300 jobs = 4 DGPs × 3 n × 25 batches
+# Mapping: 600 jobs = 4 DGPs × 3 n × 50 batches
 APPROACH=5  # M-split
 
-# Decode DGP (groups of 75)
-DGP=$(( (JOB_ID - 1) / 75 + 1 ))
+# Decode DGP (groups of 150)
+DGP=$(( (JOB_ID - 1) / 150 + 1 ))
 
-# Decode n and batch within group of 75
-REMAINDER=$(( (JOB_ID - 1) % 75 ))
-N_IDX=$(( REMAINDER / 25 + 1 ))
-BATCH=$(( REMAINDER % 25 + 1 ))
+# Decode n and batch within group of 150
+REMAINDER=$(( (JOB_ID - 1) % 150 ))
+N_IDX=$(( REMAINDER / 50 + 1 ))
+BATCH=$(( REMAINDER % 50 + 1 ))
 
 # Map n_idx to actual n
 if [ $N_IDX -eq 1 ]; then
@@ -44,8 +44,8 @@ else
 fi
 
 # Determine rep range for this batch
-REP_START=$(( (BATCH - 1) * 20 + 1 ))
-REP_END=$(( BATCH * 20 ))
+REP_START=$(( (BATCH - 1) * 10 + 1 ))
+REP_END=$(( BATCH * 10 ))
 
 echo "=========================================="
 echo "M-Split Approach Job $JOB_ID"
@@ -53,7 +53,7 @@ echo "=========================================="
 echo "Approach: $APPROACH (M-split)"
 echo "DGP: $DGP"
 echo "Sample size: $N"
-echo "Batch: $BATCH / 25"
+echo "Batch: $BATCH / 50"
 echo "Replications: $REP_START to $REP_END"
 echo "Start time: $(date)"
 echo "=========================================="
