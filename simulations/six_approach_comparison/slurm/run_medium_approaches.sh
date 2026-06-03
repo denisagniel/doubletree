@@ -2,7 +2,9 @@
 #SBATCH --job-name=medium_approach
 #SBATCH --output=logs/medium_%a.out
 #SBATCH --error=logs/medium_%a.err
-#SBATCH --array=1-1200
+#SBATCH --array=1-600
+# NOTE: Full range is 1-1200; submit in 2 chunks via submit_all.sh
+# (SLURM max array size = 1000)
 #SBATCH --time=06:00:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=1
