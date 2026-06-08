@@ -733,8 +733,22 @@ estimate_att_doubletree_averaged <- function(
   # Predict for ALL observations (no cross-fitting)
   if (verbose) message("\n--- Generating predictions with averaged trees ---")
 
-  e_hat <- predict_from_tree(e_averaged, X)
-  m0_hat <- predict_from_tree(m0_averaged, X)
+  # Trees were built on discretized binary features (X_binary).
+  # Must apply the same discretization to X before prediction.
+  apply_disc <- get("apply_discretization", envir = asNamespace("optimaltrees"))
+  X_for_e_pred <- if (!is.null(cf_e@disc_metadata)) {
+    apply_disc(X, cf_e@disc_metadata)
+  } else {
+    X
+  }
+  X_for_m0_pred <- if (!is.null(cf_m0@disc_metadata)) {
+    apply_disc(X, cf_m0@disc_metadata)
+  } else {
+    X
+  }
+
+  e_hat <- predict_from_tree(e_averaged, X_for_e_pred)
+  m0_hat <- predict_from_tree(m0_averaged, X_for_m0_pred)
 
   # Compute ATT via EIF
   if (verbose) message("\n--- Computing ATT estimate ---")
@@ -849,10 +863,17 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     A_train <- A[train_idx]
     Y_train <- Y[train_idx]
 
+    # Cap lambda at 15× theory value to prevent stump-producing regularization.
+    # Without this cap, cv_regularization_adaptive can select lambda large enough
+    # that all splits are pruned, yielding constant (stump) predictions which bias DML.
+    n_train <- length(train_idx)
+    max_lambda_cap <- (log(n_train) / n_train) * 15
+
     # Fit propensity with adaptive CV
     cv_e <- optimaltrees::cv_regularization_adaptive(
       X = X_train, y = A_train, loss_function = "log_loss",
-      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE
+      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
+      max_lambda = max_lambda_cap
     )
 
     if (is.na(cv_e$best_lambda)) {
@@ -874,7 +895,8 @@ estimate_att_msplit_averaged <- function(X, A, Y,
 
     cv_m0 <- optimaltrees::cv_regularization_adaptive(
       X = X_control, y = Y_control, loss_function = outcome_loss,
-      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE
+      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
+      max_lambda = max_lambda_cap
     )
 
     if (is.na(cv_m0$best_lambda)) {
@@ -892,9 +914,10 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     }
   }
 
-  # Select modal structures
-  s_star_e <- select_structure_modal(structures_e)
-  s_star_m0 <- select_structure_modal(structures_m0)
+  # Select modal structures, excluding stumps (min_leaves = 2): prevents
+  # degenerate constant-prediction modal structures from biasing DML estimates.
+  s_star_e <- select_structure_modal(structures_e, min_leaves = 2L)
+  s_star_m0 <- select_structure_modal(structures_m0, min_leaves = 2L)
 
   if (verbose) {
     cat(sprintf("  Modal propensity: %.1f%% agreement\n", s_star_e$frequency * 100))
@@ -979,9 +1002,28 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   # ============================================================
   if (verbose) cat("Stage 4: Computing ATT with averaged tree...\n")
 
-  # Predict for all observations using single averaged tree
-  e_hat <- predict_from_tree(e_averaged, X)
-  m0_hat <- predict_from_tree(m0_averaged, X)
+  # Discretize X before prediction: trees are built on binary matrix X_binary
+  # (column indices in tree JSON reference X_binary, not original X).
+  # For continuous covariates, X_binary has more columns than X, causing
+  # "subscript out of bounds" errors if the original X is used directly.
+  apply_disc <- get("apply_discretization", envir = asNamespace("optimaltrees"))
+  X_for_e_pred <- if (!is.null(s_star_e$discretization_metadata)) {
+    apply_disc(X, s_star_e$discretization_metadata)
+  } else {
+    X
+  }
+  X_for_m0_pred <- if (!is.null(s_star_m0$discretization_metadata)) {
+    apply_disc(X, s_star_m0$discretization_metadata)
+  } else {
+    X
+  }
+
+  # Predict for all observations using single averaged tree.
+  # Clamp to [0.01, 0.99]: leaf values in averaged tree can be exactly 0 or 1
+  # (from refitted folds with all-control or all-treated leaves), and psi_att
+  # requires propensities in [0.01, 0.99] to avoid division by zero.
+  e_hat  <- pmax(pmin(predict_from_tree(e_averaged,  X_for_e_pred),  0.99), 0.01)
+  m0_hat <- pmax(pmin(predict_from_tree(m0_averaged, X_for_m0_pred), 0.99), 0.01)
 
   # Compute ATT
   pi_hat <- mean(A)

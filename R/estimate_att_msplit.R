@@ -131,7 +131,12 @@ estimate_att_msplit <- function(X, A, Y,
     A_train <- A[train_idx]
     Y_train <- Y[train_idx]
 
-    # Fit propensity model with adaptive CV-selected lambda
+    # Fit propensity model with adaptive CV-selected lambda.
+    # Cap at 15× theory value to prevent stump-producing lambda: at this
+    # level the tree must produce a non-trivial split to beat the stump,
+    # avoiding the degenerate constant-prediction case in DML nuisance models.
+    n_train <- length(train_idx)
+    max_lambda_cap <- (log(n_train) / n_train) * 15
     cv_e <- optimaltrees::cv_regularization_adaptive(
       X = X_train,
       y = A_train,
@@ -139,7 +144,8 @@ estimate_att_msplit <- function(X, A, Y,
       K = 5,
       max_iterations = 10,
       refit = TRUE,
-      verbose = FALSE
+      verbose = FALSE,
+      max_lambda = max_lambda_cap
     )
 
     # No fallback - CV must succeed
@@ -168,7 +174,7 @@ estimate_att_msplit <- function(X, A, Y,
 
     outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
 
-    # Fit outcome model with adaptive CV-selected lambda
+    # Fit outcome model with adaptive CV-selected lambda (same cap as propensity)
     cv_m0 <- optimaltrees::cv_regularization_adaptive(
       X = X_control,
       y = Y_control,
@@ -176,7 +182,8 @@ estimate_att_msplit <- function(X, A, Y,
       K = 5,
       max_iterations = 10,
       refit = TRUE,
-      verbose = FALSE
+      verbose = FALSE,
+      max_lambda = max_lambda_cap
     )
 
     # No fallback - CV must succeed
@@ -204,9 +211,11 @@ estimate_att_msplit <- function(X, A, Y,
     }
   }
 
-  # Select modal structures
-  s_star_e <- select_structure_modal(structures_e)
-  s_star_m0 <- select_structure_modal(structures_m0)
+  # Select modal structures, excluding stumps (min_leaves = 2): if stumps appear
+  # in some splits they should not win the modal vote over non-trivial structures,
+  # since constant nuisance predictions bias DML estimates.
+  s_star_e <- select_structure_modal(structures_e, min_leaves = 2L)
+  s_star_m0 <- select_structure_modal(structures_m0, min_leaves = 2L)
 
   if (verbose) {
     cat(sprintf("  Propensity: modal structure appears in %.1f%% of splits\n",
@@ -281,9 +290,11 @@ estimate_att_msplit <- function(X, A, Y,
     }
   }
 
-  # Average predictions
-  e_bar <- rowMeans(predictions_e, na.rm = FALSE)
-  m0_bar <- rowMeans(predictions_m0, na.rm = FALSE)
+  # Average predictions and clamp to [0.01, 0.99]:
+  # Tree leaf predictions can be exactly 0 or 1 (all-control or all-treated leaves),
+  # and psi_att requires propensities in [0.01, 0.99] to avoid division by zero.
+  e_bar  <- pmax(pmin(rowMeans(predictions_e,  na.rm = FALSE), 0.99), 0.01)
+  m0_bar <- pmax(pmin(rowMeans(predictions_m0, na.rm = FALSE), 0.99), 0.01)
 
   # ============================================================
   # Stage 3: Compute ATT with Averaged Nuisances

@@ -42,7 +42,7 @@ NULL
 #' }
 #'
 #' @export
-select_structure_modal <- function(structures) {
+select_structure_modal <- function(structures, min_leaves = 1L) {
   if (!is.list(structures) || length(structures) == 0) {
     stop("structures must be a non-empty list", call. = FALSE)
   }
@@ -73,14 +73,29 @@ select_structure_modal <- function(structures) {
     stop("All elements must be TreeStructure objects or lists with 'structure' field", call. = FALSE)
   }
 
-  # Compute hashes
+  # Compute hashes and leaf counts
   hashes <- vapply(tree_structures, optimaltrees::structure_hash, character(1))
+  n_leaves_each <- vapply(tree_structures, function(s) s@n_leaves, integer(1))
 
   # Count frequencies
   counts <- table(hashes)
 
-  # Find modal hash
-  modal_hash <- names(counts)[which.max(counts)]
+  # Find modal hash: prefer structures with >= min_leaves leaves.
+  # This prevents degenerate stump structures (1 leaf) from winning the modal
+  # vote when non-stump structures disagree with each other. Only falls back
+  # to including stumps if all structures satisfy n_leaves < min_leaves.
+  if (min_leaves > 1L) {
+    valid_idx <- which(n_leaves_each >= min_leaves)
+    if (length(valid_idx) > 0) {
+      valid_counts <- table(hashes[valid_idx])
+      modal_hash <- names(valid_counts)[which.max(valid_counts)]
+    } else {
+      # All structures are degenerate (e.g. all stumps) - use regular modal
+      modal_hash <- names(counts)[which.max(counts)]
+    }
+  } else {
+    modal_hash <- names(counts)[which.max(counts)]
+  }
   modal_idx <- which(hashes == modal_hash)[1]  # First occurrence
 
   # Return in new format (with metadata if available)
