@@ -359,7 +359,9 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
                                    verbose = FALSE,
                                    rashomon_bound_multiplier = 0.05, rashomon_bound_adder = 0,
                                    max_leaves = NULL, auto_tune_intersecting = FALSE,
-                                   discretize_method = "quantiles", discretize_bins = "adaptive", ...) {
+                                   discretize_method = "quantiles", discretize_bins = "adaptive",
+                                   max_depth = 4L,
+                                   ...) {
   n <- nrow(X)
   K <- max(fold_indices, na.rm = TRUE)
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
@@ -368,10 +370,17 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
   if (cv_regularization) {
     if (verbose) message("Selecting regularization via adaptive CV...")
 
+    # Cap lambda at 15x theory value to prevent over-regularization to stumps.
+    # Without this cap, cv_regularization_adaptive can select lambda >> sqrt(log(n)/n),
+    # making the stump optimal and yielding degenerate (constant) nuisance predictions.
+    # Consistent with the cap used in estimate_att_msplit_averaged.
+    max_lambda_cap <- (log(n) / n) * 15
+
     # Adaptive CV for propensity
     cv_e <- optimaltrees::cv_regularization_adaptive(X, A, loss_function = "log_loss",
                                          K = cv_K, max_iterations = 10,
-                                         refit = FALSE, verbose = FALSE, ...)
+                                         refit = FALSE, verbose = FALSE,
+                                         max_lambda = max_lambda_cap, ...)
     reg_e <- cv_e$best_lambda
     if (verbose) {
       message("  e: selected lambda = ", round(reg_e, 5),
@@ -383,26 +392,47 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     idx0 <- which(A == 0)
     X0 <- X[idx0, , drop = FALSE]
     Y0 <- Y[idx0]
+    n0 <- length(idx0)
+    max_lambda_cap_m0 <- (log(n0) / n0) * 15
     cv_m0 <- optimaltrees::cv_regularization_adaptive(X0, Y0, loss_function = loss_outcome,
                                           K = cv_K, max_iterations = 10,
-                                          refit = FALSE, verbose = FALSE, ...)
+                                          refit = FALSE, verbose = FALSE,
+                                          max_lambda = max_lambda_cap_m0, ...)
     reg_m0 <- cv_m0$best_lambda
     if (verbose) {
       message("  m0: selected lambda = ", round(reg_m0, 5),
               " (", cv_m0$iterations, " iter, ",
               if (cv_m0$converged) "converged" else "max iter", ")")
     }
+
+    # Floor lambda at theory scale sqrt(log(n)/n) for Rashomon fitting.
+    # CV may select a very small lambda (optimal for prediction), but small lambda
+    # combined with max_depth=4 generates 100K+ trees per fold, making intersection
+    # computation intractable. Theory scale is a lower bound that keeps Rashomon
+    # sets manageable while still capturing the right complexity class.
+    theory_floor_e  <- sqrt(log(n)  / n)
+    theory_floor_m0 <- sqrt(log(n0) / n0)
+    reg_e  <- max(reg_e,  theory_floor_e)
+    reg_m0 <- max(reg_m0, theory_floor_m0)
+    if (verbose) {
+      if (reg_e  > cv_e$best_lambda)  message("  e:  lambda floored to theory scale: ", round(reg_e,  5))
+      if (reg_m0 > cv_m0$best_lambda) message("  m0: lambda floored to theory scale: ", round(reg_m0, 5))
+    }
   } else {
     # Use fixed regularization
     reg_e <- regularization
     reg_m0 <- regularization
+    idx0 <- which(A == 0)
+    X0 <- X[idx0, , drop = FALSE]
+    Y0 <- Y[idx0]
+    n0 <- length(idx0)
   }
 
   cf_e <- safe_rashomon_fit(
     X, A, K, "log_loss", reg_e,
     rashomon_bound_multiplier, rashomon_bound_adder,
     max_leaves, fold_indices, auto_tune_intersecting,
-    verbose, "propensity", ...
+    verbose, "propensity", max_depth = max_depth, ...
   )
 
   idx0 <- which(A == 0)
@@ -417,7 +447,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     X0, Y0, K, loss_outcome, reg_m0,
     rashomon_bound_multiplier, rashomon_bound_adder,
     max_leaves, fold0, auto_tune_intersecting,
-    verbose, "control outcome", ...
+    verbose, "control outcome", max_depth = max_depth, ...
   )
 
   # Efficient fallback: only refit failed models
@@ -472,7 +502,16 @@ get_fold_specific_eta_rashomon <- function(rashomon_list, X, fold_indices,
 
   if (!is.null(rashomon_list$cf_e) && rashomon_list$cf_e@n_intersecting > 0) {
     pe <- predict(rashomon_list$cf_e, X, fold_indices = fold_indices, type = "prob")
-    e_out <- if (is.matrix(pe)) pe[, 2L] else rep(0.5, n)
+    if (!is.matrix(pe) || ncol(pe) < 2L) {
+      stop(
+        "predict() for propensity returned unexpected type or shape.\n",
+        "  Expected: matrix with 2 columns (class probabilities)\n",
+        "  Got: class = ", paste(class(pe), collapse = "/"),
+        ", ncol = ", if (is.matrix(pe)) ncol(pe) else "N/A",
+        call. = FALSE
+      )
+    }
+    e_out <- pe[, 2L]
   } else if (!is.null(rashomon_list$fallback_fits)) {
     eta_fb <- get_fold_specific_eta(rashomon_list$fallback_fits, X, fold_indices, e_min, e_max)
     e_out <- eta_fb$e
@@ -483,7 +522,16 @@ get_fold_specific_eta_rashomon <- function(rashomon_list, X, fold_indices,
       m0_out <- as.numeric(predict(rashomon_list$cf_m0, X, fold_indices = fold_indices))
     } else {
       pm0 <- predict(rashomon_list$cf_m0, X, fold_indices = fold_indices, type = "prob")
-      m0_out <- if (is.matrix(pm0)) pm0[, 2L] else rep(0.5, n)
+      if (!is.matrix(pm0) || ncol(pm0) < 2L) {
+        stop(
+          "predict() for outcome returned unexpected type or shape.\n",
+          "  Expected: matrix with 2 columns (class probabilities)\n",
+          "  Got: class = ", paste(class(pm0), collapse = "/"),
+          ", ncol = ", if (is.matrix(pm0)) ncol(pm0) else "N/A",
+          call. = FALSE
+        )
+      }
+      m0_out <- pm0[, 2L]
     }
   } else if (!is.null(rashomon_list$fallback_fits)) {
     eta_fb <- get_fold_specific_eta(rashomon_list$fallback_fits, X, fold_indices, e_min, e_max)

@@ -766,7 +766,7 @@ estimate_att_doubletree_averaged <- function(
   sigma <- sqrt(mean((score_values - mean(score_values))^2) / n)
 
   # Confidence interval
-  ci_95 <- theta_hat + c(-1, 1) * qnorm(0.975) * sigma / sqrt(n)
+  ci_95 <- att_ci(theta_hat, sigma)
 
   if (verbose) {
     message(sprintf("\n=== Results ==="))
@@ -1036,7 +1036,7 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   sigma <- sqrt(mean(score_centered^2) / n)
 
   # CI
-  ci_95 <- theta_hat + c(-1, 1) * qnorm(0.975) * sigma / sqrt(n)
+  ci_95 <- att_ci(theta_hat, sigma)
 
   # ============================================================
   # Return
