@@ -129,7 +129,8 @@ generate_dgp_complex <- function(n = 1000) {
   A <- rbinom(n, 1, e_true)
 
   # Outcome function with multiple interactions
-  mu0_linear <- 0.2 + 0.15 * (X$x3 + X$x4 + X$x5)
+  # Intercept = 0.05 (not 0.2) ensures max(mu0) = 0.85, so pmin(mu0+0.15,1) never clips
+  mu0_linear <- 0.05 + 0.15 * (X$x3 + X$x4 + X$x5)
   mu0_interact <- 0.2 * X$x3 * X$x4 + 0.15 * X$x4 * X$x5
   mu0_true <- mu0_linear + mu0_interact
 

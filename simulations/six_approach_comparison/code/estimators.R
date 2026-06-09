@@ -423,12 +423,12 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
     theta = result$theta,
     se = result$sigma,
     e_hat = if (!is.null(result$nuisance_fits$cf_e)) {
-      predict(result$nuisance_fits$cf_e, X)
+      predict(result$nuisance_fits$cf_e, X, type = "prob")
     } else {
       rep(NA, nrow(X))
     },
     m0_hat = if (!is.null(result$nuisance_fits$cf_m0)) {
-      predict(result$nuisance_fits$cf_m0, X)
+      predict(result$nuisance_fits$cf_m0, X, type = "prob")
     } else {
       rep(NA, nrow(X))
     },
