@@ -72,7 +72,7 @@ Six tree-based causal inference approaches for estimating ATT, differing in:
 
 **Algorithm:**
 1. For each fold k = 1, ..., K:
-   - Fit trees with CV-selected λ (floored at sqrt(log(n)/n))
+   - Fit trees with CV-selected λ (floored at log(n)/n)
    - Collect Rashomon set using theory-justified ε_n = 2*sqrt(log(n)/n)
      (≈ 0.22 at n=500, ≈ 0.17 at n=1000, ≈ 0.12 at n=2000)
 2. Find COMMON structure via intersection of K Rashomon sets
@@ -260,14 +260,15 @@ Six tree-based causal inference approaches for estimating ATT, differing in:
 
 | Parameter | Value | Used In |
 |-----------|-------|---------|
-| lambda selection | `cv_regularization_adaptive`, max_lambda = 15·log(n)/n | **All 6 approaches** |
+| lambda selection | `cv_regularization_adaptive`, max_lambda = 20·log(n)/n (~0.249 n=500, 0.138 n=1000, 0.076 n=2000) | **All 6 approaches** |
 | K (cross-fitting folds) | 5 | All approaches |
 | M (modal structure splits) | 10 | Approaches 5-6 |
 | K per split | 5 | Approaches 5-6 |
 | epsilon_n (Rashomon bound) | `2*sqrt(log(n)/n)` | Approaches 3-4 |
 | auto_tune_intersecting | TRUE | Approaches 3-4 |
 | Fallback on empty intersection | None — hard stop() | Approaches 3-4 |
-| lambda floor (after CV) | `sqrt(log(n)/n)` | Approaches 3-6 (inside package) |
+| max_attempts (Tier 2 lambda search) | 6 | Approaches 3-6 (auto_tune path) |
+| lambda floor (after CV) | `log(n)/n` (~0.012 n=500, 0.007 n=1000, 0.004 n=2000) | Approaches 3-6 (inside package) |
 | max_depth | 4 | All approaches (inside package) |
 | n values | 500, 1000, 2000 | All |
 | Reps per config | 1000 | All |

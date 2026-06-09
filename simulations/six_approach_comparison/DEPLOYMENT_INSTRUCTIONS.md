@@ -17,11 +17,16 @@
 ### simulation scripts (2026-06-09)
 
 ⚠️ **Parameter audit — all 6 approaches now use uniform adaptive CV**
-- `code/estimators.R`: approaches 1 and 2 now use `cv_regularization_adaptive` with `max_lambda = 15*log(n)/n` (was fixed-grid `cv_regularization`)
+- `code/estimators.R`: approaches 1 and 2 now use `cv_regularization_adaptive` with `max_lambda = 20*log(n)/n` (was fixed-grid `cv_regularization`)
 - `code/estimators.R`: approach 3 now uses `auto_tune_intersecting = TRUE`; hard `stop()` on failed intersection (was fallback to fold-specific trees)
 - `code/estimators.R`: production parameter constants block added (SIM_K, SIM_M, SIM_K_MSPLIT, EPS_N_C)
 - SLURM: full redesign for 1000 reps; 6 per-approach scripts (`run_approach{1-6}.sh`) replacing 3-script grouping
 - SLURM: total jobs increased from 120 to 6624; total reps from 6000 to 72,000
+
+⚠️ **Tuning parameter audit (2026-06-09) — bias/runtime tradeoff fixes**
+- **lambda cap**: raised from `15*log(n)/n` to `20*log(n)/n` — fixes floor>cap inversion at n≥1680; cap (0.076) > floor (0.004) at n=2000 ✓
+- **lambda floor**: lowered from `sqrt(log(n)/n)` to `log(n)/n` — reduces systematic underfitting in Rashomon approaches (floor was 9× too high at n=500); max_depth=4L keeps Rashomon sets bounded
+- **max_attempts**: raised from 4 to 6 in `auto_tune_regularization_for_intersection` — broader Tier 2 lambda search; adds ~10 GOSDT calls worst-case; DGP4 n=2000 est. ~24000s ≈ 6.7h < 8h wall ✓
 
 ### optimaltrees (HEAD: fe357e1)
 
@@ -267,7 +272,7 @@ Per-rep timing estimates (measured smoke test + cluster scaling):
 | 2 | all | 2000 | 76 | 38 | 10 | 6 min |
 | 3 | 1-3 | 2000 | ~480 | ~240 | 10 | 40 min |
 | 3 | 4 | 500 | ~8000 (fail) | ~4000 | 1 | 1.1 h |
-| 3 | 4 | 2000 | ~32000 (fail) | ~16000 | 1 | 4.4 h |
+| 3 | 4 | 2000 | ~48000 (fail) | ~24000 | 1 | 6.7 h |
 | 4 | 1-3 | 2000 | ~110 | ~55 | 10 | 9 min |
 | 4 | 4 | 500 | ~6500 (fail) | ~3250 | 1 | 0.9 h |
 | 4 | 4 | 2000 | ~26000 (fail) | ~13000 | 1 | 3.6 h |

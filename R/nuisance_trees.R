@@ -370,11 +370,12 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
   if (cv_regularization) {
     if (verbose) message("Selecting regularization via adaptive CV...")
 
-    # Cap lambda at 15x theory value to prevent over-regularization to stumps.
-    # Without this cap, cv_regularization_adaptive can select lambda >> sqrt(log(n)/n),
+    # Cap lambda at 20x theory value to prevent over-regularization to stumps.
+    # Without this cap, cv_regularization_adaptive can select lambda >> log(n)/n,
     # making the stump optimal and yielding degenerate (constant) nuisance predictions.
+    # 20x (not 15x) ensures cap > floor at all n up to 2000: cap=20*log(n)/n, floor=log(n)/n.
     # Consistent with the cap used in estimate_att_msplit_averaged.
-    max_lambda_cap <- (log(n) / n) * 15
+    max_lambda_cap <- (log(n) / n) * 20
 
     # Adaptive CV for propensity
     cv_e <- optimaltrees::cv_regularization_adaptive(X, A, loss_function = "log_loss",
@@ -393,7 +394,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     X0 <- X[idx0, , drop = FALSE]
     Y0 <- Y[idx0]
     n0 <- length(idx0)
-    max_lambda_cap_m0 <- (log(n0) / n0) * 15
+    max_lambda_cap_m0 <- (log(n0) / n0) * 20
     cv_m0 <- optimaltrees::cv_regularization_adaptive(X0, Y0, loss_function = loss_outcome,
                                           K = cv_K, max_iterations = 10,
                                           refit = FALSE, verbose = FALSE,
@@ -405,13 +406,14 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
               if (cv_m0$converged) "converged" else "max iter", ")")
     }
 
-    # Floor lambda at theory scale sqrt(log(n)/n) for Rashomon fitting.
-    # CV may select a very small lambda (optimal for prediction), but small lambda
-    # combined with max_depth=4 generates 100K+ trees per fold, making intersection
-    # computation intractable. Theory scale is a lower bound that keeps Rashomon
-    # sets manageable while still capturing the right complexity class.
-    theory_floor_e  <- sqrt(log(n)  / n)
-    theory_floor_m0 <- sqrt(log(n0) / n0)
+    # Floor lambda at theory minimum log(n)/n for Rashomon fitting.
+    # CV may select a very small lambda (optimal for prediction), but Rashomon
+    # intersection needs a minimum lambda to keep Rashomon sets tractable.
+    # Theory minimum is the smallest lambda where any regularization is applied.
+    # max_depth=4L bounds the Rashomon set size from above; this floor bounds it below.
+    # Using log(n)/n (not sqrt(log(n)/n)) avoids floor-cap inversion at n>=1680.
+    theory_floor_e  <- log(n)  / n
+    theory_floor_m0 <- log(n0) / n0
     reg_e  <- max(reg_e,  theory_floor_e)
     reg_m0 <- max(reg_m0, theory_floor_m0)
     if (verbose) {

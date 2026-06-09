@@ -19,8 +19,8 @@ SIM_M        <- 10L   # modal splits (approaches 5-6)
 SIM_K_MSPLIT <- 5L    # folds per split (approaches 5-6)
 EPS_N_C      <- 2.0   # Rashomon bound: eps_n = EPS_N_C * sqrt(log(n)/n)
 # Theory: eps_n satisfies o(n^{-1/2}): ~0.22 at n=500, 0.17 at n=1000, 0.12 at n=2000
-# Lambda cap: 15*log(n)/n applied by cv_regularization_adaptive
-# Lambda floor: sqrt(log(n)/n) applied inside fit_nuisances_rashomon
+# Lambda cap: 20*log(n)/n applied by cv_regularization_adaptive (~0.249 n=500, 0.138 n=1000, 0.076 n=2000)
+# Lambda floor: log(n)/n applied inside fit_nuisances_rashomon (~0.012 n=500, 0.007 n=1000, 0.004 n=2000)
 
 #' Compute ATT from EIF
 #'
@@ -197,7 +197,7 @@ estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
     y = A,
     loss_function = "log_loss",
     K = SIM_K,
-    max_lambda = 15 * log(n_train) / n_train,
+    max_lambda = 20 * log(n_train) / n_train,
     refit = TRUE,
     verbose = FALSE
   )
@@ -232,7 +232,7 @@ estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
     y = Y[control_idx],
     loss_function = "log_loss",
     K = SIM_K,
-    max_lambda = 15 * log(n_train) / n_train,
+    max_lambda = 20 * log(n_train) / n_train,
     refit = TRUE,
     verbose = FALSE
   )
@@ -309,7 +309,7 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
       y = A[train_idx],
       loss_function = "log_loss",
       K = SIM_K,
-      max_lambda = 15 * log(n_train) / n_train,
+      max_lambda = 20 * log(n_train) / n_train,
       refit = TRUE,
       verbose = FALSE
     )
@@ -345,7 +345,7 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
       y = Y[control_train_idx],
       loss_function = "log_loss",
       K = SIM_K,
-      max_lambda = 15 * log(n_train) / n_train,
+      max_lambda = 20 * log(n_train) / n_train,
       refit = TRUE,
       verbose = FALSE
     )

@@ -38,7 +38,7 @@ source(file.path(SIM_DIR, "code/dgps.R"))
 #   Production (cluster): M=10, K_MSPLIT=5  (see code/estimators.R SIM_M, SIM_K_MSPLIT)
 #   Local validation:     M=3,  K_MSPLIT=3  (reduced for manageable runtime ~30-60 min)
 # All other parameters match production: K=5, eps_n=2*sqrt(log(n)/n) for appr 3/4,
-# cv_regularization_adaptive with max_lambda=15*log(n)/n for all 6 approaches
+# cv_regularization_adaptive with max_lambda=20*log(n)/n for all 6 approaches
 
 N        <- 500
 TRUE_ATT <- 0.15
@@ -75,14 +75,14 @@ run_one <- function(approach_idx, X, A, Y) {
         n_all <- length(Y)
         cv_e  <- cv_regularization_adaptive(X, A, loss_function = "log_loss",
                                             K = 5,
-                                            max_lambda = 15 * log(n_all) / n_all,
+                                            max_lambda = 20 * log(n_all) / n_all,
                                             refit = TRUE, verbose = FALSE)
         e_hat <- predict(cv_e$model, X, type = "prob")[, 2L]
         X0    <- X[A == 0, , drop = FALSE]; Y0 <- Y[A == 0]
         n0    <- length(Y0)
         cv_m0  <- cv_regularization_adaptive(X0, Y0, loss_function = "log_loss",
                                              K = 5,
-                                             max_lambda = 15 * log(n0) / n0,
+                                             max_lambda = 20 * log(n0) / n0,
                                              refit = TRUE, verbose = FALSE)
         m0_hat <- predict(cv_m0$model, X, type = "prob")[, 2L]
         psi    <- doubletree:::psi_att(Y, A, 0,
