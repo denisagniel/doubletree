@@ -258,11 +258,27 @@ ls results/raw/*.rds | wc -l
 
 ## Expected Runtime
 
-With partition-based comparison:
-- **Approach 4 & 6:** May be slightly faster (fewer structure mismatches)
-- **Total runtime:** Same as before (~2-6 hours depending on cores)
+Per-rep timing estimates (measured smoke test + cluster scaling):
 
-**Total estimations:** 36,000 (120 jobs × 500 reps × 6 approaches ÷ 3 approach groups)
+| Approach | DGP | n | s/rep local | s/rep cluster est. | Reps/batch | Max batch time |
+|----------|-----|---|-------------|-------------------|-----------|---------------|
+| 1 | all | 500 | 0.8 | 0.4 | 500 | 3 min |
+| 1 | all | 2000 | 6 | 3 | 500 | 25 min |
+| 2 | all | 2000 | 76 | 38 | 10 | 6 min |
+| 3 | 1-3 | 2000 | ~480 | ~240 | 10 | 40 min |
+| 3 | 4 | 500 | ~8000 (fail) | ~4000 | 1 | 1.1 h |
+| 3 | 4 | 2000 | ~32000 (fail) | ~16000 | 1 | 4.4 h |
+| 4 | 1-3 | 2000 | ~110 | ~55 | 10 | 9 min |
+| 4 | 4 | 500 | ~6500 (fail) | ~3250 | 1 | 0.9 h |
+| 4 | 4 | 2000 | ~26000 (fail) | ~13000 | 1 | 3.6 h |
+| 5 | all | 2000 | ~1320 | ~660 | 5 | 55 min |
+| 6 | all | 2000 | ~208 | ~104 | 20 | 35 min |
+
+**Key:** Approaches 3/4 on DGP4 exhaust all auto-tune tiers (~50 GOSDT calls × 2 nuisances) before hitting the hard `stop()` on failed intersection. Times marked `(fail)` are for the failure path. DGPs 1-3 usually succeed at Tier 1 and are much faster.
+
+**Wall time budget:**
+- DGPs 1-3, 6h: all approaches comfortably within budget
+- DGP4, approaches 3/4: 1 rep/batch with 8h wall covers worst case (n=2000, ~4-5h cluster)
 
 ---
 
@@ -335,10 +351,11 @@ Before launching:
 - [ ] Ready to launch
 
 After launching:
-- [ ] All 6624 jobs submitted successfully (11 sbatch calls)
+- [ ] All 12024 jobs submitted successfully (15 sbatch calls)
 - [ ] Monitor logs for errors
+- [ ] Approaches 3/4 DGP4: expect ~100% error rate (logged, not a bug)
 - [ ] Wait for completion
-- [ ] Combine results
+- [ ] Combine results (note: approach{3,4}_dgp4_*.rds files may all be errors)
 - [ ] Download and analyze
 
 ---
