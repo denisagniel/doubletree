@@ -383,6 +383,10 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' @return List with theta, se, structures
 #' @export
 estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
+  # Theory-justified Rashomon bound: 2*sqrt(log(n)/n) per manuscript Appendix A.5
+  # At n=500: ~0.22; n=1000: ~0.17; n=2000: ~0.12 (decays as required for valid inference)
+  eps_n <- 2 * sqrt(log(nrow(X)) / nrow(X))
+
   # Use doubletree package implementation with Rashomon
   result <- doubletree::estimate_att(
     X = X,
@@ -392,7 +396,8 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
     # regularization parameter removed - CV is used by default
     outcome_type = "binary",
     use_rashomon = TRUE,
-    rashomon_bound_multiplier = 0.05,
+    rashomon_bound_multiplier = eps_n,
+    auto_tune_intersecting = FALSE,  # pure Rashomon: fall back if no intersection at eps_n
     verbose = FALSE
   )
 
@@ -458,6 +463,10 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
 #' @return List with theta, se, structures
 #' @export
 estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.1) {
+  # Theory-justified Rashomon bound: 2*sqrt(log(n)/n) per manuscript Appendix A.5
+  # auto_tune_intersecting=TRUE starts from eps_n and increases only if no intersection found
+  eps_n <- 2 * sqrt(log(nrow(X)) / nrow(X))
+
   result <- doubletree::estimate_att_doubletree_averaged(
     X = X,
     A = A,
@@ -465,7 +474,7 @@ estimate_att_doubletree_averaged <- function(X, A, Y, K = 5, regularization = 0.
     K = K,
     regularization = regularization,
     outcome_type = "binary",
-    rashomon_bound_multiplier = 0.05,
+    rashomon_bound_multiplier = eps_n,
     auto_tune_intersecting = TRUE,
     verbose = FALSE
   )

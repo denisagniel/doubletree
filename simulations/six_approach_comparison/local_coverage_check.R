@@ -92,15 +92,20 @@ run_one <- function(approach_idx, X, A, Y) {
       },
       # 3: doubletree
       {
+        eps_n <- 2 * sqrt(log(length(Y)) / length(Y))
         r <- estimate_att(X, A, Y, K = K, outcome_type = "binary",
                           use_rashomon = TRUE, cv_regularization = TRUE,
-                          auto_tune_intersecting = TRUE, verbose = FALSE)
+                          rashomon_bound_multiplier = eps_n,
+                          auto_tune_intersecting = FALSE,
+                          verbose = FALSE)
         list(theta = r$theta, sigma = r$sigma, ci = att_ci(r$theta, r$sigma))
       },
       # 4: doubletree averaged
       {
+        eps_n <- 2 * sqrt(log(length(Y)) / length(Y))
         r <- estimate_att_doubletree_averaged(X, A, Y, K = K,
                                               outcome_type = "binary",
+                                              rashomon_bound_multiplier = eps_n,
                                               auto_tune_intersecting = TRUE,
                                               verbose = FALSE)
         list(theta = r$theta, sigma = r$sigma, ci = r$ci_95)
