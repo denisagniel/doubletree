@@ -1,0 +1,365 @@
+# Deployment Instructions: Six-Approach Comparison on O2 Cluster
+
+**Date:** 2026-06-08
+**Status:** Ready to deploy — packages updated, smoke test passes
+
+---
+
+## Changes Since Last Run (critical — must reinstall before running)
+
+### doubletree (HEAD: 6402c84)
+
+⚠️ **CI formula bug fixed in approaches 4, 5, 6** — old results INVALID (22x narrow CIs)
+- `estimate_att_averaged.R`: approaches 4 and 6 now use `att_ci(theta, sigma)` (was `sigma/sqrt(n)`)
+- `estimate_att_msplit.R`: approach 5 same fix
+- `dgps.R`: DGP_complex intercept corrected (0.2 → 0.05) to prevent mu0+ATT clipping
+
+### optimaltrees (HEAD: fe357e1)
+
+✅ **Package install fixed** (R CMD INSTALL now succeeds)
+- NAMESPACE stale exports removed (export("for"), export(Plot), export(optimaltrees_model))
+- `auto_tune_regularization_for_intersection`: lambda_min=NULL (auto-computes 0.5*log(n)/n)
+
+---
+
+## Pre-Deployment Steps (On Cluster)
+
+### 1. SSH to O2 Cluster
+
+```bash
+ssh yourusername@o2.hms.harvard.edu
+```
+
+### 2. Load Modules
+
+```bash
+module load gcc/14.2.0 R/4.4.2
+```
+
+**Verify:**
+```bash
+module list
+# Should show: gcc/14.2.0, R/4.4.2
+```
+
+### 3. Navigate to Project Directory
+
+```bash
+cd /path/to/your/global-scholars
+```
+
+### 4. Pull Latest optimaltrees Changes
+
+```bash
+cd optimaltrees
+git pull origin main
+```
+
+**Expected output:**
+```
+From github.com:denisagniel/treefarmr
+ * branch            main       -> FETCH_HEAD
+   961b4cc..94e79dc  main       -> origin/main
+Updating 961b4cc..94e79dc
+Fast-forward
+ 14 files changed, 635 insertions(+), 102 deletions(-)
+```
+
+**Verify commit:**
+```bash
+git log -1 --oneline
+# Should show: 94e79dc Remove obsolete man file
+```
+
+### 5. Reinstall optimaltrees
+
+```bash
+# From optimaltrees directory
+R CMD INSTALL . --preclean
+```
+
+**Expected:** Package compiles successfully (C++ compilation may take 2-3 minutes)
+
+**Verify installation:**
+```bash
+R --quiet -e "cat('optimaltrees version:', as.character(packageVersion('optimaltrees')), '\n')"
+# Should show: optimaltrees version: 0.4.0
+```
+
+### 6. Reinstall doubletree
+
+```bash
+cd ../doubletree
+R CMD INSTALL . --preclean
+```
+
+**Verify installation:**
+```bash
+R --quiet -e "library(doubletree); library(optimaltrees); cat('Both packages loaded successfully\n')"
+# Should load without errors
+```
+
+### 7. Test Partition-Based Comparison
+
+```bash
+R --quiet --vanilla <<'EOF'
+library(optimaltrees)
+
+# Quick test: fit two trees, check structure comparison
+set.seed(123)
+X <- data.frame(x1 = rbinom(100, 1, 0.5), x2 = rbinom(100, 1, 0.5))
+y <- rbinom(100, 1, 0.5)
+
+m1 <- fit_tree(X, y, loss_function = "log_loss", seed = 1)
+m2 <- fit_tree(X, y, loss_function = "log_loss", seed = 2)
+
+s1 <- extract_tree_structure(m1)
+s2 <- extract_tree_structure(m2)
+
+# Check that partition_hash property exists
+if (is.null(s1@partition_hash) || is.null(s2@partition_hash)) {
+  stop("ERROR: partition_hash not found")
+} else {
+  cat("✓ Partition-based comparison active\n")
+  cat("  Hash 1:", s1@partition_hash, "\n")
+  cat("  Hash 2:", s2@partition_hash, "\n")
+  cat("  Same structure:", compare_structures(s1, s2), "\n")
+}
+EOF
+```
+
+**Expected output:**
+```
+✓ Partition-based comparison active
+  Hash 1: <16-char hash>
+  Hash 2: <16-char hash>
+  Same structure: TRUE or FALSE
+```
+
+---
+
+## Deployment
+
+### 8. Navigate to Simulation Directory
+
+```bash
+cd simulations/six_approach_comparison
+```
+
+### 9. Check Directory Structure
+
+```bash
+ls -l
+# Should see: code/, slurm/, results/, logs/
+```
+
+### 10. Create Output Directories
+
+```bash
+mkdir -p results/raw logs results/combined results/plots
+```
+
+### 11. Test Single Job Locally (Recommended)
+
+```bash
+Rscript code/run_single_replication.R \
+  --approach 1 \
+  --dgp 1 \
+  --n 500 \
+  --reps 10 \
+  --output results/test_local.rds
+```
+
+**Expected:** Completes successfully, creates `results/test_local.rds`
+
+**Check results:**
+```bash
+R --quiet -e "readRDS('results/test_local.rds') |> str(max.level=1)"
+# Should show list of 10 replication results
+```
+
+### 12. Launch All Jobs
+
+```bash
+bash slurm/launch_all.sh
+```
+
+**Expected output:**
+```
+==============================================
+Six-Approach Comparison Study
+==============================================
+
+Total jobs: 120
+  Array 1 (Fast):   36 jobs (approaches i, iv, vi)
+  Array 2 (Medium): 24 jobs (approaches ii, iii)
+  Array 3 (M-split): 60 jobs (approach v)
+
+Submitting Array 1: Fast approaches (i, iv, vi) - 36 jobs...
+  Job ID: 12345678
+
+Submitting Array 2: Medium approaches (ii, iii) - 24 jobs...
+  Job ID: 12345679
+
+Submitting Array 3: M-split approach (v) - 60 jobs...
+  Job ID: 12345680
+
+==============================================
+All jobs submitted successfully!
+==============================================
+
+Monitor progress with:
+  bash slurm/check_progress.sh
+```
+
+---
+
+## Monitoring
+
+### Check Job Status
+
+```bash
+# Quick check
+squeue -u $USER
+
+# Detailed progress
+bash slurm/check_progress.sh
+```
+
+### Check Logs
+
+```bash
+# Recent errors
+tail logs/fast_*.err
+
+# Recent outputs
+tail logs/fast_*.out
+```
+
+### Check Results
+
+```bash
+# Count completed jobs
+ls results/raw/*.rds | wc -l
+# Should reach 120 when all complete
+```
+
+---
+
+## Expected Runtime
+
+With partition-based comparison:
+- **Approach 4 & 6:** May be slightly faster (fewer structure mismatches)
+- **Total runtime:** Same as before (~2-6 hours depending on cores)
+
+**Total estimations:** 36,000 (120 jobs × 500 reps × 6 approaches ÷ 3 approach groups)
+
+---
+
+## Troubleshooting
+
+### Package Loading Errors
+
+```bash
+# Check package versions
+R -e "cat('optimaltrees:', as.character(packageVersion('optimaltrees')), '\n')"
+R -e "cat('doubletree:', as.character(packageVersion('doubletree')), '\n')"
+
+# Reinstall if versions don't match
+cd /path/to/optimaltrees && R CMD INSTALL . --preclean
+cd /path/to/doubletree && R CMD INSTALL . --preclean
+```
+
+### Job Failures
+
+```bash
+# Check error logs
+grep -i "error\|fatal" logs/*.err
+
+# Resubmit failed jobs
+# (Manual resubmission: adjust array indices in slurm scripts)
+```
+
+### Missing partition_hash
+
+If you see `Can't find property @partition_hash`:
+- optimaltrees not properly installed
+- Using old cached version
+- Reinstall: `R CMD INSTALL optimaltrees --preclean`
+
+---
+
+## Post-Processing
+
+### After All Jobs Complete
+
+```bash
+# Combine results
+Rscript slurm/combine_results.R
+
+# Check combined file
+ls -lh results/combined/all_results.rds
+```
+
+### Download Results
+
+```bash
+# From your local machine
+scp -r yourusername@o2.hms.harvard.edu:/path/to/six_approach_comparison/results ./
+```
+
+---
+
+## Verification Checklist
+
+Before launching:
+- [ ] SSH to O2 cluster
+- [ ] Modules loaded (gcc/14.2.0, R/4.4.2)
+- [ ] optimaltrees updated (commit 94e79dc)
+- [ ] optimaltrees reinstalled
+- [ ] doubletree reinstalled
+- [ ] Partition-based comparison tested and working
+- [ ] Test job runs successfully
+- [ ] Output directories created
+- [ ] Ready to launch
+
+After launching:
+- [ ] All 120 jobs submitted successfully
+- [ ] Monitor logs for errors
+- [ ] Wait for completion (~2-6 hours)
+- [ ] Combine results
+- [ ] Download and analyze
+
+---
+
+## Questions?
+
+If issues arise:
+1. Check logs: `logs/*.err`
+2. Test locally: `Rscript code/run_single_replication.R ...`
+3. Verify packages: `R -e "library(doubletree); library(optimaltrees)"`
+4. Check module versions: `module list`
+
+---
+
+## Expected Improvements
+
+With partition-based comparison:
+
+**Approach 4 (doubletree_averaged):**
+- More robust modal structure selection
+- Fewer failures due to split order differences
+- Should see improved coverage in some settings
+
+**Approach 6 (msplit_averaged):**
+- Similar improvements
+- Better consistency across replications
+
+**Approaches 1-3:**
+- Unaffected (don't use structure comparison)
+
+---
+
+**Status:** Ready to deploy
+**Date:** 2026-05-21
+**Commits:** 94e79dc (optimaltrees), partition-based comparison
