@@ -1,18 +1,27 @@
 # Deployment Instructions: Six-Approach Comparison on O2 Cluster
 
-**Date:** 2026-06-08
-**Status:** Ready to deploy — packages updated, smoke test passes
+**Date:** 2026-06-09
+**Status:** Ready to deploy — packages updated, parameter audit complete
 
 ---
 
 ## Changes Since Last Run (critical — must reinstall before running)
 
-### doubletree (HEAD: 6402c84)
+### doubletree (HEAD: latest — see git log)
 
 ⚠️ **CI formula bug fixed in approaches 4, 5, 6** — old results INVALID (22x narrow CIs)
 - `estimate_att_averaged.R`: approaches 4 and 6 now use `att_ci(theta, sigma)` (was `sigma/sqrt(n)`)
 - `estimate_att_msplit.R`: approach 5 same fix
 - `dgps.R`: DGP_complex intercept corrected (0.2 → 0.05) to prevent mu0+ATT clipping
+
+### simulation scripts (2026-06-09)
+
+⚠️ **Parameter audit — all 6 approaches now use uniform adaptive CV**
+- `code/estimators.R`: approaches 1 and 2 now use `cv_regularization_adaptive` with `max_lambda = 15*log(n)/n` (was fixed-grid `cv_regularization`)
+- `code/estimators.R`: approach 3 now uses `auto_tune_intersecting = TRUE`; hard `stop()` on failed intersection (was fallback to fold-specific trees)
+- `code/estimators.R`: production parameter constants block added (SIM_K, SIM_M, SIM_K_MSPLIT, EPS_N_C)
+- SLURM: full redesign for 1000 reps; 6 per-approach scripts (`run_approach{1-6}.sh`) replacing 3-script grouping
+- SLURM: total jobs increased from 120 to 6624; total reps from 6000 to 72,000
 
 ### optimaltrees (HEAD: fe357e1)
 
@@ -229,11 +238,12 @@ bash slurm/check_progress.sh
 ### Check Logs
 
 ```bash
-# Recent errors
-tail logs/fast_*.err
+# Recent errors (per approach)
+tail logs/approach1_*.err
+tail logs/approach3_*.err
 
 # Recent outputs
-tail logs/fast_*.out
+tail logs/approach1_*.out
 ```
 
 ### Check Results
@@ -241,7 +251,7 @@ tail logs/fast_*.out
 ```bash
 # Count completed jobs
 ls results/raw/*.rds | wc -l
-# Should reach 120 when all complete
+# Should reach 6624 when all complete
 ```
 
 ---
@@ -315,18 +325,19 @@ scp -r yourusername@o2.hms.harvard.edu:/path/to/six_approach_comparison/results 
 Before launching:
 - [ ] SSH to O2 cluster
 - [ ] Modules loaded (gcc/14.2.0, R/4.4.2)
-- [ ] optimaltrees updated (commit 94e79dc)
-- [ ] optimaltrees reinstalled
-- [ ] doubletree reinstalled
+- [ ] optimaltrees updated and reinstalled
+- [ ] doubletree updated and reinstalled
 - [ ] Partition-based comparison tested and working
-- [ ] Test job runs successfully
+- [ ] All 6 approaches use `cv_regularization_adaptive` (verify: `grep -n "cv_regularization[^_]" code/estimators.R` returns zero matches in function bodies)
+- [ ] Approach 3 uses `auto_tune_intersecting = TRUE` with no fallback (verify: `grep -n "auto_tune_intersecting = FALSE" code/estimators.R` returns zero matches)
+- [ ] Test job runs successfully (`Rscript code/run_single_replication.R --approach 1 --dgp 1 --n 500 --reps 5 --output results/test.rds`)
 - [ ] Output directories created
 - [ ] Ready to launch
 
 After launching:
-- [ ] All 120 jobs submitted successfully
+- [ ] All 6624 jobs submitted successfully (11 sbatch calls)
 - [ ] Monitor logs for errors
-- [ ] Wait for completion (~2-6 hours)
+- [ ] Wait for completion
 - [ ] Combine results
 - [ ] Download and analyze
 

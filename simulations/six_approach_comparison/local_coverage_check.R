@@ -34,13 +34,18 @@ if (!file.exists(file.path(SIM_DIR, "code/dgps.R"))) {
 source(file.path(SIM_DIR, "code/dgps.R"))
 
 # ---- parameters ---------------------------------------------------------------
+# Production vs local differences:
+#   Production (cluster): M=10, K_MSPLIT=5  (see code/estimators.R SIM_M, SIM_K_MSPLIT)
+#   Local validation:     M=3,  K_MSPLIT=3  (reduced for manageable runtime ~30-60 min)
+# All other parameters match production: K=5, eps_n=2*sqrt(log(n)/n) for appr 3/4,
+# cv_regularization_adaptive with max_lambda=15*log(n)/n for all 6 approaches
 
 N        <- 500
 TRUE_ATT <- 0.15
 N_REPS   <- 20
-K        <- 5    # folds for approaches 1-4
-M        <- 3    # splits for approaches 5/6
-K_MSPLIT <- 3    # folds per split for approaches 5/6
+K        <- 5    # folds for approaches 1-4 (matches production)
+M        <- 3    # splits for approaches 5/6 (production: M=10)
+K_MSPLIT <- 3    # folds per split for approaches 5/6 (production: K_MSPLIT=5)
 
 set.seed(42)
 
@@ -67,12 +72,18 @@ run_one <- function(approach_idx, X, A, Y) {
     switch(approach_idx,
       # 1: fullsample
       {
-        cv_e  <- cv_regularization(X, A, loss_function = "log_loss",
-                                   K = 5, refit = TRUE, verbose = FALSE)
+        n_all <- length(Y)
+        cv_e  <- cv_regularization_adaptive(X, A, loss_function = "log_loss",
+                                            K = 5,
+                                            max_lambda = 15 * log(n_all) / n_all,
+                                            refit = TRUE, verbose = FALSE)
         e_hat <- predict(cv_e$model, X, type = "prob")[, 2L]
         X0    <- X[A == 0, , drop = FALSE]; Y0 <- Y[A == 0]
-        cv_m0  <- cv_regularization(X0, Y0, loss_function = "log_loss",
-                                    K = 5, refit = TRUE, verbose = FALSE)
+        n0    <- length(Y0)
+        cv_m0  <- cv_regularization_adaptive(X0, Y0, loss_function = "log_loss",
+                                             K = 5,
+                                             max_lambda = 15 * log(n0) / n0,
+                                             refit = TRUE, verbose = FALSE)
         m0_hat <- predict(cv_m0$model, X, type = "prob")[, 2L]
         psi    <- doubletree:::psi_att(Y, A, 0,
                                        list(e = e_hat, m0 = m0_hat, m1 = NULL),
@@ -96,8 +107,12 @@ run_one <- function(approach_idx, X, A, Y) {
         r <- estimate_att(X, A, Y, K = K, outcome_type = "binary",
                           use_rashomon = TRUE, cv_regularization = TRUE,
                           rashomon_bound_multiplier = eps_n,
-                          auto_tune_intersecting = FALSE,
+                          auto_tune_intersecting = TRUE,
                           verbose = FALSE)
+        if (!isTRUE(r$converged)) {
+          stop("Approach 3: Rashomon intersection failed after auto-tuning. ",
+               "Hard failure -- do not silently proceed. converged=", r$converged)
+        }
         list(theta = r$theta, sigma = r$sigma, ci = att_ci(r$theta, r$sigma))
       },
       # 4: doubletree averaged

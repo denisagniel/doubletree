@@ -11,6 +11,17 @@
 
 library(optimaltrees)
 
+# ============================================================================
+# Production Parameters
+# ============================================================================
+SIM_K        <- 5L    # cross-fitting folds (approaches 1-4)
+SIM_M        <- 10L   # modal splits (approaches 5-6)
+SIM_K_MSPLIT <- 5L    # folds per split (approaches 5-6)
+EPS_N_C      <- 2.0   # Rashomon bound: eps_n = EPS_N_C * sqrt(log(n)/n)
+# Theory: eps_n satisfies o(n^{-1/2}): ~0.22 at n=500, 0.17 at n=1000, 0.12 at n=2000
+# Lambda cap: 15*log(n)/n applied by cv_regularization_adaptive
+# Lambda floor: sqrt(log(n)/n) applied inside fit_nuisances_rashomon
+
 #' Compute ATT from EIF
 #'
 #' @param Y Outcome vector
@@ -178,13 +189,15 @@ create_folds <- function(n, K = 5) {
 #' @export
 estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
   n <- nrow(X)
+  n_train <- n
 
-  # Fit propensity tree on all data with CV-selected lambda
-  cv_e <- optimaltrees::cv_regularization(
+  # Fit propensity tree on all data with CV-selected lambda (adaptive)
+  cv_e <- optimaltrees::cv_regularization_adaptive(
     X = X,
     y = A,
     loss_function = "log_loss",
-    K = 5,
+    K = SIM_K,
+    max_lambda = 15 * log(n_train) / n_train,
     refit = TRUE,
     verbose = FALSE
   )
@@ -211,13 +224,15 @@ estimate_att_fullsample <- function(X, A, Y, regularization = 0.1) {
   }
   e_hat <- e_pred[, 2]  # P(A=1|X)
 
-  # Fit outcome tree on controls (all data) with CV-selected lambda
+  # Fit outcome tree on controls (all data) with CV-selected lambda (adaptive)
   control_idx <- A == 0
-  cv_m0 <- optimaltrees::cv_regularization(
+  n_train <- sum(control_idx)
+  cv_m0 <- optimaltrees::cv_regularization_adaptive(
     X = X[control_idx, , drop = FALSE],
     y = Y[control_idx],
     loss_function = "log_loss",
-    K = 5,
+    K = SIM_K,
+    max_lambda = 15 * log(n_train) / n_train,
     refit = TRUE,
     verbose = FALSE
   )
@@ -287,12 +302,14 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
     train_idx <- folds != k
     test_idx <- folds == k
 
-    # Fit propensity tree on training fold with CV-selected lambda
-    cv_e_k <- optimaltrees::cv_regularization(
+    # Fit propensity tree on training fold with CV-selected lambda (adaptive)
+    n_train <- sum(train_idx)
+    cv_e_k <- optimaltrees::cv_regularization_adaptive(
       X = X[train_idx, , drop = FALSE],
       y = A[train_idx],
       loss_function = "log_loss",
-      K = 5,
+      K = SIM_K,
+      max_lambda = 15 * log(n_train) / n_train,
       refit = TRUE,
       verbose = FALSE
     )
@@ -320,13 +337,15 @@ estimate_att_crossfit <- function(X, A, Y, K = 5, regularization = 0.1) {
     }
     e_hat[test_idx] <- e_pred_k[, 2]  # P(A=1|X)
 
-    # Fit outcome tree on controls in training fold with CV-selected lambda
+    # Fit outcome tree on controls in training fold with CV-selected lambda (adaptive)
     control_train_idx <- train_idx & (A == 0)
-    cv_m0_k <- optimaltrees::cv_regularization(
+    n_train <- sum(control_train_idx)
+    cv_m0_k <- optimaltrees::cv_regularization_adaptive(
       X = X[control_train_idx, , drop = FALSE],
       y = Y[control_train_idx],
       loss_function = "log_loss",
-      K = 5,
+      K = SIM_K,
+      max_lambda = 15 * log(n_train) / n_train,
       refit = TRUE,
       verbose = FALSE
     )
@@ -388,40 +407,32 @@ estimate_att_doubletree <- function(X, A, Y, K = 5, regularization = 0.1) {
   eps_n <- 2 * sqrt(log(nrow(X)) / nrow(X))
 
   # Use doubletree package implementation with Rashomon
+  # auto_tune_intersecting=TRUE: start at eps_n, increase if needed; hard stop if still fails
   result <- doubletree::estimate_att(
     X = X,
     A = A,
     Y = Y,
     K = K,
-    # regularization parameter removed - CV is used by default
     outcome_type = "binary",
     use_rashomon = TRUE,
     rashomon_bound_multiplier = eps_n,
-    auto_tune_intersecting = FALSE,  # pure Rashomon: fall back if no intersection at eps_n
+    auto_tune_intersecting = TRUE,
     verbose = FALSE
   )
 
-  # Validate result structure
-  # NA is acceptable (Rashomon intersection may fail), but Inf/NaN is not
-  if (!is.na(result$theta) && !is.finite(result$theta)) {
+  # Hard stop if intersection failed after auto-tuning (no silent fallback to fold-specific trees)
+  if (!isTRUE(result$converged)) {
+    stop("Approach 3: Rashomon intersection failed after auto-tuning. ",
+         "Hard failure -- do not silently proceed. converged=", result$converged)
+  }
+
+  # Validate result structure (paranoid checks after convergence confirmed)
+  if (!is.finite(result$theta)) {
     stop("doubletree::estimate_att returned non-finite theta: ", result$theta)
   }
 
-  if (!is.na(result$sigma) && (!is.finite(result$sigma) || result$sigma <= 0)) {
+  if (!is.finite(result$sigma) || result$sigma <= 0) {
     stop("doubletree::estimate_att returned invalid sigma: ", result$sigma)
-  }
-
-  # If theta is NA, this indicates Rashomon intersection failed
-  # Return with error message for tracking
-  if (is.na(result$theta)) {
-    return(list(
-      theta = NA_real_,
-      se = NA_real_,
-      e_hat = rep(NA_real_, nrow(X)),
-      m0_hat = rep(NA_real_, nrow(X)),
-      structures = list(e = NULL, m0 = NULL),
-      error = "Rashomon intersection found no common structure"
-    ))
   }
 
   list(

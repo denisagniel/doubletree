@@ -252,4 +252,27 @@ Six tree-based causal inference approaches for estimating ATT, differing in:
 - [x] Approach 6: Implemented (`estimate_att_msplit_averaged`)
       Refits modal structure M×K times, averages ALL leaf values across M×K trees
 
-**Implementation date:** 2026-05-26
+**Last updated:** 2026-06-09
+
+---
+
+## Production Parameters
+
+| Parameter | Value | Used In |
+|-----------|-------|---------|
+| lambda selection | `cv_regularization_adaptive`, max_lambda = 15·log(n)/n | **All 6 approaches** |
+| K (cross-fitting folds) | 5 | All approaches |
+| M (modal structure splits) | 10 | Approaches 5-6 |
+| K per split | 5 | Approaches 5-6 |
+| epsilon_n (Rashomon bound) | `2*sqrt(log(n)/n)` | Approaches 3-4 |
+| auto_tune_intersecting | TRUE | Approaches 3-4 |
+| Fallback on empty intersection | None — hard stop() | Approaches 3-4 |
+| lambda floor (after CV) | `sqrt(log(n)/n)` | Approaches 3-6 (inside package) |
+| max_depth | 4 | All approaches (inside package) |
+| n values | 500, 1000, 2000 | All |
+| Reps per config | 1000 | All |
+
+epsilon_n approx 0.22 (n=500), 0.17 (n=1000), 0.12 (n=2000).
+Theory: satisfies o(n^{-1/2}) rate for valid EIF-ATT inference (Appendix A.5).
+Auto-tuning starts at epsilon_n and increases only if needed; hard failure (stop()) if no intersection
+found after exhausting all tuning attempts. Reps that fail are logged as errors, not silently skipped.
