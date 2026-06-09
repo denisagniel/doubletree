@@ -250,7 +250,8 @@ estimate_att_msplit <- function(X, A, Y,
         y_new = A_train,
         loss_function = "log_loss",
         store_training_data = FALSE,
-        discretization_metadata = s_star_e$discretization_metadata
+        discretization_metadata = s_star_e$discretization_metadata,
+        allow_partial_leaves = TRUE
       )
 
       # Refit outcome tree (control outcomes only)
@@ -266,7 +267,8 @@ estimate_att_msplit <- function(X, A, Y,
         y_new = Y_train_control,
         loss_function = outcome_loss,
         store_training_data = FALSE,
-        discretization_metadata = s_star_m0$discretization_metadata
+        discretization_metadata = s_star_m0$discretization_metadata,
+        allow_partial_leaves = TRUE
       )
 
       # Predict on test fold
