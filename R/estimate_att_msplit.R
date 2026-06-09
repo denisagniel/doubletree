@@ -312,8 +312,8 @@ estimate_att_msplit <- function(X, A, Y,
   score_centered <- score - mean(score)
   sigma_msplit <- sqrt(mean(score_centered^2) / n)
 
-  # Confidence interval
-  ci_95 <- theta_msplit + c(-1, 1) * qnorm(0.975) * sigma_msplit / sqrt(n)
+  # Confidence interval (sigma_msplit IS the SE; do not divide by sqrt(n) again)
+  ci_95 <- att_ci(theta_msplit, sigma_msplit)
 
   # ============================================================
   # Diagnostics
