@@ -28,9 +28,9 @@ echo "Sample sizes: 3 (500, 1000, 2000)"
 echo "Reps per config: 1000"
 echo "Total replications: 72,000"
 echo ""
-echo "NOTE: Approaches 3/4 on DGP4 expected to fail Rashomon intersection"
-echo "  (continuous features -> unstable partitions). These reps are logged"
-echo "  as hard-stop errors in results/raw/approach{3,4}_dgp4_*.rds."
+echo "NOTE: Approaches 3/4 on DGP4 may have elevated failure rate (Rashomon"
+echo "  intersection harder on continuous features). Failures are hard-stop"
+echo "  errors logged to results/raw/approach{3,4}_dgp4_*.rds and expected."
 echo ""
 
 # Create output directories

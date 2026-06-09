@@ -353,7 +353,7 @@ Before launching:
 After launching:
 - [ ] All 12024 jobs submitted successfully (15 sbatch calls)
 - [ ] Monitor logs for errors
-- [ ] Approaches 3/4 DGP4: expect ~100% error rate (logged, not a bug)
+- [ ] Approaches 3/4 DGP4: may have elevated failure rate; errors are logged and informative
 - [ ] Wait for completion
 - [ ] Combine results (note: approach{3,4}_dgp4_*.rds files may all be errors)
 - [ ] Download and analyze
