@@ -145,7 +145,9 @@ estimate_att_msplit <- function(X, A, Y,
       max_iterations = 10,
       refit = TRUE,
       verbose = FALSE,
-      max_lambda = max_lambda_cap
+      max_lambda = max_lambda_cap,
+      discretize_bins = "adaptive",
+      discretize_method = "quantiles"
     )
 
     # No fallback - CV must succeed
@@ -183,7 +185,9 @@ estimate_att_msplit <- function(X, A, Y,
       max_iterations = 10,
       refit = TRUE,
       verbose = FALSE,
-      max_lambda = max_lambda_cap
+      max_lambda = max_lambda_cap,
+      discretize_bins = "adaptive",
+      discretize_method = "quantiles"
     )
 
     # No fallback - CV must succeed

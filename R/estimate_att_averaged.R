@@ -821,9 +821,19 @@ estimate_att_doubletree_averaged <- function(
 #' @details
 #' Algorithm:
 #' 1. Stage 1: Find modal structure (same as approach 5)
-#' 2. Stage 2: Refit modal structure M×K times (same as approach 5)
+#' 2. Stage 2: Refit modal structure M×K times AND store cross-fitted fold predictions
 #' 3. Stage 3: **Average leaf values** across all M×K trees → 1 averaged tree
-#' 4. Predict all observations using single averaged tree (no cross-fitting)
+#' 4. **Inference** via the averaged tree (predict all n observations)
+#'
+#' The averaged tree is used for both inference and display. Cross-fitted predictions
+#' from Stage 2 are also stored in \code{predictions_all_splits} to enable investigation
+#' of alternative inference paths (e.g., rowMeans of the n×M prediction matrix).
+#'
+#' \strong{Known issue:} Using the averaged tree for inference introduces (K-1)/K
+#' in-sample contamination (80% at K=5) because each leaf's averaged value is
+#' computed from M×K refits, M(K-1) of which used observation i in training.
+#' This causes structural positive bias that does not vanish with M or n.
+#' The \code{predictions_all_splits} field enables comparison with cross-fitted inference.
 #'
 #' @export
 estimate_att_msplit_averaged <- function(X, A, Y,
@@ -873,7 +883,9 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     cv_e <- optimaltrees::cv_regularization_adaptive(
       X = X_train, y = A_train, loss_function = "log_loss",
       K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
-      max_lambda = max_lambda_cap
+      max_lambda = max_lambda_cap,
+      discretize_bins = "adaptive",
+      discretize_method = "quantiles"
     )
 
     if (is.na(cv_e$best_lambda)) {
@@ -896,7 +908,9 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     cv_m0 <- optimaltrees::cv_regularization_adaptive(
       X = X_control, y = Y_control, loss_function = outcome_loss,
       K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
-      max_lambda = max_lambda_cap
+      max_lambda = max_lambda_cap,
+      discretize_bins = "adaptive",
+      discretize_method = "quantiles"
     )
 
     if (is.na(cv_m0$best_lambda)) {
@@ -932,9 +946,17 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   # Store all M×K trees (as tree structure objects, not models)
   trees_e <- vector("list", M * K)
   trees_m0 <- vector("list", M * K)
-  leaf_counts_e <- vector("list", M * K)    # NEW: Store leaf counts
-  leaf_counts_m0 <- vector("list", M * K)   # NEW: Store leaf counts
+  leaf_counts_e <- vector("list", M * K)
+  leaf_counts_m0 <- vector("list", M * K)
   tree_idx <- 1
+
+  # Cross-fitted predictions (n × M): for valid inference (Option B).
+  # Each column m is filled by the K fold test-set predictions from split m.
+  # These are proper cross-fitted predictions: observation i is predicted by
+  # a tree trained on data that does NOT include i, fixing the in-sample
+  # contamination that biases the averaged-tree inference path.
+  predictions_e_xfitted  <- matrix(NA_real_, nrow = n, ncol = M)
+  predictions_m0_xfitted <- matrix(NA_real_, nrow = n, ncol = M)
 
   for (m in seq_len(M)) {
     seed_m <- if (!is.null(seed_base)) seed_base + m else NULL
@@ -983,6 +1005,22 @@ estimate_att_msplit_averaged <- function(X, A, Y,
       trees_m0[[tree_idx]] <- refit_result_m0$model@trees[[1]]
       leaf_counts_m0[[tree_idx]] <- refit_result_m0$n_per_leaf
 
+      # Store cross-fitted predictions on test fold for valid inference.
+      # predict() uses the discretization_metadata stored on the model object,
+      # so X_test (original X) is handled correctly without explicit discretization.
+      X_test <- X[test_idx, , drop = FALSE]
+
+      preds_e_mk <- predict(refit_result_e$model, X_test, type = "prob")
+      predictions_e_xfitted[test_idx, m] <- preds_e_mk[, 2L]
+
+      if (outcome_loss == "log_loss") {
+        preds_m0_mk <- predict(refit_result_m0$model, X_test, type = "prob")
+        predictions_m0_xfitted[test_idx, m] <- preds_m0_mk[, 2L]
+      } else {
+        preds_m0_mk <- predict(refit_result_m0$model, X_test)
+        predictions_m0_xfitted[test_idx, m] <- preds_m0_mk
+      }
+
       tree_idx <- tree_idx + 1
     }
 
@@ -1004,10 +1042,9 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   # ============================================================
   if (verbose) cat("Stage 4: Computing ATT with averaged tree...\n")
 
-  # Discretize X before prediction: trees are built on binary matrix X_binary
-  # (column indices in tree JSON reference X_binary, not original X).
-  # For continuous covariates, X_binary has more columns than X, causing
-  # "subscript out of bounds" errors if the original X is used directly.
+  # Predict for ALL observations using the averaged tree.
+  # Trees use discretized binary features; apply_discretization converts X to
+  # the same binary feature space before calling predict_from_tree.
   apply_disc <- get("apply_discretization", envir = asNamespace("optimaltrees"))
   X_for_e_pred <- if (!is.null(s_star_e$discretization_metadata)) {
     apply_disc(X, s_star_e$discretization_metadata)
@@ -1020,10 +1057,6 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     X
   }
 
-  # Predict for all observations using single averaged tree.
-  # Clamp to [0.01, 0.99]: leaf values in averaged tree can be exactly 0 or 1
-  # (from refitted folds with all-control or all-treated leaves), and psi_att
-  # requires propensities in [0.01, 0.99] to avoid division by zero.
   e_hat  <- pmax(pmin(predict_from_tree(e_averaged,  X_for_e_pred),  0.99), 0.01)
   m0_hat <- pmax(pmin(predict_from_tree(m0_averaged, X_for_m0_pred), 0.99), 0.01)
 
@@ -1050,6 +1083,8 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     score_values = score,
     e_hat = e_hat,
     m0_hat = m0_hat,
+    averaged_trees = list(e = e_averaged, m0 = m0_averaged),
+    predictions_all_splits = list(e = predictions_e_xfitted, m0 = predictions_m0_xfitted),
     structures = list(
       modal = list(e = s_star_e$structure, m0 = s_star_m0$structure)
     ),
