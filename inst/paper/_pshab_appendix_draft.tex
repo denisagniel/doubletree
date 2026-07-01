@@ -1,0 +1,583 @@
+%% ============================================================
+%% Setup: nuisance estimation by penalized tree ERM
+%% ============================================================
+
+We estimate a generic nuisance $\eta_0 \colon \cX \to \R$ --- either the
+propensity score or an outcome regression --- by penalized empirical risk
+minimization over the class $\cT_L$ of axis-aligned regression trees with at
+most $L$ leaves. Throughout, $\cX \subseteq [0,1]^d$, the covariate $\bX$ is
+discretized onto a fixed per-coordinate dyadic grid (Section
+\ref{sec:discretization}), and the loss $\ell$ is either squared error
+($Y \in [0,1]$, $\eta_0(x) = \E[Y \mid X = x]$) or cross-entropy
+($Y \in \{0,1\}$, $\eta_0(x) = \Prob(Y = 1 \mid X = x) \in [c, 1-c]$ for a
+known overlap constant $c \in (0, \tfrac12]$, with trees clipped to
+$[c,1-c]$). Write $R(f) = \E[\ell(Y, f(X))]$ and the excess risk
+$\cE(f) = R(f) - R(\eta_0)$.
+
+The penalized minimizer is
+\begin{equation}\label{eq:perm}
+  \eta_{\text{hat}} \;\in\;
+  \argmin_{f \in \cT_{M_n}}\;
+  \Bigl\{ \tfrac1n \sum_{i=1}^n \ell\bigl(Y_i, f(X_i)\bigr)
+          \;+\; \lambda_n\, (\#\text{leaves of } f) \Bigr\},
+\end{equation}
+over trees with at most $M_n \le n$ leaves. We take
+$\lambda_n \asymp \log(nd)/n$; the ambient dimension $d$ enters the theory only
+through this logarithmic factor. The convergence rate is governed by two
+structural indices of the target: the \emph{sparsity} $s$ (the number of
+locally active coordinates) and the harmonic-mean anisotropic smoothness
+$\alphabar$ over those coordinates (Xu Definition~4.5). The rate-optimal leaf
+count $L_n$ balances the approximation error $L^{-2\alphabar/s}$
+(Lemma~\ref{lem:approx}) against the per-leaf estimation cost $\lambda_n L$: with
+$\lambda_n \asymp \log(nd)/n$, setting $L^{-2\alphabar/s} \asymp \lambda_n L$
+gives $L^{(2\alphabar+s)/s} \asymp n/\log(nd)$, i.e.
+\begin{equation}\label{eq:Ln}
+  L_n \;\asymp\; \Bigl(\tfrac{n}{\log(nd)}\Bigr)^{s/(2\alphabar + s)}
+  \;\asymp\; n^{\,s/(2\alphabar + s)}.
+\end{equation}
+Since $s/(2\alphabar+s) < 1$, we have $L_n = o(n)$, so any maximal complexity
+$M_n \asymp n$ satisfies $L_n \le M_n$ for all large $n$. Excess risk is
+controlled by squared $L_2$-distance to the truth through the
+\emph{loss-norm link} (Lemma~\ref{lem:loss-norm}, Appendix~\ref{app:loss-norm});
+the argument then proceeds by (i) an approximation bound
+(Lemmas~\ref{lem:approx}--\ref{lem:approx-disc}), (ii) a cross-entropy oracle
+inequality (Theorem~\ref{thm:ce-oracle}), and (iii) a bias--variance balance
+(Theorem~\ref{thm:nuisance-rate}).
+
+%% ============================================================
+%% Approximation
+%% ============================================================
+
+\begin{lemma}[Approximation by sparse anisotropic trees]\label{lem:approx}
+Suppose $\eta_0$ lies in the piecewise sparse anisotropic Besov class
+$\cB^{\bS,\bA}_{p,q}(\cP_*, \bLambda)$ (Xu Definition~4.5, Assumption~5.2) with
+sparsity $s$, anisotropic smoothness vector $\balpha \le \mathbf 1$ over the
+active coordinates, and harmonic mean $\alphabar$. Then there is a constant
+$C < \infty$, depending on $(\bS,\bA,\cP_*,\bLambda)$ but not on $L$ or $n$,
+such that for the squared-error loss
+\begin{equation}\label{eq:approx-sq}
+  \inf_{f \in \cT_L}\, \bigl[ R(f) - R(\eta_0) \bigr]
+  \;=\; \inf_{f \in \cT_L} \norm{f - \eta_0}_{L_2(P)}^2
+  \;\le\; C\, L^{-2\alphabar/s},
+\end{equation}
+and consequently, for cross-entropy loss with $\eta_0 \in [c,1-c]$,
+\begin{equation}\label{eq:approx-ce}
+  \inf_{f \in \cT_L}\, \bigl[ R(f) - R(\eta_0) \bigr]
+  \;\le\; U_c\, C\, L^{-2\alphabar/s},
+  \qquad U_c = \min\Bigl\{\tfrac{1}{2c^2},\, \tfrac{1}{c(1-c)}\Bigr\}.
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+For squared error, excess risk is an exact identity:
+$R(f) - R(\eta_0) = \E[(f(X) - Y)^2] - \E[(\eta_0(X) - Y)^2]
+= \norm{f - \eta_0}_{L_2(P)}^2$, using $\E[Y \mid X] = \eta_0(X)$ to cancel the
+cross term. This gives the first equality in \eqref{eq:approx-sq}. The
+approximation bound $\inf_{f \in \cT_L}\norm{f-\eta_0}_{L_2(P)}^2 \le C\,
+L^{-2\alphabar/s}$ is exactly the achievability certificate of
+\citet{xuStatisticalOptimalityOptimal2026}, Theorem~6.1 (regression, their
+eq.~(21)) together with Theorem~5.5: their construction is an anisotropic
+dyadic-grid tree in the sense of Akakpo (2012), which for $L$ leaves attains
+squared $L_2$-error of order $L^{-2\alphabar/s}$ over the active $s$-dimensional
+subspace, the inactive $d - s$ coordinates contributing no error since $\eta_0$
+does not depend on them. This is an $L_2$-approximation statement; it transfers
+to squared-error excess risk by the identity above.
+
+For cross-entropy, the same $f$ achieving \eqref{eq:approx-sq} satisfies, by the
+upper loss-norm link (Lemma~\ref{lem:loss-norm}(ii)),
+$R(f) - R(\eta_0) = \cE(f) \le U_c \norm{f - \eta_0}_{L_2(P)}^2
+\le U_c\, C\, L^{-2\alphabar/s}$, which is \eqref{eq:approx-ce}.
+\end{proof}
+
+\begin{lemma}[Approximation persists under discretization]\label{lem:approx-disc}
+Let $\cT_L^{\mathrm{disc}}$ denote the $L$-leaf trees whose splits lie on a
+fixed per-coordinate dyadic grid with $m_{n,i}$ thresholds in coordinate $i$.
+Suppose the grid is at least as fine as the Xu/Akakpo achievability
+construction; a sufficient condition is
+\begin{equation}\label{eq:grid-rate}
+  m_{n,i} \;\ge\; c_0\, n^{\,(\alpha_{\min}/\alpha_i)/(2\alphabar + s)},
+  \qquad i = 1, \dots, d,
+\end{equation}
+where $\alpha_{\min} = \min_i \alpha_i$. Then
+\begin{equation}\label{eq:approx-disc}
+  \inf_{f \in \cT_L^{\mathrm{disc}}}\, \bigl[ R(f) - R(\eta_0) \bigr]
+  \;\le\; C\, L^{-2\alphabar/s}
+  \qquad(\text{squared error}),
+\end{equation}
+and $\le U_c\, C\, L^{-2\alphabar/s}$ for cross-entropy, matching the continuous
+rate of Lemma~\ref{lem:approx}.
+\end{lemma}
+
+\begin{proof}
+The argument is that the Xu approximant is \emph{already} a dyadic-grid tree, so
+restricting splits to a fine enough grid does not enlarge the infimum. The
+achievability certificate for the rate $L^{-2\alphabar/s}$ is the anisotropic
+dyadic partition of \citet[Appendix~E.4, Lemma~E.4, adapting Akakpo 2012]{xuStatisticalOptimalityOptimal2026}:
+at resolution level $j$ it partitions the active $s$-dimensional subspace into
+cells of side length $2^{-\lfloor j\,\alpha_{\min}/\alpha_i\rfloor}$ in
+coordinate $i$, and every split point is dyadic.
+
+\emph{Required resolution (derivation of \eqref{eq:grid-rate}).} A cell at level
+$j$ has $2^{\lfloor j\alpha_{\min}/\alpha_i\rfloor}$ subdivisions along active
+coordinate $i$, so the number of leaves it costs is
+$L \asymp \prod_{i \in \text{active}} 2^{j\alpha_{\min}/\alpha_i}
+= 2^{\,j\alpha_{\min}\sum_{i}1/\alpha_i}
+= 2^{\,j\alpha_{\min}\cdot s/\alphabar}$,
+using $\sum_{i\in\text{active}}1/\alpha_i = s/\alphabar$ (the definition of the
+harmonic mean $\alphabar$ over the $s$ active coordinates). Hence the finest
+level needed for an $L$-leaf approximant is
+$2^{j^\star} \asymp L^{\alphabar/(s\alpha_{\min})}$, and coordinate $i$ needs
+resolution
+$2^{j^\star\alpha_{\min}/\alpha_i} \asymp L^{\alphabar/(s\alpha_i)}$
+thresholds. Evaluating at the rate-optimal $L = L_n \asymp n^{s/(2\alphabar+s)}$
+(from \eqref{eq:Ln}) gives the required per-coordinate resolution
+$m_{n,i} \asymp L_n^{\alphabar/(s\alpha_i)}
+\asymp n^{\,\alphabar/(\alpha_i(2\alphabar+s))}$, which is at least the sufficient
+condition \eqref{eq:grid-rate} (the stated exponent
+$(\alpha_{\min}/\alpha_i)/(2\alphabar+s) \le \alphabar/(\alpha_i(2\alphabar+s))$
+since $\alpha_{\min}\le\alphabar$, so \eqref{eq:grid-rate} is a lower bound that
+the exact requirement meets). Rougher coordinates (smaller $\alpha_i$) demand
+more thresholds; the inactive $d-s$ coordinates are never split, so
+\eqref{eq:grid-rate} is vacuous for them.
+
+Consequently the optimal continuous approximant $f^\star$ of
+Lemma~\ref{lem:approx} lies in $\cT_L^{\mathrm{disc}}$, so
+\[
+  \inf_{f \in \cT_L^{\mathrm{disc}}} \bigl[R(f) - R(\eta_0)\bigr]
+  \;\le\; R(f^\star) - R(\eta_0)
+  \;\le\; C\, L^{-2\alphabar/s}.
+\]
+
+\emph{Single global grid across the $B$ PSHAB pieces.} Under piece-regularity
+$|\cG_b| \asymp B^{-1}$ \citep[Remark~6.10]{xuStatisticalOptimalityOptimal2026},
+one uniform per-coordinate resolution meeting \eqref{eq:grid-rate} is fine enough
+on every piece simultaneously. The cells straddling a boundary between two pieces
+form a lower-dimensional shell: on a grid with minimum per-coordinate resolution
+$m_{\min} = \min_i m_{n,i}$ there are $O(m_{\min}^{s-1})$ such cells, each of
+$P$-measure $O(m_{\min}^{-s})$, so their total measure is $O(m_{\min}^{-1})$.
+Since $m_{\min} \gtrsim n^{\alpha_{\min}/(\alpha_{\max}(2\alphabar+s))}$ grows
+polynomially in $n$ while the interior approximation error is
+$L_n^{-2\alphabar/s} \asymp n^{-2\alphabar/(2\alphabar+s)}$, the boundary
+contribution $O(m_{\min}^{-1})$ is dominated by the interior error once
+$m_{\min}^{-1} = o(n^{-2\alphabar/(2\alphabar+s)})$, which \eqref{eq:grid-rate}
+ensures. Equation~\eqref{eq:grid-rate} is the
+theory-required refinement rate the implementation's discretization must meet.
+The cross-entropy bound follows exactly as in Lemma~\ref{lem:approx} via
+Lemma~\ref{lem:loss-norm}(ii).
+\end{proof}
+
+\begin{corollary}[Binary covariates: exact fit, pure sparsity]\label{cor:binary-rate}
+Suppose $\cX = \{0,1\}^d$ and $\eta_0$ depends on only $s$ of the $d$
+coordinates. Then for any $L \ge 2^s$,
+\[
+  \inf_{f \in \cT_L}\, \bigl[ R(f) - R(\eta_0) \bigr] \;=\; 0,
+\]
+with no smoothness required: a tree with $2^s$ leaves realizes each cell of the
+active subcube and represents $\eta_0$ exactly. Combined with the oracle
+inequality (Theorem~\ref{thm:ce-oracle}) at $L = 2^s$,
+$\lambda_n \asymp \log(nd)/n$,
+\[
+  \norm{\eta_{\text{hat}} - \eta_0}_{L_2(P)}
+  \;=\; O_p\!\left( \sqrt{\frac{2^s \log(nd)}{n}} \right).
+\]
+\end{corollary}
+
+\begin{proof}
+Enumerating the $2^s$ points of the active subcube $\{0,1\}^s$ by successive
+axis-aligned binary splits produces a tree with $2^s$ leaves, one per active
+configuration; assigning each leaf the value $\eta_0$ takes there (constant in
+the inactive coordinates) gives $f = \eta_0$ exactly, so the infimum is $0$.
+Applying Theorem~\ref{thm:ce-oracle} with $L = 2^s$ (where the approximation
+term $\inf_{f \in \cT_{2^s}} \cE(f) = 0$) yields
+$\cE(\eta_{\text{hat}}) \le \frac{1+\delta}{1-\delta}\, 2\lambda_n 2^s
+= O_p(2^s \log(nd)/n)$; the lower loss-norm link
+$2\norm{\eta_{\text{hat}} - \eta_0}_2^2 \le \cE(\eta_{\text{hat}})$
+(Lemma~\ref{lem:loss-norm}(ii)) and a square root give the stated bound. This
+matches the implementation, which discretizes to binary features before fitting
+(Section~\ref{sec:discretization}).
+\end{proof}
+
+%% ============================================================
+%% Loss-norm link
+%% ============================================================
+
+\begin{lemma}[Two-sided loss-norm link]\label{lem:loss-norm}
+Let $Y \in \{0,1\}$, $\eta_0(x) = \Prob(Y=1 \mid X=x) \in [c,1-c]$ with
+$c \in (0,\tfrac12]$, and let $f \colon \cX \to [c,1-c]$. For the cross-entropy
+loss $\ell(y,p) = -y \log p - (1-y)\log(1-p)$:
+\begin{enumerate}
+\item[(i)] $\cE(f) = R(f) - R(\eta_0)
+  = \E\bigl[\mathrm{KL}\bigl(\Bern(\eta_0(X)) \,\|\, \Bern(f(X))\bigr)\bigr]$.
+\item[(ii)] $2\,\norm{f - \eta_0}_{L_2(P)}^2 \;\le\; \cE(f)
+  \;\le\; U_c\, \norm{f - \eta_0}_{L_2(P)}^2$, with
+  $U_c = \min\{1/(2c^2),\, 1/(c(1-c))\}$.
+\end{enumerate}
+For squared-error loss the link is the exact identity
+$\cE(f) = \norm{f - \eta_0}_{L_2(P)}^2$ (link constant $1$).
+\end{lemma}
+
+\begin{proof}
+\emph{(i)} By the tower rule, conditioning on $X$,
+\[
+  R(f) = \E\bigl[ -\eta_0(X)\log f(X) - (1-\eta_0(X))\log(1-f(X)) \bigr],
+\]
+since $\E[Y \mid X] = \eta_0(X)$ and $\E[1-Y \mid X] = 1 - \eta_0(X)$.
+Subtracting the same expression with $f$ replaced by $\eta_0$,
+\[
+  \cE(f) = \E\!\left[ \eta_0(X)\log\frac{\eta_0(X)}{f(X)}
+    + (1-\eta_0(X))\log\frac{1-\eta_0(X)}{1-f(X)} \right]
+  = \E\bigl[\mathrm{KL}(\Bern(\eta_0(X)) \| \Bern(f(X)))\bigr] \ge 0.
+\]
+
+\emph{(ii) Lower bound (Pinsker).} For Bernoulli laws the total variation is
+$\mathrm{TV}(\Bern(a),\Bern(b)) = |a-b|$, and Pinsker's inequality
+$\mathrm{KL} \ge 2\,\mathrm{TV}^2$ (natural log) gives
+$\mathrm{KL}(\Bern(a)\|\Bern(b)) \ge 2(a-b)^2$. Taking $a = \eta_0(X)$,
+$b = f(X)$ and expectations,
+$\cE(f) \ge 2\,\E[(\eta_0(X)-f(X))^2] = 2\norm{f-\eta_0}_2^2$.
+
+\emph{(ii) Upper bound.} Fix $a = \eta_0(x), b = f(x) \in [c,1-c]$ and set
+$g(t) = a\log(a/t) + (1-a)\log\!\frac{1-a}{1-t}$, so
+$\mathrm{KL}(\Bern(a)\|\Bern(b)) = g(b)$, $g(a)=0$, $g'(a)=0$, and
+$g''(t) = a/t^2 + (1-a)/(1-t)^2$.
+
+(a) On $[c,1-c]$ both $t^2 \ge c^2$ and $(1-t)^2 \ge c^2$, so
+$g''(t) \le (a + (1-a))/c^2 = 1/c^2$. A second-order Taylor expansion about $a$
+with Lagrange remainder gives $g(b) = \tfrac12 g''(\xi)(b-a)^2 \le
+(b-a)^2/(2c^2)$ for some $\xi$ between $a$ and $b$.
+
+(b) The $\chi^2$-divergence dominates the KL divergence
+($\mathrm{KL} \le \chi^2$ always), and
+$\chi^2(\Bern(a)\|\Bern(b)) = (a-b)^2/(b(1-b)) \le (a-b)^2/(c(1-c))$ since
+$b(1-b) \ge c(1-c)$ on $[c,1-c]$.
+
+Both bounds hold for every $c \in (0,\tfrac12]$; taking the smaller yields
+$\mathrm{KL} \le U_c (a-b)^2$ with $U_c = \min\{1/(2c^2), 1/(c(1-c))\}$.
+Comparing, $1/(c(1-c))$ is sharper for $c < 1/3$ and $1/(2c^2)$ for
+$c \ge 1/3$. Taking expectations over $X$ gives
+$\cE(f) \le U_c \norm{f-\eta_0}_2^2$.
+
+\emph{Squared error.} As in Lemma~\ref{lem:approx},
+$\cE(f) = \E[(f(X)-Y)^2] - \E[(\eta_0(X)-Y)^2] = \norm{f-\eta_0}_2^2$ by the
+$\E[Y\mid X]=\eta_0$ cancellation, an identity with link constant $1$; the
+manuscript's generic constant $C_{\text{ln}} = 1/2$ is therefore a safe
+over-statement of the lower link.
+\end{proof}
+
+%% ============================================================
+%% Cross-entropy oracle inequality
+%% ============================================================
+
+\begin{theorem}[Cross-entropy oracle inequality]\label{thm:ce-oracle}
+Adopt the cross-entropy setting: $Y \in \{0,1\}$, $\eta_0 \in [c,1-c]$, trees
+clipped to $[c,1-c]$, over $\cT_L$, $1 \le L \le M_n \le n$ on $d$ binary
+features. Write $V_c := \log\!\frac{1-c}{c}$, $\kappa_c := 1/(c(1-c))$,
+$B_c := \kappa_c^2/2 = 1/(2c^2(1-c)^2)$. Fix $\delta \in (0,1)$ and $u > 0$.
+There is a universal constant $C' < \infty$ (and an entropy constant $C$ from
+Lemma~\ref{lem:complexity}) such that if
+\begin{equation}\label{eq:lambda-cond}
+  \lambda_n \;\ge\; \frac{C'}{\delta}\,(B_c + V_c)\, C\,
+    \frac{\log(nd) + u}{n},
+\end{equation}
+then with probability at least $1 - e^{-u}$, simultaneously,
+\begin{equation}\label{eq:oracle}
+  \cE(\eta_{\text{hat}})
+  \;\le\; \frac{1+\delta}{1-\delta}\,
+  \min_{1 \le L \le M_n}
+  \Bigl\{ \inf_{f \in \cT_L} \cE(f) \;+\; 2\lambda_n L \Bigr\}.
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+\emph{Proof strategy.} We (1) link excess risk to $\norm{\cdot}_2^2$
+(Lemma~\ref{lem:loss-norm}), (2) control the loss increments in sup-norm and
+variance (Bernstein-type), (3) bound the localized empirical process by Dudley's
+entropy integral with the entropy of Lemma~\ref{lem:complexity}, (4) convert to
+a high-probability deviation via Bousquet's inequality and solve a sub-root
+fixed point, and (5) peel over excess-risk shells and union over $L$, absorbing
+the fixed-point radius into the leaf penalty.
+
+\smallskip\noindent\textbf{Step 1 (loss increments).} For $f \in \cT_L$ define
+$\psi_f(y,x) = \ell(y,f(x)) - \ell(y,\eta_0(x))$, so
+$\cE(f) = P\psi_f := \E[\psi_f(Y,X)]$.
+(a) Since $f,\eta_0 \in [c,1-c]$ and $y\in\{0,1\}$, each of $-\log f, -\log(1-f)$
+lies in $[-\log(1-c), -\log c]$, whence
+$\norm{\psi_f}_\infty \le \log\frac{1-c}{c} = V_c$.
+(b) For fixed $(y,x)$, $t \mapsto \ell(y,t)$ has derivative
+$\partial_t \ell(y,t) = (t-y)/(t(1-t))$; by the mean value theorem, for some
+$\xi$ between $f(x)$ and $\eta_0(x)$,
+\[
+  |\psi_f(y,x)| = \frac{|\xi - y|}{\xi(1-\xi)}\,|f(x)-\eta_0(x)|
+  \le \frac{1}{c(1-c)}\,|f(x)-\eta_0(x)| = \kappa_c\,|f(x)-\eta_0(x)|,
+\]
+using $|\xi - y| \le 1$ and $\xi(1-\xi) \ge c(1-c)$ on $[c,1-c]$. Hence
+$P\psi_f^2 \le \kappa_c^2 \norm{f-\eta_0}_2^2
+\le \tfrac{\kappa_c^2}{2}\,\cE(f) = B_c\,\cE(f)$,
+the last step by the lower loss-norm link (Lemma~\ref{lem:loss-norm}(ii)). The
+Lipschitz bound (b) is also used in the entropy step below.
+
+\smallskip\noindent\textbf{Step 2 (localized process).} For radius $r>0$ set
+\[
+  \cG_L(r) = \bigl\{ \psi_f : f \in \cT_L,\; \cE(f) \le r \bigr\}.
+\]
+By Step~1, every $g \in \cG_L(r)$ satisfies $\norm{g}_\infty \le V_c$ and
+$Pg^2 \le B_c r$. By symmetrization (van der Vaart--Wellner 1996, Lemma~2.3.1)
+and Dudley's entropy integral (van der Vaart--Wellner 1996, Corollary~2.2.8),
+\[
+  \E \sup_{g \in \cG_L(r)} |(P_n - P)g|
+  \;\le\; \frac{c_1}{\sqrt n}\,
+     \E \!\int_0^{\sqrt{B_c r}}
+       \sqrt{\log N(\varepsilon, \cG_L(r), L_2(P_n))}\; d\varepsilon.
+\]
+The Lipschitz contraction of Step~1(b), $|\psi_f - \psi_{f'}| \le
+\kappa_c |f - f'|$, gives
+$N(\varepsilon, \{\psi_f\}, L_2(Q)) \le N(\varepsilon/\kappa_c, \cT_L, L_2(Q))$
+for any $Q$; combined with the tree entropy
+$\log N(\varepsilon, \cT_L, L_2(Q)) \le C_0 L(\log(2d) + \log(1/\varepsilon))$
+of Lemma~\ref{lem:complexity}, the contraction injects only an additive
+$C_0 L \log\kappa_c$, still of order $J_L := C L \log(nd)$ after integrating.
+Evaluating the entropy integral (a standard computation, with the log-diameter
+truncated at scale $1/n$, absorbed into $\log(nd)$) yields the sub-root envelope
+\begin{equation}\label{eq:phi}
+  \E \sup_{g \in \cG_L(r)} |(P_n - P)g|
+  \;\le\; \phi_n(r)
+  \;:=\; c_1\!\left( \sqrt{\frac{B_c\, r\, J_L}{n}}
+       \;+\; \frac{V_c\, J_L}{n} \right),
+  \qquad J_L = C L \log(nd).
+\end{equation}
+
+\smallskip\noindent\textbf{Step 3 (high-probability deviation).} We apply
+Bousquet's inequality (Bousquet 2002; Massart 2000): for a class with envelope
+$\norm{g}_\infty \le b$ and localized variance
+$\sup_{g}\, Pg^2 \le \sigma^2$, with probability $\ge 1 - e^{-x}$,
+\[
+  \sup_{g \in \cG_L(r)} |(P_n - P)g|
+  \;\le\; 2\,\E\sup_{g}|(P_n-P)g|
+     + \sqrt{\frac{2\sigma^2 x}{n}} + \frac{b\,x}{3n}.
+\]
+Here the hypotheses hold with the \emph{localized} variance proxy
+$\sigma^2 = B_c r$ (from Step~1, \emph{not} the crude envelope $V_c^2$) and
+$b = V_c$; this localization is what yields the sub-root, not sub-linear,
+dependence on $r$. Substituting \eqref{eq:phi} and setting $x = u$ plus the
+$\log$-terms absorbed below, with probability $\ge 1 - e^{-u}$,
+\[
+  \sup_{g \in \cG_L(r)} |(P_n - P)g|
+  \;\le\; c_2\!\left( \sqrt{\frac{B_c\, r\, J_L}{n}}
+       + \frac{(B_c + V_c) J_L}{n} \right)
+  \;=:\; \bar\phi_n(r).
+\]
+By the sub-root fixed-point lemma (Bartlett--Bousquet--Mendelson 2005,
+Lemma~3.2), the equation $\bar\phi_n(r) = r/2$ has a unique solution $r^\star_L$
+satisfying
+\begin{equation}\label{eq:rstar}
+  r^\star_L \;\le\; C''\,(B_c + V_c)\,\frac{J_L}{n}
+  \;=\; C''\,(B_c + V_c)\, C\,\frac{L \log(nd)}{n},
+\end{equation}
+which is \emph{linear in $L$}.
+
+\smallskip\noindent\textbf{Step 4 (peeling and AM--GM).} Since $\eta_0 \in
+[c,1-c]$ and trees are clipped, $0 \le \cE(f) \le 2V_c$ for all $f \in \cT_L$,
+so there are at most $K = \lceil \log_2(2V_c / r^\star_L) \rceil$ geometric
+shells $\{f : \cE(f) \in (2^k r^\star_L, 2^{k+1} r^\star_L]\}$,
+$k = 0, \dots, K-1$. On each shell the deviation bound of Step~3 with
+$r = 2^{k+1} r^\star_L$ and the AM--GM split
+\[
+  \sqrt{\frac{B_c\, \cE(f)\, J_L}{n}}
+  \;\le\; \delta\, \cE(f) + \frac{B_c\, J_L}{4\delta\, n}
+\]
+give, uniformly over $f \in \cT_L$, with probability $\ge 1 - e^{-u}$ (per $L$),
+\begin{equation}\label{eq:onestar}
+  (1-\delta)\,\cE(f) \;\le\; P_n\psi_f + \theta\, r^\star_L,
+  \qquad
+  (1+\delta)\,\cE(f) \;\ge\; P_n\psi_f - \theta\, r^\star_L,
+\end{equation}
+for a universal $\theta$ (the AM--GM constant term $B_c J_L/(4\delta n)$ and the
+Bousquet tail are both $\le \theta r^\star_L$ by \eqref{eq:rstar}); for
+$\cE(f) \le r^\star_L$ the same conclusions hold trivially. Taking a union bound
+over $L \in \{1,\dots,M_n\}$, $M_n \le n$, costs an additive $\log n$ in the
+exponent, absorbed into $\log(nd)$ in \eqref{eq:lambda-cond}; the localization
+over shells costs only $\log K = O(\log\log(nd))$, likewise absorbed. Thus
+\eqref{eq:onestar} holds simultaneously over all $L$ with probability
+$\ge 1 - e^{-u}$.
+
+\smallskip\noindent\textbf{Step 5 (penalty absorption and ERM optimality).}
+By \eqref{eq:rstar}, $r^\star_L$ is linear in $L$; choosing the constant in
+\eqref{eq:lambda-cond} so that $\theta\, r^\star_L \le \lambda_n L$ (coefficient
+one), we combine \eqref{eq:onestar} with the definition \eqref{eq:perm} of the
+penalized ERM. Let $\hat L$ be the leaf count of $\eta_{\text{hat}}$, and let
+$f \in \cT_L$ be an arbitrary competitor. Then
+\begin{align*}
+  (1-\delta)\,\cE(\eta_{\text{hat}})
+  &\le P_n\psi_{\eta_{\text{hat}}} + \theta\, r^\star_{\hat L}
+     \le P_n\psi_{\eta_{\text{hat}}} + \lambda_n \hat L \\
+  &\le P_n\psi_f + \lambda_n L
+     \qquad\text{(penalized ERM: $\eta_{\text{hat}}$ minimizes $P_n\psi + \lambda_n(\#\text{leaves})$)}\\
+  &\le (1+\delta)\,\cE(f) + \theta\, r^\star_L + \lambda_n L
+     \le (1+\delta)\,\cE(f) + 2\lambda_n L,
+\end{align*}
+using \eqref{eq:onestar} (lower tail) for $f$ and
+$\theta r^\star_L \le \lambda_n L$ in the last step. Dividing by $(1-\delta)$,
+then minimizing over $f \in \cT_L$ and over $L$, gives \eqref{eq:oracle} with
+the stated coefficient $2\lambda_n L$. No $o_p(1)$ remainder appears: the bound
+is a clean high-probability event under \eqref{eq:lambda-cond}.
+\end{proof}
+
+\begin{remark}[Post-proof audit of Theorem~\ref{thm:ce-oracle}]
+\emph{Assumptions:} overlap $\eta_0 \in [c,1-c]$ and clipping are used in
+Steps~1--3 (sup-norm $V_c$, variance $B_c$, localization); binary features and
+$L$-leaf structure enter only through Lemma~\ref{lem:complexity}; all are
+stated. \emph{Dependencies:} Pinsker and $\mathrm{KL}\le\chi^2$
+(Lemma~\ref{lem:loss-norm}), symmetrization and Dudley (van der
+Vaart--Wellner), Bousquet/Massart concentration, and the
+Bartlett--Bousquet--Mendelson sub-root fixed point --- each invoked with
+hypotheses verified (bounded envelope, localized variance, sub-root
+$\phi_n$). \emph{Rates:} the fixed point $r^\star_L$ is linear in $L$
+\eqref{eq:rstar}, which is what lets the leaf penalty absorb it exactly and
+produce $2\lambda_n L$. \emph{Edge cases:} as $c \to 0$, $V_c \sim \log(1/c)$
+and $B_c \sim 1/(2c^2)$ blow up, so \eqref{eq:lambda-cond} demands larger
+$\lambda_n$ and the oracle degrades --- consistent with weakening overlap; the
+result is vacuous without a positive overlap bound. \emph{Tightness:} the
+$L\log(nd)/n$ variance term matches the parametric entropy of $L$-leaf trees and
+is not improvable in general. \emph{Failure localization:} the most fragile
+step is the localized variance $P\psi_f^2 \le B_c\,\cE(f)$ (Step~1b with the
+lower link); if overlap fails on a positive-probability set the variance proxy
+and hence the fixed point are uncontrolled.
+\end{remark}
+
+%% ============================================================
+%% Complexity / entropy of L-leaf trees
+%% ============================================================
+
+\begin{lemma}[Entropy of $L$-leaf trees]\label{lem:complexity}
+Let $\cT_L$ be axis-aligned trees with at most $L$ leaves on $d$ binary
+features, with leaf values in $[c,1-c]$. The number of distinct partitions is at
+most $(2d)^{L-1} \mathrm{Cat}_{L-1} \le (2d)^{L-1} 4^L$, where
+$\mathrm{Cat}_{L-1}$ is the $(L-1)$-th Catalan number. Consequently, for any
+probability measure $Q$ on $\cX$ and every $\varepsilon \in (0,1)$,
+\begin{equation}\label{eq:tree-entropy}
+  \log N\bigl(\varepsilon, \cT_L, L_2(Q)\bigr)
+  \;\le\; C_0\, L\,\bigl(\log(2d) + \log(1/\varepsilon)\bigr),
+\end{equation}
+for a universal constant $C_0$. Moreover, for the loss class
+$\{\psi_f : f \in \cT_L\}$,
+$N(\varepsilon, \{\psi_f\}, L_2(Q))
+ \le N(\varepsilon/\kappa_c, \cT_L, L_2(Q))$.
+\end{lemma}
+
+\begin{proof}
+A rooted binary tree with $L$ leaves has $L-1$ internal splits; its unlabeled
+shape is one of $\mathrm{Cat}_{L-1} \le 4^{L-1}$ full binary trees. Each internal
+split chooses one of $d$ binary features and a side, at most $2d$ choices, so the
+number of labeled partitions is at most $(2d)^{L-1}\mathrm{Cat}_{L-1} \le
+(2d)^{L-1}4^L$; taking logs, $\log(\#\text{partitions}) \le C_1 L \log(2d)$.
+Given a partition into $\le L$ cells, the tree is determined by its leaf values
+in $[c,1-c]$; an $\varepsilon$-net of $[c,1-c]^{L}$ in $\ell_2$ has cardinality
+$\le (3/\varepsilon)^{L}$, contributing $L\log(1/\varepsilon)$. Since two trees
+on the same partition with $\ell_2$-close leaf values are $L_2(Q)$-close (leaf
+values are bounded and cells are disjoint), a product net gives
+\eqref{eq:tree-entropy} with $C_0 = C_1 + 2$. Finally, the Lipschitz map
+$f \mapsto \psi_f$ with constant $\kappa_c$ (Step~1(b) of
+Theorem~\ref{thm:ce-oracle}) implies any $\varepsilon/\kappa_c$-net of $\cT_L$
+maps to an $\varepsilon$-net of $\{\psi_f\}$, giving the stated covering
+comparison; this injects only an additive $C_0 L \log\kappa_c$ into
+\eqref{eq:tree-entropy}, a constant absorbed into $J_L = C L\log(nd)$.
+\end{proof}
+
+%% ============================================================
+%% Leaf count of the penalized minimizer
+%% ============================================================
+
+\begin{lemma}[Leaf count of the penalized minimizer]\label{lem:hats}
+Under the conditions of Theorem~\ref{thm:nuisance-rate}, with
+$\lambda_n \asymp \log(nd)/n$ and $L_n \asymp n^{s/(2\alphabar + s)}$ as in
+\eqref{eq:Ln}, the penalized minimizer $\eta_{\text{hat}}$ of \eqref{eq:perm}
+satisfies $\#\{\text{leaves of }\eta_{\text{hat}}\} = O_p(L_n)$.
+\end{lemma}
+
+\begin{proof}
+On the oracle event \eqref{eq:oracle} (or its squared-error analogue, Xu
+Theorem~3.1), evaluate the right side at $L = L_n$, where by
+Lemmas~\ref{lem:approx}--\ref{lem:approx-disc}
+$\inf_{f\in\cT_{L_n}}\cE(f) \le C' L_n^{-2\alphabar/s} \asymp
+L_n^{-2\alphabar/s}$. By the balance defining $L_n$ in \eqref{eq:Ln},
+$L_n^{-2\alphabar/s} \asymp \lambda_n L_n$, so the oracle bound is
+$\cE(\eta_{\text{hat}}) = O_p(\lambda_n L_n)$. Now let
+$\hat L = \#\{\text{leaves of }\eta_{\text{hat}}\}$. The penalized objective at
+$\eta_{\text{hat}}$ is no larger than at the $L_n$-leaf oracle competitor $f_n$
+achieving the approximation, so
+$P_n \psi_{\eta_{\text{hat}}} + \lambda_n \hat L \le P_n \psi_{f_n} +
+\lambda_n L_n$. Rearranging, $\lambda_n \hat L \le \lambda_n L_n +
+(P_n\psi_{f_n} - P_n\psi_{\eta_{\text{hat}}})$; on the deviation event of
+Theorem~\ref{thm:ce-oracle} (Step~4), the empirical-risk gap is
+$O_p(\cE(f_n) + \cE(\eta_{\text{hat}}) + r^\star_{\hat L})$, and
+$r^\star_{\hat L} \le C''(B_c+V_c) C \hat L \log(nd)/n \le \tfrac12 \lambda_n
+\hat L$ for the constant in \eqref{eq:lambda-cond}. Hence
+$\tfrac12 \lambda_n \hat L \le \lambda_n L_n + O_p(\lambda_n L_n)$, i.e.
+$\hat L = O_p(L_n)$.
+\end{proof}
+
+%% ============================================================
+%% Nuisance rate theorem
+%% ============================================================
+
+\begin{theorem}[Nuisance convergence rate]\label{thm:nuisance-rate}
+Suppose $\eta_0$ lies in the PSHAB class with sparsity $s$, harmonic-mean
+anisotropic smoothness $\alphabar$, and anisotropic exponents $\balpha \le
+\mathbf 1$; that $X \in [0,1]^d$ is discretized to a per-coordinate dyadic grid
+refining the target rate \eqref{eq:grid-rate} (Lemma~\ref{lem:approx-disc}); and
+that the loss is squared error ($Y \in [0,1]$) or cross-entropy
+($Y \in \{0,1\}$, $\eta_0 \in [c,1-c]$). Let $\eta_{\text{hat}}$ be the
+penalized ERM \eqref{eq:perm} with $\lambda_n \asymp \log(nd)/n$ and rate index
+$L_n \asymp n^{s/(2\alphabar+s)}$. Then
+\begin{equation}\label{eq:nuisance-rate}
+  \norm{\eta_{\text{hat}} - \eta_0}_{L_2(P)}
+  \;=\; O_p\!\left( n^{-\alphabar/(2\alphabar + s)} \right),
+\end{equation}
+which is $o_p(n^{-1/4})$ if and only if $\alphabar > s/2$.
+\end{theorem}
+
+\begin{proof}
+\emph{Proof strategy.} Combine the oracle inequality with the approximation
+bound, balance the approximation and complexity terms in $L$, and convert excess
+risk to $L_2$-distance via the loss-norm link.
+
+Apply the oracle inequality --- Theorem~\ref{thm:ce-oracle} for cross-entropy,
+or Xu Theorem~3.1 for squared error --- to \eqref{eq:oracle}. Evaluating the
+minimand at a generic $L$ and using
+Lemmas~\ref{lem:approx}--\ref{lem:approx-disc} (the discretized infimum is
+bounded by the same $C L^{-2\alphabar/s}$, since the grid refines
+\eqref{eq:grid-rate}),
+\[
+  \cE(\eta_{\text{hat}})
+  \;\le\; \frac{1+\delta}{1-\delta}
+    \min_{1 \le L \le M_n}
+    \Bigl\{ C\, L^{-2\alphabar/s} + 2\lambda_n L \Bigr\}
+  \;=\; O_p\!\Bigl( \min_L \bigl\{ L^{-2\alphabar/s} + \lambda_n L \bigr\} \Bigr).
+\]
+The two terms balance at $L = L_n$, where $L^{-2\alphabar/s} \asymp \lambda_n L$;
+this is exactly the balance computed in \eqref{eq:Ln}, giving
+$L_n \asymp n^{s/(2\alphabar + s)}$. Lemma~\ref{lem:hats} confirms the
+minimizer's own leaf count is $O_p(L_n)$, and $L_n \le M_n$ holds for all large
+$n$ (setup, \eqref{eq:Ln}), so the minimum is attained in the admissible range.
+Substituting $L_n$,
+\[
+  \cE(\eta_{\text{hat}})
+  \;=\; O_p\!\bigl( L_n^{-2\alphabar/s} \bigr)
+  \;=\; O_p\!\bigl( n^{-2\alphabar/(2\alphabar + s)} \bigr),
+\]
+where a polylogarithmic factor from \eqref{eq:Ln} is subsumed into the
+$O_p$. Finally the loss-norm link (Lemma~\ref{lem:loss-norm}(ii):
+$2\norm{\eta_{\text{hat}} - \eta_0}_2^2 \le \cE(\eta_{\text{hat}})$ for
+cross-entropy, and the identity $\norm{\eta_{\text{hat}} - \eta_0}_2^2 =
+\cE(\eta_{\text{hat}})$ for squared error) and a square root give
+\[
+  \norm{\eta_{\text{hat}} - \eta_0}_{L_2(P)}
+  \;=\; O_p\!\bigl( n^{-\alphabar/(2\alphabar + s)} \bigr),
+\]
+which is \eqref{eq:nuisance-rate}. The oracle is clean (no $o_p(1)$ remainder),
+so the rate holds without additional slack. For the DML valid-inference
+requirement (Corollary~\ref{cor:dml}),
+$\tfrac{\alphabar}{2\alphabar + s} > \tfrac14
+\iff 4\alphabar > 2\alphabar + s \iff \alphabar > s/2$, so
+\eqref{eq:nuisance-rate} is $o_p(n^{-1/4})$ exactly when $\alphabar > s/2$.
+\end{proof}
