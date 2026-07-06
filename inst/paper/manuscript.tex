@@ -161,6 +161,8 @@ $\sqrt{n}(\thetahat_{\text{doubletree}} - \theta_0) \leadsto N(0, \sigma^2)$.
 
 A caveat is that the intersection tree incurs a finite-sample bias penalty relative to the fold-specific optimal tree, quantified as $O_p(\varepsilon_n \cdot \text{best}^{(-k)})$ (Corollary~\ref{cor:intersection-overhead}), where $\varepsilon_n$ is the Rashomon tolerance and $\text{best}^{(-k)} = O_p(1)$ is the minimal penalized risk per fold. Under the condition $\varepsilon_n = o(n^{-1/2})$ for valid inference, this overhead is asymptotically negligible, but in finite samples it represents a bias--interpretability trade-off. This trade-off can be examined in simulations (Section~\ref{sec:results}), where we compare fold-specific optimal trees versus the Rashomon intersection.
 
+The condition $\varepsilon_n = o(n^{-1/2})$ appears to conflict with a practical requirement: as $\varepsilon_n \to 0$ the per-fold Rashomon sets shrink and their cross-fold intersection can become empty. Appendix~\ref{app:margin} resolves this apparent \emph{catch-22} under a structural-margin condition (Assumption~\ref{assump:margin}): when the population-optimal tree structure is separated from its competitors by a gap that dominates the estimation noise floor, the fold-specific optimal structure is recovered exactly on every fold with probability tending to one (Theorem~\ref{thm:margin-recovery}), so the intersection is non-empty already at $\varepsilon_n \asymp (\log n)/n = o(n^{-1/2})$ and the overhead above is in fact identically zero (Corollary~\ref{cor:margin-resolution}). A fixed, deterministic $\varepsilon_n$ of this order is therefore both valid and feasible; when the margin fails (near-tied structures, weak overlap), the intersection may be empty and one falls back to fold-specific trees, and data-adaptive enlargement of $\varepsilon_n$ to force a non-empty intersection is not covered by the theory.
+
 \section{Results}
 \label{sec:results}
 
@@ -439,7 +441,7 @@ By definition, $\text{best}^{(-k)} = \inf_{f \in \cT_{M_n}} [ R_n^{(-k)}(f) + \l
 Let $\varepsilon_n \to 0$ with $\varepsilon_n = o(n^{-1/2})$ as required for valid inference. Suppose the following \textbf{stability condition} holds:
 \begin{equation}
 \label{eq:stability}
-\text{(A4) There exists a tree structure } \tau^* \text{ with } \#\text{leaves}(\tau^*) \le s_n \text{ such that, when refit on } \mathcal{D}^{(-k)} \text{ for each fold } k,
+\text{(A4) There exists a tree structure } \tau^* \text{ with } \#\text{leaves}(\tau^*) \le L_n \text{ such that, when refit on } \mathcal{D}^{(-k)} \text{ for each fold } k,
 \end{equation}
 the resulting tree $f_k^*$ (with structure $\tau^*$ and leaf values optimized on $\mathcal{D}^{(-k)}$) satisfies
 \[
@@ -470,7 +472,7 @@ The intersection $\bigcap_{k=1}^K R_k(\varepsilon_n)$ can be empty in the follow
 \item \textbf{Very small tolerance $\varepsilon_n$:} If $\varepsilon_n$ is close to zero, the Rashomon sets per fold shrink to near-singletons (just the minimizer), and fold-specific minimizers may differ in structure. As $\varepsilon_n \to 0$, the probability that a common structure exists goes to zero unless the folds are nearly identical.
 \item \textbf{Small sample size $n$:} For small $n$, fold-specific training sets may be too variable for a single structure to perform well on all folds. As $n \to \infty$ and $\varepsilon_n \to 0$ appropriately, the intersection becomes more likely to be non-empty if (A4) holds asymptotically.
 \item \textbf{Heterogeneous covariate distributions across folds:} If the folds have systematically different covariate distributions (e.g., due to imbalance in sampling or strong time trends in longitudinal data), no single partition may fit all folds well.
-\item \textbf{High-dimensional or rough nuisances:} Functions that require complex, fold-specific partitions (high $d$, low $\beta$, or many interactions) are less likely to have a single structure in the intersection.
+\item \textbf{High-dimensional or rough nuisances:} Functions that require complex, fold-specific partitions (high $d$, low $\alphabar$, or many interactions) are less likely to have a single structure in the intersection.
 \end{enumerate}
 In practice, if the intersection is empty, the implementation can fall back to fold-specific trees (as in the \texttt{doubletree} package with \texttt{use\_rashomon = TRUE}). Empirically, we find that the intersection is non-empty in 100\% of replications for the data-generating processes tested (DGPs 1--4, Section~\ref{sec:results}), including the weak overlap stress test (DGP 4). However, \textbf{non-emptiness does not guarantee valid inference}: DGP 4 exhibits a non-empty intersection in all replications but doubletree-based inference shows substantial coverage degradation (53.5\% vs.\ nominal 95\%) due to extreme propensity score weights. This highlights the distinction between \emph{structural existence} (intersection non-empty, Assumption~A4 satisfied) and \emph{statistical adequacy} (valid asymptotic inference under finite-sample conditions). Performance quality depends on both the intersection existing and the nuisance approximation quality being adequate under the actual overlap and smoothness conditions.
 \end{remark}
@@ -483,27 +485,27 @@ For $\varepsilon \ge 0$, the \emph{Rashomon set} for fold $k$ is
 \[
 R_k(\varepsilon) = \Bigl\{ f \in \cT_{M_n} : R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon) \cdot \text{best}^{(-k)} \Bigr\}.
 \]
-Optionally one restricts to trees with $\#\text{leaves} \le s_n$ so that the set is compatible with the sieve. We say trees in $R_k(\varepsilon)$ are \emph{$(1+\varepsilon)$-near-optimal} on fold $k$.
+Optionally one restricts to trees with $\#\text{leaves} \le L_n$ so that the set is compatible with the sieve. We say trees in $R_k(\varepsilon)$ are \emph{$(1+\varepsilon)$-near-optimal} on fold $k$.
 \end{definition}
 
 \begin{lemma}[Oracle inequality for near-minimizers]
 \label{lem:oracle-near}
-Under the same conditions as Lemma~\ref{thm:ce-oracle} (with $R_n^{(-k)}$, $\mathcal{D}^{(-k)}$, and $\text{best}^{(-k)}$ in place of $R_n$, $n$, and the fold-$k$ minimizer). For any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le s_n$ (or $\#\text{leaves}(f) = O_p(s_n)$ under the same $\lambda_n$ logic as Lemma~\ref{lem:hats}),
+Under the same conditions as Lemma~\ref{thm:ce-oracle} (with $R_n^{(-k)}$, $\mathcal{D}^{(-k)}$, and $\text{best}^{(-k)}$ in place of $R_n$, $n$, and the fold-$k$ minimizer). For any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le L_n$ (or $\#\text{leaves}(f) = O_p(L_n)$ under the same $\lambda_n$ logic as Lemma~\ref{lem:hats}),
 \[
-R(f) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f' \in \cT_{s_n}} \bigl\{ R(f') - R(\eta_0) \bigr\} \Bigr] + o_p(1).
+R(f) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{L_n \log n}{n} + \inf_{f' \in \cT_{L_n}} \bigl\{ R(f') - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
 \end{lemma}
 \begin{proof}
-We prove the oracle inequality for any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le s_n$.
+We prove the oracle inequality for any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le L_n$.
 
 \noindent\textbf{Step 1: Setup.}
-Let $f^* \in \cT_{s_n}$ be a tree such that $R(f^*) - R(\eta_0) \le \inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)] + o(1)$. Since $f \in R_k(\varepsilon_n)$, we have
+Let $f^* \in \cT_{L_n}$ be a tree such that $R(f^*) - R(\eta_0) \le \inf_{f' \in \cT_{L_n}}[R(f') - R(\eta_0)] + o(1)$. Since $f \in R_k(\varepsilon_n)$, we have
 \[
 R_n^{(-k)}(f) + \lambda_n \cdot (\#\text{leaves of } f) \le (1+\varepsilon_n) \cdot \text{best}^{(-k)}.
 \]
-By definition, $\text{best}^{(-k)} = \inf_{g \in \cT_{M_n}} [ R_n^{(-k)}(g) + \lambda_n \cdot (\#\text{leaves of } g) ] \le R_n^{(-k)}(f^*) + \lambda_n \cdot s_n$. Thus
+By definition, $\text{best}^{(-k)} = \inf_{g \in \cT_{M_n}} [ R_n^{(-k)}(g) + \lambda_n \cdot (\#\text{leaves of } g) ] \le R_n^{(-k)}(f^*) + \lambda_n \cdot L_n$. Thus
 \[
-R_n^{(-k)}(f) \le (1+\varepsilon_n) \cdot \text{best}^{(-k)} \le (1+\varepsilon_n) \cdot [ R_n^{(-k)}(f^*) + \lambda_n \cdot s_n ].
+R_n^{(-k)}(f) \le (1+\varepsilon_n) \cdot \text{best}^{(-k)} \le (1+\varepsilon_n) \cdot [ R_n^{(-k)}(f^*) + \lambda_n \cdot L_n ].
 \]
 
 \noindent\textbf{Step 2: Decomposition.}
@@ -516,32 +518,32 @@ R(f) - R(\eta_0) &= \underbrace{\bigl\{ R(f) - R_n^{(-k)}(f) \bigr\}}_{\text{(I)
 \noindent\textbf{Step 3: Bound term (II).}
 From Step 1,
 \[
-R_n^{(-k)}(f) - R_n^{(-k)}(f^*) \le (1+\varepsilon_n) \cdot [ R_n^{(-k)}(f^*) + \lambda_n \cdot s_n ] - R_n^{(-k)}(f^*) = \varepsilon_n \cdot R_n^{(-k)}(f^*) + (1+\varepsilon_n) \lambda_n \cdot s_n.
+R_n^{(-k)}(f) - R_n^{(-k)}(f^*) \le (1+\varepsilon_n) \cdot [ R_n^{(-k)}(f^*) + \lambda_n \cdot L_n ] - R_n^{(-k)}(f^*) = \varepsilon_n \cdot R_n^{(-k)}(f^*) + (1+\varepsilon_n) \lambda_n \cdot L_n.
 \]
-Since $R_n^{(-k)}(f^*) \le R(f^*) + O_p(\sqrt{s_n \log n / n})$ (by empirical process bounds, see Step 4) and $R(f^*) = R(\eta_0) + O(s_n^{-2\beta/d})$, we have $R_n^{(-k)}(f^*) = O_p(1)$. Write $R_n^{(-k)}(f^*) \le \text{best}^{(-k)} + O_p(s_n \log n / n)$ (since $f^*$ is near-optimal). Thus
+Since $R_n^{(-k)}(f^*) \le R(f^*) + O_p(\sqrt{L_n \log n / n})$ (by empirical process bounds, see Step 4) and $R(f^*) = R(\eta_0) + O(L_n^{-2\alphabar/s})$, we have $R_n^{(-k)}(f^*) = O_p(1)$. Write $R_n^{(-k)}(f^*) \le \text{best}^{(-k)} + O_p(L_n \log n / n)$ (since $f^*$ is near-optimal). Thus
 \[
-\text{(II)} \le \varepsilon_n \cdot \text{best}^{(-k)} + O(s_n \log n / n).
+\text{(II)} \le \varepsilon_n \cdot \text{best}^{(-k)} + O(L_n \log n / n).
 \]
 
 \noindent\textbf{Step 4: Bound terms (I) and (III).}
-Both $f$ and $f^*$ belong to $\cT_{s_n}$ (or $\cT_{C s_n}$ with high probability). By the same empirical process argument as in Lemma~\ref{thm:ce-oracle}, Step 3 (using Lemma~\ref{lem:complexity} for entropy and maximal inequality), we have
+Both $f$ and $f^*$ belong to $\cT_{L_n}$ (or $\cT_{C L_n}$ with high probability). By the same empirical process argument as in Lemma~\ref{thm:ce-oracle}, Step 3 (using Lemma~\ref{lem:complexity} for entropy and maximal inequality), we have
 \[
-R(f) - R_n^{(-k)}(f) = O_p\bigl( \sqrt{s_n \log n / n} \bigr), \quad R_n^{(-k)}(f^*) - R(f^*) = O_p\bigl( \sqrt{s_n \log n / n} \bigr).
+R(f) - R_n^{(-k)}(f) = O_p\bigl( \sqrt{L_n \log n / n} \bigr), \quad R_n^{(-k)}(f^*) - R(f^*) = O_p\bigl( \sqrt{L_n \log n / n} \bigr).
 \]
-With $s_n = n^{d/(2\beta+d)}$, this is $O_p(n^{-\beta/(2\beta+d)})$. Squaring, the contribution to excess risk is $O_p(s_n \log n / n)$.
+With $L_n = n^{s/(2\alphabar+s)}$, this is $O_p(n^{-\alphabar/(2\alphabar+s)})$. Squaring, the contribution to excess risk is $O_p(L_n \log n / n)$.
 
 \noindent\textbf{Step 5: Bound term (IV).}
-By Lemma~\ref{lem:approx}, $R(f^*) - R(\eta_0) \le \inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)] + o(1)$.
+By Lemma~\ref{lem:approx}, $R(f^*) - R(\eta_0) \le \inf_{f' \in \cT_{L_n}}[R(f') - R(\eta_0)] + o(1)$.
 
 \noindent\textbf{Step 6: Combine.}
 Summing the bounds,
 \begin{align*}
-R(f) - R(\eta_0) &\le O_p\bigl( \sqrt{s_n \log n / n} \bigr) + \varepsilon_n \cdot \text{best}^{(-k)} + O(s_n \log n / n) \\
-&\quad + O_p\bigl( \sqrt{s_n \log n / n} \bigr) + \inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)] + o(1).
+R(f) - R(\eta_0) &\le O_p\bigl( \sqrt{L_n \log n / n} \bigr) + \varepsilon_n \cdot \text{best}^{(-k)} + O(L_n \log n / n) \\
+&\quad + O_p\bigl( \sqrt{L_n \log n / n} \bigr) + \inf_{f' \in \cT_{L_n}}[R(f') - R(\eta_0)] + o(1).
 \end{align*}
-All $O_p(\sqrt{s_n \log n / n})$ terms sum to $O_p(s_n \log n / n)$ after squaring. Taking $C$ large enough,
+All $O_p(\sqrt{L_n \log n / n})$ terms sum to $O_p(L_n \log n / n)$ after squaring. Taking $C$ large enough,
 \[
-R(f) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f' \in \cT_{s_n}} \bigl\{ R(f') - R(\eta_0) \bigr\} \Bigr] + o_p(1).
+R(f) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{L_n \log n}{n} + \inf_{f' \in \cT_{L_n}} \bigl\{ R(f') - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
 \end{proof}
 
@@ -558,56 +560,56 @@ Under the conditions of Theorem~\ref{thm:nuisance-rate}, the minimal penalized r
 \end{lemma}
 
 \begin{proof}
-Let $f^* \in \cT_{s_n}$ be a tree with $R(f^*) - R(\eta_0) \le \inf_{f \in \cT_{s_n}}[R(f) - R(\eta_0)] + o(1)$, so that $R(f^*) = R(\eta_0) + O(s_n^{-2\beta/d})$ by Lemma~\ref{lem:approx}. Then
+Let $f^* \in \cT_{L_n}$ be a tree with $R(f^*) - R(\eta_0) \le \inf_{f \in \cT_{L_n}}[R(f) - R(\eta_0)] + o(1)$, so that $R(f^*) = R(\eta_0) + O(L_n^{-2\alphabar/s})$ by Lemma~\ref{lem:approx}. Then
 \[
-\text{best}^{(-k)} \le R_n^{(-k)}(f^*) + \lambda_n \cdot s_n.
+\text{best}^{(-k)} \le R_n^{(-k)}(f^*) + \lambda_n \cdot L_n.
 \]
-By standard empirical process bounds (e.g., Lemma~\ref{lem:complexity} and uniform convergence for $\cT_{s_n}$), $R_n^{(-k)}(f^*) - R(f^*) = O_p(\sqrt{s_n \log n / n})$. Thus
+By standard empirical process bounds (e.g., Lemma~\ref{lem:complexity} and uniform convergence for $\cT_{L_n}$), $R_n^{(-k)}(f^*) - R(f^*) = O_p(\sqrt{L_n \log n / n})$. Thus
 \[
-\text{best}^{(-k)} \le R(f^*) + O_p(\sqrt{s_n \log n / n}) + \lambda_n \cdot s_n = R(\eta_0) + O(s_n^{-2\beta/d}) + O_p(\sqrt{s_n \log n / n}) + O(s_n \log n / n).
+\text{best}^{(-k)} \le R(f^*) + O_p(\sqrt{L_n \log n / n}) + \lambda_n \cdot L_n = R(\eta_0) + O(L_n^{-2\alphabar/s}) + O_p(\sqrt{L_n \log n / n}) + O(L_n \log n / n).
 \]
-With $s_n = n^{d/(2\beta+d)}$, all terms are $O_p(1)$ (or $o_p(1)$), so $\text{best}^{(-k)} = O_p(1)$.
+With $L_n = n^{s/(2\alphabar+s)}$, all terms are $O_p(1)$ (or $o_p(1)$), so $\text{best}^{(-k)} = O_p(1)$.
 \end{proof}
 
 \begin{lemma}[Intersection tree bias bound]
 \label{lem:intersection-bias}
 Suppose the intersection $\bigcap_{k=1}^K R_k(\varepsilon_n)$ is non-empty, and let $\tilde{\eta}^{(-k)}$ be the refit of an intersection structure on fold $k$'s training data. Then, for each fold $k$,
 \[
-R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f \in \cT_{s_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} \Bigr] + o_p(1).
+R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{L_n \log n}{n} + \inf_{f \in \cT_{L_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
-Under the conditions of Theorem~\ref{thm:nuisance-rate} (with $s_n \asymp n^{d/(2\beta+d)}$ and $\varepsilon_n = o(n^{-1/2})$), this simplifies to
+Under the conditions of Theorem~\ref{thm:nuisance-rate} (with $L_n \asymp n^{s/(2\alphabar+s)}$ and $\varepsilon_n = o(n^{-1/2})$), this simplifies to
 \[
-R(\tilde{\eta}^{(-k)}) - R(\eta_0) = O_p\bigl( \varepsilon_n + n^{-2\beta/(2\beta+d)} \bigr) = o_p(n^{-1/2}),
+R(\tilde{\eta}^{(-k)}) - R(\eta_0) = O_p\bigl( \varepsilon_n + n^{-2\alphabar/(2\alphabar+s)} \bigr) = o_p(n^{-1/2}),
 \]
 and by the loss--norm link,
 \[
-\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = O_p\bigl( \sqrt{\varepsilon_n} + n^{-\beta/(2\beta+d)} \bigr) = o_p(n^{-1/4}).
+\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = O_p\bigl( \sqrt{\varepsilon_n} + n^{-\alphabar/(2\alphabar+s)} \bigr) = o_p(n^{-1/4}).
 \]
 \end{lemma}
 
 \begin{proof}
 \noindent\textbf{Step 1: Apply Lemma~\ref{lem:oracle-near}.}
-By assumption, the intersection structure, when refit on $\mathcal{D}^{(-k)}$, yields a tree $\tilde{\eta}^{(-k)} \in R_k(\varepsilon_n)$ with $\#\text{leaves}(\tilde{\eta}^{(-k)}) \le s_n$. Lemma~\ref{lem:oracle-near} gives
+By assumption, the intersection structure, when refit on $\mathcal{D}^{(-k)}$, yields a tree $\tilde{\eta}^{(-k)} \in R_k(\varepsilon_n)$ with $\#\text{leaves}(\tilde{\eta}^{(-k)}) \le L_n$. Lemma~\ref{lem:oracle-near} gives
 \[
-R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{s_n \log n}{n} + \inf_{f \in \cT_{s_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} \Bigr] + o_p(1).
+R(\tilde{\eta}^{(-k)}) - R(\eta_0) \le C \Bigl[ \varepsilon_n \cdot \text{best}^{(-k)} + \frac{L_n \log n}{n} + \inf_{f \in \cT_{L_n}} \bigl\{ R(f) - R(\eta_0) \bigr\} \Bigr] + o_p(1).
 \]
 
 \noindent\textbf{Step 2: Use boundedness.}
 By Lemma~\ref{lem:best-bounded}, $\text{best}^{(-k)} = O_p(1)$. With $\varepsilon_n = o(n^{-1/2})$, we have $\varepsilon_n \cdot \text{best}^{(-k)} = o_p(n^{-1/2})$.
 
 \noindent\textbf{Step 3: Simplify under rate conditions.}
-The approximation term $\inf_{f \in \cT_{s_n}}[R(f) - R(\eta_0)] = O(s_n^{-2\beta/d}) = O(n^{-2\beta/(2\beta+d)})$ by Lemma~\ref{lem:approx}, and $s_n \log n / n = O(n^{-2\beta/(2\beta+d)})$ by the rate balance. Thus
+The approximation term $\inf_{f \in \cT_{L_n}}[R(f) - R(\eta_0)] = O(L_n^{-2\alphabar/s}) = O(n^{-2\alphabar/(2\alphabar+s)})$ by Lemma~\ref{lem:approx}, and $L_n \log n / n = O(n^{-2\alphabar/(2\alphabar+s)})$ by the rate balance. Thus
 \[
-R(\tilde{\eta}^{(-k)}) - R(\eta_0) = O_p\bigl( \varepsilon_n + n^{-2\beta/(2\beta+d)} \bigr).
+R(\tilde{\eta}^{(-k)}) - R(\eta_0) = O_p\bigl( \varepsilon_n + n^{-2\alphabar/(2\alphabar+s)} \bigr).
 \]
-Under the condition $\beta/(2\beta+d) > 1/4$ for valid inference, we have $n^{-2\beta/(2\beta+d)} = o(n^{-1/2})$, so $R(\tilde{\eta}^{(-k)}) - R(\eta_0) = o_p(n^{-1/2})$.
+Under the condition $\alphabar > s/2$ for valid inference, we have $n^{-2\alphabar/(2\alphabar+s)} = o(n^{-1/2})$, so $R(\tilde{\eta}^{(-k)}) - R(\eta_0) = o_p(n^{-1/2})$.
 
 \noindent\textbf{Step 4: Apply the loss--norm link.}
 For squared error, $\|f - \eta_0\|_{L^2(P)}^2 \le R(f) - R(\eta_0)$, so
 \[
-\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = O_p\bigl( \sqrt{\varepsilon_n + n^{-2\beta/(2\beta+d)}} \bigr) = O_p\bigl( \sqrt{\varepsilon_n} + n^{-\beta/(2\beta+d)} \bigr) = o_p(n^{-1/4}),
+\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = O_p\bigl( \sqrt{\varepsilon_n + n^{-2\alphabar/(2\alphabar+s)}} \bigr) = O_p\bigl( \sqrt{\varepsilon_n} + n^{-\alphabar/(2\alphabar+s)} \bigr) = o_p(n^{-1/4}),
 \]
-where the last equality uses $\varepsilon_n = o(n^{-1/2})$ (so $\sqrt{\varepsilon_n} = o(n^{-1/4})$) and $\beta/(2\beta+d) > 1/4$.
+where the last equality uses $\varepsilon_n = o(n^{-1/2})$ (so $\sqrt{\varepsilon_n} = o(n^{-1/4})$) and $\alphabar > s/2$.
 \end{proof}
 
 \begin{corollary}[Intersection overhead vs fold-specific optimum]
@@ -630,8 +632,10 @@ Both $\tilde{\eta}^{(-k)}$ and $\hat\eta^{(-k)}$ satisfy the oracle inequality; 
 Suppose that for each fold $k$, we choose $\tilde{\eta}^{(-k)} \in R_k(\varepsilon_n)$ (e.g., any tree in the fold-$k$ Rashomon set, or the refit of an intersection structure on $\mathcal{D}^{(-k)}$). A \emph{sufficient condition} for $\|\tilde{\eta}^{(-k)} - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$ is: $\varepsilon_n \to 0$ and $\varepsilon_n = o(n^{-1/2})$ (so that $\varepsilon_n \cdot \text{best}^{(-k)} = o_p(n^{-1/2})$ since $\text{best}^{(-k)} = O_p(1)$), under the same sieve and rate conditions as Theorem~\ref{thm:nuisance-rate}. Then the EIF-based estimator $\hat\theta$ defined with $\tilde{\eta}^{(-k)}$ satisfies $\sqrt{n}(\hat\theta - \theta_0) \leadsto N(0, \sigma^2)$ by Theorem~\ref{thm:dml-alt}.
 \end{proposition}
 \begin{proof}
-By Lemma~\ref{lem:oracle-near}, any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le s_n$ satisfies $R(f) - R(\eta_0) \le C( \varepsilon_n \cdot \text{best}^{(-k)} + s_n \log n / n + \inf_{f' \in \cT_{s_n}}[R(f') - R(\eta_0)] ) + o_p(1)$. Under the theorem's conditions, the approximation term and $s_n \log n / n$ are $o_p(n^{-1/2})$; with $\varepsilon_n = o(n^{-1/2})$, we obtain $R(f) - R(\eta_0) = o_p(n^{-1/2})$. By the loss--norm link, $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$; for squared loss $\phi(\delta) = \delta$, so excess risk $o_p(n^{-1/2})$ gives $\|f - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$. Thus $\tilde{\eta}^{(-k)}$ is $o_p(n^{-1/4})$-close to $\eta_0$, and Theorem~\ref{thm:dml-alt} applies.
+By Lemma~\ref{lem:oracle-near}, any $f \in R_k(\varepsilon_n)$ with $\#\text{leaves}(f) \le L_n$ satisfies $R(f) - R(\eta_0) \le C( \varepsilon_n \cdot \text{best}^{(-k)} + L_n \log n / n + \inf_{f' \in \cT_{L_n}}[R(f') - R(\eta_0)] ) + o_p(1)$. Under the theorem's conditions, the approximation term and $L_n \log n / n$ are $o_p(n^{-1/2})$; with $\varepsilon_n = o(n^{-1/2})$, we obtain $R(f) - R(\eta_0) = o_p(n^{-1/2})$. By the loss--norm link, $R(f) - R(\eta_0) \le \delta$ implies $\|f - \eta_0\|_{L^2(P)}^2 \le \phi(\delta)$; for squared loss $\phi(\delta) = \delta$, so excess risk $o_p(n^{-1/2})$ gives $\|f - \eta_0\|_{L^2(P)} = o_p(n^{-1/4})$. Thus $\tilde{\eta}^{(-k)}$ is $o_p(n^{-1/4})$-close to $\eta_0$, and Theorem~\ref{thm:dml-alt} applies.
 \end{proof}
+
+\input{_margin_theorem_draft}
 
 \subsection{High-dimensional caveat}
 If the tree class is allowed to split on all of many covariates, the effective complexity can grow and the preceding rates may not hold. To retain the same rate, one can assume (a) \emph{sparsity} of the regression function (few relevant covariates), (b) \emph{restricted depth} so that the effective dimension in the tree is bounded, or (c) \emph{margin} or regularity conditions. Such assumptions are standard in nonparametrics.

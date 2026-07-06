@@ -1,0 +1,595 @@
+%% ============================================================
+%% Structural-margin resolution of the Rashomon catch-22
+%% Insert after cor:intersection-overhead / prop:rashomon-dml
+%% Reuses: thm:ce-oracle (Steps 1b, 3), lem:loss-norm, lem:complexity,
+%%         thm:nuisance-rate, lem:approx, thm:intersection-existence (A4),
+%%         cor:intersection-overhead, prop:rashomon-dml, thm:dml-alt,
+%%         lem:best-bounded, def:rashomon-fold, def:intersection
+%% ============================================================
+
+\subsubsection{Exact structure recovery under a structural margin}
+\label{app:margin}
+
+The stability assumption (A4) of Theorem~\ref{thm:intersection-existence} is an
+\emph{existence} statement: it posits a single structure that is
+$(1+\varepsilon_n)$-near-optimal on every fold, but says nothing about
+\emph{why} such a structure should exist as $\varepsilon_n\to 0$. This leaves
+the method exposed to a genuine tension, which we call the \emph{Rashomon
+catch-22}:
+\begin{itemize}
+\item valid double-machine-learning inference requires
+  $\varepsilon_n = o(n^{-1/2})$ (Corollary~\ref{cor:intersection-overhead},
+  Proposition~\ref{prop:rashomon-dml}: the intersection overhead is
+  $O_p(\varepsilon_n\cdot\text{best}^{(-k)})$ with $\text{best}^{(-k)}=O_p(1)$
+  by Lemma~\ref{lem:best-bounded}, and $\sqrt n\,\varepsilon_n = o(1)$ is
+  needed);
+\item but as $\varepsilon_n\to 0$ the per-fold Rashomon sets
+  $R_k(\varepsilon_n)$ shrink toward the fold-specific minimizers, whose
+  \emph{optimal structures} may differ across folds, so
+  $\bigcap_{k}R_k(\varepsilon_n)$ can be empty
+  (Remark~\ref{rem:intersection-empty}).
+\end{itemize}
+Enlarging $\varepsilon_n$ post hoc to force a non-empty intersection re-violates
+$\varepsilon_n = o(n^{-1/2})$ and is a data-adaptive, post-selection device that
+no theorem here covers. Assumption~\ref{assump:margin} below dissolves the
+tension by upgrading the existence statement (A4) to a \emph{separation}
+statement about the population-optimal structure.
+
+\begin{assumption}[Structural margin]\label{assump:margin}
+Work over the sieve $\cT_{M_n}$ of trees with at most $M_n$ leaves on $d$ binary
+features, under the setting of Theorem~\ref{thm:ce-oracle}
+($\eta_0\in[c,1-c]$, clipped leaves; or the squared-error analogue). For a tree
+\emph{structure} (partition) $\tau$, write its population penalized risk as
+\begin{equation}\label{eq:pop-pen}
+  P(\tau) \;:=\; \min_{\text{leaf values}}
+     \bigl\{\, R(f_\tau) + \lambda_n\cdot\#\mathrm{leaves}(\tau)\,\bigr\},
+  \qquad R(f) = \E[L(Z,f(X))],
+\end{equation}
+and its fold-$k$ empirical analogue
+\begin{equation}\label{eq:emp-pen}
+  P_n^{(-k)}(\tau)
+  \;:=\; \min_{\text{leaf values}}
+     \bigl\{\, R_n^{(-k)}(f_\tau) + \lambda_n\cdot\#\mathrm{leaves}(\tau)\,\bigr\},
+  \qquad
+  \text{best}^{(-k)} = \min_{\tau:\ \#\mathrm{leaves}\le M_n} P_n^{(-k)}(\tau).
+\end{equation}
+Let $\tau^\ast := \argmin_{\tau:\ \#\mathrm{leaves}(\tau)\le M_n} P(\tau)$ and
+assume this minimizer is \emph{unique}, with
+$\#\mathrm{leaves}(\tau^\ast)\le L_n\asymp
+n^{s/(2\alphabar+s)}$ as in Theorem~\ref{thm:nuisance-rate}. There exists a
+sequence $\Delta_n>0$ such that
+\begin{equation}\label{eq:margin}
+  G_\tau\;:=\;P(\tau) - P(\tau^\ast)\;\ge\;\Delta_n
+  \qquad\text{for every structure } \tau\neq\tau^\ast
+  \text{ with } \#\mathrm{leaves}(\tau)\le M_n,
+\end{equation}
+and the margin dominates the estimation noise floor:
+\begin{equation}\label{eq:margin-rate}
+  \frac{\Delta_n}{\, L_n\log(nd)/n\,}\;\longrightarrow\;\infty
+  \qquad\text{equivalently}\qquad
+  \Delta_n \;\gg\; \frac{L_n\log(nd)}{n}.
+\end{equation}
+\end{assumption}
+
+\noindent\textbf{Relation to (A4).}
+Assumption~\ref{assump:margin} strictly strengthens the existence-only condition
+(A4) of Theorem~\ref{thm:intersection-existence}. (A4) asks that \emph{some}
+structure be near-optimal on every fold; \eqref{eq:margin} asks that the
+\emph{population} optimum be strictly separated from \emph{all} competitors by a
+gap $G_\tau$ that outgrows the per-structure estimation error. It rules out the
+near-ties that Remark~\ref{rem:intersection-empty}(1)--(4) identify as the
+sources of an empty intersection. Uniqueness of $\tau^\ast$ is part of the
+assumption; if the argmin is not unique, \eqref{eq:margin} fails with
+$\Delta_n\equiv 0$ and the conclusions below do not apply. Note that the margin
+condition binds only through the \emph{small} competitors: for any structure
+$\tau$ with more leaves than $\tau^\ast$, the penalty term
+$\lambda_n(\#\mathrm{leaves}(\tau)-\#\mathrm{leaves}(\tau^\ast))>0$ in
+\eqref{eq:pop-pen} \emph{adds} to $G_\tau$, so such competitors only make the
+margin larger; the binding competitors are the low-complexity ones, and
+\eqref{eq:margin} is a statement about them (made quantitative in the two-stratum
+argument of Step~3). This restricts the substantive content of (A5) to a finite,
+low-complexity neighborhood of $\tau^\ast$ and makes it more plausible.
+
+\begin{lemma}[Local curvature and recentered refit oracle inequality]\label{lem:local-curvature}
+Adopt the setting of Theorem~\ref{thm:ce-oracle} (cross-entropy,
+$\eta_0\in[c,1-c]$, clipped leaves; or squared error with $Y\in[0,1]$). Fix a
+structure $\sigma$ with $\ell:=\#\mathrm{leaves}(\sigma)$ cells $A_1,\dots,A_\ell$
+that each carry positive mass under both $P$ and $P_n^{(-k)}$. Let $g_\sigma$ be
+the population refit and $f_\sigma^{(k)}$ the fold-$k$ empirical refit of $\sigma$
+(leaf values minimizing $R$ and $R_n^{(-k)}$ respectively over the fixed
+partition $\sigma$), and let $\cT_\sigma\subset\cT_\ell$ be the (at most)
+$\ell$-parameter class of trees on $\sigma$ with values in $[c,1-c]$. Write
+$\psi_f=\ell(\cdot,f)-\ell(\cdot,\eta_0)$ and, for the recentered increments,
+$\chi_f:=\psi_f-\psi_{g_\sigma}=\ell(\cdot,f)-\ell(\cdot,g_\sigma)$. Then:
+\begin{enumerate}
+\item[(i)] \emph{(Strong convexity of the population refit.)} The map
+  $v\mapsto R(f_{\sigma,v})$, where $f_{\sigma,v}$ is the tree on $\sigma$ with
+  leaf-value vector $v\in[c,1-c]^{\ell}$, is $m_c$-strongly convex in the
+  $L_2(P)$ geometry, with
+  \begin{equation}\label{eq:curv-const}
+    m_c \;=\;
+    \begin{cases}
+      \dfrac{1}{(1-c)^{2}}\ \ (\ge 1), & \text{cross-entropy},\\[4pt]
+      2, & \text{squared error},
+    \end{cases}
+  \end{equation}
+  and consequently, for every $f\in\cT_\sigma$,
+  \begin{equation}\label{eq:sc-lower}
+    R(f) - R(g_\sigma)\;\ge\;\tfrac{m_c}{2}\,\norm{f-g_\sigma}_{L_2(P)}^2 .
+  \end{equation}
+\item[(ii)] \emph{(Lipschitz increment link.)} For any $f\in\cT_\sigma$,
+  \begin{equation}\label{eq:var-link}
+    \norm{\chi_f}_\infty\le V_c,\qquad
+    P\chi_f^2\;\le\; \kappa_c^2\,\norm{f-g_\sigma}_{L_2(P)}^2
+      \;=\; 2B_c\,\norm{f-g_\sigma}_{L_2(P)}^2,
+  \end{equation}
+  with $V_c=\log\tfrac{1-c}{c}$, $\kappa_c=\tfrac{1}{c(1-c)}$,
+  $B_c=\tfrac{\kappa_c^2}{2}=\tfrac{1}{2c^2(1-c)^2}$, by the sup-norm and
+  Lipschitz increment of Theorem~\ref{thm:ce-oracle}, Step~1.
+\item[(iii)] \emph{(Recentered variance proxy.)} Composing (i)--(ii),
+  \begin{equation}\label{eq:recentered-var}
+    P\chi_f^2\;\le\; \frac{4B_c}{m_c}\,\bigl[R(f)-R(g_\sigma)\bigr]
+    \qquad\text{for all } f\in\cT_\sigma;
+  \end{equation}
+  i.e. the recentered loss class $\{\chi_f:f\in\cT_\sigma\}$ has a
+  \emph{$g_\sigma$-localized} variance proxy linear in the excess risk over
+  $g_\sigma$, with envelope $V_c$.
+\item[(iv)] \emph{(Recentered refit oracle inequality.)} On the sub-root
+  fixed-point event of Theorem~\ref{thm:ce-oracle}, Step~3, applied to the class
+  $\{\chi_f:f\in\cT_\sigma\}$ with the variance proxy \eqref{eq:recentered-var}
+  and envelope $V_c$, with probability $\ge 1-e^{-u}$,
+  \begin{equation}\label{eq:refit-excess}
+    R\bigl(f_\sigma^{(k)}\bigr) - R(g_\sigma)
+    \;\le\; C_3\,(B_c+V_c)\,\frac{J_\ell}{n}
+    \;=:\; \rho_n(\ell),
+    \qquad J_\ell=C\ell\log(nd),
+  \end{equation}
+  and, on the same event, the recentered fluctuation modulus obeys
+  \begin{equation}\label{eq:diff-modulus}
+    \sup_{\substack{f\in\cT_\sigma:\\ \|f-g_\sigma\|_{L_2(P)}^2\le\varrho}}
+       \bigl|(P_n^{(-k)}-P)\chi_f\bigr|
+    \;\le\; c_2\!\left(\sqrt{\frac{2B_c\,\varrho\,J_\ell}{n}}
+        + \frac{(B_c+V_c)J_\ell}{n}\right),
+    \qquad \varrho>0.
+  \end{equation}
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+\emph{(i) Curvature.} For cross-entropy, $R(f_{\sigma,v})$ decomposes over the
+disjoint cells as $R(f_{\sigma,v})=\sum_{j=1}^\ell P(A_j)\,\E[\ell(Y,v_j)\mid
+X\in A_j]$. Writing $a_j=\E[\eta_0(X)\mid X\in A_j]\in[c,1-c]$, the per-cell risk
+is $\phi(v_j):=-a_j\log v_j-(1-a_j)\log(1-v_j)$, with
+$\phi''(v)=a_j/v^2+(1-a_j)/(1-v)^2\ge a_j(1-c)^{-2}+(1-a_j)(1-c)^{-2}=(1-c)^{-2}$
+on $[c,1-c]$. Summing weighted by $P(A_j)$ and using
+$\norm{f_{\sigma,v}-f_{\sigma,v'}}_{L_2(P)}^2=\sum_j P(A_j)(v_j-v_j')^2$ gives
+$m_c$-strong convexity with $m_c=(1-c)^{-2}\ge1$; a second-order Taylor expansion
+at the interior minimizer $g_\sigma$ yields \eqref{eq:sc-lower}. For squared
+error the per-cell second derivative is $2$, so $m_c=2$.
+\emph{(ii) Increment link.} By Theorem~\ref{thm:ce-oracle}, Step~1(a),
+$\norm{\psi_f}_\infty\le V_c$; the difference of two such increments over the
+common baseline $\eta_0$ is bounded by the loss oscillation, so
+$\norm{\chi_f}_\infty\le V_c$. By Step~1(b),
+$|\chi_f|=|\ell(\cdot,f)-\ell(\cdot,g_\sigma)|\le\kappa_c|f-g_\sigma|$ pointwise,
+whence $P\chi_f^2\le\kappa_c^2\norm{f-g_\sigma}_2^2=2B_c\norm{f-g_\sigma}_2^2$,
+the boxed \eqref{eq:var-link} (for squared error $\chi_f$ is $2$-Lipschitz on
+$[0,1]$, same form).
+\emph{(iii) Composition.} From \eqref{eq:sc-lower},
+$\norm{f-g_\sigma}_2^2\le\tfrac{2}{m_c}[R(f)-R(g_\sigma)]$; substituting into the
+variance bound $P\chi_f^2\le 2B_c\norm{f-g_\sigma}_2^2$ gives
+$P\chi_f^2\le\tfrac{4B_c}{m_c}[R(f)-R(g_\sigma)]$, the boxed
+\eqref{eq:recentered-var}.
+\emph{(iv) Recentered oracle.} Run the Theorem~\ref{thm:ce-oracle} Step~2--4
+machinery \emph{recentered at $g_\sigma$} on $\{\chi_f:f\in\cT_\sigma\}$. Bousquet's
+three inputs are supplied by (ii)--(iii): envelope $\norm{\chi_f}_\infty\le V_c$;
+$g_\sigma$-localized variance proxy $P\chi_f^2\le\tfrac{4B_c}{m_c}[R(f)-R(g_\sigma)]$;
+entropy of $\{\chi_f:f\in\cT_\sigma\}$ bounded by that of $\cT_\ell$,
+$J_\ell=C\ell\log(nd)$ (Lemma~\ref{lem:complexity}; $f\mapsto\chi_f$ is
+$\kappa_c$-Lipschitz). Symmetrization + Dudley give the sub-root envelope; Bousquet
+(Bousquet 2002; Massart 2000) at localized variance $\le 2B_c\varrho$ (via
+\eqref{eq:var-link}) gives the modulus \eqref{eq:diff-modulus} at radius-squared
+$\varrho$; the Bartlett--Bousquet--Mendelson fixed point $r^\star_\ell\le
+C''(B_c+V_c)J_\ell/n$ and peeling convert to population excess, giving
+\eqref{eq:refit-excess}. Because $g_\sigma$ is the population minimizer over
+$\cT_\sigma$, no approximation term appears: the fixed point is the whole bound.
+This is a genuine recentered oracle inequality, not a call to the $\eta_0$-centered
+parent.
+\end{proof}
+
+\begin{theorem}[Exact structure recovery and non-empty intersection]
+\label{thm:margin-recovery}
+Assume the setting and hypotheses of Theorem~\ref{thm:ce-oracle} (so the
+Step-3 machinery and Lemma~\ref{lem:local-curvature} hold), $K$ fixed,
+and Assumption~\ref{assump:margin}. Then, with probability tending to one as
+$n\to\infty$, for every fold $k=1,\dots,K$ simultaneously the fold-$k$ empirical
+penalized-risk minimizing structure is exactly $\tau^\ast$:
+\begin{equation}\label{eq:exact-recovery}
+  \argmin_{\tau:\ \#\mathrm{leaves}(\tau)\le M_n} P_n^{(-k)}(\tau)
+  \;=\; \tau^\ast,
+  \qquad k=1,\dots,K.
+\end{equation}
+Consequently, for \emph{any} $\varepsilon_n\ge 0$ (in particular for
+$\varepsilon_n\asymp \log(n)/n = o(n^{-1/2})$),
+\begin{equation}\label{eq:nonempty}
+  \tau^\ast \;\in\; \bigcap_{k=1}^{K} R_k(\varepsilon_n),
+  \qquad\text{so}\qquad
+  \bigcap_{k=1}^{K} R_k(\varepsilon_n)\neq\varnothing
+  \quad\text{w.p.}\to 1.
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+\emph{Proof strategy.} We show the fold-$k$ empirical penalized risk of every
+competitor structure exceeds that of $\tau^\ast$. We split competitors at a
+threshold $\kappa L_n$ ($\kappa$ a fixed constant, Step~3): \emph{small}
+competitors ($\le\kappa L_n$ leaves), for which we bound the fluctuation
+\emph{competitor-adaptively} against each competitor's own population gap
+$G_\tau$; and \emph{large} competitors ($>\kappa L_n$ leaves), dominated by the
+penalty gap. Convergence is \emph{in probability} (events of probability $\to1$).
+
+\smallskip\noindent\textbf{Step 1 (empirical/population decomposition).}
+Fix a fold $k$ and a competitor $\tau\neq\tau^\ast$, $L(\tau):=\#\mathrm{leaves}(\tau)
+\le M_n$. Let $f_\tau^{(k)},g_\tau$ be the empirical/population refits of $\tau$.
+The penalty cancels in the gap:
+\begin{equation}\label{eq:gap-decomp}
+  P_n^{(-k)}(\tau) - P_n^{(-k)}(\tau^\ast)
+  \;=\; \underbrace{\bigl[P(\tau)-P(\tau^\ast)\bigr]}_{=\,G_\tau\ \ge\ \Delta_n\ \text{by }
+        \eqref{eq:margin}}
+     \;+\; \underbrace{\bigl[\Delta_n^{(k)}(\tau)-\Delta_n^{(k)}(\tau^\ast)\bigr]}_{
+        \text{fluctuation}},
+\end{equation}
+where for each $\sigma\in\{\tau,\tau^\ast\}$,
+\begin{equation}\label{eq:fluct-def}
+  \Delta_n^{(k)}(\sigma)
+  \;:=\; P_n^{(-k)}(\sigma) - P(\sigma)
+  \;=\; R_n^{(-k)}(f_\sigma^{(k)}) - R(g_\sigma)
+  \qquad(\text{penalty }\lambda_n L(\sigma)\text{ cancels}).
+\end{equation}
+
+\smallskip\noindent\textbf{Step 2 (three-term recentered split, keeping the
+$g_\sigma$-average).} Add and subtract $R(f_\sigma^{(k)})$ and write
+$R_n^{(-k)}(f_\sigma^{(k)})-R(f_\sigma^{(k)})=(P_n^{(-k)}-P)\psi_{f_\sigma^{(k)}}$:
+\begin{equation}\label{eq:fluct-split-raw}
+  \Delta_n^{(k)}(\sigma)
+  \;=\; \bigl[R(f_\sigma^{(k)})-R(g_\sigma)\bigr]
+     \;+\; (P_n^{(-k)}-P)\psi_{f_\sigma^{(k)}}.
+\end{equation}
+Splitting the increment through $g_\sigma$ via
+$\psi_{f_\sigma^{(k)}}=\chi_{f_\sigma^{(k)}}+\psi_{g_\sigma}$ (with
+$\chi=\psi_{f_\sigma^{(k)}}-\psi_{g_\sigma}$) and \emph{retaining} the
+fixed-function average $(P_n^{(-k)}-P)\psi_{g_\sigma}$,
+\begin{equation}\label{eq:fluct-recentered}
+  \bigl|\Delta_n^{(k)}(\sigma)\bigr|
+  \;\le\; \underbrace{\bigl[R(f_\sigma^{(k)})-R(g_\sigma)\bigr]}_{\text{refit-excess}}
+   \;+\; \underbrace{\bigl|(P_n^{(-k)}-P)\chi_{f_\sigma^{(k)}}\bigr|}_{\text{recentered modulus}}
+   \;+\; \underbrace{\bigl|(P_n^{(-k)}-P)\psi_{g_\sigma}\bigr|}_{\text{fixed-function average}}.
+\end{equation}
+The first two terms are $g_\sigma$-local (small); the third is a single fixed
+function whose variance scales with $\sigma$'s \emph{approximation} error and is
+handled competitor-adaptively below. \emph{Retaining this third term is the
+correction:} dropping it would falsely claim a uniform $\rho_n$ floor, whereas
+for a coarse competitor $\tau$ (few leaves, $\Theta(1)$ approximation error)
+$|(P_n^{(-k)}-P)\psi_{g_\tau}|$ is of order $n^{-1/2}\gg\rho_n$, and must be
+compared against $\tau$'s own gap $G_\tau$, not against $\rho_n$.
+
+\smallskip\noindent\textbf{Step 3 (two-stratum, competitor-adaptive control).}
+
+\emph{Choice of boundary.} Let $\Delta^\ast_n:=R(g_{\tau^\ast})-R(\eta_0)$. By
+\emph{penalized}-optimality of $\tau^\ast$ (it minimizes $P(\cdot)$, so
+$R(g_{\tau^\ast})+\lambda_n L(\tau^\ast)\le R(g_{\tau_{L_n}})+\lambda_n L_n$ for
+the $L_n$-leaf approximating structure $\tau_{L_n}$ of Lemma~\ref{lem:approx}),
+\begin{equation}\label{eq:tau-star-approx}
+  \Delta^\ast_n
+  \;\le\; \bigl[R(g_{\tau_{L_n}})-R(\eta_0)\bigr] + \lambda_n L_n
+  \;\le\; C_{\mathrm{ap}}\,L_n^{-2\alphabar/s} + \lambda_n L_n
+  \;\le\; C_5\,\rho_n,
+\end{equation}
+using $L_n^{-2\alphabar/s}\asymp\lambda_n L_n\asymp\rho_n$ (balance defining
+$L_n$, Theorem~\ref{thm:nuisance-rate}), with $\rho_n=C\lambda_n L_n$. Fix
+$\kappa:=1+2C_5C$.
+
+\emph{Population-gap bookkeeping for a competitor.} For any competitor
+$\tau$, decompose its approximation error through $\tau^\ast$:
+\begin{align}
+  R(g_\tau)-R(\eta_0)
+  &= \bigl[R(g_\tau)-R(g_{\tau^\ast})\bigr] + \Delta^\ast_n \nonumber\\
+  &\le \bigl[P(\tau)-P(\tau^\ast)\bigr] + \lambda_n\bigl(L(\tau^\ast)-L(\tau)\bigr)
+      + \Delta^\ast_n \nonumber\\
+  &\le G_\tau + \lambda_n L(\tau^\ast) + \Delta^\ast_n
+  \;\le\; G_\tau + C_6\rho_n,
+  \label{eq:gtau-approx}
+\end{align}
+using $R(g_\tau)-R(g_{\tau^\ast})=[P(\tau)-\lambda_n L(\tau)]-[P(\tau^\ast)-
+\lambda_n L(\tau^\ast)]=G_\tau+\lambda_n(L(\tau^\ast)-L(\tau))$, dropping the
+nonpositive penalty term $\lambda_n(L(\tau^\ast)-L(\tau))$ when $L(\tau)\ge
+L(\tau^\ast)$ (and bounding it by $\lambda_n L(\tau^\ast)\le\lambda_n L_n
+\asymp\rho_n$ otherwise), and $\Delta^\ast_n\le C_5\rho_n$; $C_6$ absorbs both.
+
+\emph{Stratum (i): small competitors, $L(\tau)\le\kappa L_n$.} Bound each term of
+\eqref{eq:fluct-recentered} for $\sigma\in\{\tau,\tau^\ast\}$.
+(a) \emph{Refit-excess:} $\le\rho_n(L(\sigma))\le\rho_n(\kappa L_n)=:\rho_n'
+\asymp\rho_n$ by Lemma~\ref{lem:local-curvature}(iv).
+(b) \emph{Recentered modulus:} by (iv),
+$\norm{f_\sigma^{(k)}-g_\sigma}_2^2\le\tfrac{2}{m_c}\rho_n'$, so the modulus
+\eqref{eq:diff-modulus} at $\varrho=\tfrac{2}{m_c}\rho_n'$ and $J_{\kappa L_n}$ is
+$\le c_2(\sqrt{2B_c\cdot\tfrac{2}{m_c}\rho_n'\cdot J_{\kappa L_n}/n}+(B_c+V_c)
+J_{\kappa L_n}/n)\le C_7'(B_c+V_c)(1+\sqrt{B_c/m_c})J_{\kappa L_n}/n\asymp\rho_n$,
+since $\rho_n'\asymp J_{\kappa L_n}/n$ so $\sqrt{\rho_n' J_{\kappa L_n}/n}\asymp
+J_{\kappa L_n}/n$.
+(c) \emph{Fixed-function average $(P_n^{(-k)}-P)\psi_{g_\sigma}$:} $\psi_{g_\sigma}$
+is a single bounded function with $\norm{\psi_{g_\sigma}}_\infty\le V_c$ and, by
+Theorem~\ref{thm:ce-oracle} Step~1(b) (variance link at $\eta_0$),
+$P\psi_{g_\sigma}^2\le B_c\,[R(g_\sigma)-R(\eta_0)]$. Bernstein's inequality for a
+single bounded function (van der Vaart--Wellner 1996; equivalently Bousquet with
+a one-point class) gives, with probability $\ge1-e^{-u}$,
+\begin{equation}\label{eq:bernstein-g}
+  \bigl|(P_n^{(-k)}-P)\psi_{g_\sigma}\bigr|
+  \;\le\; \sqrt{\frac{2\,B_c\,[R(g_\sigma)-R(\eta_0)]\,u}{n}}
+        + \frac{V_c\,u}{3n}.
+\end{equation}
+Take a union bound over the $\le\kappa L_n$-leaf structures with exponent
+$u=C_1(\kappa L_n)\log(2d)+\log K+v=O(L_n\log(nd))+\log K+v$
+(Lemma~\ref{lem:complexity}); so $u\asymp J_{\kappa L_n}\asymp\rho_n\cdot n$, and
+$V_c u/(3n)\asymp\rho_n$. For $\sigma=\tau^\ast$, $R(g_{\tau^\ast})-R(\eta_0)=
+\Delta^\ast_n\le C_5\rho_n$, so \eqref{eq:bernstein-g} gives
+$|(P_n^{(-k)}-P)\psi_{g_{\tau^\ast}}|\le\sqrt{2B_c C_5\rho_n\cdot u/n}+
+O(\rho_n)\asymp\sqrt{\rho_n\cdot\rho_n}+O(\rho_n)=O(\rho_n)$ (using $u/n\asymp
+\rho_n$). For $\sigma=\tau$, by \eqref{eq:gtau-approx} the variance is
+$\le B_c(G_\tau+C_6\rho_n)$, so
+\begin{equation}\label{eq:g-tau-bound}
+  \bigl|(P_n^{(-k)}-P)\psi_{g_\tau}\bigr|
+  \;\le\; \sqrt{\frac{2B_c\,(G_\tau+C_6\rho_n)\,u}{n}} + \frac{V_c u}{3n}
+  \;\le\; C_8\Bigl(\sqrt{B_c\,G_\tau\,\rho_n} + \rho_n\Bigr),
+\end{equation}
+where the last step uses $u/n\asymp\rho_n$ and $\sqrt{(G_\tau+\rho_n)\rho_n}
+\le\sqrt{G_\tau\rho_n}+\rho_n$. Collecting (a)--(c) into
+\eqref{eq:fluct-recentered} for both $\sigma$'s and substituting into
+\eqref{eq:gap-decomp},
+\begin{equation}\label{eq:small-dev}
+  \bigl|\Delta_n^{(k)}(\tau)-\Delta_n^{(k)}(\tau^\ast)\bigr|
+  \;\le\; C_9\,\rho_n \;+\; C_8\sqrt{B_c\,G_\tau\,\rho_n}
+  \qquad\text{on }\mathcal{E}_n,\ \text{uniformly over small }\tau,k,
+\end{equation}
+where $C_9$ absorbs the refit-excess, recentered-modulus, and $\tau^\ast$-average
+pieces (all $O(\rho_n)$) and $\mathcal{E}_n$ (probability $\ge1-e^{-v}\to1$) is
+the intersection of the recentered fixed-point event of
+Lemma~\ref{lem:local-curvature}(iv) and the Bernstein event
+\eqref{eq:bernstein-g}, both union-bounded over the small stratum and $K$ folds.
+
+\emph{Stratum (ii): large competitors, $L(\tau)>\kappa L_n$.} From
+\eqref{eq:pop-pen} and $R(g_\tau)\ge R(\eta_0)$,
+\begin{equation}\label{eq:large-margin}
+  G_\tau \;\ge\; -\Delta^\ast_n+\lambda_n\bigl(L(\tau)-L(\tau^\ast)\bigr).
+\end{equation}
+Since $L(\tau)-L(\tau^\ast)>\kappa L_n-L_n=2C_5C\,L_n$ and $\Delta^\ast_n\le
+C_5\rho_n=C_5C\lambda_n L_n\le\tfrac12\lambda_n(L(\tau)-L(\tau^\ast))$,
+\begin{equation}\label{eq:large-dom}
+  G_\tau
+  \;\ge\; \lambda_n\bigl(L(\tau)-L(\tau^\ast)\bigr)-\Delta^\ast_n
+  \;\ge\; \tfrac12\,\lambda_n\bigl(L(\tau)-L(\tau^\ast)\bigr)
+  \;>\; \tfrac12\,\lambda_n\,C_5C\,L_n \;>\;0,
+\end{equation}
+with an \emph{explicit} $\tfrac12$. The fold-$k$ fluctuation of any refit over
+$\cT_{L(\tau)}$ is $O_p(\sqrt{L(\tau)\log(nd)/n})=o(\lambda_n L(\tau))$
+(Theorem~\ref{thm:ce-oracle}, Step~4, part of the parent oracle event), since
+$\lambda_n L(\tau)/\sqrt{L(\tau)\log(nd)/n}=\sqrt{L(\tau)\log(nd)/n}\to\infty$ for
+$L(\tau)>\kappa L_n\to\infty$. Hence
+$P_n^{(-k)}(\tau)-P_n^{(-k)}(\tau^\ast)\ge\tfrac12\lambda_n(\text{surplus})
+-o_p(\lambda_n\,\text{surplus})>0$ on $\mathcal{E}_n$, uniformly, with no
+structure-count union charged (the penalty margin grows without bound).
+
+\smallskip\noindent\textbf{Step 4 (margin beats the small-stratum fluctuation).}
+For a small competitor $\tau$ with $G_\tau\ge\Delta_n\gg\rho_n$
+\eqref{eq:margin-rate}, we show the right side of \eqref{eq:small-dev} is
+$<G_\tau$. The linear piece: $C_9\rho_n=o(\Delta_n)\le o(G_\tau)$, so
+$C_9\rho_n\le\tfrac14 G_\tau$ for $n\ge n_1$. The cross piece: by AM--GM
+$\sqrt{ab}\le\tfrac{\epsilon}{2}a+\tfrac{1}{2\epsilon}b$ with $a=G_\tau$,
+$b=B_c\rho_n$, $\epsilon=\tfrac12/C_8$,
+\begin{equation}\label{eq:cross}
+  C_8\sqrt{B_c\,G_\tau\,\rho_n}
+  \;\le\; \tfrac14 G_\tau + C_8^2\,B_c\,\rho_n
+  \;\le\; \tfrac14 G_\tau + \tfrac14 G_\tau
+  \;=\; \tfrac12 G_\tau,
+\end{equation}
+where $C_8^2 B_c\rho_n\le\tfrac14 G_\tau$ holds because $G_\tau\ge\Delta_n\gg
+\rho_n$ (so $\rho_n=o(G_\tau)$, and $B_c=O(1)$ at fixed overlap) for $n\ge n_2$.
+Adding, $|\Delta_n^{(k)}(\tau)-\Delta_n^{(k)}(\tau^\ast)|\le\tfrac14 G_\tau+
+\tfrac12 G_\tau=\tfrac34 G_\tau$ for all $n\ge\max(n_1,n_2)$ on $\mathcal{E}_n$,
+uniformly over small $\tau$. (Recentering plus the own-gap comparison removed the
+$\sqrt{\Theta(1)\cdot\rho_n}=\sqrt{\rho_n}$ inflation: the surviving cross term is
+$\sqrt{G_\tau\rho_n}$, dominated by $G_\tau$ precisely because $G_\tau\gg\rho_n$,
+so the honest requirement is the sharp $\Delta_n\gg\rho_n$.)
+
+\smallskip\noindent\textbf{Step 5 (strict separation and exact recovery).}
+For small competitors, \eqref{eq:gap-decomp} with $G_\tau\ge\Delta_n$ and Step~4,
+\begin{equation}\label{eq:strict}
+  P_n^{(-k)}(\tau) - P_n^{(-k)}(\tau^\ast)
+  \;\ge\; G_\tau - \tfrac34 G_\tau
+  \;=\; \tfrac14 G_\tau \;\ge\; \tfrac14\Delta_n \;>\; 0;
+\end{equation}
+for large competitors, Step~3(ii) gives the same conclusion directly. Thus
+$P_n^{(-k)}(\tau^\ast)<P_n^{(-k)}(\tau)$ for every $\tau\neq\tau^\ast$ on every
+fold, i.e. \eqref{eq:exact-recovery}; since $\Pr(\mathcal{E}_n)\to1$, w.p.\ $\to1$.
+
+\smallskip\noindent\textbf{Step 6 (non-empty intersection).}
+On the recovery event, for each $k$ the refit of $\tau^\ast$ attains
+$P_n^{(-k)}(\tau^\ast)=\text{best}^{(-k)}$, so for any $\varepsilon_n\ge0$,
+\begin{equation}\label{eq:in-Rk}
+  R_n^{(-k)}(f_{\tau^\ast}^{(k)}) + \lambda_n\,\#\mathrm{leaves}(\tau^\ast)
+  = P_n^{(-k)}(\tau^\ast) = \text{best}^{(-k)}
+  \le (1+\varepsilon_n)\,\text{best}^{(-k)},
+\end{equation}
+giving $\tau^\ast\in R_k(\varepsilon_n)$ (Definition~\ref{def:rashomon-fold}) for
+every $k$; by Definition~\ref{def:intersection},
+$\tau^\ast\in\bigcap_{k=1}^K R_k(\varepsilon_n)\neq\varnothing$
+\eqref{eq:nonempty}, at $\varepsilon_n=0$ a fortiori at
+$\varepsilon_n\asymp\log(n)/n=o(n^{-1/2})$.
+\end{proof}
+
+\begin{corollary}[Rashomon tolerance without the intersection trade-off]
+\label{cor:margin-resolution}
+Under the hypotheses of Theorem~\ref{thm:margin-recovery}, and additionally
+assuming that each leaf of $\tau^\ast$ carries positive empirical mass on every
+fold (\emph{positive-leaf-mass}: $\#\{i\in\mathcal{D}^{(-k)}:X_i\in A_j\}\ge1$ for
+every leaf $A_j$ of $\tau^\ast$ and every $k$; holds w.p.\ $\to1$ for the fixed
+structure $\tau^\ast$ with $O(L_n)$ leaves, since each leaf has positive
+population mass and $n_{-k}\to\infty$), take $\varepsilon_n\asymp \log(n)/n$.
+Then, with probability tending to one:
+\begin{enumerate}
+\item[(a)] \emph{(Non-empty intersection.)}
+  $\bigcap_{k=1}^K R_k(\varepsilon_n)\neq\varnothing$, containing $\tau^\ast$,
+  with no data-adaptive inflation of $\varepsilon_n$.
+\item[(b)] \emph{(Zero intersection overhead.)} The refit
+  $\tilde{\eta}^{(-k)}$ of the selected intersection structure $\tau^\ast$ on
+  fold $k$ \emph{coincides with} the fold-$k$ penalized minimizer
+  $\hat\eta^{(-k)}$, so the overhead of
+  Corollary~\ref{cor:intersection-overhead} is exactly zero:
+  \[
+    R(\tilde\eta^{(-k)}) - R(\hat\eta^{(-k)}) = 0,
+    \qquad k=1,\dots,K,
+  \]
+  strictly sharper than the $O_p(\varepsilon_n)$ bound of
+  Corollary~\ref{cor:intersection-overhead}.
+\item[(c)] \emph{(Valid inference, no conflict.)} Since
+  $\varepsilon_n\asymp\log(n)/n = o(n^{-1/2})$, Proposition~\ref{prop:rashomon-dml}
+  applies verbatim: $\tilde\eta^{(-k)}$ is $o_p(n^{-1/4})$-close to $\eta_0$ and,
+  by Theorem~\ref{thm:dml-alt},
+  \[
+    \sqrt{n}\,(\hat\theta - \theta_0)\;\leadsto\; N(0,\sigma^2),
+    \qquad \sigma^2 = \Var\bigl[\psi(O;\theta_0,\eta_0)\bigr].
+  \]
+\end{enumerate}
+Thus the catch-22 dissolves: a single tolerance $\varepsilon_n\asymp\log(n)/n$
+simultaneously yields a non-empty intersection and the $o(n^{-1/2})$ validity
+rate, with no post-selection auto-tuning of $\varepsilon_n$.
+\end{corollary}
+
+\begin{proof}
+\emph{(a)} is \eqref{eq:nonempty} at $\varepsilon_n\asymp\log(n)/n$. \emph{(b)}:
+on the recovery event \eqref{eq:exact-recovery}, $\tau^\ast$ is the unique
+fold-$k$ minimizing structure (strict inequality \eqref{eq:strict}), so its refit
+$\tilde\eta^{(-k)}=f_{\tau^\ast}^{(k)}$ attains
+$P_n^{(-k)}(\tau^\ast)=\text{best}^{(-k)}$, i.e. it equals $\hat\eta^{(-k)}$: both
+minimize $R_n^{(-k)}(f)+\lambda_n\#\mathrm{leaves}(f)$ over $\cT_{M_n}$; the
+minimizing structure is unique on the event, and given that structure the
+leaf-value refit is the unique minimizer of a strictly convex objective (strictly
+convex by Lemma~\ref{lem:local-curvature}(i), $m_c>0$) \emph{provided each leaf
+has positive empirical mass} (the positive-leaf-mass condition; without it a leaf
+value is unidentified and the refit non-unique). Hence
+$R(\tilde\eta^{(-k)})-R(\hat\eta^{(-k)})=0$; the $O_p(\varepsilon_n)$ term in
+Corollary~\ref{cor:intersection-overhead} is identically $0$. \emph{(c)}: with
+$\varepsilon_n\asymp\log(n)/n$, $\sqrt n\,\varepsilon_n\to0$, so
+$\varepsilon_n=o(n^{-1/2})$; Proposition~\ref{prop:rashomon-dml}'s sufficient
+condition holds, and its conclusion (via Theorem~\ref{thm:dml-alt}) gives the
+CLT. No step enlarges $\varepsilon_n$ using the data.
+\end{proof}
+
+\begin{remark}[Scope and honesty of Assumption~\ref{assump:margin}]
+\label{rem:margin-scope}
+\emph{When (A5) is plausible.} The structural margin holds when the
+population-optimal partition is well separated from all competitors --- the
+generic situation for \emph{discretely structured} signal: a nuisance genuinely
+piecewise-constant (or nearly so) on a dominant active subcube, with the relevant
+splits carrying non-vanishing risk reductions. The binary-feature DGPs
+(DGP1--DGP3) with a dominant active subcube are of this type: one partition
+strictly dominates, $\Delta_n$ is bounded away from $0$ (indeed $\Delta_n\asymp
+1\gg L_n\log(nd)/n$), and \eqref{eq:margin-rate} holds comfortably. The two-stratum
+structure also clarifies plausibility: only \emph{small} competitors ($\le\kappa
+L_n$ leaves) can threaten $\tau^\ast$; (A5) is a statement about a finite,
+low-complexity neighborhood. Theorem~\ref{thm:margin-recovery} thus predicts the
+$100\%$ intersection non-emptiness observed empirically
+(Remark~\ref{rem:intersection-empty}) \emph{and} explains it.
+\emph{When (A5) fails.} The margin degenerates ($\Delta_n\to0$, possibly
+$\Delta_n\ll L_n\log(nd)/n$) when competing partitions are near-tied: rough or
+high-dimensional nuisances requiring fold-specific splits, smoothly varying
+(non-piecewise-constant) $\eta_0$ where many partitions approximate equally well,
+or weak-overlap regimes (DGP4) where extreme propensity weights inflate the
+effective variance and blur the population ranking of structures. There the
+small-stratum fluctuation \eqref{eq:small-dev} need not be $<G_\tau$: recovery
+\eqref{eq:exact-recovery} can fail, the intersection can be empty, and the
+correct fallback is fold-specific trees (Remark~\ref{rem:intersection-empty};
+\texttt{use\_rashomon = TRUE}). Data-adaptive enlargement of $\varepsilon_n$ is
+\emph{not} covered here; it is a post-selection device outside the theory, voiding
+the $o(n^{-1/2})$ guarantee of Corollary~\ref{cor:margin-resolution}(c). Finally,
+non-emptiness is necessary but not sufficient: even under (A5), DGP4-type weak
+overlap can degrade finite-sample coverage through propensity weights,
+independently of structure recovery (Remark~\ref{rem:intersection-empty}).
+\end{remark}
+
+\begin{remark}[Post-proof audit of Theorem~\ref{thm:margin-recovery} and
+Corollary~\ref{cor:margin-resolution}]
+\label{rem:margin-audit}
+\emph{Assumption check.} All hypotheses are declared before the statements:
+overlap $\eta_0\in[c,1-c]$ and clipping (from Theorem~\ref{thm:ce-oracle}, used
+for $V_c,B_c,\kappa_c,m_c$ in Lemma~\ref{lem:local-curvature} and Steps~3--4);
+binary features and $\le M_n$ leaves (via Lemma~\ref{lem:complexity}, small-stratum
+union in Step~3); $K$ fixed (finite fold union); approximation balance
+(Theorem~\ref{thm:nuisance-rate}/Lemma~\ref{lem:approx}) and \emph{penalized}
+optimality of $\tau^\ast$ (\eqref{eq:tau-star-approx}, \eqref{eq:gtau-approx}, and
+$\kappa$); (A5)---uniqueness and \eqref{eq:margin}--\eqref{eq:margin-rate}
+(Steps~4--5); positive-leaf-mass for Corollary~(b). No assumption is introduced
+mid-proof. Lemma~\ref{lem:hats} is \emph{not} used anywhere and is not invoked;
+the small-stratum range is controlled by the explicit $\kappa L_n$ threshold, and
+Corollary~(b) identifies $\hat\eta^{(-k)}$ with the refit of $\tau^\ast$ directly
+from \eqref{eq:exact-recovery}.
+\emph{Dependency check.} Reused: Theorem~\ref{thm:ce-oracle} Step~1 (sup-norm
+$V_c$, Lipschitz $\kappa_c$, variance link $B_c$) and Steps~2--4, re-run
+\emph{recentered at $g_\sigma$} in Lemma~\ref{lem:local-curvature}(iv)
+(Bousquet/Massart with the $g_\sigma$-localized variance proxy
+\eqref{eq:recentered-var}, Dudley/symmetrization van der Vaart--Wellner, BBM
+fixed point) --- conditions (envelope $V_c$, variance $\tfrac{4B_c}{m_c}r$)
+verified in (ii)--(iii); Bernstein for a single bounded function $\psi_{g_\sigma}$
+(van der Vaart--Wellner; envelope $V_c$, variance $\le B_c[R(g_\sigma)-R(\eta_0)]$)
+in \eqref{eq:bernstein-g}; Lemma~\ref{lem:loss-norm} (excess $\ge0$; curvature
+$g''$); Lemma~\ref{lem:approx} + penalized optimality (\eqref{eq:tau-star-approx},
+\eqref{eq:gtau-approx}); Lemma~\ref{lem:complexity} (finite count, small stratum);
+Lemma~\ref{lem:best-bounded} (catch-22 framing);
+Proposition~\ref{prop:rashomon-dml}, Theorem~\ref{thm:dml-alt} (CLT) with
+$\varepsilon_n=o(n^{-1/2})$ verified. No circularity: recovery is from the
+recentered oracle deviation, the single-function Bernstein bound, and the
+deterministic penalty gap --- not from non-emptiness.
+\emph{Rate verification.} Noise floor $\rho_n=CL_n\log(nd)/n$. The small-stratum
+fluctuation splits into $O(\rho_n)$ pieces (refit-excess, recentered modulus at
+$g_\sigma$-local radius $\varrho\asymp\rho_n/m_c$ so its cross term is
+$\asymp J_{\kappa L_n}/n\asymp\rho_n$, and the $\tau^\ast$-average via
+$\Delta^\ast_n\le C_5\rho_n$) \emph{plus} the competitor-adaptive term
+$\sqrt{B_c G_\tau\rho_n}$ from the retained $g_\tau$-average
+\eqref{eq:g-tau-bound}. Crucially this last term scales with the competitor's
+\emph{own} gap $G_\tau$, so AM--GM \eqref{eq:cross} gives $\le\tfrac12 G_\tau$
+exactly when $G_\tau\ge\Delta_n\gg\rho_n$; there is no uniform $\sqrt{\rho_n}$
+floor, and the honest requirement is the sharp $\Delta_n\gg\rho_n$. Union
+$C_1\kappa L_n\log(2d)=O(\rho_n n)$ absorbed into $J_{\kappa L_n}$ and into the
+Bernstein exponent $u$; large stratum \eqref{eq:large-dom} charged nothing; fold
+union $+\log K$. Validity uses $\sqrt n\varepsilon_n\to0$.
+\emph{Edge-case scan.} (i) $\Delta_n\to0$ with $\Delta_n\lesssim\rho_n$: Step~4
+$\sqrt{G_\tau\rho_n}\not\le\tfrac12 G_\tau$, separation fails --- near-tie regime.
+(ii) \emph{Coarse competitor} (few leaves, $\Theta(1)$ approximation error): the
+retained $g_\tau$-average has variance $\Theta(1)/n$, i.e.
+$|(P_n-P)\psi_{g_\tau}|=O_p(n^{-1/2})\gg\rho_n$; this is \emph{not} compared to
+$\rho_n$ but to $G_\tau$ via \eqref{eq:g-tau-bound}--\eqref{eq:cross}, and since a
+coarse competitor with $\Theta(1)$ approximation error has $G_\tau=\Theta(1)\gg
+n^{-1/2}$, it is comfortably beaten --- the defect of a uniform $\rho_n$ floor is
+resolved by the own-gap comparison. (iii) Weak overlap $c\to0$: $B_c\sim1/(2c^2)$,
+$V_c\sim\log(1/c)$ grow, $m_c=(1-c)^{-2}\to1$ (curvature does not help), inflating
+$D_n$ and the cross constant $C_8^2 B_c$; \eqref{eq:margin-rate} then demands a
+larger $\Delta_n$ (consistent with DGP4). (iv) Non-unique $\tau^\ast$:
+$\Delta_n=0$, vacuous by design. (v) Empty leaf of $\tau^\ast$: violates
+positive-leaf-mass; Corollary~(b) fails --- flagged. (vi) Heavy tails: bounded
+losses assumed, out of scope.
+\emph{Tightness.} The achieved recovery rate is the sharp $\Delta_n\gg\rho_n$
+(recentering + own-gap comparison, no $\sqrt{\rho_n}$ inflation). Sharp \emph{up
+to the boundary} $\Delta_n\asymp\rho_n$: there the empirical ranking of the two
+closest structures is a coin flip, so no argument recovers the exact structure
+w.p.\ $\to1$; a matching Le~Cam two-point lower bound is left to future work.
+Zero-overhead (b) is exact on the recovery event.
+\emph{Failure localization.} The fragile step is Step~3--4: the competitor-adaptive
+comparison rests on (a) the recentered curvature $m_c$ of
+Lemma~\ref{lem:local-curvature} controlling the $g_\sigma$-local radius, and (b)
+the population-gap bookkeeping \eqref{eq:gtau-approx} bounding the retained
+$g_\tau$-average's variance by $B_c(G_\tau+\rho_n)$. If $m_c$ degenerates or the
+approximation balance $\Delta^\ast_n\asymp\rho_n$ fails, the $g_\sigma$-local
+radius or the boundary constant $\kappa$ cannot be fixed and separation weakens.
+The resolving device is a quantitative lower bound on $\Delta_n$ in terms of the
+smallest split-level risk reduction of $\tau^\ast$ and the curvature $m_c$; we
+leave this and the matching lower bound to future work.
+\end{remark}
