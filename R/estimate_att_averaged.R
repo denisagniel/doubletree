@@ -553,10 +553,13 @@ extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
 #' @param stratified Logical. Stratify folds by treatment? Default: TRUE
 #' @param seed Integer. Random seed for reproducibility. Default: NULL
 #' @param verbose Logical. Print progress? Default: FALSE
-#' @param rashomon_bound_multiplier Numeric. Rashomon bound multiplier (epsilon_n). Default: 0.05
+#' @param rashomon_bound_multiplier Numeric or NULL. Rashomon tolerance epsilon_n.
+#'   Default: NULL, which uses the theory value log(n)/n (= o(n^{-1/2})) via
+#'   \code{optimaltrees::select_epsilon_n(nrow(X))}.
 #' @param rashomon_bound_adder Numeric. Additive Rashomon bound. Default: 0
 #' @param max_leaves Integer. Maximum number of leaves (optional sieve). Default: NULL
-#' @param auto_tune_intersecting Logical. Auto-tune epsilon_n to find intersection? Default: FALSE
+#' @param auto_tune_intersecting Logical. Auto-tune epsilon_n to find intersection?
+#'   Default: FALSE. Not valid for inference (post-selection); warns when TRUE.
 #' @param discretize_method Character. "quantiles" or other. Default: "quantiles"
 #' @param discretize_bins Integer or "adaptive". Default: "adaptive"
 #' @param ... Additional arguments passed to optimaltrees functions
@@ -616,7 +619,7 @@ estimate_att_doubletree_averaged <- function(
   stratified = TRUE,
   seed = NULL,
   verbose = FALSE,
-  rashomon_bound_multiplier = 0.05,
+  rashomon_bound_multiplier = NULL,
   rashomon_bound_adder = 0,
   max_leaves = NULL,
   auto_tune_intersecting = FALSE,
@@ -629,6 +632,25 @@ estimate_att_doubletree_averaged <- function(
   n <- nrow(X)
   check_att_data(X, A, Y, outcome_type = outcome_type)
   if (is.matrix(X)) X <- as.data.frame(X)
+
+  # Resolve Rashomon tolerance: NULL -> theory epsilon_n = log(n)/n (o(n^{-1/2})).
+  if (is.null(rashomon_bound_multiplier)) {
+    rashomon_bound_multiplier <- optimaltrees::select_epsilon_n(n)
+    if (verbose) {
+      message("Using theory epsilon_n = log(n)/n = ",
+              signif(rashomon_bound_multiplier, 3))
+    }
+  }
+  # Data-adaptive epsilon_n voids the valid-inference guarantee (post-selection).
+  if (isTRUE(auto_tune_intersecting)) {
+    warning(
+      "auto_tune_intersecting = TRUE selects the Rashomon tolerance from the ",
+      "data (post-selection) and voids the o(n^{-1/2}) valid-inference ",
+      "guarantee; exploratory use only. For inference, keep the fixed theory ",
+      "epsilon_n (rashomon_bound_multiplier = NULL).",
+      call. = FALSE
+    )
+  }
 
   if (verbose) {
     message("=== Approach 4: Doubletree Averaged ===")

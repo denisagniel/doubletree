@@ -16,7 +16,7 @@ estimate_att_doubletree_averaged(
   stratified = TRUE,
   seed = NULL,
   verbose = FALSE,
-  rashomon_bound_multiplier = 0.05,
+  rashomon_bound_multiplier = NULL,
   rashomon_bound_adder = 0,
   max_leaves = NULL,
   auto_tune_intersecting = FALSE,
@@ -48,13 +48,16 @@ estimate_att_doubletree_averaged(
 
 \item{verbose}{Logical. Print progress? Default: FALSE}
 
-\item{rashomon_bound_multiplier}{Numeric. Rashomon bound multiplier (epsilon_n). Default: 0.05}
+\item{rashomon_bound_multiplier}{Numeric or NULL. Rashomon tolerance epsilon_n.
+Default: NULL, which uses the theory value log(n)/n (= o(n^{-1/2})) via
+\code{optimaltrees::select_epsilon_n(nrow(X))}.}
 
 \item{rashomon_bound_adder}{Numeric. Additive Rashomon bound. Default: 0}
 
 \item{max_leaves}{Integer. Maximum number of leaves (optional sieve). Default: NULL}
 
-\item{auto_tune_intersecting}{Logical. Auto-tune epsilon_n to find intersection? Default: FALSE}
+\item{auto_tune_intersecting}{Logical. Auto-tune epsilon_n to find intersection?
+Default: FALSE. Not valid for inference (post-selection); warns when TRUE.}
 
 \item{discretize_method}{Character. "quantiles" or other. Default: "quantiles"}
 

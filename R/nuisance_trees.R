@@ -357,12 +357,16 @@ safe_rashomon_fit <- function(X, y, K, loss_function, regularization,
 fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary",
                                    regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
                                    verbose = FALSE,
-                                   rashomon_bound_multiplier = 0.05, rashomon_bound_adder = 0,
+                                   rashomon_bound_multiplier = NULL, rashomon_bound_adder = 0,
                                    max_leaves = NULL, auto_tune_intersecting = FALSE,
                                    discretize_method = "quantiles", discretize_bins = "adaptive",
                                    max_depth = 4L,
                                    ...) {
   n <- nrow(X)
+  # Defensive resolution: theory epsilon_n = log(n)/n if not supplied by caller.
+  if (is.null(rashomon_bound_multiplier)) {
+    rashomon_bound_multiplier <- optimaltrees::select_epsilon_n(n)
+  }
   K <- max(fold_indices, na.rm = TRUE)
   loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
 

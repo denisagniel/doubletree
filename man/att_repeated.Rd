@@ -17,7 +17,7 @@ att_repeated(
   seed = NULL,
   verbose = FALSE,
   use_rashomon = FALSE,
-  rashomon_bound_multiplier = 0.05,
+  rashomon_bound_multiplier = NULL,
   rashomon_bound_adder = 0,
   max_leaves = NULL,
   auto_tune_intersecting = FALSE,
@@ -69,34 +69,38 @@ Only used if \code{cv_regularization = FALSE}. For most applications, use
 
 \item{use_rashomon}{Logical. If TRUE, fit nuisances via \code{optimaltrees::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).}
 
-\item{rashomon_bound_multiplier}{Numeric. Rashomon tolerance \eqn{\varepsilon_n}
-  controlling the size of the Rashomon set (trees with penalized risk
-  \eqn{\le (1 + \varepsilon) \cdot \text{best}}). Default: 0.05 (for quick exploration).
+\item{rashomon_bound_multiplier}{Numeric or NULL. Rashomon tolerance
+  \eqn{\varepsilon_n} controlling the size of the Rashomon set (trees with
+  penalized risk \eqn{\le (1 + \varepsilon_n) \cdot \text{best}}).
+  \strong{Default: NULL}, which uses the theory-justified fixed value
+  \eqn{\varepsilon_n = \log(n)/n} via \code{optimaltrees::select_epsilon_n(nrow(X))}.
 
-  \strong{Recommended:} Use theory-justified value via
-  \code{optimaltrees::select_epsilon_n(nrow(X), method = "fixed", c = 2)}.
-  This sets \eqn{\varepsilon_n = c\sqrt{(\log n)/n}}, which satisfies the
-  rate requirement \eqn{o(n^{-1/2})} for the 2-nuisance ATT score (manuscript Appendix A.5).
-
-  \strong{Trade-off:} Smaller \eqn{\varepsilon_n} yields trees closer to optimal
-  but higher risk of empty intersection. Larger \eqn{\varepsilon_n} facilitates
-  intersection (interpretability gain) but includes more sub-optimal trees.
-  Typical range: 0.02 (tight) to 0.10 (loose).}
+  \strong{Theory:} A fixed, deterministic \eqn{\varepsilon_n \asymp \log(n)/n}
+  is \eqn{o(n^{-1/2})} and, under the structural-margin condition, yields both a
+  non-empty cross-fold intersection and valid inference with zero intersection
+  overhead (manuscript Corollary "Rashomon tolerance without the intersection
+  trade-off"). Do not enlarge \eqn{\varepsilon_n} to force an intersection; if
+  the intersection is empty at the theory value, the method falls back to
+  fold-specific trees (still valid, one tree per fold instead of one shared tree).
+  An explicit numeric is honored but only fixed, deterministic choices of order
+  \eqn{\log(n)/n} carry the validity guarantee.}
 
 \item{rashomon_bound_adder}{Numeric. Additive Rashomon bound (not recommended for cross-fitted estimation).
 Default: 0.}
 
 \item{max_leaves}{Optional integer. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Restricts Rashomon set to trees with at most this many leaves.}
 
-\item{auto_tune_intersecting}{Logical. If TRUE, automatically increase
-  \code{rashomon_bound_multiplier} until at least one tree structure appears in
-  the intersection across all K folds. Default: FALSE.
+\item{auto_tune_intersecting}{Logical. If TRUE, increase
+  \code{rashomon_bound_multiplier} until a structure appears in the intersection
+  across all K folds. Default: FALSE.
 
-  \strong{Use with caution:} Automatically selecting \eqn{\varepsilon_n} based on
-  intersection status is a heuristic that may yield arbitrarily large tolerance.
-  If intersection is empty for reasonable \eqn{\varepsilon_n \le 0.2}, this
-  indicates substantial cross-fold heterogeneity. Consider falling back to
-  fold-specific trees (\code{use_rashomon = FALSE}) instead.}
+  \strong{Not valid for inference.} Selecting \eqn{\varepsilon_n} from the data
+  (post-selection) is not covered by the valid-inference theory and can inflate
+  \eqn{\varepsilon_n} beyond \eqn{o(n^{-1/2})}, voiding the CLT; a \code{warning}
+  is emitted when TRUE. Use it only for exploration. For inference, keep the
+  fixed theory \eqn{\varepsilon_n} (leave \code{rashomon_bound_multiplier = NULL})
+  and, if the intersection is empty, fall back to fold-specific trees
+  (\code{use_rashomon = FALSE}).}
 
 \item{n_splits}{Integer. Number of independent cross-fit repetitions. Default 1 (no repetition).}
 

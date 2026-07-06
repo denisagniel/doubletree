@@ -54,7 +54,7 @@ att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
                               regularization = 0.1, cv_regularization = FALSE, cv_K = 5,
                               stratified = TRUE, seed = NULL,
                               verbose = FALSE, use_rashomon = FALSE,
-                              rashomon_bound_multiplier = 0.05,
+                              rashomon_bound_multiplier = NULL,
                               rashomon_bound_adder = 0,
                               max_leaves = NULL,
                               auto_tune_intersecting = FALSE,
