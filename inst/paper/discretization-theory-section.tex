@@ -47,12 +47,22 @@ applicable regime, and it is the one our binary-covariate simulations occupy.
 \paragraph{Implementation in \texttt{optimaltrees}.}
 The package accepts continuous features and discretizes them automatically;
 predictions on new data apply the stored thresholds, keeping training and
-inference consistent. To realize the theory, the number of thresholds must grow
-with $n$ at the polynomial rate of~\eqref{eq:grid-rate}. A fixed or only
-logarithmically growing number of bins---as in the current default---meets the
-\emph{binary} guarantee (Corollary~\ref{cor:binary-rate}) but not the continuous
-one; achieving the continuous rate requires the refinement schedule above, which
-we adopt as the recommended default for continuous covariates.
+inference consistent. To realize the theory the number of thresholds must grow
+with $n$ at the polynomial rate of~\eqref{eq:grid-rate}, which depends on the
+unknown smoothness $\alphabar$ and sparsity $s$. Since these are unknown in
+practice, the default schedule uses the conservative fixed-exponent surrogate
+$m_n = \lceil n^{1/3} \rceil$ (capped for feasibility). This is sufficient
+whenever $2\alphabar + s \ge 3$: the isotropic worst case
+($\alpha_i = \alphabar$) requires resolution $n^{1/(2\alphabar+s)}$, and
+$n^{1/3} \ge n^{1/(2\alphabar+s)}$ exactly when $2\alphabar + s \ge 3$; smaller
+$\alphabar$ or larger $s$ makes the requirement \emph{easier}, so the default
+covers the practically relevant regime and is dominated only when the target is
+both very smooth and very low-sparsity ($2\alphabar+s < 3$), where more bins are
+harmless. When the exponent is in doubt, the package also offers cross-validated
+bin selection, which we compare against the fixed schedule in simulation. The
+earlier default---a logarithmically growing bin count---meets the \emph{binary}
+guarantee (Corollary~\ref{cor:binary-rate}) but not the continuous one, since a
+log grid never satisfies the polynomial requirement~\eqref{eq:grid-rate}.
 
 \paragraph{Interpretation.}
 Discretization is standard in tree methods (CART, random forests, and GOSDT all
