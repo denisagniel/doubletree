@@ -57,8 +57,14 @@ cd simulations/<study-name>
 Rscript slurm/profile_timing.R --target-hours 2      # -> config/sizing.env + sizing.json
 #    (B) Per-method sizing -- USE THIS for six-approach-arbitration, where the
 #    methods differ ~50x in cost (M-split does M*K=50 fits/unit). Profiles each
-#    method at its worst cell and sizes one array per method:
-Rscript slurm/profile_per_method.R --target-hours 2  # -> config/sizing_<method>.env (x7)
+#    method at its worst cell (n=2000, continuous) and sizes one array per method.
+#    That worst cell is the documented Rashomon blow-up, so profile_per_method.R
+#    runs each probe unit in a KILLABLE subprocess with a per-unit memory cap
+#    (--mem-cap-gb, default 24): a runaway unit is killed and recorded (--mem sized
+#    to a floor + loud warning) instead of OOM-killing the whole session. Set the
+#    cap BELOW your salloc --mem. Run inside a generously sized interactive alloc:
+salloc -p interactive -c 4 --mem=48G -t 0-04:00
+Rscript slurm/profile_per_method.R --target-hours 2 --mem-cap-gb 24  # -> config/sizing_<method>.env (x7)
 
 # 3. Commit + push; on O2 `git pull`. (See TRANSFER.md.)
 #    IMPORTANT: profile on O2 (matches run hardware) OR re-profile there; per-unit
