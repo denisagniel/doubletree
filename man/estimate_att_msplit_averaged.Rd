@@ -43,7 +43,17 @@ M×K trees to create single averaged tree.
 \details{
 Algorithm:
 1. Stage 1: Find modal structure (same as approach 5)
-2. Stage 2: Refit modal structure M×K times (same as approach 5)
+2. Stage 2: Refit modal structure M×K times AND store cross-fitted fold predictions
 3. Stage 3: **Average leaf values** across all M×K trees → 1 averaged tree
-4. Predict all observations using single averaged tree (no cross-fitting)
+4. **Inference** via the averaged tree (predict all n observations)
+
+The averaged tree is used for both inference and display. Cross-fitted predictions
+from Stage 2 are also stored in \code{predictions_all_splits} to enable investigation
+of alternative inference paths (e.g., rowMeans of the n×M prediction matrix).
+
+\strong{Known issue:} Using the averaged tree for inference introduces (K-1)/K
+in-sample contamination (80% at K=5) because each leaf's averaged value is
+computed from M×K refits, M(K-1) of which used observation i in training.
+This causes structural positive bias that does not vanish with M or n.
+The \code{predictions_all_splits} field enables comparison with cross-fitted inference.
 }

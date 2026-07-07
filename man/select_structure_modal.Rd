@@ -4,7 +4,7 @@
 \alias{select_structure_modal}
 \title{Select Modal Structure from List}
 \usage{
-select_structure_modal(structures)
+select_structure_modal(structures, min_leaves = 1L)
 }
 \arguments{
 \item{structures}{List of TreeStructure objects (from extract_tree_structure)}

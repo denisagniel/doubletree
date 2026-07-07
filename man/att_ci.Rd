@@ -4,14 +4,12 @@
 \alias{att_ci}
 \title{Wald confidence interval for ATT}
 \usage{
-att_ci(theta, sigma, n, level = 0.95)
+att_ci(theta, sigma, level = 0.95)
 }
 \arguments{
 \item{theta}{Point estimate (scalar).}
 
 \item{sigma}{Numeric. Estimated standard error (from att_se(...)).}
-
-\item{n}{Sample size (for sqrt(n) scaling).}
 
 \item{level}{Numeric. Confidence level (default 0.95).}
 }
