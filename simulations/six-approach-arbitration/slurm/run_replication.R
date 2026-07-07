@@ -23,7 +23,15 @@ option_list <- list(
   make_option("--study-dir",    type = "character", dest = "study_dir",
               help = "Absolute path to the study directory (contains config/, R/)"),
   make_option("--scratch-dir",  type = "character", dest = "scratch_dir",
-              help = "Run-specific scratch dir for per-task result files")
+              help = "Run-specific scratch dir for per-task result files"),
+  # Per-method sizing (submit_per_method.sh): task ids restart at 1 within each
+  # method, so a task's units are offset into that method's contiguous block and
+  # capped at the block end. Defaults (0, Inf) reproduce the original global
+  # behaviour, so the stock submit.sh keeps working unchanged.
+  make_option("--unit-offset",  type = "integer", dest = "unit_offset", default = 0L,
+              help = "Add this to the local unit index (start of this method's block) [default %default]"),
+  make_option("--max-unit",     type = "integer", dest = "max_unit", default = NA_integer_,
+              help = "Last global unit this task may run (method block end) [default: last unit]")
 )
 opt <- parse_args(OptionParser(option_list = option_list))
 
@@ -39,13 +47,17 @@ library(doubletree)  # e.g. library(mypackage); blank if no project package
 library(optimaltrees)          # e.g. library(ranger); library(glmnet)
 
 # --- Determine this task's block of units ------------------------------------
+# Global-unit indexing. With --unit-offset O and --max-unit U, task t covers
+# global units (O + (t-1)*reps + 1) .. min(O + t*reps, U). Defaults O=0, U=last
+# reproduce the original single-block behaviour.
 ut <- unit_table()
-start <- (opt$task_id - 1L) * opt$reps_per_job + 1L
-end   <- min(opt$task_id * opt$reps_per_job, nrow(ut))
-if (start > nrow(ut)) {
-  # Task index beyond the last unit (padding in final array) -- nothing to do.
-  cat(sprintf("[task %d] no units (start %d > %d); exiting.\n",
-              opt$task_id, start, nrow(ut)))
+max_unit <- if (is.na(opt$max_unit)) nrow(ut) else opt$max_unit
+start <- opt$unit_offset + (opt$task_id - 1L) * opt$reps_per_job + 1L
+end   <- min(opt$unit_offset + opt$task_id * opt$reps_per_job, max_unit)
+if (start > max_unit) {
+  # Task index beyond this block's last unit (padding in final array) -- skip.
+  cat(sprintf("[task %d] no units (start %d > block end %d); exiting.\n",
+              opt$task_id, start, max_unit))
   quit(save = "no", status = 0)
 }
 block <- ut[start:end, , drop = FALSE]

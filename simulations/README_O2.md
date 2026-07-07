@@ -52,14 +52,22 @@ cd simulations/<study-name>
 # 1. Edit the science: config/grid.R, R/dgp.R, R/estimators.R, R/run_one.R.
 #    Include at least one STRESS regime (Constitution Section 9).
 
-# 2. LOCALLY: profile a few units to size the array for a 1-3 hr/task target.
-Rscript slurm/profile_timing.R --target-hours 2
-#    -> writes config/sizing.env + config/sizing.json
+# 2. Profile to size the array for a 1-3 hr/task target.
+#    (A) Uniform sizing (single global reps/job) -- OK when methods have similar cost:
+Rscript slurm/profile_timing.R --target-hours 2      # -> config/sizing.env + sizing.json
+#    (B) Per-method sizing -- USE THIS for six-approach-arbitration, where the
+#    methods differ ~50x in cost (M-split does M*K=50 fits/unit). Profiles each
+#    method at its worst cell and sizes one array per method:
+Rscript slurm/profile_per_method.R --target-hours 2  # -> config/sizing_<method>.env (x7)
 
 # 3. Commit + push; on O2 `git pull`. (See TRANSFER.md.)
+#    IMPORTANT: profile on O2 (matches run hardware) OR re-profile there; per-unit
+#    time is machine-dependent and drives --time. Run steps 2+ from an O2 session.
 
 # 4. ON O2: submit. Mints a run-id, sets up scratch, writes MANIFEST.md.
-bash slurm/submit.sh
+bash slurm/submit.sh              # uniform sizing (A)
+# OR, for per-method sizing (B):
+bash slurm/submit_per_method.sh   # one array per method, per-method scratch subdirs
 
 # 5. ON O2: monitor. Shows progress, newest logs, and failed tasks.
 bash slurm/monitor.sh                # add --tail-failures to debug

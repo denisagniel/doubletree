@@ -68,29 +68,57 @@ if (file.exists(recorded_hash_file)) {
 }
 
 # --- Discover task files -----------------------------------------------------
-files <- list.files(opt$scratch_dir, pattern = "^task_[0-9]+\\.rds$", full.names = TRUE)
+# Two layouts are supported:
+#   (a) global (submit.sh):        <scratch>/task_NNNNNN.rds
+#   (b) per-method (submit_per_method.sh): <scratch>/<method>/task_NNNNNN.rds
+# recursive=TRUE finds both; completeness is checked per layout below.
+files <- list.files(opt$scratch_dir, pattern = "^task_[0-9]+\\.rds$",
+                    full.names = TRUE, recursive = TRUE)
 if (length(files) == 0) stop(sprintf("No task_*.rds files in %s", opt$scratch_dir))
 
-found_ids <- as.integer(sub("^task_0*([0-9]+)\\.rds$", "\\1", basename(files)))
+per_method_envs <- list.files(file.path(opt$study_dir, "config"),
+                              pattern = "^sizing_.*\\.env$", full.names = TRUE)
 
-# Expected task count from sizing.env (authoritative) if present.
-sizing_env <- file.path(opt$study_dir, "config", "sizing.env")
-expected_tasks <- NA_integer_
-if (file.exists(sizing_env)) {
-  kv <- readLines(sizing_env, warn = FALSE)
+get_total_tasks <- function(env_file) {
+  kv <- readLines(env_file, warn = FALSE)
   tt <- grep("^TOTAL_TASKS=", kv, value = TRUE)
-  if (length(tt)) expected_tasks <- as.integer(sub("^TOTAL_TASKS=", "", tt[1]))
+  if (length(tt)) as.integer(sub("^TOTAL_TASKS=", "", tt[1])) else NA_integer_
 }
 
-if (!is.na(expected_tasks)) {
-  missing <- setdiff(seq_len(expected_tasks), found_ids)
-  if (length(missing) > 0) {
-    msg <- sprintf("MISSING %d/%d tasks: %s", length(missing), expected_tasks,
-                   paste(head(missing, 50), collapse = ", "))
-    if (opt$allow_partial) {
-      warning(msg, "\nProceeding with --allow-partial.")
-    } else {
-      stop(msg, "\nRefusing to write partial result. Re-run missing tasks or pass --allow-partial.")
+if (length(per_method_envs) > 0) {
+  # Per-method: check each method's subdir against its own TOTAL_TASKS.
+  total_missing <- 0L
+  for (env_file in per_method_envs) {
+    meth <- sub("^sizing_(.*)\\.env$", "\\1", basename(env_file))
+    exp_m <- get_total_tasks(env_file)
+    mdir <- file.path(opt$scratch_dir, meth)
+    mfiles <- list.files(mdir, pattern = "^task_[0-9]+\\.rds$", full.names = FALSE)
+    found_m <- as.integer(sub("^task_0*([0-9]+)\\.rds$", "\\1", mfiles))
+    miss_m <- if (is.na(exp_m)) integer(0) else setdiff(seq_len(exp_m), found_m)
+    if (length(miss_m) > 0) {
+      total_missing <- total_missing + length(miss_m)
+      cat(sprintf("  [%s] MISSING %d/%d tasks: %s\n", meth, length(miss_m), exp_m,
+                  paste(head(miss_m, 20), collapse = ", ")))
+    }
+  }
+  if (total_missing > 0) {
+    msg <- sprintf("MISSING %d tasks across methods (see above).", total_missing)
+    if (opt$allow_partial) warning(msg, "\nProceeding with --allow-partial.")
+    else stop(msg, "\nRefusing to write partial result. Re-run missing tasks or pass --allow-partial.")
+  }
+} else {
+  # Global layout: single TOTAL_TASKS from sizing.env.
+  found_ids <- as.integer(sub("^task_0*([0-9]+)\\.rds$", "\\1", basename(files)))
+  expected_tasks <- NA_integer_
+  sizing_env <- file.path(opt$study_dir, "config", "sizing.env")
+  if (file.exists(sizing_env)) expected_tasks <- get_total_tasks(sizing_env)
+  if (!is.na(expected_tasks)) {
+    missing <- setdiff(seq_len(expected_tasks), found_ids)
+    if (length(missing) > 0) {
+      msg <- sprintf("MISSING %d/%d tasks: %s", length(missing), expected_tasks,
+                     paste(head(missing, 50), collapse = ", "))
+      if (opt$allow_partial) warning(msg, "\nProceeding with --allow-partial.")
+      else stop(msg, "\nRefusing to write partial result. Re-run missing tasks or pass --allow-partial.")
     }
   }
 }
