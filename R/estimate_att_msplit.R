@@ -147,7 +147,11 @@ estimate_att_msplit <- function(X, A, Y,
       verbose = FALSE,
       max_lambda = max_lambda_cap,
       discretize_bins = "adaptive",
-      discretize_method = "quantiles"
+      discretize_method = "quantiles",
+      # Bound tree depth to match the Rashomon path (fit_nuisances_rashomon
+      # defaults to 4L). Prevents unbounded-depth GOSDT blow-up on continuous
+      # covariates at the theory discretization rate (n^{1/3} bins).
+      max_depth = 4L
     )
 
     # No fallback - CV must succeed
@@ -187,7 +191,8 @@ estimate_att_msplit <- function(X, A, Y,
       verbose = FALSE,
       max_lambda = max_lambda_cap,
       discretize_bins = "adaptive",
-      discretize_method = "quantiles"
+      discretize_method = "quantiles",
+      max_depth = 4L   # match Rashomon path; bound GOSDT search on continuous X
     )
 
     # No fallback - CV must succeed

@@ -56,7 +56,11 @@ collect_rashomon_trees_at_tolerance <- function(X, outcome, K, fold_indices,
         K = 5,
         max_iterations = 10,
         refit = FALSE,
-        verbose = FALSE
+        verbose = FALSE,
+        # Bound tree depth to match the Rashomon path (fit_nuisances_rashomon
+        # defaults to 4L). Without this, unbounded-depth GOSDT search blows up on
+        # continuous covariates at the theory discretization rate (n^{1/3} bins).
+        max_depth = 4L
       )
     }, error = function(e) {
       if (verbose) message("Fold ", k, " CV failed: ", e$message)
@@ -417,7 +421,9 @@ find_trees_through_tiers <- function(X, outcome, K, fold_indices, nuisance_name,
         K = 5,
         max_iterations = 10,
         refit = TRUE,
-        verbose = FALSE
+        verbose = FALSE,
+        # Bound tree depth to match the Rashomon path (see note above).
+        max_depth = 4L
       )
     }, error = function(e) {
       if (verbose) message("Fold ", k, " CV failed: ", e$message)
@@ -907,7 +913,8 @@ estimate_att_msplit_averaged <- function(X, A, Y,
       K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
       max_lambda = max_lambda_cap,
       discretize_bins = "adaptive",
-      discretize_method = "quantiles"
+      discretize_method = "quantiles",
+      max_depth = 4L   # match Rashomon path; bound GOSDT search on continuous X
     )
 
     if (is.na(cv_e$best_lambda)) {
@@ -932,7 +939,8 @@ estimate_att_msplit_averaged <- function(X, A, Y,
       K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
       max_lambda = max_lambda_cap,
       discretize_bins = "adaptive",
-      discretize_method = "quantiles"
+      discretize_method = "quantiles",
+      max_depth = 4L   # match Rashomon path; bound GOSDT search on continuous X
     )
 
     if (is.na(cv_m0$best_lambda)) {

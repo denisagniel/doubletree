@@ -63,14 +63,16 @@ estimate <- function(data, config) {
   n <- nrow(X)
   cv_e <- optimaltrees::cv_regularization_adaptive(
     X = X, y = A, loss_function = "log_loss", K = SIM_K,
-    max_lambda = 20 * log(n) / n, refit = TRUE, verbose = FALSE)
+    max_lambda = 20 * log(n) / n, refit = TRUE, verbose = FALSE,
+    max_depth = 4L)   # match Rashomon path; bound GOSDT search on continuous X
   if (is.na(cv_e$best_lambda)) stop("full: CV failed for propensity.", call. = FALSE)
   e_hat <- predict(cv_e$model, X, type = "prob")[, 2]
 
   idx0 <- which(A == 0); n0 <- length(idx0)
   cv_m0 <- optimaltrees::cv_regularization_adaptive(
     X = X[idx0, , drop = FALSE], y = Y[idx0], loss_function = "log_loss",
-    K = SIM_K, max_lambda = 20 * log(n0) / n0, refit = TRUE, verbose = FALSE)
+    K = SIM_K, max_lambda = 20 * log(n0) / n0, refit = TRUE, verbose = FALSE,
+    max_depth = 4L)   # match Rashomon path; bound GOSDT search on continuous X
   if (is.na(cv_m0$best_lambda)) stop("full: CV failed for outcome.", call. = FALSE)
   m0_hat <- predict(cv_m0$model, X, type = "prob")[, 2]
 
