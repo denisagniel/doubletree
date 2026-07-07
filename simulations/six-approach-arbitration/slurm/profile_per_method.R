@@ -36,9 +36,25 @@ opt <- parse_args(OptionParser(option_list = list(
               help = "Probe units per method at the worst cell [default %default]"),
   make_option("--target-hours", type = "double",    dest = "target_hours", default = 2,
               help = "Target wall time per task, hours [default %default]"),
-  make_option("--study-dir",    type = "character", dest = "study_dir", default = "..",
-              help = "Study directory [default %default]")
+  make_option("--study-dir",    type = "character", dest = "study_dir", default = NA_character_,
+              help = "Study directory [default: auto-detected as the parent of this script's slurm/ dir]")
 )))
+
+# Resolve the study dir robustly: explicit --study-dir wins; otherwise derive it
+# from this script's own path (parent of slurm/), so it works from any cwd.
+if (is.na(opt$study_dir)) {
+  args_all <- commandArgs(trailingOnly = FALSE)
+  file_arg <- sub("^--file=", "", grep("^--file=", args_all, value = TRUE))
+  if (length(file_arg) == 1 && nzchar(file_arg)) {
+    opt$study_dir <- dirname(dirname(normalizePath(file_arg)))
+  } else {
+    opt$study_dir <- "."   # fallback (e.g. sourced interactively)
+  }
+}
+if (!file.exists(file.path(opt$study_dir, "config", "grid.R"))) {
+  stop(sprintf("Cannot find config/grid.R under study dir '%s'. Pass --study-dir explicitly.",
+               opt$study_dir), call. = FALSE)
+}
 
 source(file.path(opt$study_dir, "config", "grid.R"))
 source(file.path(opt$study_dir, "R", "dgp.R"))
