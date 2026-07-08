@@ -1,3 +1,98 @@
+#' Discover modal nuisance structures across M sample splits (M-split Stage 1)
+#'
+#' @description
+#' Shared Stage-1 of the two M-split estimators (\code{estimate_att_msplit} and
+#' \code{estimate_att_msplit_averaged}). For each of \code{M} splits: create
+#' stratified folds (seed \code{seed_base + m}), fit propensity (log_loss) and
+#' control-outcome nuisances on fold-1's training set via adaptive-CV lambda
+#' selection (capped at 15x the theory rate to avoid stump-producing lambda, depth
+#' bounded at 4L to match the Rashomon path), extract the tree structures, then pick
+#' the modal structure per nuisance excluding stumps (\code{min_leaves = 2L}).
+#'
+#' @param X,A,Y Covariates, treatment (0/1), outcome.
+#' @param M,K Number of splits and folds per split.
+#' @param seed_base Base seed; split m uses \code{seed_base + m} (NULL = no seed).
+#' @param outcome_type "binary" or "continuous" (selects the outcome loss).
+#' @param verbose Logical; print per-split progress.
+#' @return List with \code{e} and \code{m0}, each a \code{select_structure_modal}
+#'   result (\code{structure}, \code{discretization_metadata}, \code{frequency}, ...).
+#' @keywords internal
+discover_modal_structures <- function(X, A, Y, M, K, seed_base = NULL,
+                                      outcome_type = "binary", verbose = FALSE) {
+  n <- nrow(X)
+  structures_e <- vector("list", M)
+  structures_m0 <- vector("list", M)
+  outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
+
+  for (m in seq_len(M)) {
+    seed_m <- if (!is.null(seed_base)) seed_base + m else NULL
+    folds_m <- create_folds(n, K, strata = A, seed = seed_m)
+
+    # Fold 1's training set gives a representative structure for this split.
+    train_idx <- which(folds_m != 1)
+    X_train <- X[train_idx, , drop = FALSE]
+    A_train <- A[train_idx]
+    Y_train <- Y[train_idx]
+
+    # Cap lambda at 15x the theory rate to prevent stump-producing regularization
+    # (constant nuisance predictions bias DML). Depth 4L matches the Rashomon path
+    # and bounds GOSDT search on continuous covariates.
+    n_train <- length(train_idx)
+    max_lambda_cap <- (log(n_train) / n_train) * 15
+
+    cv_e <- optimaltrees::cv_regularization_adaptive(
+      X = X_train, y = A_train, loss_function = "log_loss",
+      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
+      max_lambda = max_lambda_cap,
+      discretize_bins = "adaptive", discretize_method = "quantiles",
+      max_depth = 4L
+    )
+    if (is.na(cv_e$best_lambda)) {
+      stop("CV failed for propensity model in split ", m,
+           ". Check data quality (variation in A), numerical issues, or CV settings.",
+           call. = FALSE)
+    }
+    model_e <- cv_e$model
+    structures_e[[m]] <- list(
+      structure = optimaltrees::extract_tree_structure(model_e),
+      discretization_metadata = model_e@discretization_metadata
+    )
+
+    control_idx <- which(A_train == 0)
+    X_control <- X_train[control_idx, , drop = FALSE]
+    Y_control <- Y_train[control_idx]
+
+    cv_m0 <- optimaltrees::cv_regularization_adaptive(
+      X = X_control, y = Y_control, loss_function = outcome_loss,
+      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
+      max_lambda = max_lambda_cap,
+      discretize_bins = "adaptive", discretize_method = "quantiles",
+      max_depth = 4L
+    )
+    if (is.na(cv_m0$best_lambda)) {
+      stop("CV failed for outcome model in split ", m,
+           ". Check data quality (control units, variation in Y), numerical issues, ",
+           "or CV settings.", call. = FALSE)
+    }
+    model_m0 <- cv_m0$model
+    structures_m0[[m]] <- list(
+      structure = optimaltrees::extract_tree_structure(model_m0),
+      discretization_metadata = model_m0@discretization_metadata
+    )
+
+    if (verbose && m %% max(1, M %/% 10) == 0) {
+      cat(sprintf("  Structure discovery: %d/%d splits\n", m, M))
+    }
+  }
+
+  # Modal structure per nuisance, excluding stumps (min_leaves = 2L): constant
+  # nuisance predictions bias DML, so stumps must not win the modal vote.
+  list(
+    e = select_structure_modal(structures_e, min_leaves = 2L),
+    m0 = select_structure_modal(structures_m0, min_leaves = 2L)
+  )
+}
+
 #' M-Split Doubletree ATT Estimation
 #'
 #' @description
@@ -114,117 +209,10 @@ estimate_att_msplit <- function(X, A, Y,
   # ============================================================
   if (verbose) cat("Stage 1: Selecting modal structures...\n")
 
-  structures_e <- vector("list", M)
-  structures_m0 <- vector("list", M)
-
-  for (m in seq_len(M)) {
-    seed_m <- if (!is.null(seed_base)) seed_base + m else NULL
-
-    # Create folds for this split
-    folds_m <- create_folds(n, K, strata = A, seed = seed_m)
-
-    # We just need structures, so fit one tree per nuisance (on first fold's training set)
-    # Simplified: use fold 1's training set to get a representative structure
-    train_idx <- which(folds_m != 1)
-
-    X_train <- X[train_idx, , drop = FALSE]
-    A_train <- A[train_idx]
-    Y_train <- Y[train_idx]
-
-    # Fit propensity model with adaptive CV-selected lambda.
-    # Cap at 15× theory value to prevent stump-producing lambda: at this
-    # level the tree must produce a non-trivial split to beat the stump,
-    # avoiding the degenerate constant-prediction case in DML nuisance models.
-    n_train <- length(train_idx)
-    max_lambda_cap <- (log(n_train) / n_train) * 15
-    cv_e <- optimaltrees::cv_regularization_adaptive(
-      X = X_train,
-      y = A_train,
-      loss_function = "log_loss",
-      K = 5,
-      max_iterations = 10,
-      refit = TRUE,
-      verbose = FALSE,
-      max_lambda = max_lambda_cap,
-      discretize_bins = "adaptive",
-      discretize_method = "quantiles",
-      # Bound tree depth to match the Rashomon path (fit_nuisances_rashomon
-      # defaults to 4L). Prevents unbounded-depth GOSDT blow-up on continuous
-      # covariates at the theory discretization rate (n^{1/3} bins).
-      max_depth = 4L
-    )
-
-    # No fallback - CV must succeed
-    if (is.na(cv_e$best_lambda)) {
-      stop(
-        "CV failed for propensity model in split ", m, ". ",
-        "Possible fixes:\n",
-        "  1. Check data quality (enough variation in A?)\n",
-        "  2. Try different lambda_grid in cv_regularization()\n",
-        "  3. Increase K in cv_regularization() for more stable CV\n",
-        "  4. Check for numerical issues (NaN, Inf in X or A)",
-        call. = FALSE
-      )
-    }
-
-    model_e <- cv_e$model
-    structures_e[[m]] <- list(
-      structure = optimaltrees::extract_tree_structure(model_e),
-      discretization_metadata = model_e@discretization_metadata
-    )
-
-    # Fit outcome model (control outcomes only)
-    control_idx <- which(A_train == 0)
-    X_control <- X_train[control_idx, , drop = FALSE]
-    Y_control <- Y_train[control_idx]
-
-    outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
-
-    # Fit outcome model with adaptive CV-selected lambda (same cap as propensity)
-    cv_m0 <- optimaltrees::cv_regularization_adaptive(
-      X = X_control,
-      y = Y_control,
-      loss_function = outcome_loss,
-      K = 5,
-      max_iterations = 10,
-      refit = TRUE,
-      verbose = FALSE,
-      max_lambda = max_lambda_cap,
-      discretize_bins = "adaptive",
-      discretize_method = "quantiles",
-      max_depth = 4L   # match Rashomon path; bound GOSDT search on continuous X
-    )
-
-    # No fallback - CV must succeed
-    if (is.na(cv_m0$best_lambda)) {
-      stop(
-        "CV failed for outcome model in split ", m, ". ",
-        "Possible fixes:\n",
-        "  1. Check data quality (enough control units? variation in Y?)\n",
-        "  2. Try different lambda_grid in cv_regularization()\n",
-        "  3. Increase K in cv_regularization() for more stable CV\n",
-        "  4. Check for numerical issues (NaN, Inf in X or Y)\n",
-        "  5. For continuous outcomes, check for extreme values",
-        call. = FALSE
-      )
-    }
-
-    model_m0 <- cv_m0$model
-    structures_m0[[m]] <- list(
-      structure = optimaltrees::extract_tree_structure(model_m0),
-      discretization_metadata = model_m0@discretization_metadata
-    )
-
-    if (verbose && m %% max(1, M %/% 10) == 0) {
-      cat(sprintf("  Extracted structures from %d/%d splits\n", m, M))
-    }
-  }
-
-  # Select modal structures, excluding stumps (min_leaves = 2): if stumps appear
-  # in some splits they should not win the modal vote over non-trivial structures,
-  # since constant nuisance predictions bias DML estimates.
-  s_star_e <- select_structure_modal(structures_e, min_leaves = 2L)
-  s_star_m0 <- select_structure_modal(structures_m0, min_leaves = 2L)
+  modal <- discover_modal_structures(X, A, Y, M = M, K = K, seed_base = seed_base,
+                                     outcome_type = outcome_type, verbose = verbose)
+  s_star_e <- modal$e
+  s_star_m0 <- modal$m0
 
   if (verbose) {
     cat(sprintf("  Propensity: modal structure appears in %.1f%% of splits\n",
@@ -312,19 +300,12 @@ estimate_att_msplit <- function(X, A, Y,
   # ============================================================
   if (verbose) cat("Stage 3: Computing ATT...\n")
 
-  eta_bar <- list(e = e_bar, m0 = m0_bar, m1 = NULL)
-  pi_hat <- mean(A)
-
-  # EIF score
-  score <- psi_att(Y, A, theta = 0, eta = eta_bar, pi_hat = pi_hat)
-  theta_msplit <- sum(score) / sum(A / pi_hat)
-
-  # Standard error: SE(θ̂) = sqrt(Var[ψ] / n) = sqrt(E[(ψ - E[ψ])²] / n)
-  score_centered <- score - mean(score)
-  sigma_msplit <- sqrt(mean(score_centered^2) / n)
-
-  # Confidence interval (sigma_msplit IS the SE; do not divide by sqrt(n) again)
-  ci_95 <- att_ci(theta_msplit, sigma_msplit)
+  # Shared EIF solve over the averaged nuisances (see eif_att_solve in inference.R).
+  .att <- eif_att_solve(Y, A, e_bar, m0_bar, n)
+  theta_msplit <- .att$theta
+  score <- .att$score_values
+  sigma_msplit <- .att$sigma
+  ci_95 <- .att$ci_95
 
   # ============================================================
   # Diagnostics

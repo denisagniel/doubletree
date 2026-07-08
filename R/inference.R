@@ -41,3 +41,43 @@ att_ci <- function(theta, sigma, level = 0.95) {
   half <- z * sigma
   c(theta - half, theta + half)
 }
+
+#' Solve the ATT EIF for point estimate, SE, and 95% CI
+#'
+#' @description
+#' Given plugged-in nuisance predictions \code{e_hat = e(X)} and
+#' \code{m0_hat = m0(X)}, solve the efficient-influence-function estimating
+#' equation for the ATT point estimate and return its standard error and Wald
+#' interval. This is the single shared solver used by every \code{estimate_att*}
+#' entry point (previously copy-pasted at each site, with minor drift between
+#' \code{att_se()} and inline centered-variance forms).
+#'
+#' The estimate uses the closed form \eqn{\hat\theta = \sum_i \psi_i(0) / \sum_i (A_i/\hat\pi)},
+#' where \eqn{\psi} is \code{\link{psi_att}}; because \eqn{\sum_i \psi_i(\hat\theta) = 0}
+#' by construction, the centered and uncentered score variances coincide, so
+#' \code{\link{att_se}} (uncentered, with an estimating-equation check) is used.
+#'
+#' @param Y Numeric outcome vector.
+#' @param A Binary treatment vector (0/1).
+#' @param e_hat Numeric vector of propensity predictions \eqn{e(X)}.
+#' @param m0_hat Numeric vector of control-outcome predictions \eqn{m_0(X)}.
+#' @param n Optional integer denominator for the SE (default \code{length(Y)}).
+#' @return A list with \code{theta}, \code{sigma}, \code{ci_95},
+#'   \code{score_values} (the score at \eqn{\hat\theta}), and \code{pi_hat}.
+#' @seealso \code{\link{att_se}}, \code{\link{att_ci}}, \code{\link{psi_att}}
+#' @keywords internal
+eif_att_solve <- function(Y, A, e_hat, m0_hat, n = length(Y)) {
+  pi_hat <- mean(A)
+  eta <- list(e = e_hat, m0 = m0_hat, m1 = NULL)
+  score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
+  theta <- sum(score_at_zero) / sum(A / pi_hat)
+  score_values <- psi_att(Y, A, theta, eta, pi_hat)
+  sigma <- att_se(score_values, n)
+  list(
+    theta = theta,
+    sigma = sigma,
+    ci_95 = att_ci(theta, sigma, level = 0.95),
+    score_values = score_values,
+    pi_hat = pi_hat
+  )
+}

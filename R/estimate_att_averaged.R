@@ -285,20 +285,12 @@ estimate_att_doubletree_averaged <- function(
   # Compute ATT via EIF
   if (verbose) message("\n--- Computing ATT estimate ---")
 
-  pi_hat <- mean(A)
-  eta <- list(e = e_hat, m0 = m0_hat, m1 = NULL)
-
-  # Solve for theta
-  score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
-  sum_a_over_pi <- sum(A / pi_hat)
-  theta_hat <- sum(score_at_zero) / sum_a_over_pi
-
-  # Compute standard error
-  score_values <- psi_att(Y, A, theta_hat, eta, pi_hat)
-  sigma <- sqrt(mean((score_values - mean(score_values))^2) / n)
-
-  # Confidence interval
-  ci_95 <- att_ci(theta_hat, sigma)
+  # Shared EIF solve (see eif_att_solve in inference.R).
+  .att <- eif_att_solve(Y, A, e_hat, m0_hat, n)
+  theta_hat <- .att$theta
+  score_values <- .att$score_values
+  sigma <- .att$sigma
+  ci_95 <- .att$ci_95
 
   if (verbose) {
     message(sprintf("\n=== Results ==="))
@@ -397,84 +389,14 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   }
 
   # ============================================================
-  # Stage 1: Structure Selection (same as approach 5)
+  # Stage 1: Structure Selection (shared with estimate_att_msplit)
   # ============================================================
   if (verbose) cat("Stage 1: Selecting modal structures...\n")
 
-  structures_e <- vector("list", M)
-  structures_m0 <- vector("list", M)
-
-  for (m in seq_len(M)) {
-    seed_m <- if (!is.null(seed_base)) seed_base + m else NULL
-    folds_m <- create_folds(n, K, strata = A, seed = seed_m)
-
-    # Use fold 1's training set for structure discovery
-    train_idx <- which(folds_m != 1)
-    X_train <- X[train_idx, , drop = FALSE]
-    A_train <- A[train_idx]
-    Y_train <- Y[train_idx]
-
-    # Cap lambda at 15× theory value to prevent stump-producing regularization.
-    # Without this cap, cv_regularization_adaptive can select lambda large enough
-    # that all splits are pruned, yielding constant (stump) predictions which bias DML.
-    n_train <- length(train_idx)
-    max_lambda_cap <- (log(n_train) / n_train) * 15
-
-    # Fit propensity with adaptive CV
-    cv_e <- optimaltrees::cv_regularization_adaptive(
-      X = X_train, y = A_train, loss_function = "log_loss",
-      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
-      max_lambda = max_lambda_cap,
-      discretize_bins = "adaptive",
-      discretize_method = "quantiles",
-      max_depth = 4L   # match Rashomon path; bound GOSDT search on continuous X
-    )
-
-    if (is.na(cv_e$best_lambda)) {
-      stop("CV failed for propensity in split ", m, call. = FALSE)
-    }
-
-    model_e <- cv_e$model
-    structures_e[[m]] <- list(
-      structure = optimaltrees::extract_tree_structure(model_e),
-      discretization_metadata = model_e@discretization_metadata
-    )
-
-    # Fit outcome on controls with CV
-    control_idx <- which(A_train == 0)
-    X_control <- X_train[control_idx, , drop = FALSE]
-    Y_control <- Y_train[control_idx]
-
-    outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
-
-    cv_m0 <- optimaltrees::cv_regularization_adaptive(
-      X = X_control, y = Y_control, loss_function = outcome_loss,
-      K = 5, max_iterations = 10, refit = TRUE, verbose = FALSE,
-      max_lambda = max_lambda_cap,
-      discretize_bins = "adaptive",
-      discretize_method = "quantiles",
-      max_depth = 4L   # match Rashomon path; bound GOSDT search on continuous X
-    )
-
-    if (is.na(cv_m0$best_lambda)) {
-      stop("CV failed for outcome in split ", m, call. = FALSE)
-    }
-
-    model_m0 <- cv_m0$model
-    structures_m0[[m]] <- list(
-      structure = optimaltrees::extract_tree_structure(model_m0),
-      discretization_metadata = model_m0@discretization_metadata
-    )
-
-    if (verbose && m %% max(1, M %/% 10) == 0) {
-      cat(sprintf("  Structure discovery: %d/%d splits\n", m, M))
-    }
-  }
-
-  # Select modal structures, excluding stumps (min_leaves = 2): prevents
-  # degenerate constant-prediction modal structures from biasing DML estimates.
-  s_star_e <- select_structure_modal(structures_e, min_leaves = 2L)
-  s_star_m0 <- select_structure_modal(structures_m0, min_leaves = 2L)
+  modal <- discover_modal_structures(X, A, Y, M = M, K = K, seed_base = seed_base,
+                                     outcome_type = outcome_type, verbose = verbose)
+  s_star_e <- modal$e
+  s_star_m0 <- modal$m0
 
   if (verbose) {
     cat(sprintf("  Modal propensity: %.1f%% agreement\n", s_star_e$frequency * 100))
@@ -603,18 +525,12 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   e_hat  <- pmax(pmin(predict_from_tree(e_averaged,  X_for_e_pred),  0.99), 0.01)
   m0_hat <- pmax(pmin(predict_from_tree(m0_averaged, X_for_m0_pred), 0.99), 0.01)
 
-  # Compute ATT
-  pi_hat <- mean(A)
-  eta <- list(e = e_hat, m0 = m0_hat, m1 = NULL)
-  score <- psi_att(Y, A, theta = 0, eta = eta, pi_hat = pi_hat)
-  theta_hat <- sum(score) / sum(A / pi_hat)
-
-  # Standard error
-  score_centered <- score - mean(score)
-  sigma <- sqrt(mean(score_centered^2) / n)
-
-  # CI
-  ci_95 <- att_ci(theta_hat, sigma)
+  # Compute ATT via the shared EIF solve (see eif_att_solve in inference.R).
+  .att <- eif_att_solve(Y, A, e_hat, m0_hat, n)
+  theta_hat <- .att$theta
+  score <- .att$score_values
+  sigma <- .att$sigma
+  ci_95 <- .att$ci_95
 
   # ============================================================
   # Return
