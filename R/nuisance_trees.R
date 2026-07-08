@@ -297,6 +297,55 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 #' @param ... Additional arguments passed to cross_fitted_rashomon.
 #' @return cross_fitted_rashomon object or NULL if fallback needed.
 #' @noRd
+#' Escalate the Rashomon tolerance until the cross-fold intersection is non-empty
+#'
+#' Keeps lambda FIXED (at the CV-selected value) and widens only the Rashomon bound
+#' multiplier epsilon_n = c * (log(n)/n), stepping c upward until the K-fold
+#' intersection is non-empty (or c_max is reached). Motivation: the margin theorem
+#' guarantees tau* is in the intersection with probability -> 1, so an empty
+#' intersection is a finite-sample artifact; widening epsilon_n resolves it while
+#' keeping epsilon_n = O(log(n)/n) = o(n^{-1/2}) for any fixed c (asymptotically
+#' inference-valid). We do NOT cap c to enforce finite-sample validity and we do NOT
+#' silently fall back to fold-specific trees; instead we RETURN the selected c so
+#' downstream analysis can evaluate empirically whether large c degrades coverage.
+#'
+#' @return List with `fit` (CFRashomon or NULL if empty even at c_max) and `c`
+#'   (the multiplier that first yielded a non-empty intersection, or NA if none).
+#' @keywords internal
+# Default escalation grid for the Rashomon tolerance multiplier c (epsilon_n =
+# c*log(n)/n): geometric from the theory value c=1 up to c=1000.
+.RASHOMON_C_GRID <- c(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1000)
+
+escalate_rashomon_intersection <- function(X, y, K, loss_function, regularization,
+                                            fold_indices, max_leaves, verbose,
+                                            nuisance_name, max_depth = 4L,
+                                            c_grid = .RASHOMON_C_GRID,
+                                            ...) {
+  n <- nrow(X)
+  eps_base <- optimaltrees::select_epsilon_n(n)   # = log(n)/n
+  for (c_val in c_grid) {
+    fit <- safe_rashomon_fit(
+      X, y, K, loss_function, regularization,
+      rashomon_bound_multiplier = c_val * eps_base, rashomon_bound_adder = 0,
+      max_leaves = max_leaves, fold_indices = fold_indices,
+      auto_tune_intersecting = FALSE,   # we escalate c ourselves; lambda stays fixed
+      verbose = verbose, nuisance_name = nuisance_name, max_depth = max_depth, ...
+    )
+    if (!is.null(fit)) {
+      if (verbose && c_val > 1) {
+        message("  ", nuisance_name, ": intersection non-empty at c = ", c_val,
+                " (epsilon_n = ", signif(c_val * eps_base, 4), ")")
+      }
+      return(list(fit = fit, c = c_val))
+    }
+  }
+  if (verbose) {
+    message("  ", nuisance_name, ": intersection EMPTY even at c = ",
+            max(c_grid), " (epsilon_n = ", signif(max(c_grid) * eps_base, 4), ")")
+  }
+  list(fit = NULL, c = NA_real_)
+}
+
 safe_rashomon_fit <- function(X, y, K, loss_function, regularization,
                               rashomon_bound_multiplier, rashomon_bound_adder,
                               max_leaves, fold_indices, auto_tune_intersecting,
@@ -434,12 +483,26 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     n0 <- length(idx0)
   }
 
-  cf_e <- safe_rashomon_fit(
-    X, A, K, "log_loss", reg_e,
-    rashomon_bound_multiplier, rashomon_bound_adder,
-    max_leaves, fold_indices, auto_tune_intersecting,
-    verbose, "propensity", max_depth = max_depth, ...
+  # Escalate the Rashomon tolerance (widen epsilon_n, lambda fixed) until each
+  # nuisance's cross-fold intersection is non-empty; record the selected multiplier
+  # c (see escalate_rashomon_intersection). This replaces the previous single-shot
+  # fit + silent fold-specific fallback: an empty intersection is a finite-sample
+  # artifact (margin theorem), so we widen c rather than abandon the single tree.
+  #
+  # An EXPLICIT rashomon_bound_multiplier is honored as a fixed single tolerance (no
+  # escalation) so the documented single-tolerance API is preserved. Escalation is
+  # the behavior only when the multiplier is NULL (the theory-default / study mode),
+  # where c steps over the default grid starting at the theory value log(n)/n.
+  n_full <- nrow(X)
+  c_grid_e <- if (is.null(rashomon_bound_multiplier)) .RASHOMON_C_GRID else
+    rashomon_bound_multiplier / optimaltrees::select_epsilon_n(n_full)
+
+  esc_e <- escalate_rashomon_intersection(
+    X, A, K, "log_loss", reg_e, fold_indices, max_leaves,
+    verbose, "propensity", max_depth = max_depth, c_grid = c_grid_e, ...
   )
+  cf_e <- esc_e$fit
+  rashomon_c_e <- esc_e$c
 
   idx0 <- which(A == 0)
   n0 <- length(idx0)
@@ -449,12 +512,15 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
   Y0 <- Y[idx0]
   fold0 <- fold_indices[idx0]
 
-  cf_m0 <- safe_rashomon_fit(
-    X0, Y0, K, loss_outcome, reg_m0,
-    rashomon_bound_multiplier, rashomon_bound_adder,
-    max_leaves, fold0, auto_tune_intersecting,
-    verbose, "control outcome", max_depth = max_depth, ...
+  c_grid_m0 <- if (is.null(rashomon_bound_multiplier)) .RASHOMON_C_GRID else
+    rashomon_bound_multiplier / optimaltrees::select_epsilon_n(n0)
+
+  esc_m0 <- escalate_rashomon_intersection(
+    X0, Y0, K, loss_outcome, reg_m0, fold0, max_leaves,
+    verbose, "control outcome", max_depth = max_depth, c_grid = c_grid_m0, ...
   )
+  cf_m0 <- esc_m0$fit
+  rashomon_c_m0 <- esc_m0$c
 
   # Efficient fallback: only refit failed models
   fallback_fits <- NULL
@@ -481,7 +547,11 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     cf_e = cf_e,
     cf_m0 = cf_m0,
     fallback_fits = fallback_fits,
-    outcome_type = outcome_type
+    outcome_type = outcome_type,
+    # Rashomon tolerance multipliers selected by escalation (epsilon_n = c*log(n)/n).
+    # NA if the intersection was empty even at c_max (fell back to fold-specific).
+    rashomon_c_e = rashomon_c_e,
+    rashomon_c_m0 = rashomon_c_m0
   )
 }
 

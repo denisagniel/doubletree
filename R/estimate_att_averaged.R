@@ -803,6 +803,13 @@ estimate_att_doubletree_averaged <- function(
     message(sprintf("95%% CI: [%.4f, %.4f]", ci_95[1], ci_95[2]))
   }
 
+  # Tolerance multipliers selected by escalation (epsilon_n = c*log(n)/n per nuisance).
+  rashomon_c_e  <- if (is.null(nuisance_fits$rashomon_c_e))  NA_real_ else nuisance_fits$rashomon_c_e
+  rashomon_c_m0 <- if (is.null(nuisance_fits$rashomon_c_m0)) NA_real_ else nuisance_fits$rashomon_c_m0
+  c_vals <- c(rashomon_c_e, rashomon_c_m0)
+  epsilon_n_used <- if (all(is.na(c_vals))) rashomon_bound_multiplier else
+    max(c_vals, na.rm = TRUE) * (log(n) / n)
+
   # Return structure
   structure(list(
     theta = theta_hat,
@@ -818,7 +825,9 @@ estimate_att_doubletree_averaged <- function(
     n_treated = sum(A),
     outcome_type = outcome_type,
     converged = TRUE,
-    epsilon_n = rashomon_bound_multiplier,
+    epsilon_n = epsilon_n_used,
+    rashomon_c_e = rashomon_c_e,
+    rashomon_c_m0 = rashomon_c_m0,
     n_trees_averaged = K
   ), class = c("doubletree_att_averaged", "list"))
 }

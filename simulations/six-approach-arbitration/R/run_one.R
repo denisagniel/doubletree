@@ -64,6 +64,11 @@ run_one <- function(unit_row) {
     delta_over_se         = est$delta_over_se,
     covered_crossfit      = covered_crossfit,
     intersection_nonempty = as.integer(est$intersection_nonempty),
+    # Rashomon tolerance multiplier selected by escalation per nuisance
+    # (epsilon_n = c*log(n)/n; c=1 = theory value, larger = intersection had to be
+    # widened). NA for non-Rashomon methods. Enables the inference-vs-c analysis.
+    rashomon_c_e          = est$rashomon_c_e,
+    rashomon_c_m0         = est$rashomon_c_m0,
     stringsAsFactors = FALSE
   )
 }

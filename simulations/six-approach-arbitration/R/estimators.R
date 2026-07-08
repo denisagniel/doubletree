@@ -22,10 +22,15 @@ SIM_M        <- 10L   # modal splits (msplit approaches)
 SIM_K_MSPLIT <- 5L    # folds per split (msplit approaches)
 
 # Contract skeleton: fill what an approach provides, NA otherwise.
+# rashomon_c_e / rashomon_c_m0: the Rashomon tolerance multiplier selected by
+# escalation for each nuisance (epsilon_n = c * log(n)/n). c=1 is the theory value;
+# larger c means the theory-tolerance intersection was empty and had to be widened.
+# Recorded so /data-analysis can evaluate whether large c degrades coverage.
 .result <- function(estimate, std_error, converged,
                     theta_crossfit = NA_real_, se_crossfit = NA_real_,
                     delta = NA_real_, delta_over_se = NA_real_,
-                    intersection_nonempty = NA) {
+                    intersection_nonempty = NA,
+                    rashomon_c_e = NA_real_, rashomon_c_m0 = NA_real_) {
   z <- stats::qnorm(0.975)
   list(
     estimate  = estimate,
@@ -37,7 +42,9 @@ SIM_K_MSPLIT <- 5L    # folds per split (msplit approaches)
     se_crossfit    = se_crossfit,
     delta          = delta,
     delta_over_se  = delta_over_se,
-    intersection_nonempty = intersection_nonempty
+    intersection_nonempty = intersection_nonempty,
+    rashomon_c_e   = rashomon_c_e,
+    rashomon_c_m0  = rashomon_c_m0
   )
 }
 
@@ -94,7 +101,8 @@ estimate <- function(data, config) {
     rashomon_bound_multiplier = NULL, auto_tune_intersecting = FALSE,
     verbose = FALSE)
   .result(r$theta, r$sigma, converged = isTRUE(r$converged),
-          intersection_nonempty = isTRUE(r$converged))
+          intersection_nonempty = isTRUE(r$converged),
+          rashomon_c_e = r$rashomon_c_e, rashomon_c_m0 = r$rashomon_c_m0)
 }
 
 # --- 4. Doubletree-averaged: intersection structure, averaged leaves, 1 tree --
@@ -108,7 +116,8 @@ estimate <- function(data, config) {
   if (is.null(r)) return(.result(NA_real_, NA_real_, converged = FALSE,
                                  intersection_nonempty = FALSE))
   .result(r$theta, r$sigma, converged = isTRUE(r$converged),
-          intersection_nonempty = TRUE)
+          intersection_nonempty = TRUE,
+          rashomon_c_e = r$rashomon_c_e, rashomon_c_m0 = r$rashomon_c_m0)
 }
 
 # --- 5. M-split: modal structure, cross-fit predictions (twin of 6) ----------
@@ -147,7 +156,8 @@ estimate <- function(data, config) {
   .result(r$theta_single, r$sigma_single, converged = isTRUE(r$converged),
           theta_crossfit = r$theta_crossfit, se_crossfit = r$sigma_crossfit,
           delta = r$delta, delta_over_se = r$delta_over_se,
-          intersection_nonempty = TRUE)
+          intersection_nonempty = TRUE,
+          rashomon_c_e = r$rashomon_c_e, rashomon_c_m0 = r$rashomon_c_m0)
 }
 
 # --- shared EIF ATT (for the full-sample baseline) ---------------------------

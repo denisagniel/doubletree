@@ -181,6 +181,13 @@ estimate_att_single_tree <- function(
     }
   }
 
+  # Tolerance multipliers selected by escalation (epsilon_n = c*log(n)/n per nuisance).
+  rashomon_c_e  <- if (is.null(nuisance_fits$rashomon_c_e))  NA_real_ else nuisance_fits$rashomon_c_e
+  rashomon_c_m0 <- if (is.null(nuisance_fits$rashomon_c_m0)) NA_real_ else nuisance_fits$rashomon_c_m0
+  c_vals <- c(rashomon_c_e, rashomon_c_m0)
+  epsilon_n_used <- if (all(is.na(c_vals))) rashomon_bound_multiplier else
+    max(c_vals, na.rm = TRUE) * (log(n) / n)
+
   chosen <- if (inference == "single") att_single else att_cf
   list(
     theta = chosen$theta, sigma = chosen$sigma, ci_95 = chosen$ci_95,
@@ -191,7 +198,9 @@ estimate_att_single_tree <- function(
     delta = delta, delta_over_se = delta_over_se,
     tree_e = tree_e, tree_m0 = tree_m0,
     converged = TRUE,
-    epsilon_n = rashomon_bound_multiplier,
+    epsilon_n = epsilon_n_used,
+    rashomon_c_e = rashomon_c_e,
+    rashomon_c_m0 = rashomon_c_m0,
     inference = inference,
     n = n, K = K
   )

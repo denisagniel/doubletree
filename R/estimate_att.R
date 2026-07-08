@@ -312,11 +312,18 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
                  !is.null(nuisance_fits$cf_m0) &&
                  nuisance_fits$cf_e@n_intersecting > 0 &&
                  nuisance_fits$cf_m0@n_intersecting > 0
-    epsilon_n <- rashomon_bound_multiplier
+    # Tolerance multipliers selected by escalation (epsilon_n = c*log(n)/n per nuisance).
+    rashomon_c_e  <- if (is.null(nuisance_fits$rashomon_c_e))  NA_real_ else nuisance_fits$rashomon_c_e
+    rashomon_c_m0 <- if (is.null(nuisance_fits$rashomon_c_m0)) NA_real_ else nuisance_fits$rashomon_c_m0
+    # Report the actual escalated tolerance (max over nuisances), not the input NULL.
+    c_vals <- c(rashomon_c_e, rashomon_c_m0)
+    epsilon_n <- if (all(is.na(c_vals))) NA_real_ else max(c_vals, na.rm = TRUE) * (log(n) / n)
   } else {
     # Non-rashomon always converges (uses fold-specific trees)
     converged <- TRUE
     epsilon_n <- NA_real_
+    rashomon_c_e <- NA_real_
+    rashomon_c_m0 <- NA_real_
   }
 
   list(
@@ -329,6 +336,8 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     n = n,
     K = K,
     converged = converged,
-    epsilon_n = epsilon_n
+    epsilon_n = epsilon_n,
+    rashomon_c_e = rashomon_c_e,
+    rashomon_c_m0 = rashomon_c_m0
   )
 }
