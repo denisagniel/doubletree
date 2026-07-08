@@ -28,11 +28,23 @@ generate_data <- function(config) {
   )
 }
 
+# PROPENSITY SIGNAL STRENGTHENED (2026-07-08): the original propensity coefficients
+# (~0.2-0.3) were too weak for the tree nuisance estimators to recover propensity
+# STRUCTURE at n=500 -- cross-validated log-loss correctly preferred a stump, so the
+# structure-selection arbitration was comparing degenerate (near-constant) propensity
+# fits (verified: /tmp/claude/lambda_diagnostic.R). We scale the propensity linear +
+# interaction coefficients ~2.5-3x (KEEPING the interaction/nonlinear STRUCTURE) so a
+# data-driven (CV) selector recovers real propensity structure while overlap stays
+# safe (e_true away from 0/1). This does NOT change the estimand: true ATT = 0.15 is
+# determined entirely by the outcome model (Y1 - Y0 = 0.15 by construction), which is
+# unchanged. Verified per DGP (empirical ATT, overlap, non-stump CV) in
+# dev-scripts/verify_dgp.R. Outcome models unchanged.
+
 # --- simple: linear propensity (x1,x2) + linear outcome (x1,x3), binary X ----
 .dgp_simple <- function(n) {
   X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5),
                   x3 = rbinom(n, 1, 0.5))
-  e_true <- expit(-0.5 + 0.3 * X$x1 + 0.3 * X$x2)
+  e_true <- expit(-0.7 + 1.0 * X$x1 + 0.8 * X$x2)   # strengthened (was -0.5,0.3,0.3)
   A <- rbinom(n, 1, e_true)
   mu0 <- 0.2 + 0.15 * X$x1 + 0.15 * X$x3
   Y0 <- rbinom(n, 1, mu0)
@@ -44,7 +56,8 @@ generate_data <- function(config) {
 .dgp_moderate <- function(n) {
   X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5),
                   x3 = rbinom(n, 1, 0.5), x4 = rbinom(n, 1, 0.5))
-  e_true <- expit(-0.5 + 0.3 * X$x1 + 0.2 * X$x2 + 0.3 * X$x1 * X$x2)
+  e_true <- expit(-0.7 + 0.9 * X$x1 + 0.7 * X$x2 +   # strengthened (was -0.5,0.3,0.2,0.3)
+                    0.9 * X$x1 * X$x2)
   A <- rbinom(n, 1, e_true)
   mu0 <- 0.2 + 0.2 * X$x3 + 0.15 * X$x4 + 0.2 * X$x3 * X$x4
   Y0 <- rbinom(n, 1, mu0)
@@ -57,8 +70,8 @@ generate_data <- function(config) {
   X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5),
                   x3 = rbinom(n, 1, 0.5), x4 = rbinom(n, 1, 0.5),
                   x5 = rbinom(n, 1, 0.5))
-  e_true <- expit(-0.5 + 0.2 * (X$x1 + X$x2 + X$x3) +
-                    0.3 * X$x1 * X$x2 + 0.2 * X$x2 * X$x3)
+  e_true <- expit(-0.9 + 0.6 * (X$x1 + X$x2 + X$x3) +   # strengthened (was -0.5,0.2,0.3,0.2)
+                    0.8 * X$x1 * X$x2 + 0.6 * X$x2 * X$x3)
   A <- rbinom(n, 1, e_true)
   # Intercept 0.05 keeps max(mu0) = 0.85 so pmin(mu0 + 0.15, 1) never clips.
   mu0 <- 0.05 + 0.15 * (X$x3 + X$x4 + X$x5) +
@@ -72,8 +85,8 @@ generate_data <- function(config) {
 .dgp_continuous <- function(n) {
   X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5),
                   x3 = runif(n, -1, 1), x4 = rnorm(n, 0, 1))
-  e_true <- expit(-0.5 + 0.3 * X$x1 + 0.4 * X$x3 + 0.2 * X$x4 +
-                    0.2 * X$x1 * X$x3)
+  e_true <- expit(-0.5 + 0.8 * X$x1 + 1.0 * X$x3 + 0.4 * X$x4 +   # strengthened (was 0.3,0.4,0.2,0.2)
+                    0.5 * X$x1 * X$x3)
   A <- rbinom(n, 1, e_true)
   mu0 <- 0.2 + 0.15 * X$x2 + 0.2 * X$x3 + 0.15 * (X$x4^2 / 2) +
     0.1 * X$x2 * X$x3
