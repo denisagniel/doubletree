@@ -139,7 +139,7 @@ estimate_att_single_tree <- function(
   struct_e <- extract_k_trees_from_rashomon(cf_e)[[1]]
   struct_m0 <- extract_k_trees_from_rashomon(cf_m0)[[1]]
 
-  apply_disc <- get("apply_discretization", envir = asNamespace("optimaltrees"))
+  apply_disc <- optimaltrees::apply_discretization
 
   # Propensity: refit on all n. Discretize X with the propensity's metadata.
   Xb_e <- if (!is.null(cf_e@disc_metadata)) apply_disc(X, cf_e@disc_metadata) else X
@@ -157,9 +157,9 @@ estimate_att_single_tree <- function(
 
   # Predict all n with the single trees. predict_from_tree returns the leaf
   # prediction directly (P(Y=1|X) for binary, leaf mean for continuous).
-  e_single <- predict_from_tree(tree_e, Xb_e)
+  e_single <- optimaltrees::predict_averaged_tree(tree_e, Xb_e)
   e_single <- pmin(pmax(e_single, .PROPENSITY_LOWER_BOUND), .PROPENSITY_UPPER_BOUND)
-  m0_single <- predict_from_tree(tree_m0, Xb_m0_all)
+  m0_single <- optimaltrees::predict_averaged_tree(tree_m0, Xb_m0_all)
 
   att_single <- .att_from_eta(Y, A, e_single, m0_single, n)
 

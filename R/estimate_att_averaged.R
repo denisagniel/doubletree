@@ -93,7 +93,7 @@ extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
 #'   \item Run Rashomon intersection via \code{fit_nuisances_rashomon()} for both e and m0
 #'   \item Check intersection succeeded (n_intersecting > 0) for both nuisances
 #'   \item Extract K trees with common structure from each nuisance
-#'   \item Average leaf values across K trees using \code{average_trees()}
+#'   \item Average leaf values across K trees using \code{optimaltrees::average_trees()}
 #'   \item Predict for ALL observations with averaged trees (no cross-fitting)
 #'   \item Compute ATT via EIF
 #' }
@@ -241,23 +241,23 @@ estimate_att_doubletree_averaged <- function(
   # refit_structure_on_data + average_trees move into optimaltrees and refit_structure_on_data
   # can gain optional per-leaf counts. See quality_reports/plans/2026-07-08_full-package-audit.md.
   uniform_weights_e <- lapply(e_trees, function(tree) {
-    leaf_values <- extract_leaf_values(tree)
+    leaf_values <- optimaltrees::extract_leaf_values(tree)
     setNames(rep(1L, length(leaf_values)), names(leaf_values))
   })
 
   uniform_weights_m0 <- lapply(m0_trees, function(tree) {
-    leaf_values <- extract_leaf_values(tree)
+    leaf_values <- optimaltrees::extract_leaf_values(tree)
     setNames(rep(1L, length(leaf_values)), names(leaf_values))
   })
 
   e_averaged <- tryCatch({
-    average_trees(e_trees, uniform_weights_e)
+    optimaltrees::average_trees(e_trees, uniform_weights_e)
   }, error = function(e) {
     stop("Failed to average propensity trees: ", e$message, call. = FALSE)
   })
 
   m0_averaged <- tryCatch({
-    average_trees(m0_trees, uniform_weights_m0)
+    optimaltrees::average_trees(m0_trees, uniform_weights_m0)
   }, error = function(e) {
     stop("Failed to average outcome trees: ", e$message, call. = FALSE)
   })
@@ -267,7 +267,7 @@ estimate_att_doubletree_averaged <- function(
 
   # Trees were built on discretized binary features (X_binary).
   # Must apply the same discretization to X before prediction.
-  apply_disc <- get("apply_discretization", envir = asNamespace("optimaltrees"))
+  apply_disc <- optimaltrees::apply_discretization
   X_for_e_pred <- if (!is.null(cf_e@disc_metadata)) {
     apply_disc(X, cf_e@disc_metadata)
   } else {
@@ -279,8 +279,8 @@ estimate_att_doubletree_averaged <- function(
     X
   }
 
-  e_hat <- predict_from_tree(e_averaged, X_for_e_pred)
-  m0_hat <- predict_from_tree(m0_averaged, X_for_m0_pred)
+  e_hat <- optimaltrees::predict_averaged_tree(e_averaged, X_for_e_pred)
+  m0_hat <- optimaltrees::predict_averaged_tree(m0_averaged, X_for_m0_pred)
 
   # Compute ATT via EIF
   if (verbose) message("\n--- Computing ATT estimate ---")
@@ -499,8 +499,8 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   # ============================================================
   if (verbose) cat("Stage 3: Averaging leaf values (weighted by sample size)...\n")
 
-  e_averaged <- average_trees(trees_e, leaf_counts_e)
-  m0_averaged <- average_trees(trees_m0, leaf_counts_m0)
+  e_averaged <- optimaltrees::average_trees(trees_e, leaf_counts_e)
+  m0_averaged <- optimaltrees::average_trees(trees_m0, leaf_counts_m0)
 
   # ============================================================
   # Stage 4: Predict and Compute ATT
@@ -510,7 +510,7 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   # Predict for ALL observations using the averaged tree.
   # Trees use discretized binary features; apply_discretization converts X to
   # the same binary feature space before calling predict_from_tree.
-  apply_disc <- get("apply_discretization", envir = asNamespace("optimaltrees"))
+  apply_disc <- optimaltrees::apply_discretization
   X_for_e_pred <- if (!is.null(s_star_e$discretization_metadata)) {
     apply_disc(X, s_star_e$discretization_metadata)
   } else {
@@ -522,8 +522,8 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     X
   }
 
-  e_hat  <- pmax(pmin(predict_from_tree(e_averaged,  X_for_e_pred),  0.99), 0.01)
-  m0_hat <- pmax(pmin(predict_from_tree(m0_averaged, X_for_m0_pred), 0.99), 0.01)
+  e_hat  <- pmax(pmin(optimaltrees::predict_averaged_tree(e_averaged,  X_for_e_pred),  0.99), 0.01)
+  m0_hat <- pmax(pmin(optimaltrees::predict_averaged_tree(m0_averaged, X_for_m0_pred), 0.99), 0.01)
 
   # Compute ATT via the shared EIF solve (see eif_att_solve in inference.R).
   .att <- eif_att_solve(Y, A, e_hat, m0_hat, n)

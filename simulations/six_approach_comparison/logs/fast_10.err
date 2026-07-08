@@ -1,0 +1,23 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+Warning messages:
+1: In compute_att(Y, A, e_hat, m0_hat) :
+  Clipping 52 (10.4%) outcome probabilities to [0.01, 0.99]
+2: In compute_se(Y, A, e_hat, m0_hat, theta_hat) :
+  Clipping 52 (10.4%) outcome probabilities to [0.01, 0.99] in SE calculation
+3: In compute_att(Y, A, e_hat, m0_hat) :
+  Clipping 58 (11.6%) outcome probabilities to [0.01, 0.99]
+4: In compute_se(Y, A, e_hat, m0_hat, theta_hat) :
+  Clipping 58 (11.6%) outcome probabilities to [0.01, 0.99] in SE calculation
+5: In compute_att(Y, A, e_hat, m0_hat) :
+  Clipping 58 (11.6%) outcome probabilities to [0.01, 0.99]
+6: In compute_se(Y, A, e_hat, m0_hat, theta_hat) :
+  Clipping 58 (11.6%) outcome probabilities to [0.01, 0.99] in SE calculation
+7: In compute_att(Y, A, e_hat, m0_hat) :
+  Clipping 58 (11.6%) outcome probabilities to [0.01, 0.99]
+8: In compute_se(Y, A, e_hat, m0_hat, theta_hat) :
+  Clipping 58 (11.6%) outcome probabilities to [0.01, 0.99] in SE calculation
+9: In compute_att(Y, A, e_hat, m0_hat) :
+  Clipping 60 (12%) outcome probabilities to [0.01, 0.99]
+10: In compute_se(Y, A, e_hat, m0_hat, theta_hat) :
+  Clipping 60 (12%) outcome probabilities to [0.01, 0.99] in SE calculation

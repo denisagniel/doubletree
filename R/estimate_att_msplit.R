@@ -88,8 +88,8 @@ discover_modal_structures <- function(X, A, Y, M, K, seed_base = NULL,
   # Modal structure per nuisance, excluding stumps (min_leaves = 2L): constant
   # nuisance predictions bias DML, so stumps must not win the modal vote.
   list(
-    e = select_structure_modal(structures_e, min_leaves = 2L),
-    m0 = select_structure_modal(structures_m0, min_leaves = 2L)
+    e = optimaltrees::select_structure_modal(structures_e, min_leaves = 2L),
+    m0 = optimaltrees::select_structure_modal(structures_m0, min_leaves = 2L)
   )
 }
 
@@ -323,7 +323,18 @@ estimate_att_msplit <- function(X, A, Y,
     prediction_variance_m0 = apply(predictions_m0, 1, var, na.rm = TRUE),
     mean_prediction_variance_e = mean(apply(predictions_e, 1, var, na.rm = TRUE)),
     mean_prediction_variance_m0 = mean(apply(predictions_m0, 1, var, na.rm = TRUE)),
-    functional_consistency = compute_functional_consistency(predictions_e, predictions_m0, X)
+    # optimaltrees::compute_functional_consistency returns generic max_diff_a/max_diff_b
+    # (a = propensity, b = control outcome); relabel to e/m0 for downstream consumers.
+    functional_consistency = local({
+      fc <- optimaltrees::compute_functional_consistency(predictions_e, predictions_m0, X)
+      list(
+        max_diff_e = fc$max_diff_a,
+        max_diff_m0 = fc$max_diff_b,
+        n_unique_patterns = fc$n_unique_patterns,
+        n_groups_with_ties = fc$n_groups_with_ties,
+        avg_group_size = fc$avg_group_size
+      )
+    })
   )
 
   # ============================================================

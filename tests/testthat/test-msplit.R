@@ -1,50 +1,9 @@
 # Tests for M-Split Doubletree Estimation
 
-test_that("select_structure_modal works", {
-  skip_if_not_installed("optimaltrees")
-
-  set.seed(123)
-  n <- 100
-  X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5))
-  y <- rbinom(n, 1, 0.5)
-
-  # Create M structures (some will be identical if seeds are repeated)
-  M <- 5
-  structures <- vector("list", M)
-  for (m in seq_len(M)) {
-    # Use same seed for some to create duplicates
-    set.seed(100 + (m %% 3))
-    model <- optimaltrees::fit_tree(X, y, loss_function = "log_loss",
-                                      regularization = 0.1,
-                                      store_training_data = TRUE)
-    structures[[m]] <- optimaltrees::extract_tree_structure(model)
-  }
-
-  result <- select_structure_modal(structures)
-
-  expect_type(result, "list")
-  expect_true(S7::S7_inherits(result$structure, optimaltrees::TreeStructure))
-  expect_true(result$frequency > 0 && result$frequency <= 1)
-  expect_type(result$hash, "character")
-  expect_s3_class(result$counts, "table")
-})
-
-test_that("select_structure_modal validates inputs", {
-  expect_error(
-    select_structure_modal(NULL),
-    "structures must be a non-empty list"
-  )
-
-  expect_error(
-    select_structure_modal(list()),
-    "structures must be a non-empty list"
-  )
-
-  expect_error(
-    select_structure_modal(list("not a structure")),
-    "All elements.*must be TreeStructure"
-  )
-})
+# NOTE: select_structure_modal, analyze_structure_diversity, and
+# compute_functional_consistency were relocated to optimaltrees (2026-07-08); their
+# unit tests now live in optimaltrees/tests/testthat/test-structure-selection.R.
+# This file keeps the doubletree-specific estimate_att_msplit / print / summary tests.
 
 test_that("estimate_att_msplit runs end-to-end with small M", {
   skip_if_not_installed("optimaltrees")
@@ -166,65 +125,6 @@ test_that("summary.msplit_att works", {
   expect_output(summary(result), "M-Split Doubletree ATT Estimation Summary")
   expect_output(summary(result), "Point Estimate and Inference")
   expect_output(summary(result), "Stability Diagnostics")
-})
-
-test_that("compute_functional_consistency works", {
-  skip_if_not_installed("optimaltrees")
-
-  set.seed(1617)
-  n <- 50
-  M <- 3
-
-  # Create data with some duplicate rows (tied covariates)
-  X <- data.frame(
-    x1 = rep(c(0, 1), each = 25),
-    x2 = rep(c(0, 1), times = 25)
-  )
-
-  # Create predictions (with some variability)
-  predictions_e <- matrix(runif(n * M), nrow = n, ncol = M)
-  predictions_m0 <- matrix(runif(n * M), nrow = n, ncol = M)
-
-  result <- compute_functional_consistency(predictions_e, predictions_m0, X)
-
-  expect_type(result, "list")
-  expect_type(result$max_diff_e, "double")
-  expect_type(result$max_diff_m0, "double")
-  expect_true(result$max_diff_e >= 0)
-  expect_true(result$max_diff_m0 >= 0)
-  expect_type(result$n_unique_patterns, "integer")
-  expect_type(result$n_groups_with_ties, "integer")
-  expect_true(result$n_unique_patterns > 0)
-})
-
-test_that("analyze_structure_diversity works", {
-  skip_if_not_installed("optimaltrees")
-
-  set.seed(1819)
-  n <- 100
-  X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5))
-  y <- rbinom(n, 1, 0.5)
-
-  # Create M structures
-  M <- 5
-  structures <- vector("list", M)
-  for (m in seq_len(M)) {
-    set.seed(100 + m)
-    model <- optimaltrees::fit_tree(X, y, loss_function = "log_loss",
-                                      regularization = 0.1,
-                                      store_training_data = TRUE)
-    structures[[m]] <- optimaltrees::extract_tree_structure(model)
-  }
-
-  diversity <- analyze_structure_diversity(structures)
-
-  expect_type(diversity, "list")
-  expect_type(diversity$n_unique, "integer")
-  expect_true(diversity$n_unique >= 1 && diversity$n_unique <= M)
-  expect_type(diversity$shannon_entropy, "double")
-  expect_type(diversity$simpson_index, "double")
-  expect_type(diversity$modal_frequency, "double")
-  expect_true(diversity$modal_frequency > 0 && diversity$modal_frequency <= 1)
 })
 
 test_that("estimate_att_msplit validates inputs", {

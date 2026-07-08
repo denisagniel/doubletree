@@ -1,0 +1,110 @@
+# Single-Tree Inference Simulation Studies - File Manifest
+# Created: 2026-04-29
+
+## Purpose
+Determine if single full-sample tree can be used with valid inference through:
+1. Study 1: Testing similarity between full-sample and cross-fitted trees
+2. Study 2: Testing coverage of bias-adjusted confidence intervals
+
+## Directory Structure
+
+single_tree_inference/
+├── README.md                     # Overview, quick start, interpretation guide
+├── SPEC.md -> ../../quality_reports/specs/...  # Full specification (symlink)
+├── MANIFEST.txt                  # This file
+│
+├── code/                         # All source code
+│   ├── dgps.R                    # Data-generating processes (3 DGPs)
+│   ├── estimators.R              # Full-sample and cross-fitted estimators
+│   ├── metrics.R                 # Similarity and coverage metrics
+│   ├── utils.R                   # Plotting and summary helpers
+│   │
+│   ├── study1_similarity/        # Similarity test scripts
+│   │   ├── run_study1_pilot.R    # Quick test (50 reps × 4 settings)
+│   │   ├── run_study1.R          # Full study (500 reps × 9 settings)
+│   │   └── analyze_study1.R      # Generate tables and plots
+│   │
+│   └── study2_coverage/          # Coverage test scripts
+│       ├── run_study2_pilot.R    # Quick test (50 reps × 4 settings)
+│       ├── run_study2.R          # Full study (500 reps × 9 settings)
+│       └── analyze_study2.R      # Generate tables and plots
+│
+├── results/                      # All outputs (timestamped)
+│   ├── study1_similarity/
+│   │   ├── YYYYMMDD_HHMM/        # Run timestamp directory
+│   │   │   ├── results.rds       # Full results object
+│   │   │   ├── summary.csv       # Summary table
+│   │   │   ├── plots/            # Diagnostic plots (PNG)
+│   │   │   └── run_info.txt      # Metadata (time, system, seed)
+│   │   └── latest -> YYYYMMDD_HHMM/  # Symlink to most recent
+│   │
+│   ├── study2_coverage/
+│   │   ├── YYYYMMDD_HHMM/
+│   │   │   ├── results.rds
+│   │   │   ├── summary.csv
+│   │   │   ├── plots/
+│   │   │   └── run_info.txt
+│   │   └── latest -> YYYYMMDD_HHMM/
+│   │
+│   └── DECISION_SINGLE_TREE_INFERENCE.md  # Final decision (after both studies)
+│
+└── archive/                      # Old runs (when re-running)
+
+## Key Files to Read
+
+1. **README.md** - Start here for overview and quick start
+2. **SPEC.md** - Full specification with detailed requirements
+3. **results/study1_similarity/latest/** - Most recent similarity results
+4. **results/study2_coverage/latest/** - Most recent coverage results
+5. **results/DECISION_SINGLE_TREE_INFERENCE.md** - Final recommendation
+
+## Workflow
+
+**Initial setup (done):**
+✓ Directory structure created
+✓ Placeholder code files created
+✓ README and SPEC written
+
+**Next steps:**
+1. Implement DGP functions (code/dgps.R)
+2. Implement estimator functions (code/estimators.R)
+3. Implement metrics (code/metrics.R)
+4. Run pilots to test code
+5. Run full studies (overnight)
+6. Analyze results
+7. Write decision document
+
+## Quick Commands
+
+# Run pilots (10-15 min each)
+Rscript code/study1_similarity/run_study1_pilot.R
+Rscript code/study2_coverage/run_study2_pilot.R
+
+# Run full studies (3-5 hours each)
+Rscript code/study1_similarity/run_study1.R
+Rscript code/study2_coverage/run_study2.R
+
+# Analyze results
+Rscript code/study1_similarity/analyze_study1.R
+Rscript code/study2_coverage/analyze_study2.R
+
+# View most recent results
+ls -lh results/study1_similarity/latest/
+ls -lh results/study2_coverage/latest/
+
+## Status Tracking
+
+Implementation Status:
+[ ] DGPs implemented and tested
+[ ] Estimators implemented and tested
+[ ] Metrics implemented and tested
+[ ] Utils implemented
+[ ] Pilot 1 runs successfully
+[ ] Pilot 2 runs successfully
+[ ] Full Study 1 completed
+[ ] Full Study 2 completed
+[ ] Results analyzed
+[ ] Decision document written
+[ ] Recommendation approved
+
+Last Updated: 2026-04-29 (setup complete)

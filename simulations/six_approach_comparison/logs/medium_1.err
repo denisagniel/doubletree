@@ -1,0 +1,7 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+Warning messages:
+1: In compute_att(Y, A, e_hat, m0_hat) :
+  Clipping 57 (11.4%) outcome probabilities to [0.01, 0.99]
+2: In compute_se(Y, A, e_hat, m0_hat, theta_hat) :
+  Clipping 57 (11.4%) outcome probabilities to [0.01, 0.99] in SE calculation
