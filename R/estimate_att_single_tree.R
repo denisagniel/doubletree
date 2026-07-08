@@ -143,14 +143,16 @@ estimate_att_single_tree <- function(
 
   # Propensity: refit on all n. Discretize X with the propensity's metadata.
   Xb_e <- if (!is.null(cf_e@disc_metadata)) apply_disc(X, cf_e@disc_metadata) else X
-  tree_e <- optimaltrees::refit_structure_on_data(struct_e, Xb_e, A)
+  tree_e <- optimaltrees::refit_structure_on_data(struct_e, Xb_e, A,
+                                                  allow_partial_leaves = TRUE)
 
   # Control outcome: refit on control units only (m0 = E[Y | A=0, X]).
   idx0 <- which(A == 0)
   if (length(idx0) == 0) stop("No control units (A=0); cannot fit m0.", call. = FALSE)
   Xb_m0_all <- if (!is.null(cf_m0@disc_metadata)) apply_disc(X, cf_m0@disc_metadata) else X
   tree_m0 <- optimaltrees::refit_structure_on_data(
-    struct_m0, Xb_m0_all[idx0, , drop = FALSE], Y[idx0]
+    struct_m0, Xb_m0_all[idx0, , drop = FALSE], Y[idx0],
+    allow_partial_leaves = TRUE
   )
 
   # Predict all n with the single trees. predict_from_tree returns the leaf

@@ -191,8 +191,13 @@ average_leaf_values <- function(tree_list, weight_list) {
     if (sum_weights > 0) {
       weighted_means[[path]] <- sum_weighted / sum_weights
     } else {
-      # All trees had this leaf collapse → use neutral value
-      weighted_means[[path]] <- 0.5
+      # Every tree collapsed this leaf (zero observations in all K folds) → the
+      # averaged value is undefined. Fail loudly rather than invent a neutral 0.5,
+      # which is nonsensical (esp. for a continuous m0) and silently biases estimates.
+      stop("average_leaf_values: leaf '", path, "' has zero total weight across all ",
+           K, " trees (collapsed in every fold). This indicates a degenerate averaged ",
+           "structure; check the modal-structure selection and fold sizes.",
+           call. = FALSE)
     }
   }
 

@@ -369,13 +369,27 @@ safe_rashomon_fit <- function(X, y, K, loss_function, regularization,
   }, error = function(e) {
     msg <- conditionMessage(e)
 
-    # Data/parameter errors: stop immediately
-    if (grepl("must be|invalid|cannot", msg, ignore.case = TRUE)) {
+    # This function is called inside escalate_rashomon_intersection's c-grid loop,
+    # where a NULL return is the EXPECTED signal for "no intersection at this
+    # tolerance; try the next c". So most errors here are benign non-convergence and
+    # must NOT stop or warn (that would be noisy across the grid).
+    #
+    # Genuine data/parameter errors, however, will recur at every c and should stop
+    # immediately with a clear message. We detect them by message stem. This is a
+    # heuristic proxy (optimaltrees does not throw classed conditions); broadened to
+    # cover the validation stems its checks actually emit. If optimaltrees later
+    # exposes condition classes, switch to inherits()-based dispatch here.
+    data_error_pattern <- paste(
+      "must be", "must have", "must equal", "must contain", "invalid", "cannot",
+      "not allowed", "required", "length of", "no control units", "no treated",
+      sep = "|"
+    )
+    if (grepl(data_error_pattern, msg, ignore.case = TRUE)) {
       stop("Error fitting ", nuisance_name, " model: ", msg,
            "\nCheck your data and parameters.", call. = FALSE)
     }
 
-    # Intersection empty or optimization issues: fallback
+    # Intersection empty or optimization issues: fallback (expected during escalation)
     if (verbose) {
       message("Rashomon fitting failed for ", nuisance_name, ": ", msg,
               "\nFalling back to fold-specific trees.")
