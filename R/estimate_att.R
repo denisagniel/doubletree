@@ -291,15 +291,12 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     eta <- get_fold_specific_eta(nuisance_fits, X, fold_indices)
   }
 
-  # pi_hat already computed during validation above
-  # Closed form: psi(theta) = psi(0) - theta*(A/pi), so sum(psi(theta)) = 0 => theta = sum(psi(0)) / sum(A/pi).
-  sum_a_over_pi <- sum(A / pi_hat)
-  score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
-  theta <- sum(score_at_zero) / sum_a_over_pi
-
-  score_values <- psi_att(Y, A, theta, eta, pi_hat)
-  sigma <- att_se(score_values, n)
-  ci_95 <- att_ci(theta, sigma, level = 0.95)
+  # Shared EIF solve (closed form theta = sum(psi(0)) / sum(A/pi); see eif_att_solve).
+  .att <- eif_att_solve(Y, A, eta$e, eta$m0, n)
+  theta <- .att$theta
+  score_values <- .att$score_values
+  sigma <- .att$sigma
+  ci_95 <- .att$ci_95
 
   # Add predictions to nuisance_fits for diagnostics
   nuisance_fits$propensity <- eta$e

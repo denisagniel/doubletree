@@ -139,25 +139,27 @@ estimate_att_single_tree <- function(
   struct_e <- extract_k_trees_from_rashomon(cf_e)[[1]]
   struct_m0 <- extract_k_trees_from_rashomon(cf_m0)[[1]]
 
-  apply_disc <- get("apply_discretization", envir = asNamespace("optimaltrees"))
+  apply_disc <- optimaltrees::apply_discretization
 
   # Propensity: refit on all n. Discretize X with the propensity's metadata.
   Xb_e <- if (!is.null(cf_e@disc_metadata)) apply_disc(X, cf_e@disc_metadata) else X
-  tree_e <- optimaltrees::refit_structure_on_data(struct_e, Xb_e, A)
+  tree_e <- optimaltrees::refit_structure_on_data(struct_e, Xb_e, A,
+                                                  allow_partial_leaves = TRUE)
 
   # Control outcome: refit on control units only (m0 = E[Y | A=0, X]).
   idx0 <- which(A == 0)
   if (length(idx0) == 0) stop("No control units (A=0); cannot fit m0.", call. = FALSE)
   Xb_m0_all <- if (!is.null(cf_m0@disc_metadata)) apply_disc(X, cf_m0@disc_metadata) else X
   tree_m0 <- optimaltrees::refit_structure_on_data(
-    struct_m0, Xb_m0_all[idx0, , drop = FALSE], Y[idx0]
+    struct_m0, Xb_m0_all[idx0, , drop = FALSE], Y[idx0],
+    allow_partial_leaves = TRUE
   )
 
   # Predict all n with the single trees. predict_from_tree returns the leaf
   # prediction directly (P(Y=1|X) for binary, leaf mean for continuous).
-  e_single <- predict_from_tree(tree_e, Xb_e)
+  e_single <- optimaltrees::predict_averaged_tree(tree_e, Xb_e)
   e_single <- pmin(pmax(e_single, .PROPENSITY_LOWER_BOUND), .PROPENSITY_UPPER_BOUND)
-  m0_single <- predict_from_tree(tree_m0, Xb_m0_all)
+  m0_single <- optimaltrees::predict_averaged_tree(tree_m0, Xb_m0_all)
 
   att_single <- .att_from_eta(Y, A, e_single, m0_single, n)
 
@@ -207,13 +209,11 @@ estimate_att_single_tree <- function(
 }
 
 #' ATT point estimate, SE, and 95% CI from plugged-in nuisances
+#'
+#' Thin wrapper kept for the single-tree call sites; delegates to the shared
+#' \code{\link{eif_att_solve}} (inference.R). Returns only theta/sigma/ci_95.
 #' @noRd
 .att_from_eta <- function(Y, A, e_hat, m0_hat, n) {
-  pi_hat <- mean(A)
-  eta <- list(e = e_hat, m0 = m0_hat, m1 = NULL)
-  score_at_zero <- psi_att(Y, A, theta = 0, eta, pi_hat)
-  theta <- sum(score_at_zero) / sum(A / pi_hat)
-  score_values <- psi_att(Y, A, theta, eta, pi_hat)
-  sigma <- att_se(score_values, n)
-  list(theta = theta, sigma = sigma, ci_95 = att_ci(theta, sigma, level = 0.95))
+  res <- eif_att_solve(Y, A, e_hat, m0_hat, n)
+  list(theta = res$theta, sigma = res$sigma, ci_95 = res$ci_95)
 }

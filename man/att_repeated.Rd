@@ -11,7 +11,7 @@ att_repeated(
   K = 5,
   outcome_type = c("binary", "continuous"),
   regularization = 0.1,
-  cv_regularization = FALSE,
+  cv_regularization = TRUE,
   cv_K = 5,
   stratified = TRUE,
   seed = NULL,

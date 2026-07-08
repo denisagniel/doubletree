@@ -95,7 +95,7 @@ predictions (all observations use the same averaged tree).
   \item Run Rashomon intersection via \code{fit_nuisances_rashomon()} for both e and m0
   \item Check intersection succeeded (n_intersecting > 0) for both nuisances
   \item Extract K trees with common structure from each nuisance
-  \item Average leaf values across K trees using \code{average_trees()}
+  \item Average leaf values across K trees using \code{optimaltrees::average_trees()}
   \item Predict for ALL observations with averaged trees (no cross-fitting)
   \item Compute ATT via EIF
 }

@@ -12,9 +12,9 @@ estimate_att_msplit(
   K = 5,
   structure_selection = "modal",
   seed_base = NULL,
-  verbose = TRUE,
+  verbose = FALSE,
   regularization = 0.1,
-  outcome_type = "binary"
+  outcome_type = c("binary", "continuous")
 )
 }
 \arguments{

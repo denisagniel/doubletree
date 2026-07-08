@@ -1,0 +1,22 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+[Rep 1] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 2] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 9] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 20] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 21] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 23] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 24] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 32] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 34] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 36] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 38] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 42] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 44] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 48] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 58] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 74] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 82] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 86] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 87] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+There were 50 or more warnings (use warnings() to see the first 50)
