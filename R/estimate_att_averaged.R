@@ -234,8 +234,12 @@ estimate_att_doubletree_averaged <- function(
   # Average trees
   if (verbose) message("\n--- Averaging leaf values ---")
 
-  # TODO: Update to use actual leaf counts from fold_refits
-  # For now, use uniform weights (unweighted averaging)
+  # NOTE (2026-07-08): uses UNIFORM weights. Real sample-size weighting needs per-leaf
+  # counts, but the cross_fitted_rashomon fold-refit path builds trees via
+  # refit_structure_on_data, which (unlike the S7 refit_tree_structure used by the
+  # msplit path) does not return n_per_leaf. Deferred to the Phase-5 relocation, where
+  # refit_structure_on_data + average_trees move into optimaltrees and refit_structure_on_data
+  # can gain optional per-leaf counts. See quality_reports/plans/2026-07-08_full-package-audit.md.
   uniform_weights_e <- lapply(e_trees, function(tree) {
     leaf_values <- extract_leaf_values(tree)
     setNames(rep(1L, length(leaf_values)), names(leaf_values))
