@@ -11,8 +11,8 @@ estimate_att_msplit_averaged(
   M = 10,
   K = 5,
   seed_base = NULL,
-  verbose = TRUE,
-  outcome_type = "binary"
+  verbose = FALSE,
+  outcome_type = c("binary", "continuous")
 )
 }
 \arguments{

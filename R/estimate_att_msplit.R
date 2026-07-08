@@ -178,10 +178,11 @@ estimate_att_msplit <- function(X, A, Y,
                                 K = 5,
                                 structure_selection = "modal",
                                 seed_base = NULL,
-                                verbose = TRUE,
+                                verbose = FALSE,
                                 regularization = 0.1,
-                                outcome_type = "binary") {
+                                outcome_type = c("binary", "continuous")) {
   # Validate inputs
+  outcome_type <- match.arg(outcome_type)
   n <- nrow(X)
 
   if (!is.data.frame(X) && !is.matrix(X)) {
