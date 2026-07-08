@@ -234,30 +234,33 @@ estimate_att_doubletree_averaged <- function(
   # Average trees
   if (verbose) message("\n--- Averaging leaf values ---")
 
-  # NOTE (2026-07-08): uses UNIFORM weights. Real sample-size weighting needs per-leaf
-  # counts, but the cross_fitted_rashomon fold-refit path builds trees via
-  # refit_structure_on_data, which (unlike the S7 refit_tree_structure used by the
-  # msplit path) does not return n_per_leaf. Deferred to the Phase-5 relocation, where
-  # refit_structure_on_data + average_trees move into optimaltrees and refit_structure_on_data
-  # can gain optional per-leaf counts. See quality_reports/plans/2026-07-08_full-package-audit.md.
-  uniform_weights_e <- lapply(e_trees, function(tree) {
-    leaf_values <- optimaltrees::extract_leaf_values(tree)
-    setNames(rep(1L, length(leaf_values)), names(leaf_values))
-  })
-
-  uniform_weights_m0 <- lapply(m0_trees, function(tree) {
-    leaf_values <- optimaltrees::extract_leaf_values(tree)
-    setNames(rep(1L, length(leaf_values)), names(leaf_values))
-  })
+  # Sample-size-weighted averaging: each fold-refit tree carries an "n_per_leaf"
+  # attribute (from refit_structure_on_data) giving the training-observation count
+  # per leaf. Weighting by these counts (rather than uniform) gives leaves fitted on
+  # more data more influence in the average, matching estimate_att_msplit_averaged.
+  # Fall back to uniform weights only if the attribute is missing (defensive).
+  leaf_weights <- function(trees) {
+    lapply(trees, function(tree) {
+      npl <- attr(tree, "n_per_leaf")
+      if (is.null(npl)) {
+        lv <- optimaltrees::extract_leaf_values(tree)
+        setNames(rep(1L, length(lv)), names(lv))
+      } else {
+        npl
+      }
+    })
+  }
+  weights_e <- leaf_weights(e_trees)
+  weights_m0 <- leaf_weights(m0_trees)
 
   e_averaged <- tryCatch({
-    optimaltrees::average_trees(e_trees, uniform_weights_e)
+    optimaltrees::average_trees(e_trees, weights_e)
   }, error = function(e) {
     stop("Failed to average propensity trees: ", e$message, call. = FALSE)
   })
 
   m0_averaged <- tryCatch({
-    optimaltrees::average_trees(m0_trees, uniform_weights_m0)
+    optimaltrees::average_trees(m0_trees, weights_m0)
   }, error = function(e) {
     stop("Failed to average outcome trees: ", e$message, call. = FALSE)
   })
