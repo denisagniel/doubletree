@@ -88,9 +88,15 @@ estimate <- function(data, config) {
 }
 
 # --- 2. Standard cross-fit: K separate trees, out-of-sample (valid, no 1 tree) -
+# max_depth = 4L matches .est_full and the Rashomon path (fit_nuisances_rashomon
+# defaults to 4L). Without it, estimate_att's plain cross-fit path runs unbounded-depth
+# GOSDT, which blows up on continuous covariates (n=2000/continuous: >24 GB, ~1300 s/unit
+# vs ~150 s capped) AND fits deeper nuisance trees than its own Rashomon twin, muddying
+# the comparison. Threaded via `...` -> fit_nuisances_fold -> cv_regularization_adaptive.
+# (Package follow-up: give estimate_att a max_depth=4L default so all callers are bounded.)
 .est_crossfit <- function(X, A, Y) {
   r <- doubletree::estimate_att(X, A, Y, K = SIM_K, use_rashomon = FALSE,
-                                verbose = FALSE)
+                                max_depth = 4L, verbose = FALSE)
   .result(r$theta, r$sigma, converged = isTRUE(r$converged))
 }
 
