@@ -36,7 +36,10 @@ for m in "${METHODS[@]}"; do
 done
 
 GIT_SHA="$(git -C "${STUDY_DIR}" rev-parse --short HEAD 2>/dev/null || echo nogit)"
-RUN_ID="$(date '+%Y%m%d-%H%M%S')_${GIT_SHA}"
+# RUN_ID is normally minted fresh. To RESUME/backfill an existing run (re-run only
+# the tasks whose scratch task_*.rds is missing -- e.g. after timeouts), export
+# RUN_ID=<existing-run-id> before calling; array.slurm skips tasks whose file exists.
+RUN_ID="${RUN_ID:-$(date '+%Y%m%d-%H%M%S')_${GIT_SHA}}"
 SCRATCH_ROOT="/n/scratch/users/${HMS_ID:0:1}/${HMS_ID}/${PROJECT_NAME}/${STUDY_NAME}"
 SCRATCH_DIR="${SCRATCH_ROOT}/${RUN_ID}"
 LOG_DIR="${SCRATCH_DIR}/logs"

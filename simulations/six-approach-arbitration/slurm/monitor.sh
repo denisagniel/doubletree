@@ -60,20 +60,33 @@ echo " logs   : ${LOG_DIR}"
 echo "=============================================================="
 
 # --- Progress: completed task files vs expected -------------------------------
-DONE=$(find "${SCRATCH_DIR}" -maxdepth 1 -name 'task_*.rds' 2>/dev/null | wc -l | tr -d ' ')
+# Recurse: the per-method launcher writes task_*.rds into per-method SUBDIRS
+# (SCRATCH_DIR/<method>/), so a -maxdepth 1 count would always be 0. No -maxdepth.
+DONE=$(find "${SCRATCH_DIR}" -name 'task_*.rds' 2>/dev/null | wc -l | tr -d ' ')
+# EXPECTED = sum of TOTAL_TASKS across per-method sizing files if present (per-method
+# run); else the single global sizing.env (stock single-array run).
 EXPECTED="?"
-if [[ -f "${STUDY_DIR}/config/sizing.env" ]]; then
+per_method_sizes=("${STUDY_DIR}"/config/sizing_*.env)
+if [[ -e "${per_method_sizes[0]}" ]]; then
+  EXPECTED=$(grep -h '^TOTAL_TASKS=' "${STUDY_DIR}"/config/sizing_*.env | cut -d= -f2 \
+             | paste -sd+ - | bc 2>/dev/null || echo "?")
+elif [[ -f "${STUDY_DIR}/config/sizing.env" ]]; then
   EXPECTED=$(grep '^TOTAL_TASKS=' "${STUDY_DIR}/config/sizing.env" | cut -d= -f2)
 fi
 echo "Completed task files: ${DONE} / ${EXPECTED}"
 
 # --- Queue state for this user's jobs ----------------------------------------
+# Match by name PREFIX, not exact: the per-method launcher names jobs
+# "${STUDY_NAME}-<method>" (e.g. six-approach-arbitration-full), so an exact
+# --name=${STUDY_NAME} filter matches nothing. Filter our own rows by prefix.
 echo
-echo "Queue (squeue) for ${HMS_ID}, job name ${STUDY_NAME}:"
-squeue -u "${HMS_ID}" --name="${STUDY_NAME}" \
-  --format="%.18i %.9P %.20j %.8T %.10M %.6D %R" 2>/dev/null || echo "  (squeue unavailable)"
-RUNNING=$(squeue -u "${HMS_ID}" --name="${STUDY_NAME}" -h -t RUNNING 2>/dev/null | wc -l | tr -d ' ')
-PENDING=$(squeue -u "${HMS_ID}" --name="${STUDY_NAME}" -h -t PENDING 2>/dev/null | wc -l | tr -d ' ')
+echo "Queue (squeue) for ${HMS_ID}, jobs matching ${STUDY_NAME}*:"
+SQ_FMT="%.18i %.9P %.28j %.8T %.10M %.6D %R"
+squeue -u "${HMS_ID}" --format="${SQ_FMT}" 2>/dev/null | awk -v s="${STUDY_NAME}" \
+  'NR==1 || index($3, s)==1' || echo "  (squeue unavailable)"
+# Count running/pending among rows whose job name starts with STUDY_NAME.
+RUNNING=$(squeue -u "${HMS_ID}" -h -t RUNNING --format="%j" 2>/dev/null | grep -c "^${STUDY_NAME}" || true)
+PENDING=$(squeue -u "${HMS_ID}" -h -t PENDING --format="%j" 2>/dev/null | grep -c "^${STUDY_NAME}" || true)
 echo "Running: ${RUNNING}   Pending: ${PENDING}"
 
 # --- Most recent log files (log discovery) -----------------------------------
