@@ -131,7 +131,29 @@ for (i in seq_along(files)) {
 }
 result <- do.call(rbind, parts)
 result <- result[order(result$unit), , drop = FALSE]
-cat(sprintf("Combined %d rows (expected %d units).\n", nrow(result), n_units()))
+
+# --- De-duplicate by work-unit id --------------------------------------------
+# A `unit` is the canonical (config, rep) id and must appear exactly once. Task
+# files can overlap in scratch -- per-method subdirs restart task ids at 1, and
+# timeout-driven re-runs/backfills can re-emit a unit's file -- and the recursive
+# task-file glob above sweeps them all. Left unchecked this rbinds the SAME unit
+# multiple times (observed 3.75x in an interim run), silently inflating N and
+# corrupting every downstream coverage/bias summary. Duplicates are EXACT copies
+# (same seed -> same estimate), so keeping the first occurrence per unit is exact,
+# not a lossy choice. Warn loudly (Constitution S9: no silent absorption) so an
+# unexpected overlap is surfaced, not hidden.
+n_raw <- nrow(result)
+result <- result[!duplicated(result$unit), , drop = FALSE]
+n_dup <- n_raw - nrow(result)
+if (n_dup > 0) {
+  warning(sprintf(paste0(
+    "De-duplicated %d duplicate rows (%.2fx inflation): %d raw rows -> %d unique ",
+    "units. Duplicates are exact copies (overlapping scratch task files, e.g. from ",
+    "timeout re-runs). Kept first per unit. Inspect scratch if the factor is ",
+    "unexpected."), n_dup, n_raw / nrow(result), n_raw, nrow(result)), call. = FALSE)
+}
+cat(sprintf("Combined %d unique units (from %d raw rows; expected %d).\n",
+            nrow(result), n_raw, n_units()))
 
 # --- Attach provenance metadata ----------------------------------------------
 attr(result, "run_id")    <- opt$run_id
