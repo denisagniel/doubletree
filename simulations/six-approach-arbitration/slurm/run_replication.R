@@ -62,6 +62,24 @@ if (start > max_unit) {
 }
 block <- ut[start:end, , drop = FALSE]
 
+# --- Drop infeasible cells ----------------------------------------------------
+# is_feasible() (config/grid.R) excludes (method,n,dgp) cells whose Rashomon set
+# exceeds feasible memory at the stress DGP (see INFEASIBLE_CELLS). Unit numbering
+# is unchanged; we simply do not run these units. If the whole block is excluded,
+# write nothing and exit 0 (so the array task is "done", not failed).
+n_before <- nrow(block)
+block <- block[is_feasible(block), , drop = FALSE]
+n_excluded <- n_before - nrow(block)
+if (n_excluded > 0) {
+  cat(sprintf("[task %d] excluded %d infeasible unit(s) (INFEASIBLE_CELLS).\n",
+              opt$task_id, n_excluded))
+}
+if (nrow(block) == 0) {
+  cat(sprintf("[task %d] all %d units infeasible; nothing to run; exiting.\n",
+              opt$task_id, n_before))
+  quit(save = "no", status = 0)
+}
+
 # --- Idempotent skip ----------------------------------------------------------
 out_file <- file.path(opt$scratch_dir,
                       sprintf("task_%s.rds", formatC(opt$task_id, width = 6, flag = "0")))

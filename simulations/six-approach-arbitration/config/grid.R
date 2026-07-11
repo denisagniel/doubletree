@@ -76,3 +76,30 @@ unit_table <- function(grid = GRID, total_reps = TOTAL_REPS, base_seed = BASE_SE
 
 # Convenience: total number of work units.
 n_units <- function() nrow(GRID) * TOTAL_REPS
+
+# -----------------------------------------------------------------------------
+# INFEASIBLE_CELLS -- (method, n, dgp) cells excluded because the Rashomon set
+# explodes beyond feasible memory (>64 GB) at the stress DGP. Determined by
+# slurm/probe_tier2_boundary.R (2026-07-11): at dgp="continuous" the intersection
+# escalation (widening epsilon_n toward a non-empty K-fold intersection) grows the
+# Rashomon set past 64 GB. This is a documented STRESS-REGIME LIMITATION of the
+# Rashomon-intersection methods, not a bug (Constitution S9: report the boundary).
+# NOTE: this does NOT change unit numbering -- unit_table() is unchanged, so unit
+# ids/seeds/offsets are preserved. is_feasible() only tells the runner which units
+# to SKIP; combine.R records them as not-run (distinct from converged=FALSE).
+INFEASIBLE_CELLS <- rbind(
+  data.frame(method = "doubletree",  n = 2000L, dgp = "continuous"),
+  data.frame(method = "dt_averaged", n = 2000L, dgp = "continuous"),
+  data.frame(method = "single_tree", n = 1000L, dgp = "continuous"),
+  data.frame(method = "single_tree", n = 2000L, dgp = "continuous"),
+  stringsAsFactors = FALSE
+)
+
+# is_feasible(config_row) -> TRUE unless (method,n,dgp) is in INFEASIBLE_CELLS.
+# Vectorized over a data frame of config rows (the run block).
+is_feasible <- function(df) {
+  key  <- paste(df$method, df$n, df$dgp, sep = "\r")
+  bad  <- paste(INFEASIBLE_CELLS$method, INFEASIBLE_CELLS$n,
+                INFEASIBLE_CELLS$dgp, sep = "\r")
+  !(key %in% bad)
+}
