@@ -560,6 +560,10 @@ estimate_att_msplit_averaged <- function(X, A, Y,
     n = n,
     n_treated = sum(A),
     outcome_type = outcome_type,
-    n_trees_averaged = M * K
+    n_trees_averaged = M * K,
+    # M-split always produces an estimate via modal-structure refitting (no Rashomon
+    # intersection that can be empty); reaching this return means success. Present so
+    # callers filtering on `converged` don't silently treat every result as failed.
+    converged = TRUE
   ), class = c("msplit_att_averaged", "list"))
 }

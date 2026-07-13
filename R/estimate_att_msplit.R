@@ -373,7 +373,12 @@ estimate_att_msplit <- function(X, A, Y,
     n_treated = sum(A),
     structure_selection = structure_selection,
     outcome_type = outcome_type,
-    regularization = regularization
+    regularization = regularization,
+    # M-split always produces an estimate via modal-structure refitting (no
+    # Rashomon intersection that can be empty); reaching this return means success.
+    # Present so callers filtering on `converged` don't silently treat every msplit
+    # result as failed (isTRUE(NULL) == FALSE).
+    converged = TRUE
   )
 
   class(result) <- c("msplit_att", "list")
