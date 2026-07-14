@@ -30,23 +30,55 @@ TOTAL_REPS <- 1000L
 # Include at least one STRESS regime (Constitution Section 9): a setting where
 # the method under study is expected to struggle.
 # -----------------------------------------------------------------------------
-GRID <- expand.grid(
+# Main grid: seven estimators at the FIXED theory Rashomon tolerance (escalate = FALSE).
+#   full            : full-sample single tree, in-sample (biased baseline)
+#   crossfit        : K separate trees, out-of-sample (valid; no single tree)
+#   doubletree      : Rashomon-intersection struct, cross-fit leaves (valid twin)
+#   dt_averaged     : intersection struct, averaged leaves, single tree + honest CI
+#   msplit          : modal struct, cross-fit predictions (valid twin; SE caveat)
+#   msplit_averaged : modal struct, averaged leaves, single tree + honest CI
+#   single_tree     : Alt A -- intersection struct, all-n leaves, single tree
+GRID_MAIN <- expand.grid(
   n      = c(500L, 1000L, 2000L),        # sample size
   # DGP regime (see dgp.R). "continuous" is the STRESS regime (Constitution S9):
   # x4^2 nonlinearity requires many thresholds; tree discretization struggles.
   dgp    = c("simple", "moderate", "complex", "continuous"),
-  # Seven estimators (six original + Alternative A); dispatched in estimators.R.
-  #   full            : full-sample single tree, in-sample (biased baseline)
-  #   crossfit        : K separate trees, out-of-sample (valid; no single tree)
-  #   doubletree      : Rashomon-intersection struct, cross-fit leaves (valid twin)
-  #   dt_averaged     : intersection struct, averaged leaves, single tree
-  #   msplit          : modal struct, cross-fit predictions (valid twin; SE caveat)
-  #   msplit_averaged : modal struct, averaged leaves, single tree
-  #   single_tree     : Alt A -- intersection struct, all-n leaves, single tree
   method = c("full", "crossfit", "doubletree", "dt_averaged",
              "msplit", "msplit_averaged", "single_tree"),
+  escalate = FALSE,                      # fixed theory epsilon_n = log(n)/n
   stringsAsFactors = FALSE
 )
+
+# Escalation coverage sweep (escalate = TRUE): only the Rashomon-intersection methods
+# (whose intersection can be empty at the theory tolerance). Widening epsilon_n = c*
+# log(n)/n TRADES the fixed-tolerance validity guarantee for a non-empty intersection;
+# run_one records the realized rashomon_c_e/m0 so data-analysis can plot coverage vs c
+# and answer empirically whether large c degrades the CLT (o(n^{-1/2}) question). The
+# "continuous" DGP is omitted here: at the fixed tolerance it already exceeds 64 GB
+# (INFEASIBLE_CELLS below), and escalation only enlarges the Rashomon set further.
+GRID_ESCALATE <- expand.grid(
+  n      = c(500L, 1000L, 2000L),
+  dgp    = c("simple", "moderate", "complex"),
+  method = c("doubletree", "dt_averaged", "single_tree"),
+  escalate = TRUE,
+  stringsAsFactors = FALSE
+)
+
+GRID <- rbind(GRID_MAIN, GRID_ESCALATE)
+
+# METHOD-MAJOR ORDER (required by the per-method submission path). profile_per_method.R
+# and submit_per_method.sh assume each method occupies a CONTIGUOUS block of global
+# units (UNIT_OFFSET = min(unit[method]); N_UNITS_METHOD = sum(method)). The escalation
+# sweep adds a second block of rows for doubletree/dt_averaged/single_tree, so without
+# this sort each of those methods would span two disjoint unit ranges and the per-method
+# array would run the wrong units. Order by method (grid appearance order), then keep
+# escalate=FALSE before TRUE and the expand.grid n/dgp order within each method so
+# offsets stay deterministic. Stable sort preserves within-group order.
+.method_levels <- c("full", "crossfit", "doubletree", "dt_averaged",
+                    "msplit", "msplit_averaged", "single_tree")
+GRID <- GRID[order(factor(GRID$method, levels = .method_levels), GRID$escalate), ,
+             drop = FALSE]
+rownames(GRID) <- NULL
 
 # Stable configuration id (1..nrow(GRID)); do not reorder GRID after a run
 # without cleaning stale scratch, or unit->config mapping will change.
@@ -100,10 +132,13 @@ n_units <- function() nrow(GRID) * TOTAL_REPS
 # -----------------------------------------------------------------------------
 # INFEASIBLE_CELLS -- (method, n, dgp) cells excluded because the Rashomon set
 # explodes beyond feasible memory (>64 GB) at the stress DGP. Determined by
-# slurm/probe_tier2_boundary.R (2026-07-11): at dgp="continuous" the intersection
-# escalation (widening epsilon_n toward a non-empty K-fold intersection) grows the
-# Rashomon set past 64 GB. This is a documented STRESS-REGIME LIMITATION of the
-# Rashomon-intersection methods, not a bug (Constitution S9: report the boundary).
+# slurm/probe_tier2_boundary.R (2026-07-11): at dgp="continuous" the many-threshold
+# discretization makes the per-fold Rashomon set past 64 GB even at the FIXED theory
+# tolerance epsilon_n = log(n)/n. (The probe predates the escalation fix and ran with
+# escalation inert, so this boundary is the fixed-tolerance cost, not escalation.
+# Escalation cells, when added, are expected to be at least this memory-intensive.)
+# This is a documented STRESS-REGIME LIMITATION of the Rashomon-intersection methods,
+# not a bug (Constitution S9: report the boundary).
 # NOTE: this does NOT change unit numbering -- unit_table() is unchanged, so unit
 # ids/seeds/offsets are preserved. is_feasible() only tells the runner which units
 # to SKIP; combine.R records them as not-run (distinct from converged=FALSE).

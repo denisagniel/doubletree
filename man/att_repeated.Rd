@@ -21,6 +21,7 @@ att_repeated(
   rashomon_bound_adder = 0,
   max_leaves = NULL,
   auto_tune_intersecting = FALSE,
+  escalate_intersection = FALSE,
   n_splits = 1,
   aggregation = c("median", "mean"),
   ...
@@ -102,6 +103,21 @@ Default: 0.}
   and, if the intersection is empty, fall back to fold-specific trees
   (\code{use_rashomon = FALSE}).}
 
+\item{escalate_intersection}{Logical. If TRUE (and \code{rashomon_bound_multiplier}
+  is left NULL), widen the Rashomon tolerance \eqn{\varepsilon_n = c \cdot \log(n)/n}
+  over an escalating grid of \eqn{c} (1, 2, ..., 1000) until the cross-fold
+  intersection is non-empty, rather than pinning the single theory value. Default FALSE.
+  Distinct from \code{auto_tune_intersecting}: escalation keeps \eqn{\lambda} fixed and
+  steps the tolerance multiplier at the doubletree level, recording the selected \eqn{c}.
+
+  \strong{Trades the fixed-\eqn{\varepsilon_n} validity guarantee for a non-empty
+  intersection.} The selected \eqn{c} is data-dependent (post-selection) and can be
+  large at realistic \eqn{n}, so finite-sample coverage is not guaranteed and must be
+  validated empirically (see the escalation coverage sweep in the arbitration
+  simulation). Opt-in practical/study device; the returned \code{rashomon_c_e} /
+  \code{rashomon_c_m0} record the selected multiplier per nuisance. An explicit
+  \code{rashomon_bound_multiplier} always pins a single fixed tolerance, overriding it.}
+
 \item{n_splits}{Integer. Number of independent cross-fit repetitions. Default 1 (no repetition).}
 
 \item{aggregation}{Character. How to combine M point estimates:
@@ -118,12 +134,13 @@ If unsure, use median (more robust). Mean is more efficient but sensitive to out
 \value{
 List with elements:
   - theta: aggregated point estimate
-  - sigma: corrected standard error (accounts for fold randomness)
-  - ci_95: 95% confidence interval with corrected SE
+  - sigma: corrected standard error on the theta-hat scale (accounts for fold
+    randomness); \eqn{\sqrt{\overline{\sigma_m^2 + (\hat\theta_m - \hat\theta)^2}}}
+  - ci_95: 95\% confidence interval, \code{theta +/- 1.96 * sigma}
   - theta_splits: vector of M point estimates (one per split)
-  - sigma_splits: vector of M within-fold SEs
-  - between_var: variance across splits
-  - within_var: mean within-fold variance
+  - sigma_splits: vector of M within-fold SEs (theta-hat scale)
+  - between_var: mean squared deviation of split estimates (theta-hat scale)
+  - within_var: mean within-fold variance (theta-hat scale)
   - ... (other estimate_att outputs)
 }
 \description{

@@ -15,6 +15,13 @@
 # (= o(n^{-1/2})), and auto_tune_intersecting = FALSE. The old
 # eps_n = 2*sqrt(log n/n) + auto_tune=TRUE config is invalidated (see the
 # structural-margin resolution, manuscript Cor.).
+#
+# ESCALATION: with escalate_intersection = FALSE (default), an empty theory-tolerance
+# intersection falls back to fold-specific trees; the tolerance is NOT widened and
+# rashomon_c_* == 1. Escalation (widening eps_n = c*log(n)/n until the intersection is
+# non-empty) is OPT-IN via escalate_intersection = TRUE -- threaded from config$escalate
+# so the escalation coverage sweep can measure whether large c degrades coverage. It
+# trades the fixed-eps_n validity guarantee for a non-empty intersection.
 # =============================================================================
 
 SIM_K        <- 5L    # cross-fitting folds
@@ -26,17 +33,23 @@ SIM_K_MSPLIT <- 5L    # folds per split (msplit approaches)
 # escalation for each nuisance (epsilon_n = c * log(n)/n). c=1 is the theory value;
 # larger c means the theory-tolerance intersection was empty and had to be widened.
 # Recorded so /data-analysis can evaluate whether large c degrades coverage.
+# ci_lower/ci_upper default to the symmetric Wald interval estimate +/- z*std_error,
+# but callers may pass an explicit (possibly asymmetric) interval -- e.g. the honest
+# bias-aware CI of the averaged estimators, which is NOT estimate +/- z*std_error.
 .result <- function(estimate, std_error, converged,
+                    ci_lower = NULL, ci_upper = NULL,
                     theta_crossfit = NA_real_, se_crossfit = NA_real_,
                     delta = NA_real_, delta_over_se = NA_real_,
                     intersection_nonempty = NA,
                     rashomon_c_e = NA_real_, rashomon_c_m0 = NA_real_) {
   z <- stats::qnorm(0.975)
+  if (is.null(ci_lower)) ci_lower <- estimate - z * std_error
+  if (is.null(ci_upper)) ci_upper <- estimate + z * std_error
   list(
     estimate  = estimate,
     std_error = std_error,
-    ci_lower  = estimate - z * std_error,
-    ci_upper  = estimate + z * std_error,
+    ci_lower  = ci_lower,
+    ci_upper  = ci_upper,
     converged = converged,
     theta_crossfit = theta_crossfit,
     se_crossfit    = se_crossfit,
@@ -48,18 +61,21 @@ SIM_K_MSPLIT <- 5L    # folds per split (msplit approaches)
   )
 }
 
-# Dispatch. One branch per method in GRID$method.
+# Dispatch. One branch per method in GRID$method. `escalate` (default FALSE) is the
+# Rashomon-tolerance escalation flag from config$escalate; only the intersection-based
+# methods consume it (others ignore it).
 estimate <- function(data, config) {
   X <- data$X; A <- data$A; Y <- data$Y
+  escalate <- isTRUE(config$escalate)
   switch(
     config$method,
     full            = .est_full(X, A, Y),
     crossfit        = .est_crossfit(X, A, Y),
-    doubletree      = .est_doubletree(X, A, Y),
-    dt_averaged     = .est_dt_averaged(X, A, Y),
+    doubletree      = .est_doubletree(X, A, Y, escalate = escalate),
+    dt_averaged     = .est_dt_averaged(X, A, Y, escalate = escalate),
     msplit          = .est_msplit(X, A, Y),
     msplit_averaged = .est_msplit_averaged(X, A, Y),
-    single_tree     = .est_single_tree(X, A, Y),
+    single_tree     = .est_single_tree(X, A, Y, escalate = escalate),
     stop(sprintf("Unknown method: '%s'", config$method))  # no silent fallback
   )
 }
@@ -88,12 +104,12 @@ estimate <- function(data, config) {
 }
 
 # --- 2. Standard cross-fit: K separate trees, out-of-sample (valid, no 1 tree) -
-# max_depth = 4L matches .est_full and the Rashomon path (fit_nuisances_rashomon
-# defaults to 4L). Without it, estimate_att's plain cross-fit path runs unbounded-depth
-# GOSDT, which blows up on continuous covariates (n=2000/continuous: >24 GB, ~1300 s/unit
-# vs ~150 s capped) AND fits deeper nuisance trees than its own Rashomon twin, muddying
-# the comparison. Threaded via `...` -> fit_nuisances_fold -> cv_regularization_adaptive.
-# (Package follow-up: give estimate_att a max_depth=4L default so all callers are bounded.)
+# max_depth = 4L matches .est_full and the Rashomon path. As of 2026-07-14 this is the
+# estimate_att DEFAULT (the package now caps both nuisance paths at 4L), so passing it
+# is redundant -- kept explicit to pin the comparison against future default changes.
+# Bounding depth avoids the continuous-covariate blow-up (unbounded GOSDT: n=2000/
+# continuous >24 GB, ~1300 s/unit vs ~150 s capped) and keeps the plain cross-fit trees
+# from being deeper than the Rashomon twin.
 .est_crossfit <- function(X, A, Y) {
   r <- doubletree::estimate_att(X, A, Y, K = SIM_K, use_rashomon = FALSE,
                                 max_depth = 4L, verbose = FALSE)
@@ -101,10 +117,11 @@ estimate <- function(data, config) {
 }
 
 # --- 3. Doubletree: Rashomon-intersection structure, cross-fit leaves (twin) --
-.est_doubletree <- function(X, A, Y) {
+.est_doubletree <- function(X, A, Y, escalate = FALSE) {
   r <- doubletree::estimate_att(
     X, A, Y, K = SIM_K, use_rashomon = TRUE,
     rashomon_bound_multiplier = NULL, auto_tune_intersecting = FALSE,
+    escalate_intersection = escalate,
     verbose = FALSE)
   .result(r$theta, r$sigma, converged = isTRUE(r$converged),
           intersection_nonempty = isTRUE(r$converged),
@@ -112,16 +129,25 @@ estimate <- function(data, config) {
 }
 
 # --- 4. Doubletree-averaged: intersection structure, averaged leaves, 1 tree --
-.est_dt_averaged <- function(X, A, Y) {
+# Point estimate = averaged (biased) tree; reported CI = honest bias-aware CI built
+# from the cross-fit twin (see estimate_att_doubletree_averaged). We record BOTH so
+# data-analysis can compare naive averaged-tree, twin, and honest-CI coverage.
+.est_dt_averaged <- function(X, A, Y, escalate = FALSE) {
   r <- tryCatch(
     doubletree::estimate_att_doubletree_averaged(
       X, A, Y, K = SIM_K, outcome_type = "binary",
       rashomon_bound_multiplier = NULL, auto_tune_intersecting = FALSE,
+      escalate_intersection = escalate,
       verbose = FALSE),
     error = function(e) NULL)
   if (is.null(r)) return(.result(NA_real_, NA_real_, converged = FALSE,
                                  intersection_nonempty = FALSE))
+  # estimate/std_error/ci are the DISPLAY point + honest bias-aware CI; twin fields
+  # carry the valid cross-fit estimator + fidelity diagnostic.
   .result(r$theta, r$sigma, converged = isTRUE(r$converged),
+          ci_lower = r$ci_95[1], ci_upper = r$ci_95[2],
+          theta_crossfit = r$theta_crossfit, se_crossfit = r$sigma_crossfit,
+          delta = r$delta, delta_over_se = r$delta_over_se,
           intersection_nonempty = TRUE,
           rashomon_c_e = r$rashomon_c_e, rashomon_c_m0 = r$rashomon_c_m0)
 }
@@ -136,23 +162,30 @@ estimate <- function(data, config) {
 }
 
 # --- 6. M-split-averaged: modal structure, averaged leaves, 1 tree -----------
+# Like dt_averaged: point estimate = averaged (biased) tree; reported CI = honest
+# bias-aware CI from the cross-fit twin (se_delta from the M splits). No Rashomon
+# intersection, so escalate does not apply here.
 .est_msplit_averaged <- function(X, A, Y) {
   r <- tryCatch(
     doubletree::estimate_att_msplit_averaged(X, A, Y, M = SIM_M, K = SIM_K_MSPLIT,
                                              outcome_type = "binary", verbose = FALSE),
     error = function(e) NULL)
   if (is.null(r)) return(.result(NA_real_, NA_real_, converged = FALSE))
-  .result(r$theta, r$sigma, converged = isTRUE(r$converged))
+  .result(r$theta, r$sigma, converged = isTRUE(r$converged),
+          ci_lower = r$ci_95[1], ci_upper = r$ci_95[2],
+          theta_crossfit = r$theta_crossfit, se_crossfit = r$sigma_crossfit,
+          delta = r$delta, delta_over_se = r$delta_over_se)
 }
 
 # --- 7. Alternative A: honest single tree (intersection struct, all-n leaves) -
 # Reports the single-tree estimate (goal i) AND its cross-fit twin + delta
 # fidelity diagnostic (goal ii).
-.est_single_tree <- function(X, A, Y) {
+.est_single_tree <- function(X, A, Y, escalate = FALSE) {
   r <- tryCatch(
     doubletree::estimate_att_single_tree(
       X, A, Y, K = SIM_K, outcome_type = "binary",
-      rashomon_bound_multiplier = NULL, inference = "single", verbose = FALSE),
+      rashomon_bound_multiplier = NULL, escalate_intersection = escalate,
+      inference = "single", verbose = FALSE),
     error = function(e) NULL)
   if (is.null(r)) {
     # Empty intersection (margin fails) -> no single tree; record as non-converged.

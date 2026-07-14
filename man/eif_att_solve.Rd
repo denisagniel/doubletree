@@ -2,7 +2,7 @@
 % Please edit documentation in R/inference.R
 \name{eif_att_solve}
 \alias{eif_att_solve}
-\title{Solve the ATT EIF for point estimate, SE, and 95% CI}
+\title{Solve the ATT EIF for point estimate, SE, and 95\% CI}
 \usage{
 eif_att_solve(Y, A, e_hat, m0_hat, n = length(Y))
 }

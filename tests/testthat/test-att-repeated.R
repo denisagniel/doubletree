@@ -67,6 +67,42 @@ test_that("att_repeated variance fractions sum to 1 under mean aggregation", {
   expect_equal(res$within_var_frac + res$between_var_frac, 1, tolerance = 1e-8)
 })
 
+test_that("att_repeated sigma is on the theta-hat scale (not sqrt(n)-inflated)", {
+  skip_if_not_installed("optimaltrees")
+
+  # Regression guard for F1: att_se() returns SE on the theta-hat scale
+  # (sqrt(mean(psi^2)/n)), so the combined repeated-splitting sigma must ALSO be
+  # theta-hat scale, i.e. the same order of magnitude as a single split's SE. The
+  # old code multiplied the between-split term by n, making sigma ~sqrt(n) too big.
+  set.seed(505)
+  n <- 300
+  X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5))
+  A <- rbinom(n, 1, 0.4)
+  Y <- rbinom(n, 1, 0.3 + 0.2 * A + 0.1 * X$x1)
+
+  res <- att_repeated(X, A, Y, K = 3, n_splits = 5, seed = 21, aggregation = "mean")
+
+  # The combined SE cannot be smaller than the smallest within-split SE, and must
+  # stay the same ORDER as the (mean) within-split SE -- never sqrt(n) larger.
+  mean_within_se <- sqrt(mean(res$sigma_splits^2))
+  expect_gte(res$sigma, min(res$sigma_splits))
+  # Total variance = within + between, so sigma >= mean_within_se and, unless the
+  # between-split term dominates pathologically, within a small factor of it.
+  expect_gte(res$sigma, mean_within_se - 1e-8)
+  expect_lt(res$sigma, 3 * mean_within_se)
+  # Hard scale check: sigma is O(n^{-1/2}). The buggy sqrt(n)-inflated value would
+  # be ~sqrt(300) ~ 17x larger and blow past this bound.
+  expect_lt(res$sigma, 5 * mean_within_se)
+
+  # within_var and between_var are on the same (theta-hat) scale: the between term
+  # is a variance of estimates each ~att_se in spread, so it cannot exceed the
+  # within term by orders of magnitude for a homogeneous DGP.
+  expect_lt(res$between_var, 100 * res$within_var)
+
+  # Total variance decomposition is exact under mean aggregation.
+  expect_equal(res$sigma^2, res$within_var + res$between_var, tolerance = 1e-8)
+})
+
 test_that("att_repeated respects the aggregation argument", {
   skip_if_not_installed("optimaltrees")
 

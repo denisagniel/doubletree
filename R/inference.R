@@ -42,7 +42,75 @@ att_ci <- function(theta, sigma, level = 0.95) {
   c(theta - half, theta + half)
 }
 
-#' Solve the ATT EIF for point estimate, SE, and 95% CI
+#' Honest (bias-aware) critical value for a bias-to-SE ratio
+#'
+#' @description
+#' Armstrong & Kolesar (2018) fixed-length critical value for a Wald interval when
+#' the estimator carries a known bias bound. For a point estimate with standard
+#' error \code{se} and a bias whose magnitude is bounded by \code{B}, the interval
+#' \eqn{\hat\theta \pm cv(b)\cdot se} with \eqn{b = B/se} has coverage \code{level}
+#' for the true parameter, where \eqn{cv(b)} is the \code{level} quantile of the
+#' folded normal \eqn{|N(b, 1)|}. It solves
+#' \eqn{P(-cv \le N(b,1) \le cv) = \Phi(cv - b) - \Phi(-cv - b) = level}.
+#'
+#' At \eqn{b = 0} this returns the ordinary \eqn{z_{(1+level)/2}} (e.g. 1.96 at 95\%);
+#' it is increasing in \eqn{b} (more bias -> wider interval).
+#'
+#' @param b Non-negative bias-to-SE ratio \eqn{B / se}.
+#' @param level Confidence level (default 0.95).
+#' @return Scalar critical value \eqn{cv(b) \ge z_{(1+level)/2}}.
+#' @references Armstrong, T. B. & Kolesar, M. (2018). Optimal inference in a class of
+#'   regression models. \emph{Econometrica}, 86(2), 655-683.
+#' @seealso \code{\link{honest_ci}}
+#' @export
+honest_cv <- function(b, level = 0.95) {
+  if (!is.numeric(b) || length(b) != 1 || !is.finite(b) || b < 0) {
+    stop("`b` must be a single finite non-negative number, got: ", b, call. = FALSE)
+  }
+  z0 <- qnorm(0.5 + level / 2)          # cv at b = 0 (e.g. 1.96)
+  if (b == 0) return(z0)
+  # coverage(cv) = Phi(cv - b) - Phi(-cv - b); increasing in cv, from <level at cv=z0
+  # to 1 as cv -> Inf. Root is in (z0, b + z0]: at cv = b + z0, coverage >= Phi(z0) -
+  # Phi(-2b - z0) >= level. uniroot on that bracket.
+  f <- function(cv) pnorm(cv - b) - pnorm(-cv - b) - level
+  uniroot(f, lower = z0, upper = b + z0, tol = .Machine$double.eps^0.5)$root
+}
+
+#' Honest (bias-aware) confidence interval centered at a biased estimate
+#'
+#' @description
+#' Builds a confidence interval for the true parameter around a (possibly biased)
+#' point estimate \code{theta_display}, using the standard error \code{se} of a valid
+#' companion estimator and a conservative bias bound \eqn{B = |\delta| + z\cdot se_{\delta}}.
+#' The half-width is \eqn{cv(B/se)\cdot se} (see \code{\link{honest_cv}}). Widening the
+#' bias bound by \eqn{z\cdot se_\delta} guards against the sampling noise in the
+#' plug-in bias estimate \code{delta}, giving a genuine (not merely nominal) coverage
+#' guarantee for \eqn{\theta_0} when \eqn{B} dominates the true bias with high
+#' probability.
+#'
+#' @param theta_display Point estimate to center the interval on (the biased display
+#'   estimate, e.g. an averaged single tree).
+#' @param se Standard error of the valid companion estimator (the cross-fit twin).
+#' @param delta Plug-in bias estimate \eqn{\hat\theta_{display} - \hat\theta_{cf}}.
+#' @param se_delta Standard error of \code{delta} (0 collapses to the raw \eqn{|\delta|} bound).
+#' @param level Confidence level (default 0.95).
+#' @return List with \code{ci} (length-2 numeric), the bias bound \code{B}, the
+#'   critical value \code{cv}, and \code{half_width}.
+#' @seealso \code{\link{honest_cv}}
+#' @export
+honest_ci <- function(theta_display, se, delta, se_delta = 0, level = 0.95) {
+  if (!is.numeric(se) || length(se) != 1 || !is.finite(se) || se <= 0) {
+    stop("`se` must be a single finite positive number, got: ", se, call. = FALSE)
+  }
+  z <- qnorm(0.5 + level / 2)
+  se_delta <- if (is.finite(se_delta)) max(se_delta, 0) else 0
+  B  <- abs(delta) + z * se_delta          # conservative bias bound
+  cv <- honest_cv(B / se, level)
+  half <- cv * se
+  list(ci = theta_display + c(-1, 1) * half, B = B, cv = cv, half_width = half)
+}
+
+#' Solve the ATT EIF for point estimate, SE, and 95\% CI
 #'
 #' @description
 #' Given plugged-in nuisance predictions \code{e_hat = e(X)} and

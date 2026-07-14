@@ -3,47 +3,34 @@
 \docType{data}
 \name{.RASHOMON_C_GRID}
 \alias{.RASHOMON_C_GRID}
-\title{Safe Rashomon fitting with automatic fallback}
+\title{Escalate the Rashomon tolerance until the cross-fold intersection is non-empty}
 \format{
 An object of class \code{numeric} of length 11.
 }
 \usage{
 .RASHOMON_C_GRID
 }
-\arguments{
-\item{X}{Data.frame or matrix of features.}
-
-\item{y}{Vector of outcomes.}
-
-\item{K}{Integer. Number of folds.}
-
-\item{loss_function}{Character. Loss function for optimaltrees.}
-
-\item{regularization}{Numeric. Regularization parameter.}
-
-\item{rashomon_bound_multiplier}{Numeric. Rashomon tolerance.}
-
-\item{rashomon_bound_adder}{Numeric. Additive Rashomon bound.}
-
-\item{max_leaves}{Integer or NULL. Maximum leaves constraint.}
-
-\item{fold_indices}{Integer vector. Fold assignments.}
-
-\item{auto_tune_intersecting}{Logical. Auto-tune epsilon_n.}
-
-\item{verbose}{Logical. Print messages.}
-
-\item{nuisance_name}{Character. Name for error messages ("propensity" or "control outcome").}
-
-\item{...}{Additional arguments passed to cross_fitted_rashomon.}
-}
 \value{
-cross_fitted_rashomon object or NULL if fallback needed.
-
 List with `fit` (CFRashomon or NULL if empty even at c_max) and `c`
   (the multiplier that first yielded a non-empty intersection, or NA if none).
 }
 \description{
-Safe Rashomon fitting with automatic fallback
+Keeps lambda FIXED (at the CV-selected value) and widens only the Rashomon bound
+multiplier epsilon_n = c * (log(n)/n), stepping c upward over `c_grid` until the
+K-fold intersection is non-empty (or the grid is exhausted). Motivation: the margin
+theorem guarantees tau* is in the intersection with probability -> 1, so an empty
+intersection is a finite-sample artifact; widening epsilon_n resolves it.
+}
+\details{
+\strong{Validity caveat.} For any FIXED c, epsilon_n = c*log(n)/n is still
+o(n^{-1/2}) asymptotically, so escalation is asymptotically inference-valid. But
+c is chosen HERE FROM THE DATA (the first c yielding a non-empty intersection),
+which is a post-selection step, and at realistic n a large c (up to 1000) makes
+epsilon_n large in finite samples. Escalation therefore TRADES the fixed-epsilon_n
+finite-sample validity guarantee for a non-empty intersection. This function does
+NOT cap c and does NOT silently fall back to fold-specific trees; it RETURNS the
+selected c so downstream analysis can evaluate empirically whether large c degrades
+coverage (see the escalation coverage sweep in the arbitration simulation). Callers
+opt into this behavior via escalate_intersection = TRUE; it is not the default.
 }
 \keyword{internal}

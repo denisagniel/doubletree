@@ -19,6 +19,7 @@ estimate_att_single_tree(
   rashomon_bound_multiplier = NULL,
   rashomon_bound_adder = 0,
   max_leaves = NULL,
+  escalate_intersection = FALSE,
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   inference = c("single", "crossfit"),
@@ -55,6 +56,13 @@ Default: NULL, which uses the theory value log(n)/n (= o(n^{-1/2})) via
 \item{rashomon_bound_adder}{Numeric. Additive Rashomon bound. Default: 0}
 
 \item{max_leaves}{Integer. Maximum number of leaves (optional sieve). Default: NULL}
+
+\item{escalate_intersection}{Logical. If TRUE (and rashomon_bound_multiplier is NULL),
+widen the Rashomon tolerance epsilon_n = c*log(n)/n over an escalating grid of c
+until the cross-fold intersection is non-empty. Default FALSE. Trades the
+fixed-epsilon_n validity guarantee for a non-empty intersection (data-dependent c,
+post-selection); coverage must be validated empirically. Opt-in study device; an
+explicit rashomon_bound_multiplier overrides it with a single fixed tolerance.}
 
 \item{discretize_method}{Character. "quantiles" or other. Default: "quantiles"}
 

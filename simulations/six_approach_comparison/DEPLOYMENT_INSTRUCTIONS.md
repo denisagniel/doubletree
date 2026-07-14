@@ -10,9 +10,23 @@
 ### doubletree (HEAD: latest — see git log)
 
 ⚠️ **CI formula bug fixed in approaches 4, 5, 6** — old results INVALID (22x narrow CIs)
-- `estimate_att_averaged.R`: approaches 4 and 6 now use `att_ci(theta, sigma)` (was `sigma/sqrt(n)`)
-- `estimate_att_msplit.R`: approach 5 same fix
+- `estimate_att_msplit.R`: approach 5 uses `att_ci(theta, sigma)` (was `sigma/sqrt(n)`)
 - `dgps.R`: DGP_complex intercept corrected (0.2 → 0.05) to prevent mu0+ATT clipping
+
+⚠️ **UPDATE (2026-07-14): approaches 4 and 6 now report an honest bias-aware CI.**
+The averaged-tree estimators (`estimate_att_doubletree_averaged`, `estimate_att_msplit_averaged`)
+report the (biased) averaged single tree as the POINT ESTIMATE, but the CI is now an
+Armstrong–Kolesár honest interval built from the valid cross-fit twin SE and a
+conservative bias bound `B = |delta| + z*se_delta` (helpers `honest_cv`/`honest_ci` in
+`inference.R`), NOT `att_ci(theta, sigma)`. They also return the twin fields
+(`theta_crossfit`, `sigma_crossfit`, `delta`, ...). Approach 5 (`estimate_att_msplit`)
+still uses the plain `att_ci`.
+
+⚠️ **UPDATE (2026-07-14): `att_repeated` variance scale corrected.** The repeated
+sample-splitting SE is now on the theta-hat scale (`sigma_splits^2 + (theta_splits-theta)^2`,
+no `n` factor); the prior code multiplied the between-split term by `n`. Rashomon
+intersection escalation is now reachable via `escalate_intersection = TRUE` (opt-in;
+default FALSE keeps the fixed theory tolerance).
 
 ### simulation scripts (2026-06-09)
 

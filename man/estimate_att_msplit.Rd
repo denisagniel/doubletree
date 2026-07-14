@@ -28,7 +28,10 @@ estimate_att_msplit(
 
 \item{K}{Number of cross-validation folds per split (default 5)}
 
-\item{structure_selection}{"modal" (most frequent), "first", or "lowest_risk" (default "modal")}
+\item{structure_selection}{How to pick one structure across the M splits:
+"modal" (most frequent partition; default), "lowest_risk" (smallest per-split
+CV risk among non-stumps — more robust when the structure mode is diffuse, as
+for complex outcome nuisances), or "first". See \code{select_structure_msplit}.}
 
 \item{seed_base}{Base seed for reproducibility. Split m uses seed = seed_base + m.}
 

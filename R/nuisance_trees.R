@@ -297,17 +297,26 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 #' @param ... Additional arguments passed to cross_fitted_rashomon.
 #' @return cross_fitted_rashomon object or NULL if fallback needed.
 #' @noRd
+NULL
+
 #' Escalate the Rashomon tolerance until the cross-fold intersection is non-empty
 #'
 #' Keeps lambda FIXED (at the CV-selected value) and widens only the Rashomon bound
-#' multiplier epsilon_n = c * (log(n)/n), stepping c upward until the K-fold
-#' intersection is non-empty (or c_max is reached). Motivation: the margin theorem
-#' guarantees tau* is in the intersection with probability -> 1, so an empty
-#' intersection is a finite-sample artifact; widening epsilon_n resolves it while
-#' keeping epsilon_n = O(log(n)/n) = o(n^{-1/2}) for any fixed c (asymptotically
-#' inference-valid). We do NOT cap c to enforce finite-sample validity and we do NOT
-#' silently fall back to fold-specific trees; instead we RETURN the selected c so
-#' downstream analysis can evaluate empirically whether large c degrades coverage.
+#' multiplier epsilon_n = c * (log(n)/n), stepping c upward over `c_grid` until the
+#' K-fold intersection is non-empty (or the grid is exhausted). Motivation: the margin
+#' theorem guarantees tau* is in the intersection with probability -> 1, so an empty
+#' intersection is a finite-sample artifact; widening epsilon_n resolves it.
+#'
+#' \strong{Validity caveat.} For any FIXED c, epsilon_n = c*log(n)/n is still
+#' o(n^{-1/2}) asymptotically, so escalation is asymptotically inference-valid. But
+#' c is chosen HERE FROM THE DATA (the first c yielding a non-empty intersection),
+#' which is a post-selection step, and at realistic n a large c (up to 1000) makes
+#' epsilon_n large in finite samples. Escalation therefore TRADES the fixed-epsilon_n
+#' finite-sample validity guarantee for a non-empty intersection. This function does
+#' NOT cap c and does NOT silently fall back to fold-specific trees; it RETURNS the
+#' selected c so downstream analysis can evaluate empirically whether large c degrades
+#' coverage (see the escalation coverage sweep in the arbitration simulation). Callers
+#' opt into this behavior via escalate_intersection = TRUE; it is not the default.
 #'
 #' @return List with `fit` (CFRashomon or NULL if empty even at c_max) and `c`
 #'   (the multiplier that first yielded a non-empty intersection, or NA if none).
@@ -414,6 +423,10 @@ safe_rashomon_fit <- function(X, y, K, loss_function, regularization,
 #' @param cv_K Integer. Number of CV folds for lambda selection. Default 5.
 #' @param verbose Logical. Passed to optimaltrees. Default FALSE.
 #' @param rashomon_bound_multiplier,rashomon_bound_adder,max_leaves,auto_tune_intersecting Passed to cross_fitted_rashomon.
+#' @param escalate_intersection Logical. If TRUE (and no explicit rashomon_bound_multiplier),
+#'   widen epsilon_n = c*log(n)/n over .RASHOMON_C_GRID until the cross-fold intersection
+#'   is non-empty (see escalate_rashomon_intersection). Trades the fixed-epsilon_n validity
+#'   guarantee for a non-empty intersection; opt-in, not the default.
 #' @param ... Additional arguments passed to optimaltrees::cross_fitted_rashomon.
 #' @return List with cf_e, cf_m0 (cf_rashomon or NULL if fallback), fallback_fits (list of K per-fold fits or NULL), outcome_type.
 #' @noRd
@@ -422,10 +435,15 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
                                    verbose = FALSE,
                                    rashomon_bound_multiplier = NULL, rashomon_bound_adder = 0,
                                    max_leaves = NULL, auto_tune_intersecting = FALSE,
+                                   escalate_intersection = FALSE,
                                    discretize_method = "quantiles", discretize_bins = "adaptive",
                                    max_depth = 4L,
                                    ...) {
   n <- nrow(X)
+  # Did the caller pass an explicit tolerance? Capture BEFORE resolving NULL, since
+  # an explicit multiplier pins a single fixed tolerance (no escalation) even when
+  # escalate_intersection = TRUE (see c_grid selection below).
+  explicit_multiplier <- !is.null(rashomon_bound_multiplier)
   # Defensive resolution: theory epsilon_n = log(n)/n if not supplied by caller.
   if (is.null(rashomon_bound_multiplier)) {
     rashomon_bound_multiplier <- optimaltrees::select_epsilon_n(n)
@@ -497,18 +515,33 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
     n0 <- length(idx0)
   }
 
-  # Escalate the Rashomon tolerance (widen epsilon_n, lambda fixed) until each
-  # nuisance's cross-fold intersection is non-empty; record the selected multiplier
-  # c (see escalate_rashomon_intersection). This replaces the previous single-shot
-  # fit + silent fold-specific fallback: an empty intersection is a finite-sample
-  # artifact (margin theorem), so we widen c rather than abandon the single tree.
+  # Rashomon tolerance policy. Two distinct behaviors, selected by the caller:
   #
-  # An EXPLICIT rashomon_bound_multiplier is honored as a fixed single tolerance (no
-  # escalation) so the documented single-tolerance API is preserved. Escalation is
-  # the behavior only when the multiplier is NULL (the theory-default / study mode),
-  # where c steps over the default grid starting at the theory value log(n)/n.
+  #  (1) FIXED tolerance (default; escalate_intersection = FALSE). Use the single
+  #      tolerance epsilon_n = rashomon_bound_multiplier * log(n)/n -- the theory
+  #      value log(n)/n when the multiplier was NULL, or the caller's explicit value.
+  #      This is o(n^{-1/2}) for any fixed multiplier and carries the valid-inference
+  #      guarantee (manuscript Cor. "Rashomon tolerance without the intersection
+  #      trade-off"). If the intersection is empty at this tolerance, we do NOT widen
+  #      it; the caller falls back to fold-specific trees (still valid). The c-grid is
+  #      the single point {multiplier}, so escalate_rashomon_intersection does one fit.
+  #
+  #  (2) ESCALATED tolerance (escalate_intersection = TRUE, and NO explicit multiplier).
+  #      Keep lambda fixed and widen epsilon_n = c * log(n)/n over .RASHOMON_C_GRID
+  #      (c = 1, 2, ..., 1000) until the cross-fold intersection is non-empty, recording
+  #      the selected c. An empty theory-tolerance intersection is a finite-sample
+  #      artifact (margin theorem), and escalation forces a single shared tree instead
+  #      of abandoning it. IMPORTANT: for c > 1 the tolerance is NO LONGER guaranteed
+  #      o(n^{-1/2}), so this TRADES the fixed-epsilon_n validity guarantee for a
+  #      non-empty intersection. It is an opt-in practical/study device whose finite-
+  #      sample coverage must be validated empirically (see the escalation coverage
+  #      sweep in simulations/six-approach-arbitration), NOT a silent default.
+  #
+  # An explicit multiplier always pins a single fixed tolerance (behavior 1) even when
+  # escalate_intersection = TRUE, so the documented single-tolerance API is preserved.
+  use_escalation <- isTRUE(escalate_intersection) && !explicit_multiplier
   n_full <- nrow(X)
-  c_grid_e <- if (is.null(rashomon_bound_multiplier)) .RASHOMON_C_GRID else
+  c_grid_e <- if (use_escalation) .RASHOMON_C_GRID else
     rashomon_bound_multiplier / optimaltrees::select_epsilon_n(n_full)
 
   esc_e <- escalate_rashomon_intersection(
@@ -526,7 +559,7 @@ fit_nuisances_rashomon <- function(X, A, Y, fold_indices, outcome_type = "binary
   Y0 <- Y[idx0]
   fold0 <- fold_indices[idx0]
 
-  c_grid_m0 <- if (is.null(rashomon_bound_multiplier)) .RASHOMON_C_GRID else
+  c_grid_m0 <- if (use_escalation) .RASHOMON_C_GRID else
     rashomon_bound_multiplier / optimaltrees::select_epsilon_n(n0)
 
   esc_m0 <- escalate_rashomon_intersection(

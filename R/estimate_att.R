@@ -71,6 +71,26 @@
 #'   fixed theory \eqn{\varepsilon_n} (leave \code{rashomon_bound_multiplier = NULL})
 #'   and, if the intersection is empty, fall back to fold-specific trees
 #'   (\code{use_rashomon = FALSE}).
+#' @param escalate_intersection Logical. If TRUE (and \code{rashomon_bound_multiplier}
+#'   is left NULL), widen the Rashomon tolerance \eqn{\varepsilon_n = c \cdot \log(n)/n}
+#'   over an escalating grid of \eqn{c} (1, 2, ..., 1000) until the cross-fold
+#'   intersection is non-empty, rather than pinning the single theory value. Default FALSE.
+#'   Distinct from \code{auto_tune_intersecting}: escalation keeps \eqn{\lambda} fixed and
+#'   steps the tolerance multiplier at the doubletree level, recording the selected \eqn{c}.
+#'
+#'   \strong{Trades the fixed-\eqn{\varepsilon_n} validity guarantee for a non-empty
+#'   intersection.} The selected \eqn{c} is data-dependent (post-selection) and can be
+#'   large at realistic \eqn{n}, so finite-sample coverage is not guaranteed and must be
+#'   validated empirically (see the escalation coverage sweep in the arbitration
+#'   simulation). Opt-in practical/study device; the returned \code{rashomon_c_e} /
+#'   \code{rashomon_c_m0} record the selected multiplier per nuisance. An explicit
+#'   \code{rashomon_bound_multiplier} always pins a single fixed tolerance, overriding it.
+#' @param max_depth Integer. Maximum GOSDT tree depth for the nuisance fits
+#'   (\code{0L} = unlimited). Default \code{4L}, applied to BOTH the Rashomon and the
+#'   plain cross-fit paths so they are symmetric. Bounding depth prevents the
+#'   continuous-covariate blow-up (unbounded GOSDT on many thresholds) and keeps the
+#'   plain cross-fit nuisances from being deeper than their Rashomon twin. Set
+#'   \code{max_depth = 0L} for unlimited depth (not recommended with continuous covariates).
 #' @param discretize_method Character. Method for discretizing continuous features.
 #'   Default: "quantiles" (theory-recommended, do not override unless you have good reason).
 #'   Uses threshold encoding (k bins → k-1 features) for computational efficiency.
@@ -88,7 +108,7 @@
 #' minimax-optimal trees. Fixed regularization (\code{cv_regularization = FALSE}) should
 #' only be used when you have strong theoretical justification for a specific value.
 #'
-#' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
+#' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95\% CI),
 #'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K,
 #'   converged (logical; TRUE if rashomon intersection succeeded or if use_rashomon=FALSE),
 #'   epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE, NA otherwise).
@@ -127,7 +147,7 @@
 #'   # cv_regularization = TRUE is the default
 #' )
 #' print(fit1$theta)   # Point estimate
-#' print(fit1$ci_95)   # 95% Wald confidence interval
+#' print(fit1$ci_95)   # 95\% Wald confidence interval
 #'
 #' # Alternative: Fixed lambda (when theory-justified)
 #' fit2 <- estimate_att(
@@ -145,6 +165,8 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
                    use_rashomon = FALSE, rashomon_bound_multiplier = NULL,
                    rashomon_bound_adder = 0, max_leaves = NULL,
                    auto_tune_intersecting = FALSE,
+                   escalate_intersection = FALSE,
+                   max_depth = 4L,
                    discretize_method = "quantiles",
                    discretize_bins = "adaptive",
                    ...) {
@@ -153,10 +175,27 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   if (is.matrix(X)) X <- as.data.frame(X)
   n <- nrow(X)
 
+  # Bound GOSDT search depth for BOTH nuisance paths (0L = unlimited). The Rashomon
+  # path already defaulted to 4L; the plain cross-fit path (fit_nuisances_fold) was
+  # previously uncapped, so continuous-covariate DGPs blew up and its nuisance trees
+  # were deeper than the Rashomon twin's -- muddying comparisons. Default 4L makes the
+  # two paths symmetric (see MEMORY estimate-att-depth-cap-asymmetry). Callers can pass
+  # max_depth = 0L to restore unlimited depth.
+  if (!is.numeric(max_depth) || length(max_depth) != 1 || is.na(max_depth) || max_depth < 0) {
+    stop("max_depth must be a single non-negative integer (0 = unlimited), got: ",
+         max_depth, call. = FALSE)
+  }
+  max_depth <- as.integer(max_depth)
+
   # Resolve the Rashomon tolerance. NULL -> theory value epsilon_n = log(n)/n
   # (= o(n^{-1/2})), the fixed, deterministic rate that yields valid inference
   # under the structural-margin condition (manuscript Cor. margin-resolution).
-  if (is.null(rashomon_bound_multiplier)) {
+  # EXCEPTION: when escalate_intersection = TRUE and the caller gave no explicit
+  # multiplier, leave it NULL so fit_nuisances_rashomon runs the c-grid escalation
+  # (widening epsilon_n until the intersection is non-empty) instead of pinning the
+  # single theory tolerance. An explicit multiplier is always honored as fixed.
+  escalating <- isTRUE(escalate_intersection) && is.null(rashomon_bound_multiplier)
+  if (is.null(rashomon_bound_multiplier) && !escalating) {
     rashomon_bound_multiplier <- optimaltrees::select_epsilon_n(n)
     if (verbose && use_rashomon) {
       message("Using theory epsilon_n = log(n)/n = ",
@@ -252,7 +291,10 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     }
   }
 
-  if (!is.numeric(rashomon_bound_multiplier) || length(rashomon_bound_multiplier) != 1 || rashomon_bound_multiplier < 0) {
+  # When escalating, rashomon_bound_multiplier stays NULL (the sentinel that triggers
+  # c-grid escalation downstream); validate the numeric form only otherwise.
+  if (!escalating &&
+      (!is.numeric(rashomon_bound_multiplier) || length(rashomon_bound_multiplier) != 1 || rashomon_bound_multiplier < 0)) {
     stop("rashomon_bound_multiplier must be a single non-negative numeric value, got: ",
          rashomon_bound_multiplier, call. = FALSE)
   }
@@ -274,17 +316,22 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
                                            rashomon_bound_adder = rashomon_bound_adder,
                                            max_leaves = max_leaves,
                                            auto_tune_intersecting = auto_tune_intersecting,
+                                           escalate_intersection = escalate_intersection,
+                                           max_depth = max_depth,
                                            discretize_method = discretize_method,
                                            discretize_bins = discretize_bins, ...)
     eta <- get_fold_specific_eta_rashomon(nuisance_fits, X, fold_indices)
   } else {
     nuisance_fits <- vector("list", K)
     for (k in seq_len(K)) {
+      # max_depth flows via ... -> fit_tree_with_cv -> cv_regularization_adaptive/fit_tree,
+      # bounding GOSDT depth on the plain cross-fit path (was previously uncapped).
       nuisance_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,
                                               outcome_type = outcome_type,
                                               regularization = regularization,
                                               cv_regularization = cv_regularization, cv_K = cv_K,
                                               verbose = verbose,
+                                              max_depth = max_depth,
                                               discretize_method = discretize_method,
                                               discretize_bins = discretize_bins, ...)
     }

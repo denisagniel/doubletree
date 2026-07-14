@@ -66,15 +66,28 @@ extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
 #' @param max_leaves Integer. Maximum number of leaves (optional sieve). Default: NULL
 #' @param auto_tune_intersecting Logical. Auto-tune epsilon_n to find intersection?
 #'   Default: FALSE. Not valid for inference (post-selection); warns when TRUE.
+#' @param escalate_intersection Logical. If TRUE (and rashomon_bound_multiplier is NULL),
+#'   widen the Rashomon tolerance epsilon_n = c*log(n)/n over an escalating grid of c
+#'   until the cross-fold intersection is non-empty. Default FALSE. Trades the
+#'   fixed-epsilon_n validity guarantee for a non-empty intersection (data-dependent c,
+#'   post-selection); coverage must be validated empirically. Opt-in study device; an
+#'   explicit rashomon_bound_multiplier overrides it with a single fixed tolerance.
 #' @param discretize_method Character. "quantiles" or other. Default: "quantiles"
 #' @param discretize_bins Integer or "adaptive". Default: "adaptive"
 #' @param ... Additional arguments passed to optimaltrees functions
 #'
 #' @return List with elements:
-#'   \item{theta}{ATT point estimate}
-#'   \item{sigma}{Standard error}
-#'   \item{ci_95}{95\% confidence interval}
-#'   \item{score_values}{EIF score values}
+#'   \item{theta}{ATT point estimate = the averaged single tree (interpretable DISPLAY
+#'     estimate; carries the in-sample bias documented below)}
+#'   \item{sigma}{Standard error = the valid cross-fit twin's SE}
+#'   \item{ci_95}{Honest bias-aware 95\% CI centered at \code{theta}, built from the
+#'     twin SE and a conservative bias bound; targets coverage of the true ATT (see Details)}
+#'   \item{theta_crossfit, sigma_crossfit, ci_95_crossfit}{The valid cross-fit twin
+#'     estimator (Rashomon-intersection structure, fold-specific out-of-sample leaves)}
+#'   \item{delta, delta_over_se, se_delta}{Fidelity diagnostic \eqn{\hat\theta_{display}
+#'     - \hat\theta_{cf}}, its ratio to \code{sigma_crossfit}, and its sampling SE}
+#'   \item{bias_bound_B, honest_cv}{The conservative bias bound and honest critical value}
+#'   \item{score_values}{EIF score values (display estimate)}
 #'   \item{e_hat}{Propensity score predictions (from averaged tree)}
 #'   \item{m0_hat}{Control outcome predictions (from averaged tree)}
 #'   \item{averaged_trees}{List with e and m0 averaged trees (nested lists)}
@@ -86,6 +99,17 @@ extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
 #'   \item{converged}{Logical (TRUE if Rashomon intersection succeeded)}
 #'   \item{epsilon_n}{Rashomon bound multiplier used}
 #'   \item{n_trees_averaged}{Number of trees averaged (always K)}
+#'
+#' @section Inference:
+#' The point estimate \code{theta} is the averaged single tree: interpretable, but its
+#' leaves are fit IN-SAMPLE, so it carries a positive bias that does not vanish with n.
+#' To recover valid inference we pair it with its cross-fit twin (the
+#' \code{estimate_att(use_rashomon = TRUE)} estimator, which shares the structure but
+#' uses out-of-sample leaves). The reported \code{ci_95} is an Armstrong-Kolesar honest
+#' interval \eqn{\hat\theta_{display} \pm cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}}
+#' with a conservative bias bound \eqn{B = |\delta| + z\cdot se_\delta}. This targets
+#' coverage of the true ATT while keeping the interpretable tree as the reported point
+#' estimate. For a purely valid (unbiased) estimate, use \code{theta_crossfit}.
 #'
 #' @details
 #' \strong{Algorithm:}
@@ -129,6 +153,7 @@ estimate_att_doubletree_averaged <- function(
   rashomon_bound_adder = 0,
   max_leaves = NULL,
   auto_tune_intersecting = FALSE,
+  escalate_intersection = FALSE,
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   ...
@@ -140,7 +165,10 @@ estimate_att_doubletree_averaged <- function(
   if (is.matrix(X)) X <- as.data.frame(X)
 
   # Resolve Rashomon tolerance: NULL -> theory epsilon_n = log(n)/n (o(n^{-1/2})).
-  if (is.null(rashomon_bound_multiplier)) {
+  # When escalating (and no explicit multiplier), keep NULL so fit_nuisances_rashomon
+  # runs the c-grid escalation instead of a single fixed tolerance.
+  escalating <- isTRUE(escalate_intersection) && is.null(rashomon_bound_multiplier)
+  if (is.null(rashomon_bound_multiplier) && !escalating) {
     rashomon_bound_multiplier <- optimaltrees::select_epsilon_n(n)
     if (verbose) {
       message("Using theory epsilon_n = log(n)/n = ",
@@ -184,6 +212,7 @@ estimate_att_doubletree_averaged <- function(
       rashomon_bound_adder = rashomon_bound_adder,
       max_leaves = max_leaves,
       auto_tune_intersecting = auto_tune_intersecting,
+      escalate_intersection = escalate_intersection,
       discretize_method = discretize_method,
       discretize_bins = discretize_bins,
       ...
@@ -191,6 +220,9 @@ estimate_att_doubletree_averaged <- function(
   }, error = function(e) {
     stop("Failed to fit nuisance models: ", e$message, call. = FALSE)
   })
+
+  # Label for tolerance in diagnostics/errors (multiplier may be NULL when escalating).
+  eps_label <- if (is.null(rashomon_bound_multiplier)) "escalated grid" else rashomon_bound_multiplier
 
   # Extract Rashomon objects
   cf_e <- nuisance_fits$cf_e
@@ -201,7 +233,7 @@ estimate_att_doubletree_averaged <- function(
     stop(
       "Rashomon intersection empty for propensity.\n",
       "Suggestions:\n",
-      "  1. Increase rashomon_bound_multiplier (current: ", rashomon_bound_multiplier, ")\n",
+      "  1. Increase rashomon_bound_multiplier (current: ", eps_label, ") or set escalate_intersection = TRUE\n",
       "  2. Use estimate_att() with use_rashomon=FALSE\n",
       "  3. Use estimate_att_msplit_averaged() (more robust to empty intersection)",
       call. = FALSE
@@ -213,7 +245,7 @@ estimate_att_doubletree_averaged <- function(
     stop(
       "Rashomon intersection empty for outcome.\n",
       "Suggestions:\n",
-      "  1. Increase rashomon_bound_multiplier (current: ", rashomon_bound_multiplier, ")\n",
+      "  1. Increase rashomon_bound_multiplier (current: ", eps_label, ") or set escalate_intersection = TRUE\n",
       "  2. Use estimate_att() with use_rashomon=FALSE\n",
       "  3. Use estimate_att_msplit_averaged() (more robust to empty intersection)",
       call. = FALSE
@@ -288,35 +320,74 @@ estimate_att_doubletree_averaged <- function(
   # Compute ATT via EIF
   if (verbose) message("\n--- Computing ATT estimate ---")
 
-  # Shared EIF solve (see eif_att_solve in inference.R).
+  # DISPLAY estimate: the averaged single tree (interpretable but IN-SAMPLE, so it
+  # carries the (K-1)/K contamination bias documented on this function). Shared EIF
+  # solve (see eif_att_solve in inference.R).
   .att <- eif_att_solve(Y, A, e_hat, m0_hat, n)
   theta_hat <- .att$theta
   score_values <- .att$score_values
-  sigma <- .att$sigma
-  ci_95 <- .att$ci_95
+
+  # VALID cross-fit twin: same Rashomon-intersection structure, but fold-specific
+  # OUT-OF-SAMPLE leaves -- exactly the estimate_att(use_rashomon = TRUE) estimator.
+  # Used to build the honest (bias-aware) CI: the averaged tree stays the point
+  # estimate, but its interval targets theta_0 coverage via the twin SE widened by
+  # the estimated bias delta = theta_display - theta_cf.
+  eta_cf <- get_fold_specific_eta_rashomon(nuisance_fits, X, fold_indices)
+  .att_cf <- eif_att_solve(Y, A, eta_cf$e, eta_cf$m0, n)
+  theta_crossfit <- .att_cf$theta
+  sigma_crossfit <- .att_cf$sigma
+  ci_95_crossfit <- .att_cf$ci_95
+
+  # Bias diagnostic and its sampling SE. Because pi_hat = mean(A), the EIF Jacobian is
+  # -1 and eif_att_solve's score_values ARE the per-observation influence contributions
+  # (att_se = sqrt(mean(score^2)/n) = SE). delta = theta_display - theta_cf is then
+  # asymptotically linear with influence (score_display - score_cf), so:
+  delta <- theta_hat - theta_crossfit
+  delta_over_se <- if (sigma_crossfit > 0) delta / sigma_crossfit else NA_real_
+  se_delta <- sqrt(mean((score_values - .att_cf$score_values)^2) / n)
+
+  # Honest bias-aware CI centered at the display estimate, with a CONSERVATIVE bias
+  # bound B = |delta| + z*se_delta (robust to delta's own noise). See honest_ci().
+  hon <- honest_ci(theta_hat, sigma_crossfit, delta, se_delta, level = 0.95)
+  sigma <- sigma_crossfit          # reported SE is the valid twin's SE
+  ci_95 <- hon$ci                  # reported CI is the honest bias-aware interval
 
   if (verbose) {
     message(sprintf("\n=== Results ==="))
-    message(sprintf("ATT estimate: %.4f", theta_hat))
-    message(sprintf("Standard error: %.4f", sigma))
-    message(sprintf("95%% CI: [%.4f, %.4f]", ci_95[1], ci_95[2]))
+    message(sprintf("Averaged-tree ATT (display): %.4f", theta_hat))
+    message(sprintf("Cross-fit twin ATT:          %.4f  (SE %.4f)", theta_crossfit, sigma_crossfit))
+    message(sprintf("delta = display - cf:        %.4f  (delta/SE_cf = %.2f)", delta, delta_over_se))
+    message(sprintf("Honest 95%% CI (bias-aware):  [%.4f, %.4f]  (cv = %.2f, B = %.4f)",
+                    ci_95[1], ci_95[2], hon$cv, hon$B))
   }
 
   # Tolerance multipliers selected by escalation (epsilon_n = c*log(n)/n per nuisance).
   rashomon_c_e  <- if (is.null(nuisance_fits$rashomon_c_e))  NA_real_ else nuisance_fits$rashomon_c_e
   rashomon_c_m0 <- if (is.null(nuisance_fits$rashomon_c_m0)) NA_real_ else nuisance_fits$rashomon_c_m0
   c_vals <- c(rashomon_c_e, rashomon_c_m0)
-  epsilon_n_used <- if (all(is.na(c_vals))) rashomon_bound_multiplier else
+  epsilon_n_used <- if (all(is.na(c_vals))) {
+    if (is.null(rashomon_bound_multiplier)) NA_real_ else rashomon_bound_multiplier
+  } else {
     max(c_vals, na.rm = TRUE) * (log(n) / n)
+  }
 
   # Return structure
   structure(list(
-    theta = theta_hat,
-    sigma = sigma,
-    ci_95 = ci_95,
+    theta = theta_hat,             # DISPLAY: averaged single tree (biased, interpretable)
+    sigma = sigma,                 # valid cross-fit twin SE
+    ci_95 = ci_95,                 # honest bias-aware CI (targets theta_0 coverage)
     score_values = score_values,
     e_hat = e_hat,
     m0_hat = m0_hat,
+    # Valid cross-fit twin + fidelity diagnostic (goal ii; see estimate_att_single_tree).
+    theta_crossfit = theta_crossfit,
+    sigma_crossfit = sigma_crossfit,
+    ci_95_crossfit = ci_95_crossfit,
+    delta = delta,
+    delta_over_se = delta_over_se,
+    se_delta = se_delta,
+    bias_bound_B = hon$B,
+    honest_cv = hon$cv,
     averaged_trees = list(e = e_averaged, m0 = m0_averaged),
     structures = NULL,  # Averaged trees contain full structure information
     n = n,
@@ -361,15 +432,23 @@ estimate_att_doubletree_averaged <- function(
 #' 3. Stage 3: **Average leaf values** across all M×K trees → 1 averaged tree
 #' 4. **Inference** via the averaged tree (predict all n observations)
 #'
-#' The averaged tree is used for both inference and display. Cross-fitted predictions
-#' from Stage 2 are also stored in \code{predictions_all_splits} to enable investigation
-#' of alternative inference paths (e.g., rowMeans of the n×M prediction matrix).
+#' The averaged tree is the interpretable DISPLAY point estimate. Its leaves are fit
+#' in-sample, so it carries a positive bias (see below); inference is therefore based
+#' on the valid cross-fit twin built from \code{predictions_all_splits}.
 #'
-#' \strong{Known issue:} Using the averaged tree for inference introduces (K-1)/K
-#' in-sample contamination (80% at K=5) because each leaf's averaged value is
-#' computed from M×K refits, M(K-1) of which used observation i in training.
-#' This causes structural positive bias that does not vanish with M or n.
-#' The \code{predictions_all_splits} field enables comparison with cross-fitted inference.
+#' \strong{Bias and its resolution:} Using the averaged tree's own predictions for
+#' inference would introduce (K-1)/K in-sample contamination (80\% at K=5) -- each leaf's
+#' averaged value is computed from M×K refits, M(K-1) of which used observation i in
+#' training -- causing a structural positive bias that does not vanish with M or n.
+#' We therefore keep the averaged tree only as the (biased) point estimate and derive
+#' the reported CI from the cross-fit twin: the M-averaged out-of-sample predictions in
+#' \code{predictions_all_splits} give a valid ATT (\code{theta_crossfit}, the M-split
+#' estimator), and the reported \code{ci_95} is an Armstrong-Kolesar honest interval
+#' \eqn{\hat\theta_{display} \pm cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}} with a
+#' conservative bias bound \eqn{B = |\delta| + z\cdot se_\delta}, \eqn{\delta =
+#' \hat\theta_{display} - \hat\theta_{cf}} and \eqn{se_\delta = \mathrm{sd}(\hat\theta_{cf,m})/\sqrt{M}}.
+#' This targets coverage of the true ATT while displaying the interpretable tree. For a
+#' purely valid estimate, use \code{theta_crossfit}.
 #'
 #' @export
 estimate_att_msplit_averaged <- function(X, A, Y,
@@ -529,23 +608,72 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   e_hat  <- pmax(pmin(optimaltrees::predict_averaged_tree(e_averaged,  X_for_e_pred),  0.99), 0.01)
   m0_hat <- pmax(pmin(optimaltrees::predict_averaged_tree(m0_averaged, X_for_m0_pred), 0.99), 0.01)
 
-  # Compute ATT via the shared EIF solve (see eif_att_solve in inference.R).
+  # DISPLAY estimate: averaged single tree over all M*K refits (interpretable, but
+  # IN-SAMPLE -> carries the (K-1)/K contamination bias documented on this function).
+  # Shared EIF solve (see eif_att_solve in inference.R).
   .att <- eif_att_solve(Y, A, e_hat, m0_hat, n)
   theta_hat <- .att$theta
   score <- .att$score_values
-  sigma <- .att$sigma
-  ci_95 <- .att$ci_95
+
+  # ============================================================
+  # Valid cross-fit twin + honest bias-aware CI
+  # ============================================================
+  # predictions_*_xfitted are proper OUT-OF-SAMPLE predictions (obs i predicted by a
+  # tree trained without i). Per split m, column m gives a valid cross-fit ATT; the
+  # M-averaged twin (rowMeans) is the M-split estimator (approach 5's estimate). We use
+  # it to target theta_0 coverage while keeping the averaged tree as the display point.
+  e_bar_cf  <- pmax(pmin(rowMeans(predictions_e_xfitted,  na.rm = FALSE), 0.99), 0.01)
+  m0_bar_cf <- pmax(pmin(rowMeans(predictions_m0_xfitted, na.rm = FALSE), 0.99), 0.01)
+  .att_cf <- eif_att_solve(Y, A, e_bar_cf, m0_bar_cf, n)
+  theta_crossfit <- .att_cf$theta
+  sigma_crossfit <- .att_cf$sigma
+  ci_95_crossfit <- .att_cf$ci_95
+
+  # Per-split cross-fit ATTs -> se(delta) from the M splits (user-specified form). Each
+  # theta_cf_m solves the EIF on split m's cross-fitted predictions; theta_single is
+  # constant across m, so sd(theta_cf_m)/sqrt(M) is the SE of the averaged twin and a
+  # direct estimate of the sampling noise in delta.
+  theta_cf_m <- vapply(seq_len(M), function(mm) {
+    e_m  <- pmax(pmin(predictions_e_xfitted[, mm],  0.99), 0.01)
+    m0_m <- pmax(pmin(predictions_m0_xfitted[, mm], 0.99), 0.01)
+    eif_att_solve(Y, A, e_m, m0_m, n)$theta
+  }, numeric(1))
+  delta <- theta_hat - theta_crossfit
+  delta_over_se <- if (sigma_crossfit > 0) delta / sigma_crossfit else NA_real_
+  se_delta <- if (M > 1) sd(theta_cf_m) / sqrt(M) else 0
+
+  # Honest bias-aware CI (conservative bound B = |delta| + z*se_delta); see honest_ci().
+  hon <- honest_ci(theta_hat, sigma_crossfit, delta, se_delta, level = 0.95)
+  sigma <- sigma_crossfit          # reported SE = valid twin SE
+  ci_95 <- hon$ci                  # reported CI = honest bias-aware interval
+
+  if (verbose) {
+    cat(sprintf("  Averaged-tree ATT (display): %.4f\n", theta_hat))
+    cat(sprintf("  Cross-fit twin ATT:          %.4f (SE %.4f)\n", theta_crossfit, sigma_crossfit))
+    cat(sprintf("  delta = display - cf:        %.4f (delta/SE_cf = %.2f)\n", delta, delta_over_se))
+    cat(sprintf("  Honest 95%% CI:               [%.4f, %.4f] (cv = %.2f)\n",
+                ci_95[1], ci_95[2], hon$cv))
+  }
 
   # ============================================================
   # Return
   # ============================================================
   structure(list(
-    theta = theta_hat,
-    sigma = sigma,
-    ci_95 = ci_95,
+    theta = theta_hat,             # DISPLAY: averaged single tree (biased, interpretable)
+    sigma = sigma,                 # valid cross-fit twin SE
+    ci_95 = ci_95,                 # honest bias-aware CI (targets theta_0 coverage)
     score_values = score,
     e_hat = e_hat,
     m0_hat = m0_hat,
+    # Valid cross-fit twin + fidelity diagnostic (goal ii).
+    theta_crossfit = theta_crossfit,
+    sigma_crossfit = sigma_crossfit,
+    ci_95_crossfit = ci_95_crossfit,
+    delta = delta,
+    delta_over_se = delta_over_se,
+    se_delta = se_delta,
+    bias_bound_B = hon$B,
+    honest_cv = hon$cv,
     averaged_trees = list(e = e_averaged, m0 = m0_averaged),
     predictions_all_splits = list(e = predictions_e_xfitted, m0 = predictions_m0_xfitted),
     structures = list(

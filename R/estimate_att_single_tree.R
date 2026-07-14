@@ -76,6 +76,7 @@ estimate_att_single_tree <- function(
   rashomon_bound_multiplier = NULL,
   rashomon_bound_adder = 0,
   max_leaves = NULL,
+  escalate_intersection = FALSE,
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   inference = c("single", "crossfit"),
@@ -87,8 +88,11 @@ estimate_att_single_tree <- function(
   if (is.matrix(X)) X <- as.data.frame(X)
   n <- nrow(X)
 
-  # Resolve tolerance to the theory value log(n)/n unless supplied.
-  if (is.null(rashomon_bound_multiplier)) {
+  # Resolve tolerance to the theory value log(n)/n unless supplied. When escalating
+  # (and no explicit multiplier), keep NULL so fit_nuisances_rashomon runs the c-grid
+  # escalation instead of a single fixed tolerance.
+  escalating <- isTRUE(escalate_intersection) && is.null(rashomon_bound_multiplier)
+  if (is.null(rashomon_bound_multiplier) && !escalating) {
     rashomon_bound_multiplier <- optimaltrees::select_epsilon_n(n)
     if (verbose) {
       message("Using theory epsilon_n = log(n)/n = ",
@@ -108,6 +112,7 @@ estimate_att_single_tree <- function(
     rashomon_bound_multiplier = rashomon_bound_multiplier,
     rashomon_bound_adder = rashomon_bound_adder,
     max_leaves = max_leaves, auto_tune_intersecting = FALSE,
+    escalate_intersection = escalate_intersection,
     discretize_method = discretize_method, discretize_bins = discretize_bins,
     ...
   )
@@ -121,9 +126,11 @@ estimate_att_single_tree <- function(
   if (empty_e || empty_m0) {
     which_empty <- paste(c(if (empty_e) "propensity", if (empty_m0) "outcome"),
                          collapse = " and ")
+    eps_label <- if (is.null(rashomon_bound_multiplier)) "the escalated tolerance grid"
+                 else signif(rashomon_bound_multiplier, 3)
     stop(
       "Rashomon intersection empty for ", which_empty, " at epsilon_n = ",
-      signif(rashomon_bound_multiplier, 3), ": no single shared structure exists ",
+      eps_label, ": no single shared structure exists ",
       "(the structural margin does not hold on this data).\n",
       "  Fall back to estimate_att(use_rashomon = FALSE) for a valid (but ",
       "fold-specific, not single-tree) estimate.",
@@ -208,7 +215,7 @@ estimate_att_single_tree <- function(
   )
 }
 
-#' ATT point estimate, SE, and 95% CI from plugged-in nuisances
+#' ATT point estimate, SE, and 95\% CI from plugged-in nuisances
 #'
 #' Thin wrapper kept for the single-tree call sites; delegates to the shared
 #' \code{\link{eif_att_solve}} (inference.R). Returns only theta/sigma/ci_95.

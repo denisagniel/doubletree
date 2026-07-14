@@ -20,6 +20,7 @@ estimate_att_doubletree_averaged(
   rashomon_bound_adder = 0,
   max_leaves = NULL,
   auto_tune_intersecting = FALSE,
+  escalate_intersection = FALSE,
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   ...
@@ -59,6 +60,13 @@ Default: NULL, which uses the theory value log(n)/n (= o(n^{-1/2})) via
 \item{auto_tune_intersecting}{Logical. Auto-tune epsilon_n to find intersection?
 Default: FALSE. Not valid for inference (post-selection); warns when TRUE.}
 
+\item{escalate_intersection}{Logical. If TRUE (and rashomon_bound_multiplier is NULL),
+widen the Rashomon tolerance epsilon_n = c*log(n)/n over an escalating grid of c
+until the cross-fold intersection is non-empty. Default FALSE. Trades the
+fixed-epsilon_n validity guarantee for a non-empty intersection (data-dependent c,
+post-selection); coverage must be validated empirically. Opt-in study device; an
+explicit rashomon_bound_multiplier overrides it with a single fixed tolerance.}
+
 \item{discretize_method}{Character. "quantiles" or other. Default: "quantiles"}
 
 \item{discretize_bins}{Integer or "adaptive". Default: "adaptive"}
@@ -67,10 +75,17 @@ Default: FALSE. Not valid for inference (post-selection); warns when TRUE.}
 }
 \value{
 List with elements:
-  \item{theta}{ATT point estimate}
-  \item{sigma}{Standard error}
-  \item{ci_95}{95\% confidence interval}
-  \item{score_values}{EIF score values}
+  \item{theta}{ATT point estimate = the averaged single tree (interpretable DISPLAY
+    estimate; carries the in-sample bias documented below)}
+  \item{sigma}{Standard error = the valid cross-fit twin's SE}
+  \item{ci_95}{Honest bias-aware 95\% CI centered at \code{theta}, built from the
+    twin SE and a conservative bias bound; targets coverage of the true ATT (see Details)}
+  \item{theta_crossfit, sigma_crossfit, ci_95_crossfit}{The valid cross-fit twin
+    estimator (Rashomon-intersection structure, fold-specific out-of-sample leaves)}
+  \item{delta, delta_over_se, se_delta}{Fidelity diagnostic \eqn{\hat\theta_{display}
+    - \hat\theta_{cf}}, its ratio to \code{sigma_crossfit}, and its sampling SE}
+  \item{bias_bound_B, honest_cv}{The conservative bias bound and honest critical value}
+  \item{score_values}{EIF score values (display estimate)}
   \item{e_hat}{Propensity score predictions (from averaged tree)}
   \item{m0_hat}{Control outcome predictions (from averaged tree)}
   \item{averaged_trees}{List with e and m0 averaged trees (nested lists)}
@@ -113,6 +128,19 @@ with an informative error suggesting:
 - Use estimate_att() with use_rashomon=FALSE
 - Use estimate_att_msplit_averaged() (more robust to empty intersection)
 }
+\section{Inference}{
+
+The point estimate \code{theta} is the averaged single tree: interpretable, but its
+leaves are fit IN-SAMPLE, so it carries a positive bias that does not vanish with n.
+To recover valid inference we pair it with its cross-fit twin (the
+\code{estimate_att(use_rashomon = TRUE)} estimator, which shares the structure but
+uses out-of-sample leaves). The reported \code{ci_95} is an Armstrong-Kolesar honest
+interval \eqn{\hat\theta_{display} \pm cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}}
+with a conservative bias bound \eqn{B = |\delta| + z\cdot se_\delta}. This targets
+coverage of the true ATT while keeping the interpretable tree as the reported point
+estimate. For a purely valid (unbiased) estimate, use \code{theta_crossfit}.
+}
+
 \seealso{
 \code{\link{estimate_att}}, \code{\link{estimate_att_msplit_averaged}},
   \code{\link{fit_nuisances_rashomon}}, \code{\link{average_trees}}

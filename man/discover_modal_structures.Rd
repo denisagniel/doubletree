@@ -12,7 +12,8 @@ discover_modal_structures(
   K,
   seed_base = NULL,
   outcome_type = "binary",
-  verbose = FALSE
+  verbose = FALSE,
+  structure_selection = "modal"
 )
 }
 \arguments{

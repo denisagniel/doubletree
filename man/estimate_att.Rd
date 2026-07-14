@@ -21,6 +21,8 @@ estimate_att(
   rashomon_bound_adder = 0,
   max_leaves = NULL,
   auto_tune_intersecting = FALSE,
+  escalate_intersection = FALSE,
+  max_depth = 4L,
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   ...
@@ -102,6 +104,28 @@ Default: 0.}
   and, if the intersection is empty, fall back to fold-specific trees
   (\code{use_rashomon = FALSE}).}
 
+\item{escalate_intersection}{Logical. If TRUE (and \code{rashomon_bound_multiplier}
+  is left NULL), widen the Rashomon tolerance \eqn{\varepsilon_n = c \cdot \log(n)/n}
+  over an escalating grid of \eqn{c} (1, 2, ..., 1000) until the cross-fold
+  intersection is non-empty, rather than pinning the single theory value. Default FALSE.
+  Distinct from \code{auto_tune_intersecting}: escalation keeps \eqn{\lambda} fixed and
+  steps the tolerance multiplier at the doubletree level, recording the selected \eqn{c}.
+
+  \strong{Trades the fixed-\eqn{\varepsilon_n} validity guarantee for a non-empty
+  intersection.} The selected \eqn{c} is data-dependent (post-selection) and can be
+  large at realistic \eqn{n}, so finite-sample coverage is not guaranteed and must be
+  validated empirically (see the escalation coverage sweep in the arbitration
+  simulation). Opt-in practical/study device; the returned \code{rashomon_c_e} /
+  \code{rashomon_c_m0} record the selected multiplier per nuisance. An explicit
+  \code{rashomon_bound_multiplier} always pins a single fixed tolerance, overriding it.}
+
+\item{max_depth}{Integer. Maximum GOSDT tree depth for the nuisance fits
+(\code{0L} = unlimited). Default \code{4L}, applied to BOTH the Rashomon and the
+plain cross-fit paths so they are symmetric. Bounding depth prevents the
+continuous-covariate blow-up (unbounded GOSDT on many thresholds) and keeps the
+plain cross-fit nuisances from being deeper than their Rashomon twin. Set
+\code{max_depth = 0L} for unlimited depth (not recommended with continuous covariates).}
+
 \item{discretize_method}{Character. Method for discretizing continuous features.
 Default: "quantiles" (theory-recommended, do not override unless you have good reason).
 Uses threshold encoding (k bins → k-1 features) for computational efficiency.}
@@ -114,7 +138,7 @@ for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary fe
 \item{...}{Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
 }
 \value{
-List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95% CI),
+List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95\% CI),
   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K,
   converged (logical; TRUE if rashomon intersection succeeded or if use_rashomon=FALSE),
   epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE, NA otherwise).
@@ -175,7 +199,7 @@ fit1 <- estimate_att(
   # cv_regularization = TRUE is the default
 )
 print(fit1$theta)   # Point estimate
-print(fit1$ci_95)   # 95\% Wald confidence interval
+print(fit1$ci_95)   # 95\\% Wald confidence interval
 
 # Alternative: Fixed lambda (when theory-justified)
 fit2 <- estimate_att(

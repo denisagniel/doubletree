@@ -49,6 +49,9 @@ run_one <- function(unit_row) {
     n         = config$n,
     dgp       = config$dgp,
     method    = config$method,
+    # Rashomon-tolerance escalation flag for this cell (FALSE for non-escalation and
+    # non-Rashomon methods). Lets the analysis group fixed-tolerance vs escalated runs.
+    escalate  = isTRUE(config$escalate),
     estimate  = est$estimate,
     std_error = est$std_error,
     ci_lower  = est$ci_lower,

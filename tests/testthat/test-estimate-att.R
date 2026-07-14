@@ -253,3 +253,28 @@ test_that("estimate_att works with continuous covariates and continuous outcome"
   expect_length(fit$ci_95, 2)
   expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
 })
+
+test_that("estimate_att max_depth: default caps depth, validates, and 0L allows unlimited", {
+  skip_if_not_installed("optimaltrees")
+  skip_on_cran()
+
+  set.seed(414)
+  n <- 200
+  X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5),
+                  x3 = rbinom(n, 1, 0.5))
+  A <- rbinom(n, 1, plogis(-0.3 + 0.6 * X$x1))
+  Y <- rbinom(n, 1, 0.3 + 0.2 * A + 0.1 * X$x1)
+
+  # Default (max_depth = 4L) runs on the plain cross-fit path.
+  fit_default <- estimate_att(X, A, Y, K = 3, use_rashomon = FALSE, verbose = FALSE)
+  expect_true(is.finite(fit_default$theta))
+
+  # Explicit 0L (unlimited) still runs on binary covariates.
+  fit_unlim <- estimate_att(X, A, Y, K = 3, use_rashomon = FALSE,
+                            max_depth = 0L, verbose = FALSE)
+  expect_true(is.finite(fit_unlim$theta))
+
+  # Validation: negative and non-scalar are rejected before any fitting.
+  expect_error(estimate_att(X, A, Y, K = 3, max_depth = -1), "non-negative")
+  expect_error(estimate_att(X, A, Y, K = 3, max_depth = c(1, 2)), "single")
+})
