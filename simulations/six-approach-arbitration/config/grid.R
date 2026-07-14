@@ -16,8 +16,9 @@
 STUDY_NAME   <- "six-approach-arbitration"
 PROJECT_NAME <- "global-scholars"
 
-# Base seed for the whole study. Per-unit seeds are BASE_SEED + unit_index so
-# every replication is independent, reproducible, and parallel-safe.
+# Base seed for the whole study. Per-(config, rep) seeds are derived from this
+# via .unit_seed() so every replication is independent, reproducible, parallel-safe
+# -- and INDEPENDENT of unit ordering (see .unit_seed / S6 note below).
 BASE_SEED <- 20240101L
 
 # Replications per configuration. Total Monte Carlo work = nrow(GRID) * TOTAL_REPS.
@@ -52,6 +53,23 @@ GRID <- expand.grid(
 GRID$config_id <- seq_len(nrow(GRID))
 
 # -----------------------------------------------------------------------------
+# .unit_seed() -- deterministic seed for a (config, rep) pair (S6).
+# Depends ONLY on (config_id, rep_id), never on the `unit` index or unit ordering,
+# so re-ordering / re-stratifying the grid never changes a replication's seed. The
+# old `base_seed + unit` scheme was ordering-DEPENDENT: adding/reordering configs
+# shifted every downstream unit's seed, silently re-randomizing untouched cells.
+# Arithmetic is done in DOUBLES then reduced mod 2^31-1 into the valid 32-bit range
+# set.seed() requires -- base-R integer arithmetic overflows to NA past 2^31 (see
+# MEMORY base-r-hashing-gotcha), so we never form an integer beyond that. Distinct
+# (config, rep) pairs get distinct seeds as long as rep_id <= total_reps.
+# -----------------------------------------------------------------------------
+.unit_seed <- function(config_id, rep_id, total_reps = TOTAL_REPS, base_seed = BASE_SEED) {
+  MOD    <- 2147483647                                   # 2^31 - 1 (Mersenne prime)
+  offset <- (as.double(config_id) - 1) * total_reps + rep_id
+  as.integer((base_seed + offset) %% MOD)
+}
+
+# -----------------------------------------------------------------------------
 # unit_table() -- deterministic enumeration of all (config, rep) work units.
 # Returns a data frame with columns: unit, config_id, rep_id, seed, plus the
 # grid columns. unit runs 1..(nrow(GRID) * TOTAL_REPS).
@@ -69,7 +87,9 @@ unit_table <- function(grid = GRID, total_reps = TOTAL_REPS, base_seed = BASE_SE
     )
   }))
   ut$unit <- seq_len(nrow(ut))
-  ut$seed <- base_seed + ut$unit
+  # Ordering-invariant per-(config, rep) seed (S6). NOTE: this changes RNG streams
+  # relative to the old base_seed+unit scheme -- intended and accepted.
+  ut$seed <- .unit_seed(ut$config_id, ut$rep_id, total_reps, base_seed)
   ut[, c("unit", "config_id", "rep_id", "seed",
          setdiff(names(ut), c("unit", "config_id", "rep_id", "seed")))]
 }

@@ -92,27 +92,48 @@ echo "Running: ${RUNNING}   Pending: ${PENDING}"
 # --- Most recent log files (log discovery) -----------------------------------
 echo
 echo "Newest log files:"
-ls -t "${LOG_DIR}"/*.out "${LOG_DIR}"/*.err 2>/dev/null | head -8 | while read -r f; do
-  printf "  %s  %s\n" "$(date -r "${f}" '+%F %T' 2>/dev/null || echo '?')" "${f}"
-done || echo "  (no logs yet)"
+# find + sort (S4), never `ls *.out` glob: at ~100k logs the glob overflows the
+# argv limit / errors, silently truncating log discovery. `-printf '%T@ %p'`
+# sorts numerically by mtime with no dependence on locale-formatted `ls` output.
+# Matches BOTH log layouts: task_%A_%a.{out,err} (submit.sh) and
+# <method>_%A_%a.{out,err} (submit_per_method.sh).
+find "${LOG_DIR}" -maxdepth 1 \( -name '*.out' -o -name '*.err' \) -printf '%T@ %p\n' 2>/dev/null \
+  | sort -rn | head -8 | while read -r ts f; do
+      printf "  %s  %s\n" "$(date -d "@${ts%.*}" '+%F %T' 2>/dev/null || echo '?')" "${f}"
+    done || echo "  (no logs yet)"
 
-# --- Failed-task detection ----------------------------------------------------
-# A task is suspect if its .err has content or the .out lacks a 'finished' line.
+# --- Failed-task detection (A3: sentinel/exit-code, not grep-the-.err) --------
+# array.slurm writes "finished with status N" to the .out on completion. The
+# project's tasks `library(doubletree)`/`library(optimaltrees)`, which emit S7/
+# jsonlite import WARNINGS into .err on every HEALTHY task -- so grepping .err for
+# error|cannot|killed|oom yields constant FALSE POSITIVES. Instead trust the
+# finish sentinel and its exit status:
+#   FAILED     = definite failure (non-zero exit status in the finish sentinel)
+#   INCOMPLETE = no "finished with status 0" sentinel AND no result file yet
+#                -> still running, or killed/OOM'd (no chance to print the sentinel)
+# Scan BOTH .out layouts (task_*.out and <method>_*.out).
 echo
-echo "Scanning for failed/incomplete tasks..."
+echo "Scanning for failed/incomplete tasks (exit-status sentinels)..."
 FAILED=()
-shopt -s nullglob
-for errf in "${LOG_DIR}"/*.err; do
-  if [[ -s "${errf}" ]] && grep -qiE 'error|cannot|killed|oom|not found' "${errf}"; then
-    FAILED+=("${errf}")
+INCOMPLETE=()
+while IFS= read -r -d '' outf; do
+  if grep -q 'received SIGTERM' "${outf}" 2>/dev/null; then
+    FAILED+=("${outf}")                                    # wall-time TIMEOUT (array.slurm trap)
+  elif grep -qE 'finished with status [1-9]' "${outf}" 2>/dev/null; then
+    FAILED+=("${outf}")                                    # non-zero exit
+  elif ! grep -q 'finished with status 0' "${outf}" 2>/dev/null; then
+    INCOMPLETE+=("${outf}")                                # no sentinel: running OR killed
   fi
-done
-shopt -u nullglob
+done < <(find "${LOG_DIR}" -maxdepth 1 -name '*.out' -print0 2>/dev/null)
+
+if (( ${#INCOMPLETE[@]} > 0 )); then
+  echo "  ${#INCOMPLETE[@]} task log(s) have no finish sentinel yet (still running, or killed/OOM if the job is gone from squeue)."
+fi
 
 if (( ${#FAILED[@]} == 0 )); then
-  echo "  No obvious failures in .err logs."
+  echo "  No failed tasks detected via exit sentinels."
 else
-  echo "  ${#FAILED[@]} task log(s) show errors:"
+  echo "  ${#FAILED[@]} task log(s) failed or timed out:"
   for f in "${FAILED[@]}"; do echo "    ${f}"; done
   if (( TAIL_FAILURES == 1 )); then
     echo

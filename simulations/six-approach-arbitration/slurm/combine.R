@@ -123,37 +123,69 @@ if (length(per_method_envs) > 0) {
   }
 }
 
-# --- Stream + bind -----------------------------------------------------------
+# --- Stream + bind (newest file LAST so the newest row wins de-dup) -----------
+# Read task files in ASCENDING mtime order so that when two files re-emit the
+# same (unit, method) -- e.g. a timeout resume/backfill rewrote a task -- the
+# NEWEST file's rows come last and win the `fromLast=TRUE` de-dup below.
 cat(sprintf("Combining %d task files...\n", length(files)))
-parts <- vector("list", length(files))
-for (i in seq_along(files)) {
-  parts[[i]] <- readRDS(files[i])
+files <- files[order(file.info(files)$mtime)]
+parts <- lapply(files, readRDS)
+# bind_fill: error rows (M4) carry only identity cols + error_msg, so per-file
+# schemas can differ; bind by name, filling absent columns with NA.
+if (requireNamespace("data.table", quietly = TRUE)) {
+  result <- as.data.frame(data.table::rbindlist(parts, use.names = TRUE, fill = TRUE))
+} else {
+  cat("NOTE: data.table not installed; using do.call(rbind) (needs matching cols).\n")
+  cols  <- unique(unlist(lapply(parts, names)))
+  parts <- lapply(parts, function(d) { for (c in setdiff(cols, names(d))) d[[c]] <- NA; d[, cols, drop = FALSE] })
+  result <- do.call(rbind, parts)
 }
-result <- do.call(rbind, parts)
-result <- result[order(result$unit), , drop = FALSE]
 
-# --- De-duplicate by work-unit id --------------------------------------------
-# A `unit` is the canonical (config, rep) id and must appear exactly once. Task
-# files can overlap in scratch -- per-method subdirs restart task ids at 1, and
-# timeout-driven re-runs/backfills can re-emit a unit's file -- and the recursive
-# task-file glob above sweeps them all. Left unchecked this rbinds the SAME unit
-# multiple times (observed 3.75x in an interim run), silently inflating N and
-# corrupting every downstream coverage/bias summary. Duplicates are EXACT copies
-# (same seed -> same estimate), so keeping the first occurrence per unit is exact,
-# not a lossy choice. Warn loudly (Constitution S9: no silent absorption) so an
-# unexpected overlap is surfaced, not hidden.
+# --- De-duplicate by (unit, method) keeping the NEWEST -------------------------
+# A `unit` is the canonical (config, rep) id; because `method` is a GRID dimension
+# here, unit is already globally unique across methods, so (unit, method) keys on a
+# superset that can never over-collapse legitimate rows -- but it is the robust,
+# self-documenting key if the schema ever grows multiple rows per unit. Task files
+# overlap in scratch: per-method subdirs restart task ids at 1, and timeout-driven
+# resumes/backfills re-emit a unit's file; the recursive glob above sweeps them all.
+# Left unchecked this rbinds the SAME (unit, method) multiple times (observed 3.75x
+# in an interim run), silently inflating N and corrupting every downstream coverage/
+# bias summary. We keep the NEWEST occurrence (fromLast=TRUE, after mtime-ascending
+# read): a resume that RE-RAN a unit -- e.g. after a code fix within the same run --
+# is authoritative over the stale earlier copy, not a coin-flip "keep first". Warn
+# loudly (Constitution S9: no silent absorption) so an unexpected overlap surfaces.
+key <- if ("method" %in% names(result)) {
+  paste(result$unit, result$method, sep = "\r")
+} else {
+  as.character(result$unit)
+}
 n_raw <- nrow(result)
-result <- result[!duplicated(result$unit), , drop = FALSE]
-n_dup <- n_raw - nrow(result)
+dup   <- duplicated(key, fromLast = TRUE)   # TRUE on all but the LAST (newest) copy
+result <- result[!dup, , drop = FALSE]
+result <- result[order(result$unit), , drop = FALSE]
+n_dup <- sum(dup)
 if (n_dup > 0) {
   warning(sprintf(paste0(
-    "De-duplicated %d duplicate rows (%.2fx inflation): %d raw rows -> %d unique ",
-    "units. Duplicates are exact copies (overlapping scratch task files, e.g. from ",
-    "timeout re-runs). Kept first per unit. Inspect scratch if the factor is ",
-    "unexpected."), n_dup, n_raw / nrow(result), n_raw, nrow(result)), call. = FALSE)
+    "De-duplicated %d duplicate (unit, method) row(s) (%.2fx inflation): %d raw rows -> ",
+    "%d unique. Overlapping scratch task files (e.g. timeout resumes/backfills). Kept ",
+    "the NEWEST file per (unit, method). Inspect scratch if the factor is unexpected."),
+    n_dup, n_raw / nrow(result), n_raw, nrow(result)), call. = FALSE)
 }
-cat(sprintf("Combined %d unique units (from %d raw rows; expected %d).\n",
+cat(sprintf("Combined %d unique (unit, method) rows (from %d raw; expected %d units).\n",
             nrow(result), n_raw, n_units()))
+
+# --- Surface failed replications (M4: no silent all-NA) ----------------------
+if ("error_msg" %in% names(result)) {
+  n_err <- sum(!is.na(result$error_msg))
+  if (n_err > 0) {
+    cat(sprintf("WARNING: %d/%d row(s) (%.1f%%) carry an error_msg (failed replications).\n",
+                n_err, nrow(result), 100 * n_err / nrow(result)))
+    ex <- head(unique(result$error_msg[!is.na(result$error_msg)]), 3)
+    cat("  example error(s):\n"); for (e in ex) cat(sprintf("    - %s\n", e))
+  } else {
+    cat("All units succeeded (no error_msg set).\n")
+  }
+}
 
 # --- Attach provenance metadata ----------------------------------------------
 attr(result, "run_id")    <- opt$run_id

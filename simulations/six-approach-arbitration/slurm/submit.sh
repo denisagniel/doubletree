@@ -36,6 +36,36 @@ source "${SIZING_ENV}"
 : "${TOTAL_TASKS:?}" "${REPS_PER_JOB:?}" "${MAX_ARRAY_SIZE:?}" \
   "${MAX_CONCURRENT_JOBS:?}" "${CONCURRENCY_CAP:?}" "${WALLTIME:?}" "${MEM_GB:?}"
 
+# =============================================================================
+# PREFLIGHT (S3): fail loudly BEFORE launching thousands of tasks.
+# =============================================================================
+preflight_fail() { echo "PREFLIGHT FAILED: $*" >&2; exit 1; }
+
+# (a) Required staged input files. This study's DGP is self-contained, so none are
+# listed. EDIT THIS if tasks ever read a staged .rds/.csv from the cluster FS.
+REQUIRED_INPUTS=(
+  # "${STUDY_DIR}/inputs/real_data.rds"
+)
+# ${arr[@]+"${arr[@]}"} expands safely even when the array is empty under set -u.
+for f in ${REQUIRED_INPUTS[@]+"${REQUIRED_INPUTS[@]}"}; do
+  [[ -e "${f}" ]] || preflight_fail "required input not found: ${f}"
+done
+
+# (b) Installed-package freshness. The agent cannot `git push` from the dev box, so
+# a forgotten R CMD INSTALL means the cluster silently runs STALE package code. The
+# tasks require doubletree and optimaltrees; verify both are installed on this node.
+module load gcc/14.2.0 2>/dev/null || module load gcc || true
+module load R/4.4.2   2>/dev/null || module load R
+Rscript -e '
+  pkgs <- c("doubletree", "optimaltrees")
+  miss <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(miss))
+    stop(sprintf("project package(s) NOT installed on this node: %s -- R CMD INSTALL them first (agent cannot git push).",
+                 paste(miss, collapse = ", ")))
+  for (p in pkgs) cat(sprintf("preflight: %s %s OK\n", p, utils::packageVersion(p)))
+' || preflight_fail "required package(s) missing (see message above)."
+echo "Preflight OK."
+
 # --- Run identity -------------------------------------------------------------
 GIT_SHA="$(git -C "${STUDY_DIR}" rev-parse --short HEAD 2>/dev/null || echo nogit)"
 RUN_ID="$(date '+%Y%m%d-%H%M%S')_${GIT_SHA}"

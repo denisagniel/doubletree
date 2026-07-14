@@ -53,7 +53,11 @@ MAX_ARRAY_SIZE      <- 1000L
 MAX_CONCURRENT_JOBS <- 10000L
 WALL_MAX_HOURS      <- 3
 CONCURRENCY_CAP_DEF <- 200L
-TIME_SAFETY         <- 1.5
+# 3.5x (not 1.5x): per-unit cost is heavy-tailed here (Rashomon-set size varies
+# widely at the stress cell), so a 1.5x --time times out any task above the median.
+# 3.5x absorbs that tail; the WALL_MAX_HOURS cap still bounds walltime. (The
+# hand-tuned per-method .env files may override this once written.)
+TIME_SAFETY         <- 3.5
 MEM_SAFETY          <- 1.5
 
 opt <- parse_args(OptionParser(option_list = list(

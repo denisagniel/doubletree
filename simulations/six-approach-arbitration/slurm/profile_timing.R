@@ -26,7 +26,13 @@ MAX_ARRAY_SIZE      <- 1000L    # max tasks in a single --array
 MAX_CONCURRENT_JOBS <- 10000L   # max jobs queued across all arrays at once
 WALL_MIN_HOURS      <- 1        # target window lower bound
 WALL_MAX_HOURS      <- 3        # target window upper bound
-TIME_SAFETY         <- 1.5      # multiply estimated task time for --time headroom
+# TIME_SAFETY multiplies the projected task time to set --time. 1.5x is too tight
+# for this study: per-unit cost is heavy-tailed (Rashomon-set size varies widely at
+# the stress DGP), so a task whose units land above the profiled median blows past a
+# 1.5x allocation and times out. 3.5x absorbs that tail (reliability > packing; the
+# 3 hr WALL_MAX cap still bounds it). Per-method .env walltimes are hand-tuned and
+# compensate independently -- this only fixes the stock profiler default.
+TIME_SAFETY         <- 3.5      # multiply estimated task time for --time headroom
 MEM_SAFETY          <- 1.5      # multiply observed peak mem for --mem headroom
 MEM_FLOOR_GB        <- 2L       # never request less than this
 

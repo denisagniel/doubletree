@@ -47,12 +47,30 @@ echo "[$(date '+%F %T')] host=$(hostname) array_idx=${SLURM_ARRAY_TASK_ID} array
 
 mkdir -p "${SCRATCH_DIR}"
 
-# --- Run one task's block of units -------------------------------------------
+# --- SIGTERM trap (M3): on a wall-time TIMEOUT SLURM sends SIGTERM, then (after a
+# grace period) SIGKILL. run_replication.R flushes each unit to partials/ the
+# moment it finishes, so a timeout loses at most the one in-flight unit. Report
+# how many per-unit partials this task has flushed so the over-run is visibly
+# recoverable (resubmitting the same RUN_ID skips every completed unit). The
+# "received SIGTERM" line is a sentinel monitor.sh keys on to flag timeouts.
+on_term() {
+  local pdir="${SCRATCH_DIR}/partials"
+  local n=0
+  [[ -d "${pdir}" ]] && n=$(find "${pdir}" -maxdepth 1 -name 'unit_*.rds' 2>/dev/null | wc -l | tr -d ' ')
+  echo "[$(date '+%F %T')] global_task=${GLOBAL_TASK_ID} received SIGTERM (likely TIMEOUT); ${n} unit partial(s) flushed and safe. Resubmit the same run-id to resume." >&2
+  exit 143
+}
+trap on_term TERM
+
+# --- Run one task's block of units (checkpointing per unit) ------------------
+# Run in the BACKGROUND and `wait` so the SIGTERM trap can fire while Rscript is
+# still running (a foreground child would swallow the signal until it returns).
 Rscript "${STUDY_DIR}/slurm/run_replication.R" \
   --task-id      "${GLOBAL_TASK_ID}" \
   --reps-per-job "${REPS_PER_JOB}" \
   --study-dir    "${STUDY_DIR}" \
   --scratch-dir  "${SCRATCH_DIR}" \
-  "${OFFSET_ARGS[@]}"
+  "${OFFSET_ARGS[@]}" &
+wait $!
 
 echo "[$(date '+%F %T')] global_task=${GLOBAL_TASK_ID} finished with status $?"
