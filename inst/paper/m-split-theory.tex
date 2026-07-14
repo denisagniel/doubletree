@@ -28,7 +28,7 @@ Rigorous Interpretability via Structure Selection and Prediction Averaging}
 \maketitle
 
 \begin{abstract}
-We develop theoretical foundations for the M-split doubletree algorithm, which addresses a key interpretability challenge in the standard doubletree approach: leaf values vary across cross-validation folds, undermining the ``one tree'' interpretation. The M-split algorithm selects a single tree structure via modal selection across $M$ independent sample splits, then refits this structure on all splits and averages predictions. We prove: (1) the modal structure is asymptotically optimal, (2) averaged predictions converge pointwise to true nuisance values with explicit rates, (3) finite-sample functional consistency bounds quantify prediction agreement for identical covariates, enabling rigorous ``one tree'' claims, and (4) valid $\sqrt{n}$-consistent inference is preserved. The theory provides practical guidance for choosing $M$ to achieve target prediction consistency (e.g., $M \ge 13$ for 2\% tolerance with 95\% confidence).
+We develop theoretical foundations for the M-split doubletree algorithm, which addresses a key interpretability challenge in the standard doubletree approach: leaf values vary across cross-validation folds, undermining the ``one tree'' interpretation. The M-split algorithm selects a single tree structure via modal selection across $M$ independent sample splits, then refits this structure on all splits and averages predictions. We prove: (1) the selected structure is near-oracle in risk---and hence in predictions, via the loss--norm link---without requiring recovery of a unique oracle structure, (2) averaged predictions converge pointwise to true nuisance values with explicit rates, (3) finite-sample functional consistency bounds quantify prediction agreement for identical covariates, enabling rigorous ``one tree'' claims, and (4) valid $\sqrt{n}$-consistent inference is preserved. The theory provides practical guidance for choosing $M$ to achieve target prediction consistency (e.g., $M \ge 13$ for 2\% tolerance with 95\% confidence).
 \end{abstract}
 
 \tableofcontents
@@ -46,7 +46,7 @@ The M-split doubletree algorithm resolves this tension by:
 \item \textbf{ATT estimation (Stage 3):} Compute ATT using averaged nuisances $\mubar(X_i)$.
 \end{enumerate}
 
-\textbf{Key insight:} We do not require that $s^*$ appears in all $M$ structures (Rashomon stability). Instead, we \emph{prove} that $s^* \convp s_0$ (the oracle optimal structure) via modal concentration, then show that averaging $M$ refits of $s^*$ produces functionally consistent predictions. This enables rigorous quantification: for observations $i, j$ with $X_i = X_j$, we can bound $|\mubar(X_i) - \mubar(X_j)|$ with high probability and provide formulas for choosing $M$ to achieve target tolerance $\varepsilon$ (e.g., 2\%).
+\textbf{Key insight:} We do not require that $s^*$ appears in all $M$ structures (Rashomon stability), nor that $s^*$ recovers a unique oracle structure. Instead, we prove that \emph{any} selected structure is near-oracle in risk---hence its predictions are near-oracle via the loss--norm link---and then show that averaging $M$ refits of $s^*$ produces functionally consistent predictions. This enables rigorous quantification: for observations $i, j$ with $X_i = X_j$, we can bound $|\mubar(X_i) - \mubar(X_j)|$ with high probability and provide formulas for choosing $M$ to achieve target tolerance $\varepsilon$ (e.g., 2\%). Structure \emph{identity} is neither claimed nor needed; when several partitions have near-equal risk the selected structure need not stabilize, yet predictions still converge.
 
 \subsection{Notation}
 
@@ -106,7 +106,7 @@ where the rate holds componentwise for each nuisance function. This rate suffice
 \item \textbf{M-split doubletree:} $M$ independent $K$-fold splits, select $s^*$ via modal selection, refit $s^*$ on all splits, average predictions $\mubar(X_i) = \frac{1}{M} \sum_m \muhat_i^{(m)}$.
 \end{itemize}
 
-The standard approach has structure consistency (one structure) but prediction variability (leaf values differ by fold). M-split has both structure consistency ($s^* \convp s_0$, Theorem~\ref{thm:structure-consistency}) and prediction consistency ($|\mubar(X_i) - \mubar(X_j)| < \varepsilon$ for $X_i = X_j$, Theorem~\ref{thm:functional-consistency}).
+The standard approach fixes one structure but has prediction variability (leaf values differ by fold). M-split has both near-oracle risk of the selected structure (Theorem~\ref{thm:structure-consistency}) and prediction consistency ($|\mubar(X_i) - \mubar(X_j)| < \varepsilon$ for $X_i = X_j$, Theorem~\ref{thm:functional-consistency}).
 
 \section{Main Results}
 
@@ -148,78 +148,51 @@ As $n \to \infty$, $M \to \infty$ and $M = o(n)$.
 
 Assumption~\ref{assump:M-scaling} ensures that averaging variance $O(M^{-1})$ vanishes asymptotically while keeping computational cost $O(Mn)$ tractable.
 
-\subsection{Theorem 1: Structure Selection Consistency}
+\subsection{Theorem 1: Near-Oracle Risk of the Selected Structure}
 
-\begin{theorem}[Modal structure is asymptotically optimal]
+\begin{theorem}[The selected structure is near-oracle in risk]
 \label{thm:structure-consistency}
-Let $s_0$ denote the oracle optimal structure for approximating $\eta_0$ (the structure that minimizes population risk among trees of complexity $s_n = n^{d/(2\beta+d)}$). Let $\shat_m$ denote the structure selected on split $m$ via doubletree (Rashomon intersection or penalized minimization), and let $s^* = \argmax_s |\{m : \shat_m = s\}|$ (modal structure).
+Let $R(s) = \E[L(Z, f_s(X))]$ denote the population risk of the best leaf-value fit on structure $s$, and let $s_0 = \argmin_s R(s)$ be the oracle optimal structure among trees of complexity $s_n = n^{d/(2\beta+d)}$. Let $\shat_m$ denote the structure selected on split $m$ via doubletree (Rashomon intersection or penalized minimization), and let $s^*$ be \emph{any} selection rule returning one of $\shat_1,\dots,\shat_M$ (e.g.\ the mode, or lowest cross-validated risk). Under Assumptions~\ref{assump:smoothness}--\ref{assump:independence}:
 
-Under Assumptions~\ref{assump:smoothness}--\ref{assump:independence}, the following hold:
-
-\textbf{(a) Pointwise concentration:} For each split $m$,
+\textbf{(a) Per-split near-oracle risk.} For each split $m$,
 \[
-\Prob(\shat_m = s_0) \to 1 \quad \text{as } n \to \infty.
+R(\shat_m) - R(s_0) = O_p\!\left(n^{-2\beta/(2\beta+d)}\right) \xrightarrow{p} 0
+\quad\text{as } n\to\infty.
 \]
 
-\textbf{(b) Modal concentration:} As $M, n \to \infty$,
+\textbf{(b) Selected structure inherits the rate.} Because $s^*$ is one of the $\shat_m$ and $M=o(n)$,
 \[
-\Prob(s^* = s_0) \to 1.
+R(s^*) - R(s_0) = O_p\!\left(n^{-2\beta/(2\beta+d)}\right).
 \]
 
-\textbf{(c) Finite-sample bound:} Let $p_0 = \Prob(\shat = s_0)$ for large $n$, and let $S$ denote the number of structures that appear at least once among $\{\shat_1, \ldots, \shat_M\}$. Then:
+\textbf{(c) Prediction closeness (via the loss--norm link).} Consequently, with the loss--norm constant $C_{\mathrm{ln}}$ of Assumption~\ref{assump:regularity} (established in Lemma~\ref{lem:loss-norm}),
 \[
-\Prob(s^* \ne s_0) \le S \cdot \exp\left(-M \cdot D_{\text{KL}}(p_0 \| p_{\text{unif}})\right),
+\|f_{s^*} - f_{s_0}\|_{L^2(\Prob)}^2 \;\le\; C_{\mathrm{ln}}\,\bigl(R(s^*)-R(s_0)\bigr) \;=\; O_p\!\left(n^{-2\beta/(2\beta+d)}\right).
 \]
-where $D_{\text{KL}}$ is the Kullback-Leibler divergence and $p_{\text{unif}}$ is the uniform distribution over structures.
 \end{theorem}
 
 \begin{proof}
-\textbf{Proof roadmap:} We show that (1) by tree consistency, each split selects $s_0$ with high probability, (2) by the law of large numbers, the frequency of $s_0$ concentrates on $\Prob(\shat = s_0) > \Prob(\shat = s)$ for any $s \ne s_0$, thus $s^*$ equals $s_0$ with high probability, and (3) finite-sample concentration follows from Hoeffding-type bounds for the mode.
+\textbf{Proof roadmap:} We do \emph{not} claim $s^*$ recovers the identity of $s_0$; when several structures induce near-equal population risk (no separating margin), the selected structure need not stabilize. We claim only that any selected structure has near-oracle \emph{risk}, and hence near-oracle \emph{predictions} via the loss--norm link---which is all Theorems~\ref{thm:pointwise-convergence} and \ref{thm:inference} use.
 
-\paragraph{Step 1: Pointwise concentration (part a).}
-By Assumption~\ref{assump:tree} (tree consistency), for each split $m$, the penalized minimizer $\shat_m$ on a sample of size $n$ satisfies:
+\paragraph{Step 1: Per-split near-oracle risk (part a).}
+By Assumption~\ref{assump:tree} and the oracle inequality underlying it (manuscript Theorem~2; \citealp{xuStatisticalOptimalityOptimal2026}, Theorem~3.1 for squared error, Theorem~\ref{thm:ce-oracle} for cross-entropy), the penalized minimizer on split $m$ satisfies, with probability tending to one,
 \[
-\|\hat\eta^{(m)} - \eta_0\|_{L^2(\Prob)} = O_p(n^{-\beta/(2\beta+d)}) \to 0.
+R(\shat_m) - R(s_0) \;\le\; C\,\frac{s_n \log(n d)}{n} \;=\; O_p\!\left(n^{-2\beta/(2\beta+d)}\right),
 \]
+using $s_n = n^{d/(2\beta+d)}$ and $2\beta/(2\beta+d) < 1$. This is a statement about excess \emph{risk}, which the oracle inequality controls directly; it does \emph{not} require the minimizer of the empirical risk to coincide with $s_0$ as a combinatorial object. This is the step where the earlier version over-claimed: $L^2$-consistency of the fitted \emph{function} does not imply convergence of the selected \emph{structure} $\shat_m$ to $s_0$ unless $s_0$ is separated from all competitors by a positive risk margin, an assumption we do not make (and which our simulations show can fail: the empirical modal frequency of the outcome structure is often $\approx 0.4$--$0.5$, i.e.\ $p_0 < 1/2$).
 
-Since the penalized risk minimizer converges to the best tree approximation of $\eta_0$ in the function class, and $s_0$ is defined as the oracle optimal structure for trees of complexity $s_n$, we have by consistency of penalized M-estimators (e.g., van de Geer 2000, Theorem~5.29):
+\paragraph{Step 2: The selected structure inherits the rate (part b).}
+Any selection rule with $s^* \in \{\shat_1,\dots,\shat_M\}$ satisfies $R(s^*) - R(s_0) \le \max_{m\le M}\{R(\shat_m) - R(s_0)\}$. By part (a) each term is $O_p(n^{-2\beta/(2\beta+d)})$; a union bound over $M = o(n)$ splits inflates the rate only by a $\log M$ factor absorbed into the $O_p$, giving $R(s^*) - R(s_0) = O_p(n^{-2\beta/(2\beta+d)})$.
+
+\paragraph{Step 3: Risk closeness to prediction closeness (part c).}
+Apply the risk-to-norm direction of the loss--norm link (Assumption~\ref{assump:regularity}; Lemma~\ref{lem:loss-norm}) with $\delta = R(s^*) - R(s_0)$:
 \[
-\Prob(\shat_m = s_0) \to 1 \quad \text{as } n \to \infty.
+\|f_{s^*} - f_{s_0}\|_{L^2(\Prob)}^2 \le C_{\mathrm{ln}}\bigl(R(s^*)-R(s_0)\bigr) = O_p\!\left(n^{-2\beta/(2\beta+d)}\right). \qedhere
 \]
-
-This holds for each $m$ by Assumption~\ref{assump:independence} (splits are independent with identical sample sizes).
-
-\paragraph{Step 2: Modal concentration (part b).}
-Let $N_s = |\{m : \shat_m = s\}|$ denote the number of times structure $s$ appears among $M$ splits. By the law of large numbers, for each $s$:
-\[
-\frac{N_s}{M} \convp \Prob(\shat = s) \quad \text{as } M \to \infty.
-\]
-
-From Step 1, $\Prob(\shat = s_0) \to 1$ as $n \to \infty$. Thus for any $s \ne s_0$, $\Prob(\shat = s) \to 0$. By continuity of probability and the argmax operator (since $\Prob(\shat = s_0) > \Prob(\shat = s)$ for all $s \ne s_0$ eventually):
-\[
-s^* = \argmax_s N_s \convp \argmax_s \Prob(\shat = s) = s_0.
-\]
-
-Taking $M, n \to \infty$ jointly, $\Prob(s^* = s_0) \to 1$.
-
-\paragraph{Step 3: Finite-sample bound (part c).}
-For finite $M, n$, suppose $\Prob(\shat = s_0) = p_0 > 1/2$ (this holds for large $n$ by part a). Among competing structures, the most frequent non-$s_0$ structure $s'$ has $\Prob(\shat = s') \le (1 - p_0)/(S-1)$ (in the worst case, the remaining probability is split among $S-1$ structures).
-
-By Hoeffding's inequality, the probability that $s'$ appears more frequently than $s_0$ is bounded by:
-\[
-\Prob(N_{s'} > N_{s_0}) \le \exp\left(-2M \cdot \left(p_0 - \frac{1-p_0}{S-1}\right)^2\right).
-\]
-
-By a union bound over $S-1$ competing structures:
-\[
-\Prob(s^* \ne s_0) \le (S-1) \cdot \exp\left(-2M \cdot \left(p_0 - \frac{1-p_0}{S-1}\right)^2\right).
-\]
-
-When $p_0 \to 1$, the gap $p_0 - (1-p_0)/(S-1) \approx p_0$, and the bound simplifies to $O(S \exp(-c M))$ for some $c > 0$. The KL divergence form follows from Sanov's theorem for empirical frequencies; see Dembo and Zeitouni (1998, Theorem~2.1.10).
 \end{proof}
 
-\begin{remark}[Interpretation]
-Theorem~\ref{thm:structure-consistency} establishes that the modal structure $s^*$ is not arbitrary but \emph{asymptotically optimal}: it converges to the oracle best structure $s_0$. This is a stronger result than assuming structure stability (that $s^*$ appears in all Rashomon sets). We prove optimality from first principles via modal concentration. The finite-sample bound shows exponential concentration in $M$: with $M = O(\log S)$, the error probability vanishes.
+\begin{remark}[Why structure identity is neither achievable nor needed]
+The previous statement of this theorem claimed modal-structure identity, $\Prob(s^* = s_0)\to 1$, and derived it from $L^2$-consistency of the fitted function. That inference is invalid without a risk margin separating $s_0$ from competing structures: many distinct partitions can achieve near-identical population risk, so the fitted function converges while the selected structure identity does not. Our simulations confirm this regime is common---on the complex outcome nuisance the modal frequency is $\approx 0.4$--$0.5$, so $p_0 < 1/2$ and the old finite-sample bound (which \emph{assumed} $p_0 > 1/2$) is vacuous. The repair is to weaken the claim to near-oracle \emph{risk}, hence near-oracle \emph{predictions} via the loss--norm link. This is exactly what the downstream results consume: Theorem~\ref{thm:pointwise-convergence} needs $\|f_{s^*}-\mu_0\|_{L^2}\to 0$ and Theorem~\ref{thm:inference} needs the product-rate condition, both of which follow from part (c) without any structure-identity claim. The benign empirical behavior---M-split matching cross-fitting even when the mode is diffuse---is explained precisely: near-tied-in-risk structures are near-equal in predictions, so which one the rule selects does not matter for inference. The cost is that the ``single interpretable tree'' is now justified as \emph{a} near-oracle representative rather than \emph{the} unique oracle structure; when interpretation of the specific partition matters, the diffuse-mode diagnostic (modal frequency) should be reported.
 \end{remark}
 
 \subsection{Theorem 2: Pointwise Convergence of Averaged Predictions}
@@ -251,7 +224,7 @@ Under Assumptions~\ref{assump:smoothness}--\ref{assump:M-scaling}, the following
 \end{theorem}
 
 \begin{proof}
-\textbf{Proof roadmap:} We decompose the error into bias (from $s^* \ne s_0$ and tree approximation) and variance (from averaging). By Theorem~\ref{thm:structure-consistency}, $s^* \convp s_0$, so the structure bias vanishes. Tree approximation bias is $O_p(n^{-\beta/(2\beta+d)})$ by existing theory. Averaging $M$ independent refits reduces variance by a factor of $M$.
+\textbf{Proof roadmap:} We decompose the error into bias (from using $s^*$ rather than $\mu_0$) and variance (from averaging). By Theorem~\ref{thm:structure-consistency}(c), the selected structure has near-oracle predictions, $\|f_{s^*}-f_{s_0}\|_{L^2}=O_p(n^{-\beta/(2\beta+d)})$, so the structure-selection contribution to the bias vanishes at the tree rate---without requiring $s^*=s_0$. Tree approximation bias is $O_p(n^{-\beta/(2\beta+d)})$ by existing theory. Averaging $M$ independent refits reduces variance by a factor of $M$.
 
 \paragraph{Step 1: Decompose the averaged prediction.}
 Fix $x \in \cX$. For split $m$, let $\muhat^{(m)}(x)$ denote the prediction at $x$ using structure $s^*$ refit on split $m$. We can write:
@@ -271,7 +244,7 @@ By Assumption~\ref{assump:tree} and existing doubletree theory, for each split $
 \]
 where $\|s - \mu_0\|_{\text{approx}}$ denotes the approximation error of structure $s$.
 
-By Theorem~\ref{thm:structure-consistency}, $s^* \convp s_0$, so $\|s^* - s_0\|_{\text{approx}} \convp 0$. By tree approximation theory (e.g., Blanchard et al.\ 2007, Theorem~1), for trees with $s_n = n^{d/(2\beta+d)}$ leaves approximating a H\"older-$\beta$ function:
+By Theorem~\ref{thm:structure-consistency}(c), $\|s^* - s_0\|_{\text{approx}} = \|f_{s^*}-f_{s_0}\|_{L^2(\Prob)} = O_p(n^{-\beta/(2\beta+d)})$ (near-oracle predictions), so this term is already at the tree rate and no structure-identity claim is needed. By tree approximation theory (e.g., Blanchard et al.\ 2007, Theorem~1), for trees with $s_n = n^{d/(2\beta+d)}$ leaves approximating a H\"older-$\beta$ function:
 \[
 \|s_0 - \mu_0\|_{\text{approx}} = O(n^{-\beta/(2\beta+d)}).
 \]
@@ -409,13 +382,13 @@ which gives \eqref{eq:M-choice}.
 \end{proof}
 
 \begin{remark}[Interpretation for ``one tree'' claims]
-Theorem~\ref{thm:functional-consistency} provides a rigorous, finite-sample guarantee that averaged predictions are functionally consistent: observations with identical covariates receive nearly identical predictions. Combined with Theorem~\ref{thm:structure-consistency} (the structure is asymptotically optimal), this justifies the claim:
+Theorem~\ref{thm:functional-consistency} provides a rigorous, finite-sample guarantee that averaged predictions are functionally consistent: observations with identical covariates receive nearly identical predictions. Combined with Theorem~\ref{thm:structure-consistency} (the selected structure is near-oracle in risk, hence in predictions), this justifies the claim:
 
 \begin{quote}
-\textit{``We report one tree (structure $s^*$) whose predictions are $\varepsilon$-consistent with probability $1 - \delta$, where $s^*$ is asymptotically the oracle optimal structure.''}
+\textit{``We report one tree (structure $s^*$) whose predictions are $\varepsilon$-consistent with probability $1 - \delta$, and whose risk is within $O_p(n^{-2\beta/(2\beta+d)})$ of the oracle optimal structure.''}
 \end{quote}
 
-This is a much stronger claim than standard doubletree, which only guarantees structure consistency (leaf values vary across folds without bounds).
+This is a much stronger claim than standard doubletree, which fixes a structure but leaves leaf values varying across folds without bounds. Note the claim is about near-oracle \emph{risk/predictions}, not identity of the specific partition: when several partitions have near-equal risk, $s^*$ is \emph{a} near-oracle representative, and its modal frequency should be reported as a stability diagnostic.
 \end{remark}
 
 \begin{remark}[Choosing $M$ in practice]
@@ -542,7 +515,7 @@ Averaging reduces nuisance estimation variance by a factor of $M$.
 
 \textbf{(c) Functional consistency:} M-split guarantees $|\mubar(X_i) - \mubar(X_j)| < \varepsilon$ with probability $1 - \delta$ for $X_i = X_j$ (Theorem~\ref{thm:functional-consistency}). Single-split has no such guarantee: leaf values differ across folds without quantified bounds.
 
-\textbf{(d) Structure optimality:} M-split proves $s^* \convp s_0$ (asymptotically optimal) via modal concentration (Theorem~\ref{thm:structure-consistency}). Single-split selects one structure without optimality guarantee beyond consistency.
+\textbf{(d) Near-oracle risk:} M-split's selected structure is near-oracle in risk, hence in predictions via the loss--norm link (Theorem~\ref{thm:structure-consistency}), without requiring recovery of a unique oracle structure. Single-split selects one structure without such a guarantee.
 
 \textbf{(e) Computational cost:} M-split is $M\times$ slower than single-split.
 
@@ -579,9 +552,9 @@ The key advantage of M-split is \textbf{rigorous interpretability with quantifie
 
 \textit{Partial answer:} The bound may be conservative. Empirical validation in simulations (future work) will quantify the tightness.
 
-\item \textbf{Structure selection criterion:} We use modal selection ($s^* = \text{mode}$). Alternatives: first structure ($s^* = \shat_1$), lowest average risk, or majority voting. Do these affect finite-sample performance?
+\item \textbf{Structure selection criterion:} We use modal selection ($s^* = \text{mode}$). Alternatives: first structure ($s^* = \shat_1$), lowest cross-validated risk, or majority voting. Do these affect finite-sample performance?
 
-\textit{Conjecture:} All converge to $s_0$ asymptotically (by Theorem~\ref{thm:structure-consistency}). Modal is most robust to outlier structures in finite samples.
+\textit{Finding:} By Theorem~\ref{thm:structure-consistency}, all such rules yield near-oracle risk (any $s^*\in\{\shat_m\}$ inherits the rate), so all are asymptotically equivalent for inference. Simulations confirm this: on a complex outcome nuisance where the modal frequency is only $\approx 0.4$--$0.5$ (no dominant structure), modal and lowest-cross-validated-risk selection give statistically indistinguishable ATT bias, variance, and coverage---and both match cross-fitting. Selection matters for \emph{which} interpretable tree is reported, not for validity.
 
 \item \textbf{Connection to algorithmic stability:} Theorem~\ref{thm:functional-consistency} resembles algorithmic stability results (Bousquet \& Elisseeff 2002): models are stable if small data perturbations produce small prediction changes. Is there a formal connection?
 
@@ -618,7 +591,7 @@ Suggested additions to the doubletree manuscript:
 \begin{itemize}
 \item Motivation: standard doubletree has structure consistency but leaf value variability.
 \item Algorithm~\ref{alg:msplit}: three-stage M-split procedure.
-\item Main claims: modal structure is asymptotically optimal (Theorem~\ref{thm:structure-consistency}), predictions are functionally consistent (Theorem~\ref{thm:functional-consistency}), inference is valid (Theorem~\ref{thm:inference}).
+\item Main claims: selected structure is near-oracle in risk/predictions (Theorem~\ref{thm:structure-consistency}), predictions are functionally consistent (Theorem~\ref{thm:functional-consistency}), inference is valid (Theorem~\ref{thm:inference}).
 \item Practical guidance: choosing $M$ using formula~\eqref{eq:M-choice}.
 \end{itemize}
 
@@ -638,7 +611,7 @@ Suggested additions to the doubletree manuscript:
 
 We have developed a rigorous theoretical framework for M-split doubletree, proving:
 \begin{enumerate}
-\item \textbf{Structure optimality:} The modal structure $s^*$ converges to the oracle optimal structure $s_0$ (Theorem~\ref{thm:structure-consistency}).
+\item \textbf{Near-oracle risk:} The selected structure $s^*$ has risk---and hence predictions, via the loss--norm link---within $O_p(n^{-2\beta/(2\beta+d)})$ of the oracle optimal structure, without requiring recovery of a unique oracle structure (Theorem~\ref{thm:structure-consistency}).
 \item \textbf{Prediction consistency:} Averaged predictions converge pointwise to true nuisance values with explicit rates (Theorem~\ref{thm:pointwise-convergence}).
 \item \textbf{Functional consistency:} Finite-sample bounds quantify prediction agreement for identical covariates, enabling rigorous ``one tree'' claims (Theorem~\ref{thm:functional-consistency}).
 \item \textbf{Valid inference:} Asymptotic normality is preserved with the same variance as single-split (Theorem~\ref{thm:inference}).

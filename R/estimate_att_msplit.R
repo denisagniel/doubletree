@@ -18,10 +18,16 @@
 #'   result (\code{structure}, \code{discretization_metadata}, \code{frequency}, ...).
 #' @keywords internal
 discover_modal_structures <- function(X, A, Y, M, K, seed_base = NULL,
-                                      outcome_type = "binary", verbose = FALSE) {
+                                      outcome_type = "binary", verbose = FALSE,
+                                      structure_selection = "modal") {
   n <- nrow(X)
   structures_e <- vector("list", M)
   structures_m0 <- vector("list", M)
+  # Per-split honest CV risk (mean out-of-fold loss at the selected lambda). Used
+  # by the "lowest_risk" selector; comparable across splits because cv_loss is a
+  # per-observation mean loss on ~equal-size (0.8n) training subsets.
+  risks_e <- rep(NA_real_, M)
+  risks_m0 <- rep(NA_real_, M)
   outcome_loss <- if (outcome_type == "binary") "log_loss" else "squared_error"
 
   for (m in seq_len(M)) {
@@ -53,6 +59,7 @@ discover_modal_structures <- function(X, A, Y, M, K, seed_base = NULL,
            call. = FALSE)
     }
     model_e <- cv_e$model
+    risks_e[m] <- min(cv_e$cv_loss, na.rm = TRUE)
     structures_e[[m]] <- list(
       structure = optimaltrees::extract_tree_structure(model_e),
       discretization_metadata = model_e@discretization_metadata
@@ -75,6 +82,7 @@ discover_modal_structures <- function(X, A, Y, M, K, seed_base = NULL,
            "or CV settings.", call. = FALSE)
     }
     model_m0 <- cv_m0$model
+    risks_m0[m] <- min(cv_m0$cv_loss, na.rm = TRUE)
     structures_m0[[m]] <- list(
       structure = optimaltrees::extract_tree_structure(model_m0),
       discretization_metadata = model_m0@discretization_metadata
@@ -85,11 +93,81 @@ discover_modal_structures <- function(X, A, Y, M, K, seed_base = NULL,
     }
   }
 
-  # Modal structure per nuisance, excluding stumps (min_leaves = 2L): constant
-  # nuisance predictions bias DML, so stumps must not win the modal vote.
+  # Select one structure per nuisance, excluding stumps (min_leaves = 2L): constant
+  # nuisance predictions bias DML, so a stump must not win selection.
   list(
-    e = optimaltrees::select_structure_modal(structures_e, min_leaves = 2L),
-    m0 = optimaltrees::select_structure_modal(structures_m0, min_leaves = 2L)
+    e = select_structure_msplit(structures_e, risks_e,
+                                method = structure_selection, min_leaves = 2L),
+    m0 = select_structure_msplit(structures_m0, risks_m0,
+                                 method = structure_selection, min_leaves = 2L)
+  )
+}
+
+#' Select one structure across M splits for M-split (modal / lowest_risk / first)
+#'
+#' @description
+#' Chooses a single tree structure from the \code{M} per-split candidates. All
+#' methods return the same shape as \code{optimaltrees::select_structure_modal}
+#' (\code{structure}, \code{discretization_metadata}, \code{frequency}, \code{counts},
+#' \code{hash}) so downstream diagnostics work unchanged; \code{frequency}/\code{counts}
+#' always reflect the modal vote (a stability diagnostic) regardless of which
+#' structure is selected.
+#'
+#' \describe{
+#'   \item{modal}{Most frequent partition (delegates to
+#'     \code{select_structure_modal}). Fragile when the outcome-nuisance structure
+#'     distribution is diffuse: the plurality winner is near-arbitrary.}
+#'   \item{lowest_risk}{Structure with the smallest per-split CV risk among
+#'     non-stumps. Robust to a diffuse mode because it uses a continuous
+#'     generalization-risk criterion instead of a plurality vote, while still
+#'     yielding a single interpretable tree.}
+#'   \item{first}{First non-stump candidate (mainly for testing / ablation).}
+#' }
+#'
+#' @param structures List of \code{list(structure, discretization_metadata)} (length M).
+#' @param risks Numeric vector (length M) of per-split CV risks; used by "lowest_risk".
+#' @param method "modal", "lowest_risk", or "first".
+#' @param min_leaves Integer; structures with fewer leaves are excluded unless all are.
+#' @return A list matching \code{select_structure_modal}'s return shape.
+#' @keywords internal
+select_structure_msplit <- function(structures, risks, method = "modal",
+                                     min_leaves = 2L) {
+  method <- match.arg(method, c("modal", "lowest_risk", "first"))
+
+  # Modal result is always computed: it supplies frequency/counts diagnostics and
+  # is the return value for method = "modal".
+  modal <- optimaltrees::select_structure_modal(structures, min_leaves = min_leaves)
+  if (method == "modal") {
+    return(modal)
+  }
+
+  # Eligible (non-stump) candidates; fall back to all if every candidate is a stump.
+  n_leaves_each <- vapply(structures, function(s) s$structure@n_leaves, integer(1))
+  eligible <- which(n_leaves_each >= min_leaves)
+  if (length(eligible) == 0L) eligible <- seq_along(structures)
+
+  chosen <- if (method == "lowest_risk") {
+    r <- risks[eligible]
+    if (all(is.na(r))) {
+      # No usable risk (e.g. degenerate CV) -> fall back to modal, do not guess.
+      return(modal)
+    }
+    eligible[which.min(r)]
+  } else { # "first"
+    eligible[1L]
+  }
+
+  # Return selected structure but keep modal's frequency/counts/hash as the
+  # cross-split stability diagnostic (so a low frequency still flags instability).
+  list(
+    structure = structures[[chosen]]$structure,
+    discretization_metadata = structures[[chosen]]$discretization_metadata,
+    frequency = modal$frequency,
+    counts = modal$counts,
+    hash = modal$hash,
+    selected_index = chosen,
+    selection_method = method,
+    selected_risk = if (method == "lowest_risk") risks[chosen] else NA_real_
   )
 }
 
@@ -105,7 +183,10 @@ discover_modal_structures <- function(X, A, Y, M, K, seed_base = NULL,
 #' @param Y Numeric vector of outcome
 #' @param M Number of independent sample splits (default 10)
 #' @param K Number of cross-validation folds per split (default 5)
-#' @param structure_selection "modal" (most frequent), "first", or "lowest_risk" (default "modal")
+#' @param structure_selection How to pick one structure across the M splits:
+#'   "modal" (most frequent partition; default), "lowest_risk" (smallest per-split
+#'   CV risk among non-stumps — more robust when the structure mode is diffuse, as
+#'   for complex outcome nuisances), or "first". See \code{select_structure_msplit}.
 #' @param seed_base Base seed for reproducibility. Split m uses seed = seed_base + m.
 #' @param verbose Logical. Print progress (default TRUE)
 #' @param regularization Numeric. Not used - CV always selects lambda. Parameter kept for
@@ -183,6 +264,8 @@ estimate_att_msplit <- function(X, A, Y,
                                 outcome_type = c("binary", "continuous")) {
   # Validate inputs
   outcome_type <- match.arg(outcome_type)
+  structure_selection <- match.arg(structure_selection,
+                                   c("modal", "lowest_risk", "first"))
   n <- nrow(X)
 
   if (!is.data.frame(X) && !is.matrix(X)) {
@@ -211,7 +294,8 @@ estimate_att_msplit <- function(X, A, Y,
   if (verbose) cat("Stage 1: Selecting modal structures...\n")
 
   modal <- discover_modal_structures(X, A, Y, M = M, K = K, seed_base = seed_base,
-                                     outcome_type = outcome_type, verbose = verbose)
+                                     outcome_type = outcome_type, verbose = verbose,
+                                     structure_selection = structure_selection)
   s_star_e <- modal$e
   s_star_m0 <- modal$m0
 
