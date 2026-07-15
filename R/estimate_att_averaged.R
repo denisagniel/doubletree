@@ -327,27 +327,34 @@ estimate_att_doubletree_averaged <- function(
   theta_hat <- .att$theta
   score_values <- .att$score_values
 
-  # VALID cross-fit twin: same Rashomon-intersection structure, but fold-specific
-  # OUT-OF-SAMPLE leaves -- exactly the estimate_att(use_rashomon = TRUE) estimator.
-  # Used to build the honest (bias-aware) CI: the averaged tree stays the point
-  # estimate, but its interval targets theta_0 coverage via the twin SE widened by
-  # the estimated bias delta = theta_display - theta_cf.
-  eta_cf <- get_fold_specific_eta_rashomon(nuisance_fits, X, fold_indices)
+  # VALID twin: the FULLY fold-specific estimator (per-fold structure AND leaves), NOT
+  # the shared Rashomon-intersection structure. The intersection structure "saw" every
+  # fold, so its per-fold Wald SE carries the same structure-SELECTION variance as the
+  # averaged tree and underestimates the true spread (Phase-A 2026-07-15: se/emp_sd falls
+  # with n). The fully-fold-specific twin is structure-orthogonal to each held-out fold,
+  # so delta = theta_display - theta_twin honestly captures that variance and the honest
+  # CI restores coverage (>= 0.97 empirically). Reuses the same fold_indices.
+  eta_cf <- get_fully_foldspecific_twin(
+    X, A, Y, fold_indices, outcome_type = outcome_type,
+    regularization = regularization, cv_regularization = cv_regularization,
+    cv_K = cv_K, verbose = verbose,
+    discretize_method = discretize_method, discretize_bins = discretize_bins, ...)
   .att_cf <- eif_att_solve(Y, A, eta_cf$e, eta_cf$m0, n)
   theta_crossfit <- .att_cf$theta
   sigma_crossfit <- .att_cf$sigma
   ci_95_crossfit <- .att_cf$ci_95
 
-  # Bias diagnostic and its sampling SE. Because pi_hat = mean(A), the EIF Jacobian is
-  # -1 and eif_att_solve's score_values ARE the per-observation influence contributions
-  # (att_se = sqrt(mean(score^2)/n) = SE). delta = theta_display - theta_cf is then
-  # asymptotically linear with influence (score_display - score_cf), so:
+  # Bias diagnostic. delta = theta_display - theta_twin.
   delta <- theta_hat - theta_crossfit
   delta_over_se <- if (sigma_crossfit > 0) delta / sigma_crossfit else NA_real_
-  se_delta <- sqrt(mean((score_values - .att_cf$score_values)^2) / n)
+  # se_delta = 0: the raw |delta| bound is the TIGHTEST honest interval. se_delta sits on
+  # the WIDENING side of B = |delta| + z*se_delta, so any plug-in only inflates it and
+  # destroys power (07-15 analysis: n=500 power 0.74 -> 0.06). Debiasing |delta| would
+  # tighten but surrenders the coverage guarantee; left as a future opt-in lever.
+  se_delta <- 0
 
   # Honest bias-aware CI centered at the display estimate, with a CONSERVATIVE bias
-  # bound B = |delta| + z*se_delta (robust to delta's own noise). See honest_ci().
+  # bound B = |delta| + z*se_delta. See honest_ci().
   hon <- honest_ci(theta_hat, sigma_crossfit, delta, se_delta, level = 0.95)
   sigma <- sigma_crossfit          # reported SE is the valid twin's SE
   ci_95 <- hon$ci                  # reported CI is the honest bias-aware interval
@@ -441,14 +448,17 @@ estimate_att_doubletree_averaged <- function(
 #' averaged value is computed from M×K refits, M(K-1) of which used observation i in
 #' training -- causing a structural positive bias that does not vanish with M or n.
 #' We therefore keep the averaged tree only as the (biased) point estimate and derive
-#' the reported CI from the cross-fit twin: the M-averaged out-of-sample predictions in
-#' \code{predictions_all_splits} give a valid ATT (\code{theta_crossfit}, the M-split
-#' estimator), and the reported \code{ci_95} is an Armstrong-Kolesar honest interval
-#' \eqn{\hat\theta_{display} \pm cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}} with a
-#' conservative bias bound \eqn{B = |\delta| + z\cdot se_\delta}, \eqn{\delta =
-#' \hat\theta_{display} - \hat\theta_{cf}} and \eqn{se_\delta = \mathrm{sd}(\hat\theta_{cf,m})/\sqrt{M}}.
-#' This targets coverage of the true ATT while displaying the interpretable tree. For a
-#' purely valid estimate, use \code{theta_crossfit}.
+#' the reported CI from the \strong{fully fold-specific} twin (per-fold structure AND
+#' leaves, \code{theta_crossfit}), which is structure-orthogonal to each held-out fold
+#' and so does not share the display tree's selection variance. The reported \code{ci_95}
+#' is an Armstrong-Kolesar honest interval \eqn{\hat\theta_{display} \pm
+#' cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}} with a conservative bias bound \eqn{B =
+#' |\delta| + z\cdot se_\delta}, \eqn{\delta = \hat\theta_{display} - \hat\theta_{cf}} and
+#' \eqn{se_\delta = 0} (the tightest interval consistent with the coverage guarantee; a
+#' positive \eqn{se_\delta} only widens \eqn{B}). \code{predictions_all_splits} still
+#' holds the M-split cross-fit predictions for reference. This targets coverage of the
+#' true ATT while displaying the interpretable tree. For a purely valid estimate, use
+#' \code{theta_crossfit}.
 #'
 #' @export
 estimate_att_msplit_averaged <- function(X, A, Y,
@@ -618,29 +628,30 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   # ============================================================
   # Valid cross-fit twin + honest bias-aware CI
   # ============================================================
-  # predictions_*_xfitted are proper OUT-OF-SAMPLE predictions (obs i predicted by a
-  # tree trained without i). Per split m, column m gives a valid cross-fit ATT; the
-  # M-averaged twin (rowMeans) is the M-split estimator (approach 5's estimate). We use
-  # it to target theta_0 coverage while keeping the averaged tree as the display point.
-  e_bar_cf  <- pmax(pmin(rowMeans(predictions_e_xfitted,  na.rm = FALSE), 0.99), 0.01)
-  m0_bar_cf <- pmax(pmin(rowMeans(predictions_m0_xfitted, na.rm = FALSE), 0.99), 0.01)
-  .att_cf <- eif_att_solve(Y, A, e_bar_cf, m0_bar_cf, n)
+  # VALID twin: the FULLY fold-specific estimator (per-fold structure AND leaves),
+  # consistent with every other shared-structure display estimator (Phase B 2026-07-15).
+  # The prior twin was the M-split cross-fit (rowMeans of the MODAL structure's
+  # out-of-sample predictions), but the modal structure is itself selected across all
+  # splits, so it carries the same structure-SELECTION variance as the display tree and
+  # its Wald SE can undercover -- the same mechanism Phase A confirmed on the Rashomon
+  # path. The fully-fold-specific twin is structure-orthogonal, so delta honestly bounds
+  # that variance. (msplit was NOT in the Phase-A diagnostic; the verification MC checks
+  # its coverage directly.) msplit exposes no fold_indices/regularization, so we build a
+  # fresh K-fold split here with the canonical use_rashomon=FALSE settings.
+  twin_folds <- create_folds(n, K, strata = A, seed = seed_base)
+  eta_cf <- get_fully_foldspecific_twin(
+    X, A, Y, twin_folds, outcome_type = outcome_type,
+    cv_regularization = TRUE, verbose = verbose)
+  .att_cf <- eif_att_solve(Y, A, eta_cf$e, eta_cf$m0, n)
   theta_crossfit <- .att_cf$theta
   sigma_crossfit <- .att_cf$sigma
   ci_95_crossfit <- .att_cf$ci_95
 
-  # Per-split cross-fit ATTs -> se(delta) from the M splits (user-specified form). Each
-  # theta_cf_m solves the EIF on split m's cross-fitted predictions; theta_single is
-  # constant across m, so sd(theta_cf_m)/sqrt(M) is the SE of the averaged twin and a
-  # direct estimate of the sampling noise in delta.
-  theta_cf_m <- vapply(seq_len(M), function(mm) {
-    e_m  <- pmax(pmin(predictions_e_xfitted[, mm],  0.99), 0.01)
-    m0_m <- pmax(pmin(predictions_m0_xfitted[, mm], 0.99), 0.01)
-    eif_att_solve(Y, A, e_m, m0_m, n)$theta
-  }, numeric(1))
   delta <- theta_hat - theta_crossfit
   delta_over_se <- if (sigma_crossfit > 0) delta / sigma_crossfit else NA_real_
-  se_delta <- if (M > 1) sd(theta_cf_m) / sqrt(M) else 0
+  # se_delta = 0: tightest honest interval (se_delta widens B); see the doubletree_averaged
+  # note. Replaces the prior unproven sd(theta_cf_m)/sqrt(M) form.
+  se_delta <- 0
 
   # Honest bias-aware CI (conservative bound B = |delta| + z*se_delta); see honest_ci().
   hon <- honest_ci(theta_hat, sigma_crossfit, delta, se_delta, level = 0.95)

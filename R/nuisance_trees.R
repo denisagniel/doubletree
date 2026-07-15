@@ -281,6 +281,59 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
   list(e = e_clamped, m0 = m0_out)
 }
 
+#' Fully-fold-specific nuisance predictions (the honest-CI twin)
+#'
+#' @description
+#' Fits the \strong{fully} fold-specific nuisances: for each fold \eqn{k}, both the
+#' tree STRUCTURE and the leaf values are learned on \eqn{D^{(-k)}} (a single tree per
+#' nuisance per fold, exactly the \code{estimate_att(use_rashomon = FALSE)} estimator),
+#' then predicts the held-out fold \eqn{k}. This is distinct from
+#' \code{\link{get_fold_specific_eta_rashomon}}, whose structure is the Rashomon
+#' intersection across ALL K folds (shared, hence NOT orthogonal to fold \eqn{k}) with
+#' only the leaves refit out-of-sample.
+#'
+#' It is the valid, structure-orthogonal companion used to build the honest
+#' (bias-aware) CI for every shared-Rashomon display estimator: the shared/averaged/
+#' single tree stays the point estimate, but \eqn{\delta = \hat\theta_{display} -
+#' \hat\theta_{twin}} then captures the shared structure's SELECTION variance (the
+#' Phase-A 2026-07-15 diagnosis: the shared-structure Wald SE underestimates the true
+#' spread; this twin's \eqn{\delta} restores coverage). Reuses the caller's
+#' \code{fold_indices} so the twin and the display estimator share folds exactly.
+#'
+#' @param X Data.frame or matrix of features.
+#' @param A Binary treatment vector (0/1).
+#' @param Y Numeric outcome vector.
+#' @param fold_indices Integer vector of fold assignments (same object the display
+#'   estimator used).
+#' @param outcome_type "binary" or "continuous".
+#' @param regularization,cv_regularization,cv_K,verbose,max_depth,discretize_method,discretize_bins
+#'   Passed through to \code{\link{fit_nuisances_fold}} (identical to the
+#'   \code{use_rashomon = FALSE} path in \code{estimate_att}).
+#' @param ... Additional arguments forwarded to \code{fit_nuisances_fold}.
+#' @return List with \code{e} (clamped propensity) and \code{m0} (control-outcome)
+#'   out-of-sample predictions, length \code{nrow(X)}.
+#' @keywords internal
+get_fully_foldspecific_twin <- function(X, A, Y, fold_indices,
+                                        outcome_type = "binary",
+                                        regularization = 0.1,
+                                        cv_regularization = FALSE, cv_K = 5,
+                                        verbose = FALSE, max_depth = 4L,
+                                        discretize_method = "quantiles",
+                                        discretize_bins = "adaptive", ...) {
+  K <- length(unique(fold_indices))
+  fits <- vector("list", K)
+  for (k in seq_len(K)) {
+    fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,
+                                    outcome_type = outcome_type,
+                                    regularization = regularization,
+                                    cv_regularization = cv_regularization, cv_K = cv_K,
+                                    verbose = verbose, max_depth = max_depth,
+                                    discretize_method = discretize_method,
+                                    discretize_bins = discretize_bins, ...)
+  }
+  get_fold_specific_eta(fits, X, fold_indices)
+}
+
 #' Safe Rashomon fitting with automatic fallback
 #' @param X Data.frame or matrix of features.
 #' @param y Vector of outcomes.

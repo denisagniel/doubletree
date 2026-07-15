@@ -56,12 +56,15 @@ inference would introduce (K-1)/K in-sample contamination (80\% at K=5) -- each 
 averaged value is computed from M×K refits, M(K-1) of which used observation i in
 training -- causing a structural positive bias that does not vanish with M or n.
 We therefore keep the averaged tree only as the (biased) point estimate and derive
-the reported CI from the cross-fit twin: the M-averaged out-of-sample predictions in
-\code{predictions_all_splits} give a valid ATT (\code{theta_crossfit}, the M-split
-estimator), and the reported \code{ci_95} is an Armstrong-Kolesar honest interval
-\eqn{\hat\theta_{display} \pm cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}} with a
-conservative bias bound \eqn{B = |\delta| + z\cdot se_\delta}, \eqn{\delta =
-\hat\theta_{display} - \hat\theta_{cf}} and \eqn{se_\delta = \mathrm{sd}(\hat\theta_{cf,m})/\sqrt{M}}.
-This targets coverage of the true ATT while displaying the interpretable tree. For a
-purely valid estimate, use \code{theta_crossfit}.
+the reported CI from the \strong{fully fold-specific} twin (per-fold structure AND
+leaves, \code{theta_crossfit}), which is structure-orthogonal to each held-out fold
+and so does not share the display tree's selection variance. The reported \code{ci_95}
+is an Armstrong-Kolesar honest interval \eqn{\hat\theta_{display} \pm
+cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}} with a conservative bias bound \eqn{B =
+|\delta| + z\cdot se_\delta}, \eqn{\delta = \hat\theta_{display} - \hat\theta_{cf}} and
+\eqn{se_\delta = 0} (the tightest interval consistent with the coverage guarantee; a
+positive \eqn{se_\delta} only widens \eqn{B}). \code{predictions_all_splits} still
+holds the M-split cross-fit predictions for reference. This targets coverage of the
+true ATT while displaying the interpretable tree. For a purely valid estimate, use
+\code{theta_crossfit}.
 }

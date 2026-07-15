@@ -389,8 +389,36 @@ estimate_att_msplit <- function(X, A, Y,
   .att <- eif_att_solve(Y, A, e_bar, m0_bar, n)
   theta_msplit <- .att$theta
   score <- .att$score_values
-  sigma_msplit <- .att$sigma
-  ci_95 <- .att$ci_95
+  sigma_msplit_wald <- .att$sigma      # modal-averaged Wald SE (reference; undercovers)
+  ci_95_wald <- .att$ci_95
+
+  # HONEST bias-aware CI. Like the Rashomon path (approach 3), the msplit MODAL structure
+  # is selected across all M*K refits (it "saw" every fold), so its Wald SE can undercover
+  # (Phase-A 2026-07-15 mechanism). Pair it with the FULLY fold-specific twin (per-fold
+  # structure AND leaves), which is structure-orthogonal, and report the AK honest interval
+  # (conservative bound B = |delta| + z*se_delta, se_delta = 0 -> tightest). msplit exposes
+  # no fold_indices, so build a fresh stratified K-fold split with the canonical
+  # use_rashomon=FALSE settings. (msplit was NOT in the Phase-A diagnostic; the verification
+  # MC checks its coverage directly.)
+  twin_folds <- create_folds(n, K, strata = A, seed = seed_base)
+  eta_cf <- get_fully_foldspecific_twin(
+    X, A, Y, twin_folds, outcome_type = outcome_type,
+    regularization = regularization, cv_regularization = TRUE, verbose = verbose)
+  .att_cf <- eif_att_solve(Y, A, eta_cf$e, eta_cf$m0, n)
+  theta_crossfit <- .att_cf$theta
+  sigma_crossfit <- .att_cf$sigma
+  delta <- theta_msplit - theta_crossfit
+  delta_over_se <- if (sigma_crossfit > 0) delta / sigma_crossfit else NA_real_
+  se_delta <- 0
+  hon <- honest_ci(theta_msplit, sigma_crossfit, delta, se_delta, level = 0.95)
+  # Reported SE/CI target theta_0 coverage (twin SE + honest widening).
+  sigma_msplit <- sigma_crossfit
+  ci_95 <- hon$ci
+  if (verbose) {
+    cat(sprintf("  M-split ATT (display): %.4f  (Wald SE %.4f)\n", theta_msplit, sigma_msplit_wald))
+    cat(sprintf("  Fully-fold-spec twin : %.4f  (SE %.4f)\n", theta_crossfit, sigma_crossfit))
+    cat(sprintf("  Honest 95%% CI        : [%.4f, %.4f]  (cv %.2f)\n", ci_95[1], ci_95[2], hon$cv))
+  }
 
   # ============================================================
   # Diagnostics
@@ -427,8 +455,13 @@ estimate_att_msplit <- function(X, A, Y,
   # ============================================================
   result <- list(
     theta = theta_msplit,
-    sigma = sigma_msplit,
-    ci_95 = ci_95,
+    sigma = sigma_msplit,              # fully-fold-specific twin SE (honest CI basis)
+    ci_95 = ci_95,                     # honest bias-aware CI
+    ci_95_wald = ci_95_wald,           # modal-averaged Wald CI (reference; undercovers)
+    sigma_wald = sigma_msplit_wald,
+    theta_crossfit = theta_crossfit,   # fully-fold-specific twin estimate
+    sigma_crossfit = sigma_crossfit,
+    delta = delta, delta_over_se = delta_over_se, se_delta = se_delta,
     score_values = score,
 
     # Structures

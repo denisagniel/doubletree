@@ -48,8 +48,16 @@ test_that("inference = 'single' vs 'crossfit' selects the reported target", {
 
 test_that("single tree faithfully tracks the cross-fit twin on a clean DGP", {
   # On a well-separated binary DGP the margin holds, so the single tree should
-  # closely match its cross-fit twin: |delta| well within one SE.
-  d <- make_binary_dgp(500)
-  fit <- estimate_att_single_tree(d$X, d$A, d$Y, K = 3)
-  expect_lt(abs(fit$delta_over_se), 0.5)
+  # closely match its cross-fit twin: |delta| well within one SE. The twin is the
+  # FULLY fold-specific estimator (Phase B 2026-07-15), so delta now reflects genuine
+  # per-fold STRUCTURE variation, not just in- vs out-of-sample leaves as under the
+  # old shared-structure twin. A single seed is therefore noisy (|delta/SE| ranges
+  # ~0.0-0.65 across seeds); we assert the MEDIAN over several seeds stays well within
+  # one SE, a robust check of faithful tracking that does not hinge on seed luck.
+  dos <- vapply(1:9, function(s) {
+    d <- make_binary_dgp(500, seed = 20260707 + s)
+    fit <- estimate_att_single_tree(d$X, d$A, d$Y, K = 3)
+    abs(fit$delta_over_se)
+  }, numeric(1))
+  expect_lt(median(dos, na.rm = TRUE), 0.5)
 })

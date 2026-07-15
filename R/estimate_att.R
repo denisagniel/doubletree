@@ -108,10 +108,18 @@
 #' minimax-optimal trees. Fixed regularization (\code{cv_regularization = FALSE}) should
 #' only be used when you have strong theoretical justification for a specific value.
 #'
-#' @return List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95\% CI),
-#'   score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K,
-#'   converged (logical; TRUE if rashomon intersection succeeded or if use_rashomon=FALSE),
-#'   epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE, NA otherwise).
+#' @return List with elements: theta (point estimate); sigma (estimated SE; the
+#'   fully-fold-specific twin's SE when \code{use_rashomon = TRUE}, the plain Wald SE
+#'   otherwise); ci_95 (when \code{use_rashomon = TRUE}, the HONEST bias-aware 95\% CI
+#'   built from the fully-fold-specific twin -- the shared intersection structure is not
+#'   orthogonal to each fold, so its Wald SE undercovers; otherwise the plain Wald 95\% CI);
+#'   ci_95_wald (the plain Wald interval of the display estimate, always); theta_crossfit,
+#'   sigma_crossfit, delta, se_delta (fully-fold-specific twin, bias diagnostic
+#'   \eqn{\hat\theta - \hat\theta_{twin}}, and its SE; NA when \code{use_rashomon = FALSE});
+#'   score_values (influence at theta); nuisance_fits (per-fold models or Rashomon list);
+#'   fold_indices; n; K; converged (logical; TRUE if rashomon intersection succeeded or if
+#'   use_rashomon=FALSE); epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE,
+#'   NA otherwise).
 #' @references Manuscript equation (2) for the orthogonal score.
 #' @examples
 #' \dontrun{
@@ -343,7 +351,45 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   theta <- .att$theta
   score_values <- .att$score_values
   sigma <- .att$sigma
-  ci_95 <- .att$ci_95
+  ci_95 <- .att$ci_95              # plain Wald interval (used as-is on the non-Rashomon path)
+  ci_95_wald <- .att$ci_95
+
+  # HONEST (bias-aware) CI for the shared-Rashomon path. The shared intersection
+  # structure "saw" every fold, so its per-fold Wald SE underestimates the estimate's
+  # true spread (Phase-A 2026-07-15: se/emp_sd falls with n -> undercoverage). We pair
+  # the shared estimate with the FULLY fold-specific twin (per-fold structure AND
+  # leaves), whose delta = theta_shared - theta_twin captures that selection variance,
+  # and report the AK honest interval widened by a conservative bound B = |delta| +
+  # z*se_delta with se_delta = 0 (the tightest interval consistent with the coverage
+  # guarantee; see honest_ci). This restores coverage >= 0.97 empirically. On the
+  # fully-fold-specific path (use_rashomon = FALSE) the twin IS the estimator, so no
+  # honesty correction is needed and the plain Wald ci_95 stands.
+  theta_crossfit <- NA_real_; sigma_crossfit <- NA_real_
+  delta <- NA_real_; se_delta <- NA_real_
+  if (use_rashomon) {
+    eta_twin <- get_fully_foldspecific_twin(
+      X, A, Y, fold_indices, outcome_type = outcome_type,
+      regularization = regularization, cv_regularization = cv_regularization,
+      cv_K = cv_K, verbose = verbose, max_depth = max_depth,
+      discretize_method = discretize_method, discretize_bins = discretize_bins, ...)
+    .att_twin <- eif_att_solve(Y, A, eta_twin$e, eta_twin$m0, n)
+    theta_crossfit <- .att_twin$theta
+    sigma_crossfit <- .att_twin$sigma
+    delta <- theta - theta_crossfit
+    # se_delta = 0: raw |delta| bound (widening; a real se_delta only inflates B).
+    se_delta <- 0
+    hon <- honest_ci(theta, sigma_crossfit, delta, se_delta = se_delta, level = 0.95)
+    sigma <- sigma_crossfit        # reported SE is the valid twin's SE
+    ci_95 <- hon$ci                # reported CI is the honest bias-aware interval
+
+    if (verbose) {
+      message(sprintf("Shared-Rashomon ATT (display): %.4f", theta))
+      message(sprintf("Fully-fold-specific twin ATT:  %.4f  (SE %.4f)",
+                      theta_crossfit, sigma_crossfit))
+      message(sprintf("Honest 95%% CI (bias-aware):    [%.4f, %.4f]  (cv %.2f, B %.4f)",
+                      ci_95[1], ci_95[2], hon$cv, hon$B))
+    }
+  }
 
   # Add predictions to nuisance_fits for diagnostics
   nuisance_fits$propensity <- eta$e
@@ -372,8 +418,13 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
 
   list(
     theta = theta,
-    sigma = sigma,
-    ci_95 = ci_95,
+    sigma = sigma,                 # honest twin SE (Rashomon) or Wald SE (fold-specific)
+    ci_95 = ci_95,                 # honest bias-aware CI (Rashomon) or Wald CI (fold-specific)
+    ci_95_wald = ci_95_wald,       # plain Wald interval of the display estimate (always)
+    theta_crossfit = theta_crossfit,  # fully-fold-specific twin (NA if use_rashomon=FALSE)
+    sigma_crossfit = sigma_crossfit,
+    delta = delta,                 # theta_shared - theta_twin (bias diagnostic)
+    se_delta = se_delta,
     score_values = score_values,
     nuisance_fits = nuisance_fits,
     fold_indices = fold_indices,

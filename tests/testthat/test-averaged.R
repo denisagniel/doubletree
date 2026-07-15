@@ -88,7 +88,7 @@ test_that("doubletree_averaged returns display estimate, cross-fit twin, and hon
 
 # ---- Approach 6: estimate_att_msplit_averaged -------------------------------
 
-test_that("msplit_averaged returns twin + honest CI with se_delta from the M splits", {
+test_that("msplit_averaged returns fully-fold-specific twin + honest CI (se_delta=0)", {
   skip_if_not_installed("optimaltrees")
   skip_on_cran()
 
@@ -101,8 +101,9 @@ test_that("msplit_averaged returns twin + honest CI with se_delta from the M spl
   expect_true(is.finite(fit$sigma_crossfit) && fit$sigma_crossfit > 0)
   expect_equal(fit$delta, fit$theta - fit$theta_crossfit, tolerance = 1e-10)
 
-  # se_delta is a non-negative sampling SE from the M cross-fit splits.
-  expect_true(is.finite(fit$se_delta) && fit$se_delta >= 0)
+  # Phase B: se_delta = 0 (tightest interval consistent with the coverage guarantee;
+  # a positive se_delta only widens B). Replaced the old sd(theta_cf_m)/sqrt(M) form.
+  expect_equal(fit$se_delta, 0)
 
   # Honest CI centered at display estimate, at least as wide as naive twin Wald.
   naive_half <- qnorm(0.975) * fit$sigma_crossfit

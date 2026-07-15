@@ -170,24 +170,37 @@ estimate_att_single_tree <- function(
 
   att_single <- .att_from_eta(Y, A, e_single, m0_single, n)
 
-  # ---- Goal (ii): cross-fit twin (Approach 3) from the SAME fit ----
-  if (verbose) message("\n--- Cross-fit twin (out-of-sample predictions) ---")
-  eta_cf <- get_fold_specific_eta_rashomon(nuisance_fits, X, fold_indices)
+  # ---- Goal (ii): FULLY fold-specific twin + honest CI ----
+  # The single tree uses the shared Rashomon-intersection structure with all-n leaves;
+  # that structure "saw" every fold, so its Wald SE undercovers (Phase-A 2026-07-15).
+  # The valid twin is the fully-fold-specific estimator (per-fold structure AND leaves),
+  # structure-orthogonal to each held-out fold, so delta = theta_single - theta_twin
+  # honestly bounds the single tree's selection variance. (The prior twin was
+  # get_fold_specific_eta_rashomon = the shared structure with cross-fit leaves, which
+  # shares that variance.)
+  if (verbose) message("\n--- Fully fold-specific twin (out-of-sample) ---")
+  eta_cf <- get_fully_foldspecific_twin(
+    X, A, Y, fold_indices, outcome_type = outcome_type,
+    regularization = regularization, cv_regularization = cv_regularization,
+    cv_K = cv_K, verbose = verbose,
+    discretize_method = discretize_method, discretize_bins = discretize_bins, ...)
   att_cf <- .att_from_eta(Y, A, eta_cf$e, eta_cf$m0, n)
 
-  # Fidelity diagnostic.
+  # Fidelity diagnostic + honest bias-aware CI (conservative bound B = |delta| +
+  # z*se_delta, se_delta = 0 -> tightest interval consistent with the guarantee).
   delta <- att_single$theta - att_cf$theta
   delta_over_se <- if (att_cf$sigma > 0) delta / att_cf$sigma else NA_real_
+  se_delta <- 0
+  hon <- honest_ci(att_single$theta, att_cf$sigma, delta, se_delta, level = 0.95)
+  ci_95_honest <- hon$ci
 
   if (verbose) {
     message(sprintf("\n=== Results ==="))
     message(sprintf("Single-tree ATT : %.4f  (SE %.4f)", att_single$theta, att_single$sigma))
-    message(sprintf("Cross-fit ATT   : %.4f  (SE %.4f)", att_cf$theta, att_cf$sigma))
-    message(sprintf("delta = single - cf : %.4f  (delta/SE_cf = %.2f)", delta, delta_over_se))
-    if (is.finite(delta_over_se) && abs(delta_over_se) > 1) {
-      message("  NOTE: |delta| > SE_cf -- the single tree may misrepresent the ",
-              "valid estimator; prefer the cross-fit inference.")
-    }
+    message(sprintf("Fully-fold-spec : %.4f  (SE %.4f)", att_cf$theta, att_cf$sigma))
+    message(sprintf("delta = single - twin : %.4f  (delta/SE_twin = %.2f)", delta, delta_over_se))
+    message(sprintf("Honest 95%% CI   : [%.4f, %.4f]  (cv %.2f, B %.4f)",
+                    ci_95_honest[1], ci_95_honest[2], hon$cv, hon$B))
   }
 
   # Tolerance multipliers selected by escalation (epsilon_n = c*log(n)/n per nuisance).
@@ -197,14 +210,23 @@ estimate_att_single_tree <- function(
   epsilon_n_used <- if (all(is.na(c_vals))) rashomon_bound_multiplier else
     max(c_vals, na.rm = TRUE) * (log(n) / n)
 
-  chosen <- if (inference == "single") att_single else att_cf
+  # Reported interval: "single" displays the interpretable tree with the HONEST bias-aware
+  # CI (from the fully-fold-specific twin), giving genuine theta_0 coverage; "crossfit"
+  # reports the twin's own Wald CI. The biased single-tree Wald interval is kept as
+  # ci_95_single for reference.
+  if (inference == "single") {
+    chosen_theta <- att_single$theta; chosen_sigma <- att_cf$sigma; chosen_ci <- ci_95_honest
+  } else {
+    chosen_theta <- att_cf$theta;     chosen_sigma <- att_cf$sigma; chosen_ci <- att_cf$ci_95
+  }
   list(
-    theta = chosen$theta, sigma = chosen$sigma, ci_95 = chosen$ci_95,
+    theta = chosen_theta, sigma = chosen_sigma, ci_95 = chosen_ci,
     theta_single = att_single$theta, sigma_single = att_single$sigma,
-    ci_95_single = att_single$ci_95,
+    ci_95_single = att_single$ci_95,       # biased single-tree Wald (reference)
+    ci_95_honest = ci_95_honest,           # honest bias-aware CI for the single tree
     theta_crossfit = att_cf$theta, sigma_crossfit = att_cf$sigma,
     ci_95_crossfit = att_cf$ci_95,
-    delta = delta, delta_over_se = delta_over_se,
+    delta = delta, delta_over_se = delta_over_se, se_delta = se_delta,
     tree_e = tree_e, tree_m0 = tree_m0,
     converged = TRUE,
     epsilon_n = epsilon_n_used,

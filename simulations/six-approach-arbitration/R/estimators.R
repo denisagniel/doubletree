@@ -117,6 +117,10 @@ estimate <- function(data, config) {
 }
 
 # --- 3. Doubletree: Rashomon-intersection structure, cross-fit leaves (twin) --
+# As of Phase B (2026-07-15) estimate_att(use_rashomon=TRUE) reports an HONEST bias-aware
+# CI built from the FULLY fold-specific twin (the shared intersection structure is not
+# orthogonal to each fold, so its Wald SE undercovers). We pass that honest interval as
+# ci_lower/ci_upper and record the twin + delta for the 3-way coverage comparison.
 .est_doubletree <- function(X, A, Y, escalate = FALSE) {
   r <- doubletree::estimate_att(
     X, A, Y, K = SIM_K, use_rashomon = TRUE,
@@ -124,6 +128,9 @@ estimate <- function(data, config) {
     escalate_intersection = escalate,
     verbose = FALSE)
   .result(r$theta, r$sigma, converged = isTRUE(r$converged),
+          ci_lower = r$ci_95[1], ci_upper = r$ci_95[2],
+          theta_crossfit = r$theta_crossfit, se_crossfit = r$sigma_crossfit,
+          delta = r$delta,
           intersection_nonempty = isTRUE(r$converged),
           rashomon_c_e = r$rashomon_c_e, rashomon_c_m0 = r$rashomon_c_m0)
 }
@@ -153,12 +160,17 @@ estimate <- function(data, config) {
 }
 
 # --- 5. M-split: modal structure, cross-fit predictions (twin of 6) ----------
-# NOTE: msplit SEs rest on an unproven 1/M cross-split independence assumption
-# (Phase-4 open). Coverage recorded but SEs are not theory-backed.
+# As of Phase B (2026-07-15) estimate_att_msplit reports an HONEST bias-aware CI from the
+# fully-fold-specific twin (the modal structure is selected across all splits, same non-
+# orthogonality as the Rashomon path). r$sigma is now the twin SE; r$sigma_wald is the old
+# modal-averaged Wald SE (kept for reference). Pass the honest interval + twin/delta.
 .est_msplit <- function(X, A, Y) {
   r <- doubletree::estimate_att_msplit(X, A, Y, M = SIM_M, K = SIM_K_MSPLIT,
                                        verbose = FALSE)
-  .result(r$theta, r$sigma, converged = isTRUE(r$converged))
+  .result(r$theta, r$sigma, converged = isTRUE(r$converged),
+          ci_lower = r$ci_95[1], ci_upper = r$ci_95[2],
+          theta_crossfit = r$theta_crossfit, se_crossfit = r$sigma_crossfit,
+          delta = r$delta)
 }
 
 # --- 6. M-split-averaged: modal structure, averaged leaves, 1 tree -----------
@@ -178,8 +190,9 @@ estimate <- function(data, config) {
 }
 
 # --- 7. Alternative A: honest single tree (intersection struct, all-n leaves) -
-# Reports the single-tree estimate (goal i) AND its cross-fit twin + delta
-# fidelity diagnostic (goal ii).
+# Point estimate = the interpretable single tree (goal i); reported CI = HONEST bias-aware
+# interval from the fully-fold-specific twin (Phase B 2026-07-15; the single tree's Wald SE
+# undercovers). Twin + delta recorded (goal ii).
 .est_single_tree <- function(X, A, Y, escalate = FALSE) {
   r <- tryCatch(
     doubletree::estimate_att_single_tree(
@@ -192,7 +205,9 @@ estimate <- function(data, config) {
     return(.result(NA_real_, NA_real_, converged = FALSE,
                    intersection_nonempty = FALSE))
   }
-  .result(r$theta_single, r$sigma_single, converged = isTRUE(r$converged),
+  # r$theta = single-tree point estimate; r$sigma = twin SE; r$ci_95 = honest interval.
+  .result(r$theta, r$sigma, converged = isTRUE(r$converged),
+          ci_lower = r$ci_95[1], ci_upper = r$ci_95[2],
           theta_crossfit = r$theta_crossfit, se_crossfit = r$sigma_crossfit,
           delta = r$delta, delta_over_se = r$delta_over_se,
           intersection_nonempty = TRUE,

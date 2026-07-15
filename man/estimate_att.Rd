@@ -138,10 +138,18 @@ for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary fe
 \item{...}{Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
 }
 \value{
-List with elements: theta (point estimate), sigma (estimated SE), ci_95 (Wald 95\% CI),
-  score_values (influence at theta), nuisance_fits (per-fold models or Rashomon list), fold_indices, n, K,
-  converged (logical; TRUE if rashomon intersection succeeded or if use_rashomon=FALSE),
-  epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE, NA otherwise).
+List with elements: theta (point estimate); sigma (estimated SE; the
+  fully-fold-specific twin's SE when \code{use_rashomon = TRUE}, the plain Wald SE
+  otherwise); ci_95 (when \code{use_rashomon = TRUE}, the HONEST bias-aware 95\% CI
+  built from the fully-fold-specific twin -- the shared intersection structure is not
+  orthogonal to each fold, so its Wald SE undercovers; otherwise the plain Wald 95\% CI);
+  ci_95_wald (the plain Wald interval of the display estimate, always); theta_crossfit,
+  sigma_crossfit, delta, se_delta (fully-fold-specific twin, bias diagnostic
+  \eqn{\hat\theta - \hat\theta_{twin}}, and its SE; NA when \code{use_rashomon = FALSE});
+  score_values (influence at theta); nuisance_fits (per-fold models or Rashomon list);
+  fold_indices; n; K; converged (logical; TRUE if rashomon intersection succeeded or if
+  use_rashomon=FALSE); epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE,
+  NA otherwise).
 }
 \description{
 Estimates the ATT using efficient influence function-based estimation with
