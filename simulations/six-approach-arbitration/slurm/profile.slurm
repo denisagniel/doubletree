@@ -39,9 +39,30 @@ TARGET_HOURS="${TARGET_HOURS:-2}"     # target wall time per PRODUCTION task (si
 MEM_CAP_GB="${MEM_CAP_GB:-24}"        # per-unit kill ceiling; MUST be < --mem (48G)
 N_UNITS_PROBE="${N_UNITS_PROBE:-5}"   # probe units per method at the worst cell
 
-# --- Resolve study dir from this script's location ---------------------------
-SLURM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STUDY_DIR="$(dirname "${SLURM_DIR}")"
+# --- Resolve study dir --------------------------------------------------------
+# Under `sbatch`, SLURM runs a SPOOLED COPY of this script (e.g.
+# /var/spool/slurmd/job<id>/slurm_script), so ${BASH_SOURCE[0]} does NOT point
+# into the repo -- deriving STUDY_DIR from it yields /var/spool/slurmd and the
+# mkdir below fails "Permission denied", aborting under set -e before any sizing
+# runs. SLURM sets SLURM_SUBMIT_DIR to the dir `sbatch` was invoked from (the
+# study dir, per the header) and cd's into it, so prefer that. Fall back to
+# BASH_SOURCE for an interactive `bash slurm/profile.slurm`.
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+  STUDY_DIR="${SLURM_SUBMIT_DIR}"
+  SLURM_DIR="${STUDY_DIR}/slurm"
+else
+  SLURM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  STUDY_DIR="$(dirname "${SLURM_DIR}")"
+fi
+
+# Fail loudly if we did not land in the study dir (e.g. sbatch'd from elsewhere):
+# the profiler needs config/grid.R and slurm/profile_per_method.R to be here.
+if [[ ! -f "${SLURM_DIR}/profile_per_method.R" || ! -f "${STUDY_DIR}/config/grid.R" ]]; then
+  echo "ERROR: study dir '${STUDY_DIR}' is missing slurm/profile_per_method.R or config/grid.R." >&2
+  echo "       Submit from the study dir:  cd <study-dir> && sbatch slurm/profile.slurm" >&2
+  exit 1
+fi
+
 mkdir -p "${STUDY_DIR}/logs"
 
 # --- Module environment (module R has no devtools; profiler uses base + callr/ps) ---
