@@ -28,7 +28,13 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
-#SBATCH --time=0-06:00
+# 12h = the `short` partition max. 6h TIMED OUT after profiling only 3 of 7
+# methods (job 47933203): the heavy methods (doubletree/dt_averaged, the n=2000
+# continuous Rashomon blow-up) burn hours at the worst cell, and methods run
+# serially, so a short wall leaves the later methods' sizing_<method>.env
+# unwritten. If 12h still isn't enough, lower probe cost with
+# --export=ALL,N_UNITS_PROBE=3 rather than raising --time past the partition cap.
+#SBATCH --time=0-12:00
 #SBATCH --output=logs/profile_%j.out
 #SBATCH --error=logs/profile_%j.err
 
