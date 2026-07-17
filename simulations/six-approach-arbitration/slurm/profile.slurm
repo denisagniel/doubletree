@@ -23,14 +23,15 @@
 # headroom for the R session + a mid-kill spike. Override both together if needed.
 # =============================================================================
 #SBATCH --job-name=arb-profile
-# `long` (not `short`): profiling runs all 7 methods SERIALLY, and the heavy ones
-# (doubletree/dt_averaged, the n=2000 continuous Rashomon blow-up) burn hours at
-# the worst cell. On `short` (12h cap) the 6h run TIMED OUT after only 3 of 7
+# `medium` (not `short`): profiling runs all 7 methods SERIALLY, and the heavy
+# ones (doubletree/dt_averaged, the n=2000 continuous Rashomon blow-up) burn hours
+# at the worst cell. On `short` (12h cap) the 6h run TIMED OUT after only 3 of 7
 # methods (job 47933203), leaving later methods' sizing_<method>.env unwritten.
-# `long` removes the 12h ceiling so profiling can't be truncated by the cap; the
-# higher queue latency is fine for a run-once sizing job. If runtime is still a
-# concern, cut probe cost with --export=ALL,N_UNITS_PROBE=3.
-#SBATCH --partition=long
+# `medium` (5-day cap) removes the 12h ceiling so profiling can't be truncated by
+# the cap, and schedules sooner than `long`; the 24h wall below is a generous
+# ceiling for a run-once sizing job. If runtime is still a concern, cut probe cost
+# with --export=ALL,N_UNITS_PROBE=3.
+#SBATCH --partition=medium
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
