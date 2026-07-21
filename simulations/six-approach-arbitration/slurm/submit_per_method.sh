@@ -72,7 +72,9 @@ GIT_SHA="$(git -C "${STUDY_DIR}" rev-parse --short HEAD 2>/dev/null || echo nogi
 # the tasks whose scratch task_*.rds is missing -- e.g. after timeouts), export
 # RUN_ID=<existing-run-id> before calling; array.slurm skips tasks whose file exists.
 RUN_ID="${RUN_ID:-$(date '+%Y%m%d-%H%M%S')_${GIT_SHA}}"
-SCRATCH_ROOT="/n/scratch/users/${HMS_ID:0:1}/${HMS_ID}/${PROJECT_NAME}/${STUDY_NAME}"
+# SCRATCH_ROOT defaults to O2 scratch; overridable (e.g. for a local pipeline smoke
+# test with a fake sbatch, where /n/scratch is not writable). Production leaves it unset.
+SCRATCH_ROOT="${SCRATCH_ROOT:-/n/scratch/users/${HMS_ID:0:1}/${HMS_ID}/${PROJECT_NAME}/${STUDY_NAME}}"
 SCRATCH_DIR="${SCRATCH_ROOT}/${RUN_ID}"
 LOG_DIR="${SCRATCH_DIR}/logs"
 mkdir -p "${SCRATCH_DIR}" "${LOG_DIR}"
@@ -97,18 +99,21 @@ declare -a ALL_JOB_IDS=()
 for m in "${METHODS[@]}"; do
   # Fresh env per method.
   unset TOTAL_TASKS REPS_PER_JOB MAX_ARRAY_SIZE MAX_CONCURRENT_JOBS \
-        CONCURRENCY_CAP WALLTIME MEM_GB UNIT_OFFSET N_UNITS_METHOD METHOD
+        CONCURRENCY_CAP WALLTIME MEM_GB UNIT_OFFSET N_UNITS_METHOD METHOD PARTITION
   # shellcheck disable=SC1090
   source "${CONFIG_DIR}/sizing_${m}.env"
   : "${TOTAL_TASKS:?}" "${REPS_PER_JOB:?}" "${MAX_ARRAY_SIZE:?}" \
     "${MAX_CONCURRENT_JOBS:?}" "${CONCURRENCY_CAP:?}" "${WALLTIME:?}" "${MEM_GB:?}" \
     "${UNIT_OFFSET:?}" "${N_UNITS_METHOD:?}"
+  # PARTITION is optional: older sizing envs (pre target-tasks) omit it. Default to
+  # `short` so those still submit unchanged; the target-tasks path always writes it.
+  PARTITION="${PARTITION:-short}"
 
   MAX_UNIT=$(( UNIT_OFFSET + N_UNITS_METHOD ))   # last global unit for this method
   METHOD_SCRATCH="${SCRATCH_DIR}/${m}"           # per-method subdir: no task-file collision
   mkdir -p "${METHOD_SCRATCH}"
 
-  echo "--- ${m}: ${TOTAL_TASKS} tasks x ${REPS_PER_JOB} units  --time ${WALLTIME} --mem ${MEM_GB}G ---"
+  echo "--- ${m}: ${TOTAL_TASKS} tasks x ${REPS_PER_JOB} units  --time ${WALLTIME} --mem ${MEM_GB}G -p ${PARTITION} ---"
 
   ARRAYS_PER_WAVE=$(( MAX_CONCURRENT_JOBS / MAX_ARRAY_SIZE )); (( ARRAYS_PER_WAVE < 1 )) && ARRAYS_PER_WAVE=1
   offset=0; arrays_in_wave=0; prev_wave_last=""
@@ -123,6 +128,7 @@ for m in "${METHODS[@]}"; do
     jobid=$(sbatch --parsable \
       --job-name="${STUDY_NAME}-${m}" \
       --array=1-"${chunk}"%"${cap}" \
+      --partition="${PARTITION}" \
       --time="${WALLTIME}" --mem="${MEM_GB}G" \
       --output="${LOG_DIR}/${m}_%A_%a.out" \
       --error="${LOG_DIR}/${m}_%A_%a.err" \

@@ -33,6 +33,18 @@
 #   salloc -p interactive -c 4 --mem=48G -t 0-04:00
 #   Rscript slurm/profile_per_method.R --target-hours 2 [--n-units 5] [--mem-cap-gb 24]
 # Output: config/sizing_<method>.env for each method (sourced by submit_per_method.sh).
+#
+# TWO SIZING MODES:
+#   --target-hours H   (default): size each method so a task runs ~H hours; total
+#                      task count falls out (can be many thousands of short tasks).
+#   --target-tasks N   : size for a TOTAL of ~N array tasks across all methods,
+#                      splitting the budget in proportion to each method's total
+#                      cost so every task gets the SAME expected walltime. Use this
+#                      to stay under the 10k MaxSubmitJobs cap and submit ONE shot,
+#                      unattended (e.g. --target-tasks 1000). The uniform walltime
+#                      auto-selects the partition (short<12h / medium<5d / else long),
+#                      written as PARTITION= into each env and honored by array.slurm.
+#   e.g.  Rscript slurm/profile_per_method.R --target-tasks 1000 --mem-cap-gb 24
 # =============================================================================
 
 suppressPackageStartupMessages(library(optparse))
@@ -51,8 +63,11 @@ for (pkg in c("callr", "ps")) {
 # --- O2 scheduler limits (mirror profile_timing.R) ---------------------------
 MAX_ARRAY_SIZE      <- 1000L
 MAX_CONCURRENT_JOBS <- 10000L
-WALL_MAX_HOURS      <- 3
+WALL_MAX_HOURS_DEF  <- 3      # default per-task wall cap (target-hours path)
 CONCURRENCY_CAP_DEF <- 200L
+# Partition walltime ceilings on O2 (hours), used to auto-pick a partition from
+# the computed uniform per-task walltime in --target-tasks mode.
+PARTITION_CAPS_H    <- c(short = 12, medium = 5 * 24, long = 30 * 24)
 # 3.5x (not 1.5x): per-unit cost is heavy-tailed here (Rashomon-set size varies
 # widely at the stress cell), so a 1.5x --time times out any task above the median.
 # 3.5x absorbs that tail; the WALL_MAX_HOURS cap still bounds walltime. (The
@@ -65,6 +80,16 @@ opt <- parse_args(OptionParser(option_list = list(
               help = "Probe units per method at the worst cell [default %default]"),
   make_option("--target-hours", type = "double",    dest = "target_hours", default = 2,
               help = "Target wall time per task, hours [default %default]"),
+  # --target-tasks INVERTS the sizing: instead of a per-task wall-time target, aim
+  # for a TOTAL number of array tasks across all methods (e.g. 1000, to stay well
+  # under the 10k MaxSubmitJobs cap and submit in one shot, unattended). Task budget
+  # is split across methods in proportion to each method's total cost, so every task
+  # gets the SAME expected walltime ~= (total study CPU-time)/target_tasks. That
+  # walltime also picks the partition. When NULL, the classic target-hours path runs.
+  make_option("--target-tasks", type = "integer",   dest = "target_tasks", default = NA_integer_,
+              help = "Total array tasks across ALL methods (inverts sizing). If set, overrides --target-hours [default: unset]"),
+  make_option("--wall-max-hours", type = "double",  dest = "wall_max_hours", default = NA_real_,
+              help = "Per-task wall cap, hours. [default: 3 for target-hours; 720 (30d) for target-tasks]"),
   make_option("--mem-cap-gb",   type = "double",    dest = "mem_cap_gb", default = 24,
               help = paste0("Per-unit resident-memory ceiling in GB; a probe unit ",
                             "exceeding this is killed and recorded as degenerate. ",
@@ -172,8 +197,21 @@ methods <- unique(GRID$method)
 worst_n   <- max(GRID$n)
 worst_dgp <- if ("continuous" %in% GRID$dgp) "continuous" else tail(sort(unique(GRID$dgp)), 1)
 
+# Sizing mode: target-tasks (total task count) vs classic target-hours (per-task).
+task_mode <- !is.na(opt$target_tasks)
+if (task_mode && opt$target_tasks < 1L)
+  stop("--target-tasks must be a positive integer.", call. = FALSE)
+# Wall cap default: 3h for the classic path; 30 days for the long-job path (the
+# partition is picked from the actual computed walltime, so this is just a ceiling).
+wall_max_hours <- if (!is.na(opt$wall_max_hours)) {
+  opt$wall_max_hours
+} else if (task_mode) {
+  PARTITION_CAPS_H[["long"]]
+} else {
+  WALL_MAX_HOURS_DEF
+}
 target_secs <- opt$target_hours * 3600
-max_secs    <- WALL_MAX_HOURS * 3600
+max_secs    <- wall_max_hours * 3600
 
 fmt_hms <- function(secs) {
   secs <- max(60, ceiling(secs))
@@ -181,13 +219,31 @@ fmt_hms <- function(secs) {
   sprintf("%02d:%02d:%02d", h, m, s)
 }
 
-cat(sprintf(paste0("Per-method profiling at worst cell (n=%d, dgp=%s), %d probe units each.\n",
-                   "Per-unit memory cap: %.1f GB (units exceeding it are killed & recorded).\n\n"),
-            worst_n, worst_dgp, opt$n_units_probe, opt$mem_cap_gb))
+# Smallest partition whose walltime cap covers `secs`; the largest if none do
+# (the caller's WALLTIME is still clamped to max_secs, so this never under-sizes
+# silently -- it picks `long` and the wall cap warning below fires).
+pick_partition <- function(secs) {
+  hrs  <- secs / 3600
+  caps <- sort(PARTITION_CAPS_H)
+  fit  <- names(caps)[hrs <= caps]
+  if (length(fit)) fit[1] else names(caps)[length(caps)]
+}
 
-summary_rows <- list()
+mode_desc <- if (task_mode) {
+  sprintf("target-tasks=%d (cost-proportional; uniform per-task walltime)", opt$target_tasks)
+} else {
+  sprintf("target-hours=%.2f per task", opt$target_hours)
+}
+cat(sprintf(paste0("Per-method profiling at worst cell (n=%d, dgp=%s), %d probe units each.\n",
+                   "Sizing mode: %s.  Wall cap: %.1f h.\n",
+                   "Per-unit memory cap: %.1f GB (units exceeding it are killed & recorded).\n\n"),
+            worst_n, worst_dgp, opt$n_units_probe, mode_desc, wall_max_hours, opt$mem_cap_gb))
+
+# --- PASS 1: profile every method at its worst cell --------------------------
+# Cost-proportional task allocation (task_mode) needs every method's med sec/unit
+# BEFORE any method can be sized, so profiling and sizing are now separate passes.
+prof <- list()
 for (meth in methods) {
-  # Probe units for this method at the worst cell.
   cell <- ut[ut$method == meth & ut$n == worst_n & ut$dgp == worst_dgp, , drop = FALSE]
   probe <- head(cell, opt$n_units_probe)
   if (nrow(probe) == 0) { cat(sprintf("[%s] no worst-cell units; skipping.\n", meth)); next }
@@ -210,41 +266,76 @@ for (meth in methods) {
   }
   if (med <= 0) med <- 1  # guard; a method that returns instantly still needs a floor
 
-  # Units in this method's block = nrow(GRID cells for this method) * TOTAL_REPS.
-  n_units_method <- sum(ut$method == meth)
+  prof[[meth]] <- list(
+    med = med, peak_gb = peak_gb, n_killed = n_killed, n_probe = nrow(probe),
+    # Units in this method's block = nrow(GRID cells for this method) * TOTAL_REPS.
+    n_units_method = sum(ut$method == meth),
+    # Global unit offset for this method's block (units are 1-based, contiguous).
+    unit_offset    = min(ut$unit[ut$method == meth]) - 1L
+  )
+  cat(sprintf("[%-15s] med %.2fs/unit  peak %.2fGB  killed %d/%d\n",
+              meth, med, peak_gb, n_killed, nrow(probe)))
+}
 
-  reps_per_job <- max(1L, min(as.integer(floor(target_secs / med)), n_units_method))
-  total_tasks  <- as.integer(ceiling(n_units_method / reps_per_job))
-  # Respect the concurrent-jobs cap by packing more reps if needed (<= 3 hr).
-  if (total_tasks > MAX_CONCURRENT_JOBS) {
-    reps_per_job <- as.integer(ceiling(n_units_method / MAX_CONCURRENT_JOBS))
-    if (reps_per_job * med > max_secs) reps_per_job <- max(1L, as.integer(floor(max_secs / med)))
-    total_tasks <- as.integer(ceiling(n_units_method / reps_per_job))
+# In task_mode, split the total task budget across methods in proportion to each
+# method's total cost (n_units * med). This equalizes expected per-task walltime.
+task_budget <- NULL
+if (task_mode) {
+  cost <- vapply(prof, function(p) p$n_units_method * p$med, numeric(1))
+  raw  <- opt$target_tasks * cost / sum(cost)
+  # At least 1 task per method; round the rest. Sum may drift from target by a few.
+  task_budget <- pmax(1L, as.integer(round(raw)))
+  names(task_budget) <- names(prof)
+}
+
+# --- PASS 2: size and write each method's env --------------------------------
+summary_rows <- list()
+for (meth in names(prof)) {
+  p <- prof[[meth]]
+  med <- p$med; n_units_method <- p$n_units_method
+
+  if (task_mode) {
+    # Fixed task budget -> reps_per_job to cover the block; walltime falls out.
+    reps_per_job <- max(1L, as.integer(ceiling(n_units_method / task_budget[[meth]])))
+    total_tasks  <- as.integer(ceiling(n_units_method / reps_per_job))
+  } else {
+    reps_per_job <- max(1L, min(as.integer(floor(target_secs / med)), n_units_method))
+    total_tasks  <- as.integer(ceiling(n_units_method / reps_per_job))
+    # Respect the concurrent-jobs cap by packing more reps if needed (<= wall cap).
+    if (total_tasks > MAX_CONCURRENT_JOBS) {
+      reps_per_job <- as.integer(ceiling(n_units_method / MAX_CONCURRENT_JOBS))
+      if (reps_per_job * med > max_secs) reps_per_job <- max(1L, as.integer(floor(max_secs / med)))
+      total_tasks <- as.integer(ceiling(n_units_method / reps_per_job))
+    }
   }
-  walltime <- fmt_hms(min(max_secs, reps_per_job * med * TIME_SAFETY))
-  cap      <- min(CONCURRENCY_CAP_DEF, total_tasks)
+
+  wall_secs_raw <- reps_per_job * med * TIME_SAFETY
+  walltime <- fmt_hms(min(max_secs, wall_secs_raw))
+  if (wall_secs_raw > max_secs)
+    cat(sprintf(paste0("[%s] WARNING: sized walltime %.1f h exceeds wall cap %.1f h; clamped. ",
+                       "Increase --target-tasks (more, shorter tasks) or --wall-max-hours.\n"),
+                meth, wall_secs_raw / 3600, wall_max_hours))
+  partition <- pick_partition(min(max_secs, wall_secs_raw))
+  cap       <- min(CONCURRENCY_CAP_DEF, total_tasks)
 
   # Memory sizing. If any unit was killed, the true peak EXCEEDS the cap -- the
   # measured peak_gb is only a lower bound, so size --mem above the cap and warn
   # loudly (Constitution S9: no silent under-sizing). Otherwise use measured peak.
-  if (n_killed > 0) {
+  if (p$n_killed > 0) {
     mem_gb <- max(4L, as.integer(ceiling(opt$mem_cap_gb * MEM_SAFETY)))
     cat(sprintf(paste0("[%s] WARNING: %d/%d probe units hit the %.1f GB cap and were KILLED. ",
                        "True memory need EXCEEDS the cap; --mem set to %dG is a FLOOR, not a ",
                        "measurement. Re-profile with a higher --mem-cap-gb (in a bigger salloc) ",
                        "or consider excluding this cell.\n"),
-                meth, n_killed, nrow(probe), opt$mem_cap_gb, mem_gb))
+                meth, p$n_killed, p$n_probe, opt$mem_cap_gb, mem_gb))
   } else {
-    mem_gb <- max(4L, as.integer(ceiling(peak_gb * MEM_SAFETY)))
+    mem_gb <- max(4L, as.integer(ceiling(p$peak_gb * MEM_SAFETY)))
   }
-
-  # Global unit offset for this method's block (units are 1-based, contiguous).
-  unit_offset <- min(ut$unit[ut$method == meth]) - 1L
 
   env_path <- file.path(opt$study_dir, "config", sprintf("sizing_%s.env", meth))
   writeLines(c(
     sprintf("METHOD=%s", meth),
-    sprintf("UNIT_OFFSET=%d", unit_offset),
+    sprintf("UNIT_OFFSET=%d", p$unit_offset),
     sprintf("N_UNITS_METHOD=%d", n_units_method),
     sprintf("TOTAL_TASKS=%d", total_tasks),
     sprintf("REPS_PER_JOB=%d", reps_per_job),
@@ -252,16 +343,24 @@ for (meth in methods) {
     sprintf("MAX_CONCURRENT_JOBS=%d", MAX_CONCURRENT_JOBS),
     sprintf("CONCURRENCY_CAP=%d", cap),
     sprintf("WALLTIME=%s", walltime),
-    sprintf("MEM_GB=%d", mem_gb)
+    sprintf("MEM_GB=%d", mem_gb),
+    sprintf("PARTITION=%s", partition)
   ), env_path)
 
-  peak_note <- if (n_killed > 0) sprintf(">%.2fGB", opt$mem_cap_gb) else sprintf("%.2fGB", peak_gb)
-  cat(sprintf("[%-15s] med %.2fs/unit  peak %s  killed %d/%d | reps/job %d  tasks %d  --time %s  --mem %dG\n",
-              meth, med, peak_note, n_killed, nrow(probe), reps_per_job, total_tasks, walltime, mem_gb))
-  summary_rows[[meth]] <- data.frame(method = meth, med_secs = med, peak_gb = peak_gb,
-                                     n_killed = n_killed, reps_per_job = reps_per_job,
-                                     total_tasks = total_tasks, walltime = walltime, mem_gb = mem_gb)
+  peak_note <- if (p$n_killed > 0) sprintf(">%.2fGB", opt$mem_cap_gb) else sprintf("%.2fGB", p$peak_gb)
+  cat(sprintf("[%-15s] med %.2fs/unit  peak %s | reps/job %d  tasks %d  --time %s  --mem %dG  -p %s\n",
+              meth, med, peak_note, reps_per_job, total_tasks, walltime, mem_gb, partition))
+  summary_rows[[meth]] <- data.frame(method = meth, med_secs = med, peak_gb = p$peak_gb,
+                                     n_killed = p$n_killed, reps_per_job = reps_per_job,
+                                     total_tasks = total_tasks, walltime = walltime,
+                                     mem_gb = mem_gb, partition = partition)
 }
 
-cat("\nWrote config/sizing_<method>.env for each method.\n")
+grand_total <- sum(vapply(summary_rows, function(r) r$total_tasks, integer(1)))
+cat(sprintf("\nWrote config/sizing_<method>.env for each method.\n"))
+cat(sprintf("TOTAL array tasks across all methods: %d%s\n", grand_total,
+            if (task_mode) sprintf("  (target %d)", opt$target_tasks) else ""))
+if (grand_total > MAX_CONCURRENT_JOBS)
+  cat(sprintf("WARNING: %d tasks exceeds MaxSubmitJobs=%d; raise --target-tasks divisor or submit in waves.\n",
+              grand_total, MAX_CONCURRENT_JOBS))
 cat("Next: bash slurm/submit_per_method.sh   (submits one array per method)\n")

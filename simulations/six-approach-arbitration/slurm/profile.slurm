@@ -12,6 +12,12 @@
 # then, once config/sizing_<method>.env exist for all 7 methods:
 #   bash slurm/submit_per_method.sh
 #
+# UNATTENDED ONE-SHOT (profile THEN auto-submit ~1000 long tasks):
+#   sbatch --export=ALL,TARGET_TASKS=1000,AUTO_SUBMIT=1 slurm/profile.slurm
+# This sizes for ~1000 tasks and, ONLY if all 7 sizing envs come out valid,
+# chain-launches submit_per_method.sh from within this job. If profiling is
+# truncated (timeout/OOM leaves <7 envs), it submits NOTHING and exits non-zero.
+#
 # GATE (same as submit_per_method.sh): the agent cannot `git push`, so REINSTALL
 # both packages on this node first, else profiling sizes STALE code:
 #   R CMD INSTALL doubletree optimaltrees   # from the repo root
@@ -44,8 +50,20 @@ set -euo pipefail
 
 # --- Tunables (override at submit time, e.g. sbatch --export=ALL,TARGET_HOURS=3 ...) ---
 TARGET_HOURS="${TARGET_HOURS:-2}"     # target wall time per PRODUCTION task (sizing input)
+# TARGET_TASKS: if set, size for this TOTAL number of production array tasks across
+# all 7 methods (cost-proportional -> uniform per-task walltime, partition auto-picked)
+# instead of a per-task wall-time target. Use to stay under the 10k MaxSubmitJobs cap
+# and submit ONE shot, unattended, e.g.  sbatch --export=ALL,TARGET_TASKS=1000 slurm/profile.slurm
+TARGET_TASKS="${TARGET_TASKS:-}"      # empty => classic target-hours sizing
 MEM_CAP_GB="${MEM_CAP_GB:-24}"        # per-unit kill ceiling; MUST be < --mem (48G)
 N_UNITS_PROBE="${N_UNITS_PROBE:-5}"   # probe units per method at the worst cell
+# AUTO_SUBMIT=1: after profiling, if AND ONLY IF all 7 sizing_<method>.env are valid,
+# chain-launch the production arrays via submit_per_method.sh from within this job --
+# so a single `sbatch` profiles then submits, unattended. If any method's sizing is
+# missing/invalid (e.g. profiling timed out after N<7 methods, as job 47933203 did),
+# NOTHING is submitted and this job exits non-zero (better than launching a partial,
+# broken study). Requires the cluster to permit sbatch-from-within-a-job (O2 does).
+AUTO_SUBMIT="${AUTO_SUBMIT:-0}"
 
 # --- Resolve study dir --------------------------------------------------------
 # Under `sbatch`, SLURM runs a SPOOLED COPY of this script (e.g.
@@ -87,15 +105,58 @@ Rscript -e '
   for (p in pkgs) cat(sprintf("preflight: %s %s OK\n", p, utils::packageVersion(p)))
 '
 
-echo "[$(date '+%F %T')] host=$(hostname) job=${SLURM_JOB_ID:-<none>} profiling: target=${TARGET_HOURS}h mem-cap=${MEM_CAP_GB}G n-units=${N_UNITS_PROBE}"
+# Sizing mode: TARGET_TASKS (if set) wins over TARGET_HOURS.
+SIZING_ARGS=(--target-hours "${TARGET_HOURS}")
+if [[ -n "${TARGET_TASKS}" ]]; then
+  SIZING_ARGS=(--target-tasks "${TARGET_TASKS}")
+fi
+
+echo "[$(date '+%F %T')] host=$(hostname) job=${SLURM_JOB_ID:-<none>} profiling: ${SIZING_ARGS[*]} mem-cap=${MEM_CAP_GB}G n-units=${N_UNITS_PROBE}"
 
 # --- Profile every method at its worst cell; writes config/sizing_<method>.env ---
 # --mem-cap-gb (24) < --mem (48G): the per-unit guard fires before SLURM.
+# Do not let a profiler non-zero exit abort the script under `set -e` before we can
+# report it; capture the status explicitly.
+prof_status=0
 Rscript "${SLURM_DIR}/profile_per_method.R" \
   --study-dir    "${STUDY_DIR}" \
-  --target-hours "${TARGET_HOURS}" \
+  "${SIZING_ARGS[@]}" \
   --mem-cap-gb   "${MEM_CAP_GB}" \
-  --n-units      "${N_UNITS_PROBE}"
+  --n-units      "${N_UNITS_PROBE}" || prof_status=$?
 
-echo "[$(date '+%F %T')] profiling finished with status $?; sizing files:"
+echo "[$(date '+%F %T')] profiling finished with status ${prof_status}; sizing files:"
 ls -1 "${STUDY_DIR}/config"/sizing_*.env 2>/dev/null || echo "  (none written -- check the log above)"
+
+# --- Optional gated auto-submit ----------------------------------------------
+# Chain the production submission ONLY if profiling succeeded AND all 7 methods have
+# a valid sizing env (positive TOTAL_TASKS + non-empty WALLTIME/PARTITION). A partial
+# set means profiling was truncated (timeout/OOM); submitting it would launch a broken
+# study, so we refuse and exit non-zero instead.
+if [[ "${AUTO_SUBMIT}" == "1" ]]; then
+  METHODS=(full crossfit doubletree dt_averaged msplit msplit_averaged single_tree)
+  if (( prof_status != 0 )); then
+    echo "AUTO_SUBMIT: profiling exited ${prof_status}; NOT submitting." >&2
+    exit "${prof_status}"
+  fi
+  ok=1
+  for m in "${METHODS[@]}"; do
+    envf="${STUDY_DIR}/config/sizing_${m}.env"
+    if [[ ! -f "${envf}" ]]; then
+      echo "AUTO_SUBMIT: missing ${envf}; profiling incomplete. NOT submitting." >&2; ok=0; continue
+    fi
+    # Source in a subshell to read the values without polluting this shell.
+    tt=$(bash -c "set -a; source '${envf}'; printf '%s' \"\${TOTAL_TASKS:-}\"")
+    wt=$(bash -c "set -a; source '${envf}'; printf '%s' \"\${WALLTIME:-}\"")
+    pt=$(bash -c "set -a; source '${envf}'; printf '%s' \"\${PARTITION:-}\"")
+    if [[ -z "${tt}" || "${tt}" -lt 1 || -z "${wt}" || -z "${pt}" ]]; then
+      echo "AUTO_SUBMIT: ${envf} invalid (TOTAL_TASKS='${tt}' WALLTIME='${wt}' PARTITION='${pt}'). NOT submitting." >&2
+      ok=0
+    fi
+  done
+  if (( ok != 1 )); then
+    echo "AUTO_SUBMIT: sizing incomplete/invalid across the 7 methods; submitted NOTHING." >&2
+    exit 1
+  fi
+  echo "[$(date '+%F %T')] AUTO_SUBMIT: all 7 sizing envs valid; launching submit_per_method.sh"
+  bash "${SLURM_DIR}/submit_per_method.sh"
+fi

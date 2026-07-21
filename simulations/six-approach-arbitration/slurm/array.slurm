@@ -19,6 +19,10 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 # --array, --time, --mem, --output, --error are supplied by submit.sh.
+# --partition: the #SBATCH default above is `short` (used by the stock submit.sh).
+# submit_per_method.sh OVERRIDES it on the sbatch command line with the PARTITION
+# picked by profile_per_method.R (a later --partition flag wins over this default),
+# so long-walltime runs land on medium/long automatically.
 
 set -euo pipefail
 
