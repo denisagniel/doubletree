@@ -234,19 +234,43 @@ mode_desc <- if (task_mode) {
 } else {
   sprintf("target-hours=%.2f per task", opt$target_hours)
 }
-cat(sprintf(paste0("Per-method profiling at worst cell (n=%d, dgp=%s), %d probe units each.\n",
+cat(sprintf(paste0("Per-method profiling at each method's worst FEASIBLE cell, %d probe units each.\n",
                    "Sizing mode: %s.  Wall cap: %.1f h.\n",
                    "Per-unit memory cap: %.1f GB (units exceeding it are killed & recorded).\n\n"),
-            worst_n, worst_dgp, opt$n_units_probe, mode_desc, wall_max_hours, opt$mem_cap_gb))
+            opt$n_units_probe, mode_desc, wall_max_hours, opt$mem_cap_gb))
 
-# --- PASS 1: profile every method at its worst cell --------------------------
+# --- Worst FEASIBLE cell per method ------------------------------------------
+# The global worst cell (n=2000, continuous) is INFEASIBLE for the Rashomon methods
+# (doubletree/dt_averaged/single_tree per INFEASIBLE_CELLS): it is skipped at runtime
+# AND OOM-kills the probe, so profiling it yields a killed-floor med measured on units
+# that never execute in production -- which then massively over-allocates those methods'
+# task budget (observed 2026-07-18: 3 methods took 85% of the budget off floor meds).
+# Instead, profile each method at ITS worst cell among the cells it will ACTUALLY run:
+# largest n, then hardest dgp (simple<moderate<complex<continuous), restricted to
+# is_feasible() == TRUE. Falls back to the global worst cell only if a method somehow
+# has no feasible cells (should never happen).
+.dgp_rank <- c(simple = 1L, moderate = 2L, complex = 3L, continuous = 4L)
+worst_feasible_cell <- function(meth) {
+  cells <- unique(ut[ut$method == meth, c("method", "n", "dgp"), drop = FALSE])
+  cells <- cells[is_feasible(cells), , drop = FALSE]
+  if (nrow(cells) == 0) return(list(n = worst_n, dgp = worst_dgp))  # defensive fallback
+  rank_dgp <- .dgp_rank[cells$dgp]
+  rank_dgp[is.na(rank_dgp)] <- 0L
+  # Worst = max n first, then max dgp rank.
+  ord <- order(cells$n, rank_dgp, decreasing = TRUE)
+  list(n = cells$n[ord[1]], dgp = cells$dgp[ord[1]])
+}
+
+# --- PASS 1: profile every method at its worst FEASIBLE cell -----------------
 # Cost-proportional task allocation (task_mode) needs every method's med sec/unit
 # BEFORE any method can be sized, so profiling and sizing are now separate passes.
 prof <- list()
 for (meth in methods) {
-  cell <- ut[ut$method == meth & ut$n == worst_n & ut$dgp == worst_dgp, , drop = FALSE]
+  wc <- worst_feasible_cell(meth)
+  cell <- ut[ut$method == meth & ut$n == wc$n & ut$dgp == wc$dgp, , drop = FALSE]
   probe <- head(cell, opt$n_units_probe)
-  if (nrow(probe) == 0) { cat(sprintf("[%s] no worst-cell units; skipping.\n", meth)); next }
+  if (nrow(probe) == 0) { cat(sprintf("[%s] no feasible worst-cell units; skipping.\n", meth)); next }
+  cat(sprintf("[%s] worst feasible cell: n=%d dgp=%s\n", meth, wc$n, wc$dgp))
 
   secs <- numeric(nrow(probe)); unit_peak_gb <- numeric(nrow(probe))
   n_deg <- 0L; n_killed <- 0L
