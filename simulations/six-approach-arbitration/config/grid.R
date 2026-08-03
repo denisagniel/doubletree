@@ -131,22 +131,46 @@ n_units <- function() nrow(GRID) * TOTAL_REPS
 
 # -----------------------------------------------------------------------------
 # INFEASIBLE_CELLS -- (method, n, dgp) cells excluded because the Rashomon set
-# explodes beyond feasible memory (>64 GB) at the stress DGP. Determined by
-# slurm/probe_tier2_boundary.R (2026-07-11): at dgp="continuous" the many-threshold
-# discretization makes the per-fold Rashomon set past 64 GB even at the FIXED theory
-# tolerance epsilon_n = log(n)/n. (The probe predates the escalation fix and ran with
-# escalation inert, so this boundary is the fixed-tolerance cost, not escalation.
-# Escalation cells, when added, are expected to be at least this memory-intensive.)
-# This is a documented STRESS-REGIME LIMITATION of the Rashomon-intersection methods,
-# not a bug (Constitution S9: report the boundary).
+# explodes beyond feasible memory at the stress DGP. Confirmed by sacct (2026-08-03):
+# tasks hit 27-32 GB against a 32 GB cap at complex n>=1000 and continuous n>=500.
+#
+# IMPORTANT: This is a CURRENT-IMPLEMENTATION limitation, not a fundamental
+# infeasibility of the Rashomon-intersection method. TreeFARMS enumerates the ENTIRE
+# Rashomon set and holds all trees in memory simultaneously. The intersection only
+# requires finding trees present in every fold -- a lazy/streaming implementation
+# that checks intersection membership on the fly would use O(intersection size) memory
+# instead of O(total Rashomon set size). Future optimaltrees work should implement
+# this. The boundary reported here is the current-code boundary. (See MEMORY.md:
+# [LEARN:rashomon-memory].)
+#
 # NOTE: this does NOT change unit numbering -- unit_table() is unchanged, so unit
 # ids/seeds/offsets are preserved. is_feasible() only tells the runner which units
 # to SKIP; combine.R records them as not-run (distinct from converged=FALSE).
+# Confirmed OOM boundary (sacct 2026-08-03, 32 GB cap):
+#   complex n>=1000: 27-30 GB (doubletree task 7-8, dt_averaged task 7-8, single_tree task 7-8)
+#   continuous n>=500: 29-32 GB (doubletree task 8-9, dt_averaged task 8-9, single_tree task 9)
+#   escalate complex n>=1000: 32 GB (doubletree task 16, dt_averaged task 17, single_tree task 18)
+# continuous n=500 for doubletree/dt_averaged: tasks completed but were in same task-block as
+#   OOM tasks; treating as infeasible at 32 GB to be conservative (sacct MaxRSS unavailable
+#   for completed sub-tasks when parent OOM'd).
 INFEASIBLE_CELLS <- rbind(
+  # continuous: all n >= 500 for all three Rashomon methods
+  data.frame(method = "doubletree",  n =  500L, dgp = "continuous"),
+  data.frame(method = "doubletree",  n = 1000L, dgp = "continuous"),
   data.frame(method = "doubletree",  n = 2000L, dgp = "continuous"),
+  data.frame(method = "dt_averaged", n =  500L, dgp = "continuous"),
+  data.frame(method = "dt_averaged", n = 1000L, dgp = "continuous"),
   data.frame(method = "dt_averaged", n = 2000L, dgp = "continuous"),
+  data.frame(method = "single_tree", n =  500L, dgp = "continuous"),
   data.frame(method = "single_tree", n = 1000L, dgp = "continuous"),
   data.frame(method = "single_tree", n = 2000L, dgp = "continuous"),
+  # complex n >= 1000 for all three Rashomon methods
+  data.frame(method = "doubletree",  n = 1000L, dgp = "complex"),
+  data.frame(method = "doubletree",  n = 2000L, dgp = "complex"),
+  data.frame(method = "dt_averaged", n = 1000L, dgp = "complex"),
+  data.frame(method = "dt_averaged", n = 2000L, dgp = "complex"),
+  data.frame(method = "single_tree", n = 1000L, dgp = "complex"),
+  data.frame(method = "single_tree", n = 2000L, dgp = "complex"),
   stringsAsFactors = FALSE
 )
 
