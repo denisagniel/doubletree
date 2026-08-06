@@ -1,0 +1,732 @@
+\documentclass[11pt]{article}
+
+% ---- Portable preamble (compiles with XeLaTeX or pdfLaTeX, no project macros) ----
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{mathtools}
+\usepackage{enumitem}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{assumption}{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\PP}{\mathbb{P}}
+\newcommand{\Pn}{\mathbb{P}_n}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\cX}{\mathcal{X}}
+\newcommand{\cT}{\mathcal{T}}
+\newcommand{\cS}{\mathcal{S}}
+\newcommand{\ez}{e_0}
+\newcommand{\mz}{\mu_0}
+\newcommand{\ehat}{\widehat{e}}
+\newcommand{\mhat}{\widehat{\mu}}
+\newcommand{\that}{\widehat{\tau}}
+\newcommand{\thetahat}{\widehat{\theta}}
+\newcommand{\Ltwo}[1]{\lVert #1 \rVert_{2}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\card}{\lvert}{\rvert}
+
+\title{Single-Tree ATT Inference on a Finite Covariate Space\\
+\large The fixed finite regime}
+\author{}
+\date{2026-08-05}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We give valid $\sqrt n$ inference for the ATT when both nuisance functions are
+estimated by a single globally-optimal decision tree fit on the \emph{full}
+sample, with no sample splitting and no cross-fitting, on a covariate space that
+is finite with fixed cardinality. The argument rests on one structural
+observation: the induced estimand is \emph{invariant} across every partition fine
+enough to represent the truth, so the data-adaptive choice of tree structure
+cannot shift the target. Because the candidate set of trees is a fixed finite
+set, uniformity over it is free, no entropy or tail conditions are needed, and
+the ordinary empirical influence-function variance estimator is consistent. We
+are explicit about what this does \emph{and does not} contribute
+(Section~\ref{sec:contribution}): in this regime the inference problem is
+finite-dimensional, and the content of the result is post-selection validity, not
+nonparametric efficiency.
+\end{abstract}
+
+\section{Setup}\label{sec:setup}
+
+Let $O=(X,A,Y)\sim P$ be i.i.d., $A\in\{0,1\}$, $Y\in\R$, and let the covariate
+take values in a \emph{finite} product space
+\[
+  \cX \;=\; \prod_{j=1}^{d}\{1,\dots,K_j\},
+  \qquad M \;:=\; \card{\cX} \;=\; \prod_j K_j .
+\]
+Throughout, $d$ and each $K_j$ are \textbf{fixed}: they do not grow with $n$.
+Hence $M$ is a fixed finite constant. Write $\pi=\PP(A=1)$,
+$\ez(x)=\PP(A=1\mid X=x)$, $\mz(x)=\E[Y\mid X=x,A=0]$, and let
+\[
+  \theta_0 \;=\; \E[Y(1)-Y(0)\mid A=1]
+\]
+be the ATT. The Neyman-orthogonal ATT score, in the empirical treated-mean
+identification, is
+\begin{equation}\label{eq:score}
+  \psi(O;\theta,e,f)
+  \;=\; \frac{A}{\pi}\bigl(Y-f(X)-\theta\bigr)
+    \;-\; \frac{1}{\pi}\,\frac{e(X)\,(1-A)}{1-e(X)}\,\bigl(Y-f(X)\bigr).
+\end{equation}
+For candidate nuisances $(e,f)$ let $\theta(e,f)$ solve $\E_P[\psi]=0$. We use
+throughout the standard bilinear remainder identity for doubly robust scores
+(Robins--Rotnitzky; van der Laan--Robins; see also Kennedy's review), which for
+\eqref{eq:score} reads
+\begin{equation}\label{eq:bilinear}
+  \theta(e,f)-\theta_0
+  \;=\; \frac{1}{\pi}\,\E_P\!\left[\frac{\ez(X)-e(X)}{1-e(X)}\,
+        \bigl(\mz(X)-f(X)\bigr)\right].
+\end{equation}
+Equation~\eqref{eq:bilinear} is not new and is not claimed as a contribution; it
+is the textbook computation underlying double robustness, and we use it only as
+bookkeeping.
+
+\paragraph{Trees and partitions.}
+A \emph{tree partition} $\tau$ of $\cX$ is a partition induced by recursive
+axis-aligned binary splits on the coordinates of $\cX$. Because $\cX$ is finite
+with fixed $M$, for any leaf budget $\bar L\le M$ the class
+\[
+  \cT_{\bar L} \;=\; \{\tau : \tau \text{ a tree partition of } \cX,\ \card{\tau}\le \bar L\}
+\]
+is a \textbf{fixed finite set}, and $\card{\cT_{\bar L}}$ is a constant not
+depending on $n$. This single fact drives every simplification below.
+
+For $\tau\in\cT_{\bar L}$ and $x\in\cX$ write $\ell_\tau(x)$ for the leaf
+containing $x$. Given a partition $\tau$, the \emph{full-sample leaf-refit}
+nuisances are
+\begin{equation}\label{eq:refit}
+  \ehat_\tau(x) = \frac{\sum_{i:\,X_i\in \ell_\tau(x)} A_i}{\#\{i: X_i\in\ell_\tau(x)\}},
+  \qquad
+  \mhat_\tau(x) = \frac{\sum_{i:\,X_i\in \ell_\tau(x),\,A_i=0} Y_i}
+                        {\#\{i: X_i\in\ell_\tau(x),\,A_i=0\}} ,
+\end{equation}
+with $\ehat_\tau$ clipped to $[c,1-c]$ (Assumption~\ref{ass:causal}).
+
+\paragraph{The estimator.}
+Fix a budget $\bar L$ and a penalty $\lambda_n>0$. For each nuisance
+$j\in\{e,\mu\}$ select
+\begin{equation}\label{eq:select}
+  \that_j \;\in\; \argmin_{\tau\in\cT_{\bar L}}
+  \Bigl\{ R_n^{(j)}(\tau) + \lambda_n\card{\tau} \Bigr\},
+\end{equation}
+where $R_n^{(e)}$ is the empirical classification risk of the leaf-refit
+propensity and $R_n^{(\mu)}$ the empirical squared-error risk of the leaf-refit
+control-outcome model. Set $\ehat=\ehat_{\that_e}$, $\mhat=\mhat_{\that_\mu}$,
+and let $\thetahat$ solve $\Pn[\psi(O;\theta,\ehat,\mhat)]=0$, i.e.\
+\begin{equation}\label{eq:estimator}
+  \thetahat
+  = \frac{1}{n\widehat\pi}\sum_{i=1}^n\Bigl[
+      A_i\bigl(Y_i-\mhat(X_i)\bigr)
+      - \frac{\ehat(X_i)(1-A_i)}{1-\ehat(X_i)}\bigl(Y_i-\mhat(X_i)\bigr)\Bigr],
+  \qquad \widehat\pi = \Pn[A].
+\end{equation}
+Note the \emph{minus} sign on the control-arm term; it follows from solving
+$\Pn[\psi]=0$ with \eqref{eq:score} and must match the score.
+\textbf{Both $\that_e$ and $\that_\mu$ are selected on all $n$ observations, and
+both leaf refits use all $n$ observations. There is no sample splitting anywhere.}
+
+\section{Assumptions}\label{sec:assumptions}
+
+\begin{assumption}[Finite, fixed, fully supported covariate space]\label{ass:finite}
+$\cX$ is finite with $M=\card{\cX}$ fixed in $n$, and $p_x:=\PP(X=x)>0$ for every
+$x\in\cX$.
+\end{assumption}
+
+\begin{assumption}[Identification and strong positivity]\label{ass:causal}
+Consistency; $\{Y(0),Y(1)\}\perp A\mid X$; and there is $c\in(0,\tfrac12]$ with
+$\ez(x)\in[c,1-c]$ for every $x\in\cX$. Candidate propensities are clipped to
+$[c,1-c]$.
+\end{assumption}
+
+\begin{assumption}[Second moments]\label{ass:moments}
+$\E[Y^2\mid X=x]\le C_Y<\infty$ for every $x\in\cX$.
+\end{assumption}
+
+\begin{assumption}[Structural sparsity]\label{ass:sparsity}
+For $j\in\{e,\mu\}$ let $\tau^*_j$ be a tree partition of minimal cardinality on
+which $\gamma_{0,j}$ is constant ($\gamma_{0,e}=\ez$, $\gamma_{0,\mu}=\mz$), and
+put $L^*_j=\card{\tau^*_j}$. The budget accommodates the truth:
+$\bar L\ \ge\ \max(L^*_e,L^*_\mu)$.
+\end{assumption}
+
+\begin{assumption}[Global optimization]\label{ass:global}
+$\that_j$ is a global minimizer of the penalized empirical risk over
+$\cT_{\bar L}$, as in \eqref{eq:select}, with $\lambda_n\to 0$.
+\end{assumption}
+
+\begin{remark}[On Assumption~\ref{ass:sparsity}: this is sparsity, not correct
+specification]\label{rem:not-exactness}
+On a finite covariate space \emph{every} function is piecewise constant --- the
+partition into singletons always works, so $L^*_j\le M$ holds automatically and
+vacuously. Assumption~\ref{ass:sparsity} therefore asserts nothing about
+functional form; its entire content is that $L^*_j$ is \emph{small enough to
+display}, i.e.\ that the nuisances are structurally sparse. This should not be
+described as an exactness or correct-specification assumption, and it is not
+vulnerable to the objection ``you assumed the truth is a step function''.
+
+Two further points. First, $L^*_j$ is the \emph{tree} complexity of
+$\gamma_{0,j}$, which can be far smaller than $2^{s}$ for $s$ active
+coordinates: dependence that is \emph{hierarchical} (the active coordinate set
+differs by region) costs as few as $s+1$ leaves. Second, the assumption is
+expensive precisely for \emph{additive} structure --- representing
+$x_1+x_2+x_3$ exactly requires a leaf per configuration --- and cheap precisely
+for region-varying active sets. That asymmetry is the substantive reason to use
+trees rather than a sparse additive model, and it should be stated in the paper
+with a concrete example rather than left as a verbal defence.
+\end{remark}
+
+\begin{remark}[On Assumption~\ref{ass:global}: global, not greedy]\label{rem:global}
+Assumption~\ref{ass:global} is doing real work and cannot be weakened to greedy
+recursive splitting. See Lemma~\ref{lem:margin} and
+Remark~\ref{rem:greedy-no-margin}.
+\end{remark}
+
+\section{Sufficiency and invariance of the estimand}
+
+\begin{lemma}[Sufficient class; invariance]\label{lem:invariance}
+For $j\in\{e,\mu\}$ define the \emph{sufficient class}
+\[
+  \cS_j \;=\; \{\tau\in\cT_{\bar L} : \tau \text{ refines } \tau^*_j\}.
+\]
+Then:
+\begin{enumerate}[nosep,label=(\roman*)]
+  \item $\cS_j\neq\emptyset$; indeed $\tau^*_j\in\cS_j$ by
+        Assumption~\ref{ass:sparsity}.
+  \item For every $\tau\in\cS_j$ and every strictly positive weight function $w$,
+        the $w$-weighted within-leaf population mean of $\gamma_{0,j}$ equals
+        $\gamma_{0,j}$ pointwise.
+  \item For every $(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$, the induced
+        working-model estimand satisfies
+        $\theta(e_{\tau_e},\mu_{\tau_\mu})=\theta_0$ \emph{exactly}.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(i) is immediate. For (ii), let $\ell$ be a leaf of $\tau\in\cS_j$. Since $\tau$
+refines $\tau^*_j$, $\ell$ is contained in a single cell of $\tau^*_j$, on which
+$\gamma_{0,j}$ is constant, say equal to $v$. Then for any $w>0$,
+$\E[w\gamma_{0,j}\mid \ell]/\E[w\mid\ell] = v\,\E[w\mid\ell]/\E[w\mid\ell]=v$.
+(The conditional expectations are well defined because $\PP(X\in\ell)>0$ by
+Assumption~\ref{ass:finite}.) For (iii), by (ii) both population projections
+equal the truth, so \emph{both} factors in \eqref{eq:bilinear} vanish; a fortiori
+the product does. Note the two partitions need not coincide, and either factor
+alone suffices.
+\end{proof}
+
+\begin{remark}[Why this is the load-bearing step]\label{rem:load-bearing}
+Lemma~\ref{lem:invariance}(iii) says the target of inference does not move as the
+selected structure varies over the sufficient class. Consequently we never need
+$\that_j$ to recover $\tau^*_j$, and we never need a \emph{rate} for structure
+selection: mere membership $\that_j\in\cS_j$ with probability tending to one
+suffices. This is what removes the post-selection difficulty. It also disposes of
+a distraction: $\mhat$ estimates the $(1-\ez)$-weighted within-leaf mean of
+$\mz$, not the unweighted one, but by (ii) the two coincide on the sufficient
+class, so the distinction is immaterial here.
+\end{remark}
+
+\section{The margin is free under global optimization}
+
+\begin{lemma}[Positive margin]\label{lem:margin}
+Let $R^{(j)}(\tau)$ denote the population risk of the best piecewise-constant
+predictor on $\tau$ for nuisance $j$. Under
+Assumptions~\ref{ass:finite}--\ref{ass:sparsity},
+\[
+  \Delta_j \;:=\; \min_{\tau\in\cT_{\bar L}\setminus\cS_j}
+      \bigl\{R^{(j)}(\tau)-R^{(j)}(\tau^*_j)\bigr\} \;>\; 0 .
+\]
+\end{lemma}
+
+\begin{proof}
+Fix $\tau\in\cT_{\bar L}\setminus\cS_j$. Since $\tau$ does not refine $\tau^*_j$,
+some leaf $\ell$ of $\tau$ contains $x,x'\in\cX$ with
+$\gamma_{0,j}(x)\neq\gamma_{0,j}(x')$. Both have positive probability by
+Assumption~\ref{ass:finite} (for $j=\mu$, positive probability in the control
+arm, which holds because $p_x(1-\ez(x))\ge p_x c>0$ by
+Assumption~\ref{ass:causal}). A single constant cannot equal two distinct values,
+so the best constant on $\ell$ incurs strictly positive excess risk, whence
+$R^{(j)}(\tau)-R^{(j)}(\tau^*_j)>0$. The minimum of finitely many strictly
+positive numbers is strictly positive, and $\cT_{\bar L}$ is finite.
+\end{proof}
+
+\begin{remark}[Global optimization supplies the margin; greedy does
+not]\label{rem:greedy-no-margin}
+Lemma~\ref{lem:margin} is a statement about the \emph{global} risk functional,
+and it is automatic --- not an assumption. This is a substantive advantage of
+globally-optimal trees. Under greedy recursive splitting no such margin exists:
+if $\ez$ depends on $X$ only through $\mathbf 1\{x_1=x_2\}$, then the marginal
+risk reduction of \emph{either} correct first split is exactly zero, so a greedy
+selector has no signal to follow and $\Delta=0$. The theorem below therefore
+genuinely requires an exact solver, and this is one place where the paper's use
+of optimal rather than CART-style trees is doing mathematical rather than
+rhetorical work.
+\end{remark}
+
+\begin{lemma}[Selection lands in the sufficient class]\label{lem:selection}
+Under Assumptions~\ref{ass:finite}--\ref{ass:global}, for $j\in\{e,\mu\}$
+\[
+  \PP\bigl(\that_j\in\cS_j\bigr)\;\longrightarrow\;1 .
+\]
+If in addition $Y$ is bounded, the convergence is exponential:
+$\PP(\that_j\notin\cS_j)\le \card{\cT_{\bar L}}\,e^{-c_1 n\Delta_j^2}$ for a
+constant $c_1>0$.
+\end{lemma}
+
+\begin{proof}
+Differences of empirical risks across partitions are functions of the empirical
+cell frequencies $\{\widehat p_x\}$ and the empirical cell-wise means of $A$ and
+of $Y$ on the control arm; for squared error the $\Pn[Y^2]$ term is common to all
+$\tau$ and cancels in any difference. By
+Assumptions~\ref{ass:finite}--\ref{ass:moments} each of these finitely many
+statistics converges in probability to its population counterpart (each cell and
+each control cell has probability bounded below by a positive constant). Since
+$\cT_{\bar L}$ is finite, convergence is automatically uniform:
+\[
+  \max_{\tau,\tau'\in\cT_{\bar L}}
+  \bigl| \{R^{(j)}_n(\tau)-R^{(j)}_n(\tau')\} - \{R^{(j)}(\tau)-R^{(j)}(\tau')\}\bigr|
+  \;=\; o_P(1).
+\]
+Also $\lambda_n\card{\tau}\le\lambda_n\bar L=o(1)$ uniformly. On the event that
+the display above and the penalty are together smaller than $\Delta_j/2$, every
+$\tau\notin\cS_j$ has strictly larger penalized empirical objective than
+$\tau^*_j$ by Lemma~\ref{lem:margin}, so the minimizer lies in $\cS_j$. That
+event has probability tending to one. If $Y$ is bounded, Hoeffding's inequality
+applied to each of the finitely many statistics and a union bound over the fixed
+finite class $\cT_{\bar L}$ give the stated exponential rate.
+\end{proof}
+
+\begin{remark}[Second moments suffice; no tail condition]\label{rem:no-tails}
+Only $\PP(\that_j\in\cS_j)\to1$ is needed below, so
+Assumption~\ref{ass:moments} suffices and no sub-Gaussian or bounded-outcome
+condition is required. This is a consequence of $\cT_{\bar L}$ being a fixed
+finite set: there is no growing entropy for the tail behaviour to have to beat.
+\end{remark}
+
+\begin{remark}[The penalty buys interpretability, not consistency]\label{rem:penalty}
+By Lemma~\ref{lem:invariance} all members of $\cS_j$ induce the same estimand, so
+the penalty in \eqref{eq:select} is statistically inert asymptotically: its role
+is to select the \emph{smallest} sufficient tree, i.e.\ the most displayable one.
+The regularization is doing interpretability work, not statistical work. This is
+a pleasant alignment rather than a tension.
+\end{remark}
+
+\section{Finite-dimensional reduction and the main result}
+
+\begin{lemma}[Conditional on a partition, the nuisance is
+finite-dimensional]\label{lem:findim}
+Fix $\tau\in\cT_{\bar L}$ and let $\eta_\tau=(\ehat_\tau,\mhat_\tau)$ as in
+\eqref{eq:refit}. Then $\eta_\tau$ is determined by at most $2\bar L$ real
+numbers (one leaf mean per nuisance per leaf), and under
+Assumptions~\ref{ass:finite}--\ref{ass:moments}, if $\tau\in\cS_j$ for the
+relevant $j$,
+\[
+  \max_{\ell\in\tau}\ \abs{\ehat_\tau(\ell)-\ez\!\restriction_\ell} = O_P(n^{-1/2}),
+  \qquad
+  \max_{\ell\in\tau}\ \abs{\mhat_\tau(\ell)-\mz\!\restriction_\ell} = O_P(n^{-1/2}),
+\]
+where $\gamma\!\restriction_\ell$ denotes the constant value of $\gamma$ on
+$\ell$.
+\end{lemma}
+
+\begin{proof}
+Each leaf is a union of cells, so $\PP(X\in\ell)\ge\min_x p_x>0$ and the leaf
+count is $n\PP(X\in\ell)(1+o_P(1))\asymp n$; likewise the control count in
+$\ell$ is $\asymp n$ by Assumption~\ref{ass:causal}. On $\cS_j$ the truth is
+constant on $\ell$ (Lemma~\ref{lem:invariance}(ii)), so each leaf mean is an
+average of $\asymp n$ i.i.d.\ variables with mean equal to that constant and
+variance bounded by Assumption~\ref{ass:moments}; Chebyshev gives $O_P(n^{-1/2})$
+per leaf, and $\card{\tau}\le\bar L$ is finite so the maximum has the same order.
+\end{proof}
+
+\begin{theorem}[Full-sample single-tree CLT]\label{thm:main}
+Under Assumptions~\ref{ass:finite}--\ref{ass:global}, with $\thetahat$ as in
+\eqref{eq:estimator},
+\[
+  \sqrt n\,\bigl(\thetahat-\theta_0\bigr)\;\rightsquigarrow\;N(0,V),
+  \qquad
+  V \;=\; \mathrm{Var}\bigl(\psi(O;\theta_0,\ez,\mz)\bigr),
+\]
+the semiparametric efficiency bound for the ATT. No sample splitting,
+cross-fitting, or tail condition is used.
+\end{theorem}
+
+\begin{proof}
+Let $E_n=\{\that_e\in\cS_e\}\cap\{\that_\mu\in\cS_\mu\}$; by
+Lemma~\ref{lem:selection}, $\PP(E_n)\to1$. Since a sequence of random variables
+that agrees with an asymptotically normal sequence on events of probability
+tending to one has the same weak limit, it suffices to establish the expansion on
+$E_n$.
+
+Write $\psi(O;\theta,\eta) = \psi(O;\theta_0,\eta) - (A/\pi)(\theta-\theta_0)$
+and recall $\E[A/\pi]=1$. Solving $\Pn[\psi(\cdot;\thetahat,\widehat\eta)]=0$ and
+rearranging gives, with $\widehat\eta=(\ehat,\mhat)$,
+\begin{equation}\label{eq:decomp}
+  \thetahat-\theta_0
+  = \frac{\pi}{\widehat\pi}\Bigl\{
+    \underbrace{\Pn\bigl[\psi(O;\theta_0,\eta_0)\bigr]}_{\mathrm{(I)}}
+    + \underbrace{(\Pn-P)\bigl[\psi(\cdot;\theta_0,\widehat\eta)-\psi(\cdot;\theta_0,\eta_0)\bigr]}_{\mathrm{(II)}}
+    + \underbrace{P\bigl[\psi(\cdot;\theta_0,\widehat\eta)\bigr]}_{\mathrm{(III)}}
+    \Bigr\}.
+\end{equation}
+
+\emph{Term (I).} An average of i.i.d.\ mean-zero terms with finite variance by
+Assumptions~\ref{ass:causal}--\ref{ass:moments}; $\sqrt n\,\mathrm{(I)}
+\rightsquigarrow N(0,V)$.
+
+\emph{Term (III) is exactly the bilinear remainder.} Since $\theta(\ehat,\mhat)$
+solves $P[\psi(\cdot;\theta,\ehat,\mhat)]=0$ and $\psi$ is affine in $\theta$
+with $\E[A/\pi]=1$, we have $\mathrm{(III)}=\theta(\ehat,\mhat)-\theta_0$, so by
+\eqref{eq:bilinear} and Assumption~\ref{ass:causal},
+\[
+  \abs{\mathrm{(III)}}
+  \le \frac{1}{\pi c}\,\Ltwo{\ehat-\ez}\,\Ltwo{\mhat-\mz}.
+\]
+On $E_n$ both partitions are sufficient, so by Lemma~\ref{lem:findim} each factor
+is $O_P(n^{-1/2})$ and $\mathrm{(III)}=O_P(n^{-1})=o_P(n^{-1/2})$. This is the
+step at which structural sparsity pays: were the partitions not sufficient, each
+factor would carry an irreducible approximation error and one would need the
+product of those errors to be $o(n^{-1/2})$.
+
+\emph{Term (II).} On $E_n$ condition on the selected pair
+$(\that_e,\that_\mu)\in\cS_e\times\cS_\mu$. Because $\cS_e\times\cS_\mu$ is a
+\textbf{fixed finite} set, it suffices to bound the term for each fixed pair and
+take a maximum over finitely many bounds; a maximum of finitely many $o_P(n^{-1/2})$
+quantities is $o_P(n^{-1/2})$. \emph{No entropy integral, covering number, or
+union bound over a growing class is required.} Fix such a pair. By
+Lemma~\ref{lem:findim} the nuisance is a vector
+$\widehat v\in\R^{2\bar L}$ of leaf means with
+$\widehat v - v_0 = O_P(n^{-1/2})$, and on the clipped region $[c,1-c]$ the map
+$v\mapsto\psi(\cdot;\theta_0,\eta_v)$ is affine in the outcome-leaf coordinates
+and smooth (with derivatives bounded by $c^{-2}$ and Assumption~\ref{ass:moments})
+in the propensity-leaf coordinates. A first-order expansion gives
+\[
+  \psi(\cdot;\theta_0,\eta_{\widehat v})-\psi(\cdot;\theta_0,\eta_{v_0})
+  = \sum_{k=1}^{2\bar L} (\widehat v_k - v_{0,k})\, g_k(\cdot) \;+\; r(\cdot),
+  \qquad \Ltwo{r} = O_P\bigl(\abs{\widehat v - v_0}^2\bigr),
+\]
+for \emph{fixed} functions $g_k$ depending only on the (now fixed) partitions.
+Hence
+\[
+  \mathrm{(II)}
+  = \sum_{k=1}^{2\bar L} (\widehat v_k - v_{0,k})\,(\Pn-P)[g_k]
+    + (\Pn-P)[r]
+  = O_P(n^{-1/2})\cdot O_P(n^{-1/2}) + o_P(n^{-1/2})
+  = o_P(n^{-1/2}),
+\]
+since each $(\Pn-P)[g_k]=O_P(n^{-1/2})$ by the central limit theorem for the
+fixed square-integrable function $g_k$, and there are finitely many $k$.
+
+\emph{Conclusion.} $\widehat\pi-\pi=O_P(n^{-1/2})$ and
+$\mathrm{(I)}=O_P(n^{-1/2})$, so $(\pi/\widehat\pi-1)\mathrm{(I)}=O_P(n^{-1})$.
+Combining, $\sqrt n(\thetahat-\theta_0)=\sqrt n\,\mathrm{(I)}+o_P(1)
+\rightsquigarrow N(0,V)$.
+\end{proof}
+
+\begin{corollary}[Variance estimation and confidence intervals]\label{cor:variance}
+Under the conditions of Theorem~\ref{thm:main}, the ordinary empirical
+influence-function variance estimator
+\[
+  \widehat V \;=\; \Pn\bigl[\psi(O;\thetahat,\ehat,\mhat)^2\bigr]
+\]
+satisfies $\widehat V\to_P V$, and
+$\thetahat\pm z_{1-\alpha/2}\sqrt{\widehat V/n}$ is an asymptotically valid
+$(1-\alpha)$ confidence interval for $\theta_0$.
+\end{corollary}
+
+\begin{proof}
+On $E_n$, $\widehat v\to_P v_0$ and $\thetahat\to_P\theta_0$; on the clipped
+region $\psi^2$ is a continuous function of $(\theta,v)$ and of $O$, dominated
+under Assumptions~\ref{ass:causal}--\ref{ass:moments}. Since
+$\cS_e\times\cS_\mu$ is finite, the convergence is uniform over it, and
+$\PP(E_n)\to1$. Apply the law of large numbers and continuity.
+\end{proof}
+
+\begin{remark}[This resolves the missing variance estimator]\label{rem:variance-resolved}
+No leave-one-out or jackknife construction is needed in this regime: the plain
+plug-in influence-function variance is consistent, and it is already what the
+software computes. The delicate leaf-wise conditional-variance argument required
+for the cross term in the general (growing) regime is likewise unnecessary here,
+because the crude finite-dimensional bound in Term (II) already suffices.
+\end{remark}
+
+\begin{remark}[A falsifiable prediction for the simulations]\label{rem:prediction}
+Corollary~\ref{cor:variance} asserts that the naive Wald interval for the
+single-tree estimator is asymptotically valid. Earlier internal experiments found
+it \emph{under}-covering. Theorem~\ref{thm:main} attributes that entirely to
+finite-sample selection instability, i.e.\ to $\PP(E_n)$ being appreciably below
+one at moderate $n$, and therefore predicts that undercoverage should shrink as
+the measured rate of ``selected partition is sufficient'' approaches one. That
+rate is now instrumented directly. If undercoverage persists while sufficiency
+approaches one, the theorem is wrong or an assumption fails --- most plausibly
+Assumption~\ref{ass:global}, if the deployed solver is not attaining the global
+optimum. This is a genuine test rather than a consistency check.
+\end{remark}
+
+\section{What this does and does not contribute}\label{sec:contribution}
+
+We state the limitation squarely, because a referee will.
+
+\begin{remark}[The inference problem here is finite-dimensional]\label{rem:findim-objection}
+Under Assumption~\ref{ass:finite} with $M$ fixed, $P$ is determined by finitely
+many parameters and the ATT is a smooth function of them. Theorem~\ref{thm:main}
+is therefore \emph{not} a nonparametric efficiency result, and it should not be
+sold as one. Conditional on a sufficient partition the estimator is an ordinary
+smooth $Z$-estimator in $\le 2\bar L+1$ parameters --- which is precisely why no
+sample splitting is required. Claiming otherwise would invite, correctly, the
+objection that cross-fitting was never needed in the first place.
+\end{remark}
+
+What the theorem does contribute, stated so as to survive
+Remark~\ref{rem:findim-objection}:
+\begin{enumerate}[label=(C\arabic*),leftmargin=*]
+  \item \textbf{Post-selection validity for tree structure.} The structures
+  $\that_e,\that_\mu$ are chosen by data-adaptive optimization on the same sample
+  used for inference. Naive post-selection inference is not generally valid;
+  here it is, and the reason is specific and checkable ---
+  Lemma~\ref{lem:invariance}: the estimand is invariant over the sufficient
+  class, so selection cannot move the target. The existing post-selection
+  inference literature is built for linear-model variable selection, not for
+  tree-structure selection, so the analogue does not appear to exist.
+  \item \textbf{The displayed model is the estimator.} Not a post hoc surrogate
+  for a black-box nuisance, and not $K$ different trees. One propensity tree and
+  one outcome tree, fit on every observation, are simultaneously the audit object
+  and the inferential object.
+  \item \textbf{Global optimization is necessary, and we can say why.}
+  Remark~\ref{rem:greedy-no-margin}: greedy selection has zero margin under
+  interaction-dominated truths, so the guarantee genuinely depends on using an
+  exact solver.
+  \item \textbf{Regularization serves interpretability at no statistical cost}
+  (Remark~\ref{rem:penalty}).
+\end{enumerate}
+
+\begin{remark}[Where the nonparametric content lives]\label{rem:where-np}
+The nonparametric content of the paper sits in the cross-fitted result for
+optimal trees on continuous covariates (the companion section), where tree
+complexity must grow with $n$ and approximation error is irreducible. The present
+theorem is the interpretable, finite-support counterpart. Readers who do not need
+a single displayed tree should use the cross-fitted estimator; that is the honest
+answer to ``how would you relax Assumption~\ref{ass:sparsity}''.
+\end{remark}
+
+\section{Open items}
+
+\begin{enumerate}[nosep,label=(\arabic*)]
+  \item \textbf{Growing regime.} If $M=M_n\to\infty$ (many-valued or continuous
+  coordinates) or $\bar L=\bar L_n\to\infty$, then $\cT_{\bar L}$ is no longer
+  fixed, uniformity is no longer free, and the entropy $\bar L_n\log(dK_n)$
+  enters, along with a tail condition and possibly sample splitting for structure
+  selection. Deliberately not treated here.
+  \item \textbf{Graded case} $L^*_j>\bar L$. Then
+  Lemma~\ref{lem:invariance} fails, Term (III) no longer vanishes, and one needs
+  $\delta_e\delta_\mu=o(n^{-1/2})$ where $\delta_j$ is the approximation error of
+  the best $\bar L$-leaf tree. On a finite space no decay rate is implied by the
+  domain (parity on $d$ binary coordinates has $\delta(L)$ bounded away from zero
+  until $L\ge2^{d-1}$), so this requires a separate assumption. Note that here
+  $\delta_j$ is \emph{estimable} whenever $M\ll n$, via the excess risk of the
+  $\bar L$-leaf fit relative to the saturated cell-wise fit, which permits a
+  bias-aware interval instead of an assumed rate.
+  \item \textbf{Assumption~\ref{ass:global} versus the deployed solver.} Depth
+  caps and solver timeouts may prevent attainment of the global optimum over
+  $\cT_{\bar L}$. This is an empirical question, currently open, and it is the
+  most likely failure point of the theorem in practice.
+\end{enumerate}
+
+\section{Nuisances outside the class: honest inference at a stated
+price}\label{sec:outside}
+
+Assumption~\ref{ass:finite} fails in three ways of practical interest: the number
+of covariates grows ($d=d_n\to\infty$), the number of levels grows
+($K_j=K_{j,n}\to\infty$), or some covariates are continuous ($M=\infty$).
+Assumption~\ref{ass:sparsity} fails whenever $L^*_j>\bar L$, i.e.\ whenever the
+truth is a larger tree than we are willing to display. This section states what
+survives. The short answer is that \emph{validity} survives and \emph{efficiency}
+does not, and that the price is estimable.
+
+\subsection{Two remainders fail, with different characters}
+
+It is worth separating them, because they call for different treatment.
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Term (III), the bias, is a property of the truth.} Outside the
+  class $\delta_e\delta_\mu\neq0$, where
+  $\delta_j := \inf_{\tau\in\cT_{\bar L}}\Ltwo{\gamma_{\tau,j}-\gamma_{0,j}}$ is
+  the approximation error of the best admissible tree ($\delta_\mu$ defined on the
+  $(1-\ez)$-weighted projection, which by Assumption~\ref{ass:causal} is
+  norm-equivalent to the unweighted one up to $1/c$). Nothing we do
+  algorithmically changes $\delta_j$. It must be assumed or estimated.
+  \item \textbf{Term (II), the empirical process, is enforceable by the
+  algorithm.} In the fixed finite regime it was free for three reasons, all of
+  which now fail: the candidate class was fixed and finite (so uniformity cost
+  nothing), leaf probabilities were bounded below by a constant, and the nuisance
+  had fixed dimension. Outside the class the entropy $\bar L_n\log(dK_n)$ enters,
+  a tail condition is needed for the associated exponential inequality, and
+  $\E\Ltwo{\mhat-\mz}^2 \asymp n^{-1}\sum_\ell \sigma^2_\ell/p_\ell$ is
+  $\asymp \bar L_n/n$ \emph{only} if $\min_\ell p_\ell\gtrsim 1/\bar L_n$.
+\end{itemize}
+
+Accordingly, bounding the bias is \textbf{necessary but not sufficient}. The
+following are conditions we impose on the estimator, not on $P$, and they must be
+imposed rather than assumed away: a leaf budget $\bar L_n = o(\sqrt n)$; a minimum
+leaf count $m_n$ with $\bar L_n m_n\lesssim n$; and clipping
+$\ehat\in[c,1-c]$. None is currently enforced or measured in the implementation.
+
+\subsection{Can the bias be bounded? Three regimes}
+
+\begin{enumerate}[leftmargin=*,label=(\alph*)]
+  \item \textbf{Growing $d$ or $K$, still discrete, $M_n\ll n$.} Then $\delta_j$
+  is \emph{estimable}: it is the excess risk of the $\bar L$-leaf fit relative to
+  the saturated cell-wise fit, available at rate $O(\sqrt{M_n/n})$. No assumption
+  about the truth is required. This is the favourable case.
+  \item \textbf{Continuous covariates.} The saturated reference does not exist and
+  $\delta_j$ is \textbf{not estimable from the data alone}. One can measure the
+  approximation error visible at whatever resolution is fittable, but never
+  exclude structure below it. This is the classical obstruction in the honest
+  confidence interval literature and it is why bias-aware approaches
+  (Armstrong--Koles\'ar) assume a smoothness constant, which is not testable.
+  \item \textbf{Any regime, using a $\sqrt n$-consistent anchor.} If a
+  $\sqrt n$-consistent estimator of $\theta_0$ is available --- and the
+  cross-fitted optimal-tree estimator is exactly that, under its own conditions
+  --- then the single tree's bias is estimable as a difference, with no smoothness
+  assumption. This is Proposition~\ref{prop:honest} and it is the route we
+  recommend, because the anchor is already part of the paper.
+\end{enumerate}
+
+\subsection{Honest inference via an anchor}
+
+\begin{lemma}[Do not subtract; widen]\label{lem:no-subtract}
+Let $\widetilde\theta$ be the cross-fitted estimator and
+$\widehat\delta = \thetahat-\widetilde\theta$. Then
+$\thetahat-\widehat\delta = \widetilde\theta$ identically. Hence any procedure
+that \emph{subtracts} $\widehat\delta$ from the displayed-tree estimate returns
+the cross-fitted estimator exactly, discarding the interpretable point estimate
+and gaining nothing.
+\end{lemma}
+
+Lemma~\ref{lem:no-subtract} is trivial but it settles a question that has caused
+confusion: $\widehat\delta$ must be used to \emph{widen the interval}, never to
+correct the point estimate. The point estimate remains the displayed tree; the
+interval pays for the gap.
+
+\begin{theorem}[Honest interval for $\theta_0$ outside the class]\label{prop:honest}
+Let $\widetilde\theta$ satisfy
+$\sqrt n(\widetilde\theta-\theta_0)\rightsquigarrow N(0,\widetilde V)$ with
+$\widetilde\sigma^2\to_P\widetilde V$, and let
+$\widehat\delta=\thetahat-\widetilde\theta$. Define
+\[
+  C_n \;=\; \Bigl[\;\thetahat \;\pm\; \bigl(\,\abs{\widehat\delta}
+      + z_{1-\alpha/2}\,\widetilde\sigma/\sqrt n\,\bigr)\Bigr].
+\]
+Then $\liminf_n \PP(\theta_0\in C_n)\ \ge\ 1-\alpha$, with no condition on
+$\delta_e,\delta_\mu$, and in particular with no smoothness assumption on the
+nuisances.
+\end{theorem}
+
+\begin{proof}
+Write $\thetahat-\theta_0 = \widehat\delta + (\widetilde\theta-\theta_0)$, so
+$\abs{\thetahat-\theta_0}\le\abs{\widehat\delta}+\abs{\widetilde\theta-\theta_0}$
+by the triangle inequality. Hence on the event
+$\{\abs{\widetilde\theta-\theta_0}\le z_{1-\alpha/2}\widetilde\sigma/\sqrt n\}$ we
+have $\abs{\thetahat-\theta_0}\le\abs{\widehat\delta}+z_{1-\alpha/2}\widetilde\sigma/\sqrt n$,
+i.e.\ $\theta_0\in C_n$. That event has probability tending to $1-\alpha$ by the
+anchor's asymptotic normality and the consistency of $\widetilde\sigma$.
+\end{proof}
+
+\begin{corollary}[The price, and where it plateaus]\label{cor:width}
+The width of $C_n$ is $2(\abs{\widehat\delta}+z_{1-\alpha/2}\widetilde\sigma/\sqrt n)$,
+and $\abs{\widehat\delta} = O_P\bigl(\delta_e\delta_\mu + n^{-1/2}\bigr)$ by
+\eqref{eq:bilinear} applied to the tree nuisances. Therefore
+\[
+  \mathrm{width}(C_n) \;\asymp_P\; \max\bigl\{\,n^{-1/2},\ \delta_e\delta_\mu\,\bigr\}.
+\]
+The interval contracts at the parametric rate \emph{if and only if}
+$\delta_e\delta_\mu = O(n^{-1/2})$; otherwise its width \textbf{plateaus} at the
+bias floor.
+\end{corollary}
+
+\begin{remark}[This is the interpretability--accuracy trade-off, quantified]
+Corollary~\ref{cor:width} is the result we want, and it replaces an earlier and
+unsuccessful attempt to prove an impossibility theorem. The correct statement is
+not ``a bounded-complexity interpretable tree cannot deliver $\sqrt n$ inference
+for $\theta_0$'' --- which requires a minimax lower bound that was never
+established, and which is false in the regime of Theorem~\ref{thm:main} --- but
+rather: \emph{$\theta_0$ inference remains valid, and the cost of insisting on a
+displayable tree is an interval whose width contracts at $\sqrt n$ only while the
+tree is rich enough to track the nuisances, and plateaus thereafter.} The
+plateau height, $\delta_e\delta_\mu$, is the price of interpretability, and by
+\S\ref{sec:outside}(a) or (c) it is estimable rather than merely assumed.
+\end{remark}
+
+\begin{remark}[Conservativeness, and the sharper construction]\label{rem:conservative}
+Theorem~\ref{prop:honest} is deliberately crude: $C_n$ contains the anchor's own
+interval recentred at $\thetahat$, so it is never narrower than the cross-fitted
+interval. The gain is the interpretable point estimate, not efficiency. A sharper
+bias-aware critical value (Armstrong--Koles\'ar) exploits the fact that a bias of
+known magnitude $B$ costs less than $B$ in interval half-width, and should be used
+in practice; Theorem~\ref{prop:honest} is stated in the crude form because it
+requires nothing beyond the triangle inequality.
+\end{remark}
+
+\begin{remark}[Implementation gap: the sampling error of $\widehat\delta$ is
+currently ignored]\label{rem:se-delta}
+The shipped implementation sets $\mathrm{se}(\widehat\delta)=0$, on the stated
+grounds that this yields ``the tightest interval consistent with the guarantee''.
+That reasoning holds only if $\widehat\delta$ is a \emph{known} bound. It is an
+estimate, with sampling error of order $n^{-1/2}$, so treating it as exact risks
+undercoverage. Theorem~\ref{prop:honest} avoids the issue by adding the anchor's
+full $z\widetilde\sigma/\sqrt n$ on top of $\abs{\widehat\delta}$; any tighter
+construction must account for $\mathrm{se}(\widehat\delta)$ explicitly.
+\end{remark}
+
+\begin{remark}[Preliminary empirical support, with a caveat]\label{rem:empirics-outside}
+On the existing \texttt{complex}-DGP runs (355 replications, $n$ from 500 to
+10{,}000) the bias-aware interval dominates the naive Wald interval at every $n$
+and repairs the worst cell: coverage of $\theta_0$ was $0.762$ (naive) versus
+$0.917$ (bias-aware) at $n=5000$, and was never worse elsewhere. Two caveats. The
+comparison is between two interval constructions computed from the \emph{same}
+point estimates, which makes it relatively robust; but those point estimates were
+produced before a leaf-value defect in the tree-refit routine was corrected, and
+coverage was computed on converged replications only, which is not
+missing-at-random. The comparison should be regenerated. Independently of
+coverage, the same runs show $\sqrt n\times\mathrm{bias}$ \emph{flat} in $n$ for
+the single-tree estimator ($0.32$--$0.59$ across a twentyfold increase in $n$)
+while collapsing for the cross-fitted estimator ($0.30\to0.035$) --- the
+signature of $\delta_e\delta_\mu$ failing to be $o(n^{-1/2})$, i.e.\ of
+Assumption~\ref{ass:sparsity} not holding for the partitions the solver actually
+returned. Note that coverage is a comparatively insensitive instrument for this:
+with bias-to-half-width ratios of $0.17$--$0.31$ the coverage loss is only a few
+points, whereas $\sqrt n\times\mathrm{bias}$ shows the failure directly.
+\end{remark}
+
+\subsection{Three tiers of claim}
+
+We recommend presenting exactly three, and being explicit that they answer
+different questions.
+
+\begin{enumerate}[leftmargin=*,label=\textbf{T\arabic*.}]
+  \item \textbf{Inside the class} (Assumptions~\ref{ass:finite}--\ref{ass:global}):
+  efficient $\sqrt n$ inference for $\theta_0$ from the displayed trees, ordinary
+  plug-in variance, no splitting (Theorem~\ref{thm:main},
+  Corollary~\ref{cor:variance}).
+  \item \textbf{Outside the class, bias bounded}: valid but inefficient $\theta_0$
+  inference, with width $\asymp\max\{n^{-1/2},\delta_e\delta_\mu\}$
+  (Theorem~\ref{prop:honest}, Corollary~\ref{cor:width}). The displayed trees
+  remain the point estimate.
+  \item \textbf{Outside the class, bias not bounded}: report the displayed trees
+  as an audit object alongside the cross-fitted estimate, with $\widehat\delta$ as
+  a fidelity diagnostic and \emph{no} inferential claim attached to the trees.
+  This is the honest fallback and it should be stated as available, so that a
+  practitioner who cannot certify (a) or (c) of \S\ref{sec:outside} is not left
+  without a defensible option.
+\end{enumerate}
+
+\end{document}

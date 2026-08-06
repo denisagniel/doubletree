@@ -219,6 +219,23 @@ estimate_att_single_tree <- function(
   } else {
     chosen_theta <- att_cf$theta;     chosen_sigma <- att_cf$sigma; chosen_ci <- att_cf$ci_95
   }
+  # ---- Structural endpoints for the displayed trees ----
+  # The no-sample-splitting argument for the single tree rests on the leaf budget
+  # (L = o(sqrt n), balanced leaves): the self-influence of one observation on its
+  # own leaf mean is O(1/n_leaf) = O(L/n), which is o(n^{-1/2}) exactly when
+  # L = o(sqrt n). Neither the leaf count nor the min leaf size was previously
+  # reported, so that condition could not be checked on any run. Return both, plus
+  # the per-observation leaf identity a caller needs to test whether the selected
+  # partition represents a known truth exactly.
+  #
+  # n_per_leaf for m0 counts CONTROL observations (tree_m0 is refit on A == 0),
+  # which is the correct denominator for that nuisance's leaf-mean stability.
+  leaf_e  <- .tree_leaf_paths(tree_e,  Xb_e)
+  leaf_m0 <- .tree_leaf_paths(tree_m0, Xb_m0_all)
+  npl_e   <- attr(tree_e,  "n_per_leaf")
+  npl_m0  <- attr(tree_m0, "n_per_leaf")
+  min_pos <- function(x) if (length(x) == 0L) NA_integer_ else as.integer(min(x))
+
   list(
     theta = chosen_theta, sigma = chosen_sigma, ci_95 = chosen_ci,
     theta_single = att_single$theta, sigma_single = att_single$sigma,
@@ -228,6 +245,9 @@ estimate_att_single_tree <- function(
     ci_95_crossfit = att_cf$ci_95,
     delta = delta, delta_over_se = delta_over_se, se_delta = se_delta,
     tree_e = tree_e, tree_m0 = tree_m0,
+    leaf_e = leaf_e, leaf_m0 = leaf_m0,
+    n_leaves_e = length(npl_e), n_leaves_m0 = length(npl_m0),
+    min_leaf_n_e = min_pos(npl_e), min_leaf_n_m0 = min_pos(npl_m0),
     converged = TRUE,
     epsilon_n = epsilon_n_used,
     rashomon_c_e = rashomon_c_e,
@@ -235,6 +255,46 @@ estimate_att_single_tree <- function(
     inference = inference,
     n = n, K = K
   )
+}
+
+#' Leaf path of every observation under a refit nested-list tree
+#'
+#' Structural diagnostics (is the selected partition fine enough to represent the
+#' true nuisance exactly?) need to know WHICH leaf each observation fell into, not
+#' just its fitted value: two distinct leaves can carry equal refit values, and
+#' collapsing them would overstate the partition's approximation error.
+#'
+#' Mirrors the path convention of \code{optimaltrees::refit_structure_on_data}
+#' exactly -- false child appends 0, true child appends 1, a split-free tree is
+#' "root" -- so the returned paths are directly comparable to the names of that
+#' function's \code{n_per_leaf} attribute.
+#'
+#' @param node Nested-list tree as returned by \code{refit_structure_on_data}
+#'   (internal nodes carry \code{feature} (0-based) plus \code{true}/\code{false};
+#'   leaves carry \code{prediction}).
+#' @param X Binary (discretized) design whose columns the tree's feature indices
+#'   address. Must be the SAME design used to fit/predict the tree.
+#' @return Character vector, length \code{nrow(X)}, of leaf paths.
+#' @noRd
+.tree_leaf_paths <- function(node, X) {
+  if (is.matrix(X)) X <- as.data.frame(X)
+  out <- character(nrow(X))
+
+  recur <- function(nd, idx, path) {
+    if (length(idx) == 0L) return(invisible(NULL))
+    # Leaf test order matches refit_structure_on_data: prediction first, then feature.
+    if (is.null(nd) || !is.list(nd) || !is.null(nd$prediction) || is.null(nd$feature)) {
+      out[idx] <<- if (length(path) == 0L) "root" else paste(path, collapse = "-")
+      return(invisible(NULL))
+    }
+    col <- X[[nd$feature + 1L]]
+    recur(nd$false, idx[col[idx] == 0], c(path, 0L))
+    recur(nd$true,  idx[col[idx] == 1], c(path, 1L))
+    invisible(NULL)
+  }
+
+  recur(node, seq_len(nrow(X)), integer(0))
+  out
 }
 
 #' ATT point estimate, SE, and 95\% CI from plugged-in nuisances
