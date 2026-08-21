@@ -2,223 +2,261 @@
 % Please edit documentation in R/estimate_att.R
 \name{estimate_att}
 \alias{estimate_att}
-\title{Estimate the Average Treatment Effect on the Treated (ATT)}
+\title{Full-Sample ATT with Two Optimal Trees (the paper's primary estimator)}
 \usage{
 estimate_att(
   X,
   A,
   Y,
-  K = 5,
+  leaf_budget,
   outcome_type = c("binary", "continuous"),
-  regularization = 0.1,
-  cv_regularization = TRUE,
-  cv_K = 5,
-  stratified = TRUE,
-  seed = NULL,
+  lambda_n = NULL,
+  m_n = 1L,
   verbose = FALSE,
-  use_rashomon = FALSE,
-  rashomon_bound_multiplier = NULL,
-  rashomon_bound_adder = 0,
-  max_leaves = NULL,
-  auto_tune_intersecting = FALSE,
-  escalate_intersection = FALSE,
-  max_depth = 4L,
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   ...
 )
 }
 \arguments{
-\item{X}{Data.frame or matrix of covariates. Must be binary (0/1) for optimaltrees.}
+\item{X}{Data.frame or matrix of covariates. Must be binary (0/1); see
+"Covariates must be binary" above.}
 
 \item{A}{Integer or numeric vector of treatment (0/1).}
 
-\item{Y}{Numeric vector of outcome. Binary (0/1) when outcome_type is "binary"; any numeric when "continuous".}
+\item{Y}{Numeric vector of outcome. Binary (0/1) when \code{outcome_type} is
+\code{"binary"}; any numeric when \code{"continuous"}.}
 
-\item{K}{Number of cross-fitting folds. Default 5.}
+\item{leaf_budget}{Integer, \strong{required, no default}. The leaf budget
+\eqn{\bar L}. Per \code{theory.tex} Assumption~\code{ass:budget} this is a
+fixed, analyst-chosen \emph{structural} parameter, constant in \eqn{n} ---
+there is no sensible package-wide default, so the caller must supply it.
+Larger \eqn{\bar L} makes \code{ass:sparsity} easier to satisfy but the
+fitted trees less interpretable and the finite-sample variance bias
+(order \eqn{(2\bar L + 1)/n}) larger.}
 
-\item{outcome_type}{Character. "binary" (default) or "continuous". Continuous requires optimaltrees squared_error loss for m0, m1.}
+\item{outcome_type}{Character. \code{"binary"} (default) or
+\code{"continuous"}. Determines the loss used for the \eqn{\mu} tree
+(\code{"log_loss"} vs \code{"squared_error"}).}
 
-\item{regularization}{Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1.
-Only used if \code{cv_regularization = FALSE}. For most applications, use
-\code{cv_regularization = TRUE} (default) for data-adaptive selection.}
+\item{lambda_n}{Numeric penalty per leaf in \code{eq:select}. Default
+\code{NULL} resolves to \eqn{\log(n)/n}. That rate is what
+\code{prop:parsimony} needs: it requires \eqn{\lambda_n \to 0}
+(Assumption~\code{ass:global}) \emph{and} \eqn{n\lambda_n \to \infty}
+simultaneously, and \eqn{\log(n)/n} satisfies both. (The formula coincides
+numerically with \code{optimaltrees::select_epsilon_n()}, but that function
+returns a Rashomon \emph{tolerance} --- a different quantity from a
+selection penalty --- and is deliberately not called here.)}
 
-\item{cv_regularization}{Logical. If TRUE (default), use cross-validation to select
-  regularization parameter \eqn{\lambda} separately for each nuisance function
-  (e, m0) using a theory-driven grid centered on \eqn{(\log n)/n}. If FALSE, use
-  fixed \code{regularization} value.
+\item{m_n}{Integer minimum observations per leaf, the \eqn{m_n} of
+\code{eq:feasible}. Default \code{1L}, matching
+\code{optimaltrees::bisect_lambda_to_budget()}'s own default: a
+\emph{trivial} floor that forbids empty leaves but imposes no binding
+minimum-leaf-mass constraint. That is sufficient, because
+Assumption~\code{ass:construct}(d) asks only for \eqn{m_n/n \to 0} and
+\eqn{\bar L\, m_n \lesssim n}, both satisfied trivially at \eqn{m_n = 1}.
+Raise it to stabilise leaf values at the cost of shrinking the feasible
+candidate set.}
 
-  \strong{When to use TRUE (recommended):} You don't know the right penalty or want
-  robustness across varied data structures. Uses theory-driven grid:
-  \eqn{(\log n)/n \times [0.25, 0.5, 1, 2, 4]}. Adds computational cost (nested CV)
-  but improves model selection and inference quality.
+\item{verbose}{Logical. Forwarded to \code{optimaltrees}. Default
+\code{FALSE}.}
 
-  \strong{When to use FALSE:} You have a theory-justified fixed value (e.g., from
-  \code{optimaltrees::cv_regularization()} on pilot data) or need maximum speed.
-  Set \code{cv_regularization = FALSE} only when you have strong theoretical
-  justification for a specific \eqn{\lambda} value.
+\item{discretize_method}{Character. Passed through to \code{optimaltrees}.
+Default \code{"quantiles"}. With binary \code{X} (the only supported case)
+discretisation is a no-op, so this argument exists for signature
+consistency with \code{\link{estimate_att_crossfit}}.}
 
-  \strong{Theory:} Manuscript recommends \eqn{\lambda \propto (\log n)/n} for
-  minimax-optimal trees. CV automatically implements this recommendation.}
+\item{discretize_bins}{Integer or \code{"adaptive"}. Passed through to
+\code{optimaltrees}. Default \code{"adaptive"}. See
+\code{discretize_method}.}
 
-\item{cv_K}{Integer. Number of folds for cross-validation of regularization. Default 5. Only used if \code{cv_regularization = TRUE}.}
-
-\item{stratified}{Logical. If TRUE (default), fold assignment is stratified by A.}
-
-\item{seed}{Optional. Random seed for fold creation.}
-
-\item{verbose}{Logical. Passed to optimaltrees. Default FALSE.}
-
-\item{use_rashomon}{Logical. If TRUE, fit nuisances via \code{optimaltrees::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).}
-
-\item{rashomon_bound_multiplier}{Numeric or NULL. Rashomon tolerance
-  \eqn{\varepsilon_n} controlling the size of the Rashomon set (trees with
-  penalized risk \eqn{\le (1 + \varepsilon_n) \cdot \text{best}}).
-  \strong{Default: NULL}, which uses the theory-justified fixed value
-  \eqn{\varepsilon_n = \log(n)/n} via \code{optimaltrees::select_epsilon_n(nrow(X))}.
-
-  \strong{Theory:} A fixed, deterministic \eqn{\varepsilon_n \asymp \log(n)/n}
-  is \eqn{o(n^{-1/2})} and, under the structural-margin condition, yields both a
-  non-empty cross-fold intersection and valid inference with zero intersection
-  overhead (manuscript Corollary "Rashomon tolerance without the intersection
-  trade-off"). Do not enlarge \eqn{\varepsilon_n} to force an intersection; if
-  the intersection is empty at the theory value, the method falls back to
-  fold-specific trees (still valid, one tree per fold instead of one shared tree).
-  An explicit numeric is honored but only fixed, deterministic choices of order
-  \eqn{\log(n)/n} carry the validity guarantee.}
-
-\item{rashomon_bound_adder}{Numeric. Additive Rashomon bound (not recommended for cross-fitted estimation).
-Default: 0.}
-
-\item{max_leaves}{Optional integer. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Restricts Rashomon set to trees with at most this many leaves.}
-
-\item{auto_tune_intersecting}{Logical. If TRUE, increase
-  \code{rashomon_bound_multiplier} until a structure appears in the intersection
-  across all K folds. Default: FALSE.
-
-  \strong{Not valid for inference.} Selecting \eqn{\varepsilon_n} from the data
-  (post-selection) is not covered by the valid-inference theory and can inflate
-  \eqn{\varepsilon_n} beyond \eqn{o(n^{-1/2})}, voiding the CLT; a \code{warning}
-  is emitted when TRUE. Use it only for exploration. For inference, keep the
-  fixed theory \eqn{\varepsilon_n} (leave \code{rashomon_bound_multiplier = NULL})
-  and, if the intersection is empty, fall back to fold-specific trees
-  (\code{use_rashomon = FALSE}).}
-
-\item{escalate_intersection}{Logical. If TRUE (and \code{rashomon_bound_multiplier}
-  is left NULL), widen the Rashomon tolerance \eqn{\varepsilon_n = c \cdot \log(n)/n}
-  over an escalating grid of \eqn{c} (1, 2, ..., 1000) until the cross-fold
-  intersection is non-empty, rather than pinning the single theory value. Default FALSE.
-  Distinct from \code{auto_tune_intersecting}: escalation keeps \eqn{\lambda} fixed and
-  steps the tolerance multiplier at the doubletree level, recording the selected \eqn{c}.
-
-  \strong{Trades the fixed-\eqn{\varepsilon_n} validity guarantee for a non-empty
-  intersection.} The selected \eqn{c} is data-dependent (post-selection) and can be
-  large at realistic \eqn{n}, so finite-sample coverage is not guaranteed and must be
-  validated empirically (see the escalation coverage sweep in the arbitration
-  simulation). Opt-in practical/study device; the returned \code{rashomon_c_e} /
-  \code{rashomon_c_m0} record the selected multiplier per nuisance. An explicit
-  \code{rashomon_bound_multiplier} always pins a single fixed tolerance, overriding it.}
-
-\item{max_depth}{Integer. Maximum GOSDT tree depth for the nuisance fits
-(\code{0L} = unlimited). Default \code{4L}, applied to BOTH the Rashomon and the
-plain cross-fit paths so they are symmetric. Bounding depth prevents the
-continuous-covariate blow-up (unbounded GOSDT on many thresholds) and keeps the
-plain cross-fit nuisances from being deeper than their Rashomon twin. Set
-\code{max_depth = 0L} for unlimited depth (not recommended with continuous covariates).}
-
-\item{discretize_method}{Character. Method for discretizing continuous features.
-Default: "quantiles" (theory-recommended, do not override unless you have good reason).
-Uses threshold encoding (k bins → k-1 features) for computational efficiency.}
-
-\item{discretize_bins}{Integer or "adaptive". Number of bins for discretization.
-Default: "adaptive" (theory-recommended, do not override unless you have good reason).
-Uses b_n = max(2, ceiling(log(n)/3)) as suggested by nonparametric theory
-for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary features.}
-
-\item{...}{Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).}
+\item{...}{Additional arguments forwarded to
+\code{optimaltrees::bisect_lambda_to_budget()} (and hence to
+\code{optimaltrees::fit_tree()}) for \emph{both} the \eqn{e} and \eqn{\mu}
+fits.}
 }
 \value{
-List with elements: theta (point estimate); sigma (estimated SE; the
-  fully-fold-specific twin's SE when \code{use_rashomon = TRUE}, the plain Wald SE
-  otherwise); ci_95 (when \code{use_rashomon = TRUE}, the HONEST bias-aware 95\% CI
-  built from the fully-fold-specific twin -- the shared intersection structure is not
-  orthogonal to each fold, so its Wald SE undercovers; otherwise the plain Wald 95\% CI);
-  ci_95_wald (the plain Wald interval of the display estimate, always); theta_crossfit,
-  sigma_crossfit, delta, se_delta (fully-fold-specific twin, bias diagnostic
-  \eqn{\hat\theta - \hat\theta_{twin}}, and its SE; NA when \code{use_rashomon = FALSE});
-  score_values (influence at theta); nuisance_fits (per-fold models or Rashomon list);
-  fold_indices; n; K; converged (logical; TRUE if rashomon intersection succeeded or if
-  use_rashomon=FALSE); epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE,
-  NA otherwise).
+A list with elements:
+  \item{theta}{Point estimate \eqn{\hat\theta} of the ATT.}
+  \item{sigma}{Wald standard error, the plain \eqn{n}-normalised EIF plug-in
+    \eqn{\sqrt{n^{-1}\sum_i \hat\psi_i^2 / n}}. \strong{Mildly downward
+    biased in finite samples} by a relative factor of order
+    \eqn{(2\bar L + 1)/n}; see "Known finite-sample caveat" in Details.}
+  \item{ci_95}{Wald 95\% confidence interval \eqn{\hat\theta \pm 1.96\,
+    \sigma}. Asymptotically valid under \code{ass:sparsity}; inherits the
+    same finite-sample downward variance bias, so slight undercoverage at
+    small \eqn{n} is expected.}
+  \item{ci_95_wald}{Identical to \code{ci_95}, retained so callers can
+    compare display and Wald intervals uniformly across all three
+    \code{estimate_att*} entry points.}
+  \item{score_values}{Influence-function values \eqn{\hat\psi_i} at
+    \eqn{\hat\theta}.}
+  \item{nuisance_fits}{List with \code{e_model}, \code{m0_model} (the fitted
+    \code{OptimalTreesModel} objects) and the in-sample \code{propensity}
+    (clamped) and \code{outcome_control} predictions, mirroring
+    \code{\link{estimate_att_crossfit}}'s diagnostic fields.}
+  \item{n}{Sample size.}
+  \item{leaf_budget, lambda_n, m_n}{The resolved tuning values actually used
+    (\code{lambda_n} is the resolved \eqn{\log(n)/n} when the argument was
+    \code{NULL}).}
+  \item{certified_e, certified_m0}{Logical. \code{TRUE} iff the returned fit
+    is \emph{proven} to solve \code{eq:select} exactly (see
+    \code{optimaltrees::bisect_lambda_to_budget()}).}
+  \item{used_search_e, used_search_m0}{Logical. \code{FALSE} iff
+    \code{lambda_n} alone already respected \code{leaf_budget}, so no
+    bisection was needed --- the asymptotically typical case under
+    \code{prop:parsimony}.}
+  \item{n_leaves_e, n_leaves_m0}{Realised leaf counts \eqn{|\hat\tau_e|},
+    \eqn{|\hat\tau_\mu|}.}
+  \item{gap_e, gap_m0}{Computable suboptimality slack when the corresponding
+    \code{certified_*} is \code{FALSE} but the fit is feasible and within
+    budget; \code{0} when certified, \code{NA} when infeasible or the budget
+    could not be met.}
+
+\strong{How to read the diagnostics.} \code{certified_* == TRUE} together
+with \code{used_search_* == FALSE} and a small, \eqn{n}-stable
+\code{n_leaves_*} is the operational signature that \code{prop:parsimony}'s
+conclusion has kicked in, which is \emph{consistent with}
+\code{ass:sparsity} holding at this \eqn{\bar L}. It is \strong{not} a proof
+or a test of it: \code{ass:sparsity} is an assumption about \eqn{P}, is not
+identified from a single sample, and a certified fit can occur while
+\eqn{\delta_e, \delta_\mu > 0}. Treat these fields as a signal to reconsider
+\eqn{\bar L} or to switch deliberately to
+\code{\link{estimate_att_crossfit}}, never as a licence to auto-switch.
 }
 \description{
-Estimates the ATT using efficient influence function-based estimation with
-cross-fitting and optimal decision trees (via optimaltrees) for the nuisance
-functions e(X) and m0(X). This is a doubly robust, semiparametric estimator.
-Binary outcomes use log-loss for both nuisances; continuous outcomes use
-log-loss for propensity and squared_error for m0.
+Estimates the Average Treatment Effect on the Treated (ATT) exactly as
+specified in \code{inst/paper/theory.tex} \strong{Part II} ("Full-sample
+inference with two optimal trees", \code{\\label{sec:main}}): both nuisance
+partitions \emph{and} both sets of leaf values are computed from all \eqn{n}
+observations. There is \strong{no sample splitting, no cross-fitting, no
+intersection of candidate sets, and no averaging over fits}. The resulting
+in-sample nuisance predictions are fed to the unchanged efficient
+influence function (EIF) solver, giving the plain Wald interval whose
+asymptotic validity is Theorem \code{thm:main} / Corollary
+\code{cor:variance}.
+
+This is the flagship entry point. For the two secondary paths see
+\code{\link{estimate_att_crossfit}} (Part I, the \eqn{K}-fold cross-fitting
+fallback that does \emph{not} require structural sparsity) and
+\code{\link{estimate_att_rashomon}} (the superseded shared-Rashomon-structure
+variant, excluded from the current theory).
 }
 \details{
-When \code{use_rashomon = TRUE}, nuisances are fit via
-\code{optimaltrees::cross_fitted_rashomon}: one interpretable tree per nuisance
-(e, m0) via intersection of Rashomon sets across folds with fold-specific refits
-for valid cross-fitted estimation. The same K and fold assignment are used for
-Rashomon and the score.
+\strong{Structure selection (\code{theory.tex} eq.~\code{eq:select}).} For
+each nuisance \eqn{j \in \{e, \mu\}} the tree structure solves
+\deqn{\hat\tau_j \in \arg\min_{\tau \in \mathcal{T}^{(j)}_n}
+      \{R^{(j)}_n(\tau) + \lambda_n |\tau|\},}
+where \eqn{\mathcal{T}^{(j)}_n} restricts to partitions of at most
+\eqn{\bar L} = \code{leaf_budget} leaves, each carrying at least \eqn{m_n}
+observations (\emph{control} observations when \eqn{j = \mu}). This is a
+\strong{fixed} penalty \eqn{\lambda_n}, not a cross-validated one: the
+\code{cv_regularization_adaptive()} machinery used by
+\code{\link{estimate_att_crossfit}} is the wrong mechanism here, because it
+enforces neither a leaf-count cap nor a minimum-leaf-mass floor. The right
+mechanism is \code{optimaltrees::bisect_lambda_to_budget()}, which tries
+\code{lambda_n} first (per \code{prop:parsimony}, "the budget binds
+asymptotically", this alone already respects the budget with probability
+tending to one) and only bisects upward on overshoot.
 
+Because the \eqn{\mu} tree is fit on the control subset alone
+(\code{X[A == 0, ]}, \code{Y[A == 0]}), the leaf-mass floor on that fit
+\emph{is} automatically a control-count floor, as \code{eq:feasible}
+requires -- no group-specific floor argument is needed.
 
-\strong{Regularization Selection:} By default (\code{cv_regularization = TRUE}),
-the regularization parameter \eqn{\lambda} is selected via 5-fold cross-validation
-on each training fold, using a theory-driven grid: \eqn{(\log n / n) \times [0.25, 0.5, 1, 2, 4]}.
-This implements the manuscript's recommendation that \eqn{\lambda \propto (\log n)/n} for
-minimax-optimal trees. Fixed regularization (\code{cv_regularization = FALSE}) should
-only be used when you have strong theoretical justification for a specific value.
+\strong{Identifying assumption.} Part II's central limit theorem holds under
+\strong{structural sparsity} (\code{ass:sparsity}): a tree of at most
+\eqn{\bar L} leaves represents \emph{both} true nuisances exactly
+(\eqn{\delta_e = \delta_\mu = 0}; \code{def:sufficient}). This is this
+estimator's own identifying assumption and it is \emph{not} checkable from
+data. \code{theory.tex} notes the cost is asymmetric: sparsity is cheap for
+\emph{hierarchical} structure (active covariate set varying by region --- as
+few as \eqn{s + 1} leaves) and expensive for \emph{additive} structure (a
+leaf per configuration of the active coordinates). When sparsity plausibly
+fails, use \code{\link{estimate_att_crossfit}}, which does not need it.
+
+\strong{No automatic fallback.} \code{estimate_att()},
+\code{\link{estimate_att_crossfit}} and \code{\link{estimate_att_rashomon}}
+are separate, explicit entry points. This function reports sparsity-proxy
+\emph{diagnostics} (\code{certified_e}, \code{certified_m0}, etc.) but never
+switches estimator on the basis of them: doing so would turn estimator
+choice into data-dependent post-selection inference that the paper does not
+analyse.
+
+\strong{Variance (\code{cor:variance}, eq.~\code{eq:vhat}).} The variance
+estimator is the ordinary empirical-influence-function plug-in
+\eqn{\hat V = n^{-1}\sum_i \hat\psi_i^2}, i.e. exactly what
+\code{\link{att_se}} / the shared \code{eif_att_solve()} already compute; they
+are reused unchanged.
+
+\strong{Known finite-sample caveat (not hidden).} \code{theory.tex}
+(immediately after eq.~\code{eq:vhat}, and again in its appendix discussion)
+observes that because \eqn{\hat\mu}, \eqn{\hat e} and \eqn{\hat\theta}
+together consume \eqn{2\bar L + 1} fitted parameters, this in-sample plug-in
+is \strong{downward biased by a relative factor of order}
+\eqn{(2\bar L + 1)/n}, so the reported \code{sigma} is mildly optimistic and
+the nominal 95\% interval can undercover in small samples. The theory
+mentions a degrees-of-freedom divisor \eqn{n - (|\hat\tau_e| +
+|\hat\tau_\mu| + 1)} as "a reasonable finite-sample convention", but this is
+explicitly parenthetical --- it is \emph{not} required for the asymptotic
+result (the bias vanishes precisely because \eqn{\bar L} is fixed in \eqn{n},
+\code{ass:budget}). It is deliberately \strong{not} implemented here:
+applying it would mean changing the shared \code{att_se()} /
+\code{eif_att_solve()} used by the other two estimators, or duplicating
+their logic. This function therefore reports the plain \eqn{n}-normalised
+plug-in, matching \code{\link{estimate_att_crossfit}}'s and
+\code{\link{estimate_att_rashomon}}'s convention exactly, so the three are
+directly comparable. Callers wanting the convention can rescale:
+\code{sigma * sqrt(n / (n - (n_leaves_e + n_leaves_m0 + 1)))}, using the
+returned \code{n}, \code{n_leaves_e} and \code{n_leaves_m0}.
+
+\strong{Covariates must be binary.} \code{theory.tex}
+Assumption~\code{ass:finite} takes \eqn{\mathcal{X}} to be finite, and
+continuous-covariate approximation theory is explicitly excluded from the
+current paper. Operationally the restriction is also load-bearing:
+\code{optimaltrees::bisect_lambda_to_budget()} verifies the \eqn{m_n} floor
+by mapping rows of the \emph{supplied} \code{X} to leaves, while a tree fit
+on discretised continuous covariates splits on \emph{threshold-indicator}
+features, so the two disagree. Non-binary \code{X} is therefore rejected up
+front with a pointer to \code{\link{estimate_att_crossfit}} (which has no
+leaf-feasibility step and does accept continuous covariates) rather than
+allowed to fail obscurely or, worse, silently mis-check feasibility.
 }
 \examples{
 \dontrun{
-# Decision guide for key parameters:
-
-# 1. epsilon_n (rashomon_bound_multiplier):
-#    - Default NULL uses the theory value optimaltrees::select_epsilon_n(nrow(X)) = log(n)/n
-#    - Override with an explicit fixed numeric only if you have a reason
-
-# 2. regularization:
-#    - Default (recommended): cv_regularization = TRUE (data-adaptive)
-#    - Fixed only when theory-justified: cv_regularization = FALSE, regularization = 0.05
-
-# 3. Rashomon vs fold-specific:
-#    - Rashomon (use_rashomon = TRUE): interpretability, single tree/nuisance
-#    - Fold-specific (FALSE): robustness, no intersection requirement
-
-# Recommended workflow for new dataset:
-library(optimaltrees)  # Required dependency
+library(optimaltrees)
 set.seed(42)
-n <- 300
-X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
-A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
-Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-
-# Default: theory epsilon_n = log(n)/n (rashomon_bound_multiplier = NULL) +
-# CV-selected lambda (both recommended)
-fit1 <- estimate_att(
-  X, A, Y,
-  K = 5,
-  use_rashomon = TRUE
-  # rashomon_bound_multiplier = NULL -> optimaltrees::select_epsilon_n(nrow(X))
-  # cv_regularization = TRUE is the default
+n <- 400
+# Hierarchically sparse nuisances: e depends on X1 only, m0 on X2 only,
+# so a 2-leaf tree represents each exactly (ass:sparsity holds at Lbar = 4).
+X <- data.frame(
+  X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5), X3 = rbinom(n, 1, 0.5)
 )
-print(fit1$theta)   # Point estimate
-print(fit1$ci_95)   # 95\\% Wald confidence interval
+A <- rbinom(n, 1, ifelse(X$X1 == 1, 0.65, 0.35))
+Y <- rbinom(n, 1, 0.25 + 0.30 * X$X2 + 0.15 * A)
 
-# Alternative: Fixed lambda (when theory-justified)
-fit2 <- estimate_att(
-  X, A, Y,
-  K = 5,
-  cv_regularization = FALSE,
-  regularization = 0.05
-)
-print(fit2$theta)
+fit <- estimate_att(X, A, Y, leaf_budget = 4L)
+fit$theta
+fit$ci_95
+
+# Sparsity-proxy diagnostics (a signal, never an auto-switch):
+c(fit$certified_e, fit$certified_m0)
+c(fit$n_leaves_e, fit$n_leaves_m0)
 }
 }
 \references{
-Manuscript equation (2) for the orthogonal score.
+\code{inst/paper/theory.tex}: Section \code{sec:main} (full-sample
+construction), eq.~\code{eq:select} (structure selection),
+eq.~\code{eq:feasible} (leaf-mass feasible set), Assumption
+\code{ass:budget} (fixed leaf budget), Assumption \code{ass:sparsity}
+(structural sparsity), Proposition \code{prop:parsimony} (the budget binds
+asymptotically), Theorem \code{thm:main} (CLT), Corollary
+\code{cor:variance} / eq.~\code{eq:vhat} (variance estimation).
+}
+\seealso{
+\code{\link{estimate_att_crossfit}} for the Part I cross-fitting
+  fallback that does not require structural sparsity;
+  \code{\link{estimate_att_rashomon}} for the superseded shared-structure
+  variant; \code{\link{att_se}} and \code{\link{att_ci}} for the shared
+  variance/interval kernel.
 }

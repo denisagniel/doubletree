@@ -15,14 +15,14 @@ test_that("psi_att returns vector of length n and is linear in theta", {
   expect_equal(s1, s0 - 1 * (A / pi_hat), tolerance = 1e-10)
 })
 
-test_that("estimate_att returns list with theta, sigma, ci_95 and runs with binary data", {
+test_that("estimate_att_crossfit returns list with theta, sigma, ci_95 and runs with binary data", {
   skip_if_not_installed("optimaltrees")
   set.seed(42)
   n <- 120
   X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
   A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
   Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-  fit <- estimate_att(X, A, Y, K = 3)
+  fit <- estimate_att_crossfit(X, A, Y, K = 3)
   expect_type(fit$theta, "double")
   expect_length(fit$theta, 1)
   expect_type(fit$sigma, "double")
@@ -40,14 +40,14 @@ test_that("create_folds returns integer vector 1..K", {
   expect_type(f, "integer")
 })
 
-test_that("estimate_att with use_rashomon = TRUE runs and returns same structure", {
+test_that("estimate_att_rashomon runs and returns same structure", {
   skip_if_not_installed("optimaltrees")
   set.seed(42)
   n <- 150
   X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
   A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
   Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-  fit <- estimate_att(X, A, Y, K = 3, use_rashomon = TRUE, verbose = FALSE)
+  fit <- estimate_att_rashomon(X, A, Y, K = 3, verbose = FALSE)
   expect_type(fit$theta, "double")
   expect_length(fit$theta, 1)
   expect_type(fit$sigma, "double")
@@ -71,7 +71,7 @@ test_that("att_se and att_ci work", {
 })
 
 # Continuous outcome tests (Sprint 2, MAJOR-5)
-test_that("estimate_att works with continuous outcomes", {
+test_that("estimate_att_crossfit works with continuous outcomes", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(123)
@@ -91,7 +91,7 @@ test_that("estimate_att works with continuous outcomes", {
   Y <- rnorm(n, mean = 1 + 0.6 * X$X1 + 0.4 * X$X2 + tau * A, sd = 0.8)
 
   # Fit with continuous outcome
-  fit <- estimate_att(
+  fit <- estimate_att_crossfit(
     X, A, Y,
     K = 3,
     outcome_type = "continuous",
@@ -125,7 +125,7 @@ test_that("continuous outcome uses squared_error loss", {
   Y <- rnorm(n, mean = 2 + 0.5 * A)
 
   # Fit with continuous outcome
-  fit <- estimate_att(X, A, Y, K = 3, outcome_type = "continuous")
+  fit <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "continuous")
 
   # Verify structure
   expect_true("nuisance_fits" %in% names(fit))
@@ -133,7 +133,7 @@ test_that("continuous outcome uses squared_error loss", {
   expect_true(is.finite(fit$theta))
 })
 
-test_that("estimate_att handles small K with continuous outcomes", {
+test_that("estimate_att_crossfit handles small K with continuous outcomes", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(789)
@@ -143,7 +143,7 @@ test_that("estimate_att handles small K with continuous outcomes", {
   Y <- rnorm(n, mean = 1 + 0.3 * A, sd = 0.5)
 
   # K=2 should work (may produce warnings from diagnostics - that's expected)
-  fit <- estimate_att(X, A, Y, K = 2, outcome_type = "continuous")
+  fit <- estimate_att_crossfit(X, A, Y, K = 2, outcome_type = "continuous")
   expect_true(is.finite(fit$theta))
 })
 
@@ -157,7 +157,7 @@ test_that("continuous outcome validates input appropriately", {
 
   # Continuous outcome should work (may produce warnings from diagnostics - that's expected)
   Y_continuous <- rnorm(n, mean = 1 + 0.5 * A)
-  fit <- estimate_att(X, A, Y_continuous, K = 3, outcome_type = "continuous")
+  fit <- estimate_att_crossfit(X, A, Y_continuous, K = 3, outcome_type = "continuous")
   expect_true(is.finite(fit$theta))
 })
 
@@ -165,7 +165,7 @@ test_that("continuous outcome validates input appropriately", {
 # Tests for CV regularization as default (Phase 1)
 # ============================================================================
 
-test_that("estimate_att uses CV by default and completes successfully", {
+test_that("estimate_att_crossfit uses CV by default and completes successfully", {
   skip_if_not_installed("optimaltrees")
   skip_on_cran()  # CV adds computation time
 
@@ -176,7 +176,7 @@ test_that("estimate_att uses CV by default and completes successfully", {
   Y <- rbinom(n, 1, 0.5)
 
   # Default call (cv_regularization should be TRUE)
-  result <- estimate_att(X, A, Y, K = 3, outcome_type = "binary", verbose = FALSE)
+  result <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "binary", verbose = FALSE)
 
   expect_false(is.na(result$theta))
   expect_false(is.na(result$sigma))
@@ -186,7 +186,7 @@ test_that("estimate_att uses CV by default and completes successfully", {
   # This is implicit - if it worked, CV was used
 })
 
-test_that("estimate_att with cv_regularization = FALSE uses fixed lambda", {
+test_that("estimate_att_crossfit with cv_regularization = FALSE uses fixed lambda", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(456)
@@ -196,7 +196,7 @@ test_that("estimate_att with cv_regularization = FALSE uses fixed lambda", {
   Y <- rbinom(n, 1, 0.5)
 
   # Explicit cv_regularization = FALSE should use fixed regularization
-  result <- estimate_att(X, A, Y, K = 3, outcome_type = "binary",
+  result <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "binary",
                          cv_regularization = FALSE, regularization = 0.05,
                          verbose = FALSE)
 
@@ -209,7 +209,7 @@ test_that("estimate_att with cv_regularization = FALSE uses fixed lambda", {
 # Tests for continuous covariate support
 # ============================================================================
 
-test_that("estimate_att works with continuous covariates (binary outcome)", {
+test_that("estimate_att_crossfit works with continuous covariates (binary outcome)", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(42)
@@ -222,7 +222,7 @@ test_that("estimate_att works with continuous covariates (binary outcome)", {
   A <- rbinom(n, 1, plogis(0.5 * X$x_cont1 - 0.3 * X$x_bin))
   Y <- rbinom(n, 1, 0.3 + 0.2 * (X$x_cont1 > 0) + 0.15 * A)
 
-  fit <- estimate_att(X, A, Y, K = 3, outcome_type = "binary",
+  fit <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "binary",
                       cv_regularization = FALSE, regularization = 0.1)
 
   expect_type(fit$theta, "double")
@@ -232,7 +232,7 @@ test_that("estimate_att works with continuous covariates (binary outcome)", {
   expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
 })
 
-test_that("estimate_att works with continuous covariates and continuous outcome", {
+test_that("estimate_att_crossfit works with continuous covariates and continuous outcome", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(99)
@@ -244,7 +244,7 @@ test_that("estimate_att works with continuous covariates and continuous outcome"
   A <- rbinom(n, 1, plogis(0.3 * X$x_cont))
   Y <- rnorm(n, mean = 1 + 0.5 * X$x_cont + 0.4 * A, sd = 0.8)
 
-  fit <- estimate_att(X, A, Y, K = 3, outcome_type = "continuous",
+  fit <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "continuous",
                       cv_regularization = FALSE, regularization = 0.1)
 
   expect_type(fit$theta, "double")
@@ -254,7 +254,7 @@ test_that("estimate_att works with continuous covariates and continuous outcome"
   expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
 })
 
-test_that("estimate_att max_depth: default caps depth, validates, and 0L allows unlimited", {
+test_that("estimate_att_crossfit max_depth: default caps depth, validates, and 0L allows unlimited", {
   skip_if_not_installed("optimaltrees")
   skip_on_cran()
 
@@ -266,15 +266,15 @@ test_that("estimate_att max_depth: default caps depth, validates, and 0L allows 
   Y <- rbinom(n, 1, 0.3 + 0.2 * A + 0.1 * X$x1)
 
   # Default (max_depth = 4L) runs on the plain cross-fit path.
-  fit_default <- estimate_att(X, A, Y, K = 3, use_rashomon = FALSE, verbose = FALSE)
+  fit_default <- estimate_att_crossfit(X, A, Y, K = 3, verbose = FALSE)
   expect_true(is.finite(fit_default$theta))
 
   # Explicit 0L (unlimited) still runs on binary covariates.
-  fit_unlim <- estimate_att(X, A, Y, K = 3, use_rashomon = FALSE,
+  fit_unlim <- estimate_att_crossfit(X, A, Y, K = 3,
                             max_depth = 0L, verbose = FALSE)
   expect_true(is.finite(fit_unlim$theta))
 
   # Validation: negative and non-scalar are rejected before any fitting.
-  expect_error(estimate_att(X, A, Y, K = 3, max_depth = -1), "non-negative")
-  expect_error(estimate_att(X, A, Y, K = 3, max_depth = c(1, 2)), "single")
+  expect_error(estimate_att_crossfit(X, A, Y, K = 3, max_depth = -1), "non-negative")
+  expect_error(estimate_att_crossfit(X, A, Y, K = 3, max_depth = c(1, 2)), "single")
 })

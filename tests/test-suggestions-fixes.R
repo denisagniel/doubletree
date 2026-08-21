@@ -15,7 +15,7 @@ n <- 100
 X <- data.frame(x1 = runif(n), x2 = runif(n))
 A <- rbinom(n, 1, 0.5)
 Y <- rbinom(n, 1, 0.5)
-fit <- estimate_att(X, A, Y, K = 3, regularization = 0.1, verbose = FALSE)
+fit <- estimate_att_crossfit(X, A, Y, K = 3, regularization = 0.1, verbose = FALSE)
 stopifnot(!is.null(fit$theta))
 cat("  PASS: Package functions correctly (obsolete TODO removed)\n")
 
@@ -30,7 +30,7 @@ A <- rbinom(n, 1, 0.5)
 Y <- rbinom(n, 1, 0.5)
 
 # Use tight epsilon to potentially trigger fallback
-fit_rash <- estimate_att(X, A, Y, K = 3, use_rashomon = TRUE,
+fit_rash <- estimate_att_rashomon(X, A, Y, K = 3,
                          rashomon_bound_multiplier = 0.01,  # Tight bound
                          regularization = 0.1, verbose = FALSE)
 stopifnot(!is.null(fit_rash$theta))
@@ -46,9 +46,9 @@ A <- rbinom(n, 1, 0.5)
 Y_binary <- rbinom(n, 1, 0.5)
 Y_continuous <- rnorm(n)
 
-fit_binary <- estimate_att(X, A, Y_binary, K = 3, outcome_type = "binary",
+fit_binary <- estimate_att_crossfit(X, A, Y_binary, K = 3, outcome_type = "binary",
                            regularization = 0.1, verbose = FALSE)
-fit_continuous <- estimate_att(X, A, Y_continuous, K = 3, outcome_type = "continuous",
+fit_continuous <- estimate_att_crossfit(X, A, Y_continuous, K = 3, outcome_type = "continuous",
                                regularization = 0.1, verbose = FALSE)
 
 stopifnot(!is.null(fit_binary$theta))

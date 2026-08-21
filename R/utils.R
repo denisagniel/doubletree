@@ -63,7 +63,7 @@ create_folds <- function(n, K, strata = NULL, seed = NULL) {
 #' Check (X, A, Y) inputs for ATT estimation
 #'
 #' Validates presence, dimensions, binary A, and Y according to outcome_type.
-#' Called internally by estimate_att.
+#' Called internally by the estimate_att_* estimators.
 #'
 #' @param X Data.frame or matrix of covariates (binary 0/1 for optimaltrees).
 #' @param A Integer or numeric vector of treatment (0/1).

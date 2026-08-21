@@ -97,7 +97,7 @@ For O2 cluster simulations, also install:
 Fits one optimal tree per fold for each nuisance function (propensity and outcome models):
 
 ```r
-fit <- estimate_att(X, A, Y, K = 5, use_rashomon = FALSE)
+fit <- estimate_att_crossfit(X, A, Y, K = 5)
 ```
 
 ### Rashomon-DML (Interpretable)
@@ -105,10 +105,9 @@ fit <- estimate_att(X, A, Y, K = 5, use_rashomon = FALSE)
 Selects a **single interpretable tree per nuisance** via the intersection of Rashomon sets across cross-fitting folds, then refits that structure per fold for valid cross-fitted estimation:
 
 ```r
-fit <- estimate_att(
+fit <- estimate_att_rashomon(
   X, A, Y,
   K = 5,
-  use_rashomon = TRUE,
   rashomon_bound_multiplier = 0.05
 )
 ```
@@ -139,7 +138,7 @@ n <- 300
 X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
 A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
 Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-fit <- estimate_att(X, A, Y, K = 5)
+fit <- estimate_att_crossfit(X, A, Y, K = 5)
 fit$theta   # point estimate
 fit$ci_95   # 95% Wald CI
 ```
@@ -158,11 +157,10 @@ source("simulations/production/dgps/dgps_smooth.R")
 d <- generate_dgp_binary_att(n = 400, tau = 0.10, seed = 123)
 
 # Estimate ATT
-fit <- estimate_att(
+fit <- estimate_att_crossfit(
   X = d$X, A = d$A, Y = d$Y,
   K = 5,
-  regularization = log(400) / 400,
-  use_rashomon = FALSE
+  regularization = log(400) / 400
 )
 
 print(fit$theta)  # Point estimate

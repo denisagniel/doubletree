@@ -50,7 +50,7 @@ extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
 #' leaf values to create a single interpretable tree. No cross-fitting in final
 #' predictions (all observations use the same averaged tree).
 #'
-#' @inheritParams estimate_att
+#' @inheritParams estimate_att_rashomon
 #' @param K Number of cross-fitting folds. Default: 5
 #' @param outcome_type Character: "binary" or "continuous"
 #' @param cv_regularization Logical. Use CV to select lambda? Default: TRUE
@@ -104,7 +104,7 @@ extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
 #' The point estimate \code{theta} is the averaged single tree: interpretable, but its
 #' leaves are fit IN-SAMPLE, so it carries a positive bias that does not vanish with n.
 #' To recover valid inference we pair it with its cross-fit twin (the
-#' \code{estimate_att(use_rashomon = TRUE)} estimator, which shares the structure but
+#' \code{estimate_att_rashomon()} estimator, which shares the structure but
 #' uses out-of-sample leaves). The reported \code{ci_95} is an Armstrong-Kolesar honest
 #' interval \eqn{\hat\theta_{display} \pm cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}}
 #' with a conservative bias bound \eqn{B = |\delta| + z\cdot se_\delta}. This targets
@@ -132,10 +132,10 @@ extract_k_trees_from_rashomon <- function(cf_rashomon_obj) {
 #' If Rashomon intersection is empty for either nuisance, the function stops
 #' with an informative error suggesting:
 #' - Increase rashomon_bound_multiplier
-#' - Use estimate_att() with use_rashomon=FALSE
+#' - Use estimate_att_crossfit()
 #' - Use estimate_att_msplit_averaged() (more robust to empty intersection)
 #'
-#' @seealso \code{\link{estimate_att}}, \code{\link{estimate_att_msplit_averaged}},
+#' @seealso \code{\link{estimate_att_crossfit}}, \code{\link{estimate_att_msplit_averaged}},
 #'   \code{\link{fit_nuisances_rashomon}}, \code{\link{average_trees}}
 #'
 #' @export
@@ -234,7 +234,7 @@ estimate_att_doubletree_averaged <- function(
       "Rashomon intersection empty for propensity.\n",
       "Suggestions:\n",
       "  1. Increase rashomon_bound_multiplier (current: ", eps_label, ") or set escalate_intersection = TRUE\n",
-      "  2. Use estimate_att() with use_rashomon=FALSE\n",
+      "  2. Use estimate_att_crossfit()\n",
       "  3. Use estimate_att_msplit_averaged() (more robust to empty intersection)",
       call. = FALSE
     )
@@ -246,7 +246,7 @@ estimate_att_doubletree_averaged <- function(
       "Rashomon intersection empty for outcome.\n",
       "Suggestions:\n",
       "  1. Increase rashomon_bound_multiplier (current: ", eps_label, ") or set escalate_intersection = TRUE\n",
-      "  2. Use estimate_att() with use_rashomon=FALSE\n",
+      "  2. Use estimate_att_crossfit()\n",
       "  3. Use estimate_att_msplit_averaged() (more robust to empty intersection)",
       call. = FALSE
     )
@@ -637,7 +637,7 @@ estimate_att_msplit_averaged <- function(X, A, Y,
   # path. The fully-fold-specific twin is structure-orthogonal, so delta honestly bounds
   # that variance. (msplit was NOT in the Phase-A diagnostic; the verification MC checks
   # its coverage directly.) msplit exposes no fold_indices/regularization, so we build a
-  # fresh K-fold split here with the canonical use_rashomon=FALSE settings.
+  # fresh K-fold split here with the canonical estimate_att_crossfit() settings.
   twin_folds <- create_folds(n, K, strata = A, seed = seed_base)
   eta_cf <- get_fully_foldspecific_twin(
     X, A, Y, twin_folds, outcome_type = outcome_type,

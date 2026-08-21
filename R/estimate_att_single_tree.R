@@ -56,11 +56,11 @@
 #' @details
 #' When the intersection is empty for a nuisance (margin fails: near-tied
 #' structures, weak overlap), there is no single shared structure and the function
-#' errors with guidance to fall back to \code{estimate_att(use_rashomon = FALSE)}
+#' errors with guidance to fall back to \code{\link{estimate_att_crossfit}}
 #' (fold-specific trees; valid but not single-tree). This mirrors the honest
 #' fallback in the theory: do not force a single tree when the margin does not hold.
 #'
-#' @seealso \code{\link{estimate_att}} (fold-specific / cross-fit),
+#' @seealso \code{\link{estimate_att_crossfit}} (fold-specific / cross-fit),
 #'   \code{\link{estimate_att_doubletree_averaged}} (single averaged tree, Approach 4).
 #' @export
 estimate_att_single_tree <- function(
@@ -132,7 +132,7 @@ estimate_att_single_tree <- function(
       "Rashomon intersection empty for ", which_empty, " at epsilon_n = ",
       eps_label, ": no single shared structure exists ",
       "(the structural margin does not hold on this data).\n",
-      "  Fall back to estimate_att(use_rashomon = FALSE) for a valid (but ",
+      "  Fall back to estimate_att_crossfit() for a valid (but ",
       "fold-specific, not single-tree) estimate.",
       call. = FALSE
     )

@@ -2,9 +2,10 @@
 # HONEST bias-aware CI built from the FULLY fold-specific twin (per-fold structure AND
 # leaves), not the shared-intersection twin (which shares the display tree's selection
 # variance and undercovers -- Phase-A diagnostic). Pins:
-#   - estimate_att(use_rashomon=TRUE) now returns a twin + honest ci_95 (was Wald-only);
-#   - estimate_att(use_rashomon=FALSE) is unchanged (Wald; it IS the fully-fold-specific
-#     estimator, so no honesty correction and no twin);
+#   - estimate_att_rashomon() returns a twin + honest ci_95 (was Wald-only);
+#   - estimate_att_crossfit() is unchanged (Wald; it IS the fully-fold-specific
+#     estimator, so no honesty correction and no twin -- the twin/delta fields are
+#     absent from its return list entirely);
 #   - estimate_att_msplit / estimate_att_single_tree carry the twin + honest CI;
 #   - the honest CI is at least as wide as the twin Wald and centered at the display point;
 #   - se_delta = 0 everywhere (the chosen conservative-but-tightest bound).
@@ -32,27 +33,30 @@ expect_honest_ci <- function(fit) {
   expect_gte(honest_half, naive_half - 1e-8)           # honest >= twin Wald
 }
 
-test_that("estimate_att(use_rashomon=TRUE) reports a fully-fold-specific twin + honest CI", {
+test_that("estimate_att_rashomon() reports a fully-fold-specific twin + honest CI", {
   skip_if_not_installed("optimaltrees")
   skip_on_cran()
 
   d <- make_binary_dgp(500)
-  fit <- estimate_att(d$X, d$A, d$Y, K = 3, use_rashomon = TRUE, verbose = FALSE)
+  fit <- estimate_att_rashomon(d$X, d$A, d$Y, K = 3, verbose = FALSE)
   expect_honest_ci(fit)
   # ci_95_wald is the plain (undercovering) Wald interval, distinct from the honest one
   # whenever delta != 0.
   expect_false(is.null(fit$ci_95_wald))
 })
 
-test_that("estimate_att(use_rashomon=FALSE) is the fully-fold-specific estimator (Wald, no twin)", {
+test_that("estimate_att_crossfit() is the fully-fold-specific estimator (Wald, no twin)", {
   skip_if_not_installed("optimaltrees")
   skip_on_cran()
 
   d <- make_binary_dgp(500)
-  fit <- estimate_att(d$X, d$A, d$Y, K = 3, use_rashomon = FALSE, verbose = FALSE)
-  # It IS the twin, so no honesty correction: twin/delta fields are NA and ci_95 == Wald.
-  expect_true(is.na(fit$theta_crossfit))
-  expect_true(is.na(fit$delta))
+  fit <- estimate_att_crossfit(d$X, d$A, d$Y, K = 3, verbose = FALSE)
+  # It IS the twin, so no honesty correction: the twin/delta fields are not reported at
+  # all (they were constant NA on this path) and ci_95 == Wald.
+  expect_null(fit$theta_crossfit)
+  expect_null(fit$sigma_crossfit)
+  expect_null(fit$delta)
+  expect_null(fit$se_delta)
   expect_equal(fit$ci_95, fit$ci_95_wald, tolerance = 1e-12)
 })
 

@@ -2,7 +2,7 @@
 # Chernozhukov et al. (2018) variance combination). Nothing else in the package or
 # the arbitration study exercises it, so these guard against silent rot.
 
-test_that("att_repeated with n_splits = 1 delegates to estimate_att", {
+test_that("att_repeated with n_splits = 1 delegates to estimate_att_crossfit", {
   skip_if_not_installed("optimaltrees")
 
   set.seed(101)
@@ -12,9 +12,10 @@ test_that("att_repeated with n_splits = 1 delegates to estimate_att", {
   Y <- rbinom(n, 1, 0.3 + 0.15 * A + 0.1 * X$x1)
 
   rep1 <- att_repeated(X, A, Y, K = 3, n_splits = 1, seed = 7, verbose = FALSE)
-  direct <- estimate_att(X, A, Y, K = 3, seed = 7, verbose = FALSE)
+  direct <- estimate_att_crossfit(X, A, Y, K = 3, seed = 7, verbose = FALSE)
 
-  # n_splits = 1 is a pass-through to estimate_att with the same args/seed.
+  # n_splits = 1 with use_rashomon = FALSE (default) is a pass-through to
+  # estimate_att_crossfit with the same args/seed.
   expect_equal(rep1$theta, direct$theta)
   expect_equal(rep1$sigma, direct$sigma)
 })

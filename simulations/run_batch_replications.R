@@ -126,13 +126,12 @@ for (rep_num in opt$`batch-start`:batch_end) {
 
     if (opt$method == "tree") {
       # Tree-DML (fold-specific regularization)
-      fit <- estimate_att(
+      fit <- estimate_att_crossfit(
         X = d$X, A = d$A, Y = d$Y,
         K = opt$`k-folds`,
         outcome_type = outcome_type,
         regularization = log(opt$`sample-size`) / opt$`sample-size`,
         cv_regularization = FALSE,
-        use_rashomon = FALSE,
         worker_limit = opt$`worker-limit`,
         verbose = FALSE
       )
@@ -151,13 +150,12 @@ for (rep_num in opt$`batch-start`:batch_end) {
       # Rashomon-DML (structure intersection)
       epsilon_n <- 2 * sqrt(log(opt$`sample-size`) / opt$`sample-size`)
 
-      fit <- estimate_att(
+      fit <- estimate_att_rashomon(
         X = d$X, A = d$A, Y = d$Y,
         K = opt$`k-folds`,
         outcome_type = outcome_type,
         regularization = log(opt$`sample-size`) / opt$`sample-size`,
         cv_regularization = FALSE,
-        use_rashomon = TRUE,
         rashomon_bound_multiplier = epsilon_n,
         worker_limit = opt$`worker-limit`,
         verbose = FALSE

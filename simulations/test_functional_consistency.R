@@ -126,11 +126,10 @@ test_m_value <- function(M, dgp_func, config) {
     tryCatch({
       if (M == 1) {
         # Standard doubletree
-        result <- estimate_att(
+        result <- estimate_att_crossfit(
           X = d$X, A = d$A, Y = d$Y,
           K = config$K,
           regularization = log(config$n) / config$n,
-          use_rashomon = FALSE,
           seed = seed
         )
 

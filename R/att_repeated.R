@@ -5,7 +5,14 @@
 #' - Point estimate: median or mean of M estimates
 #' - Variance: accounts for both within-fold (influence function) and between-split variation
 #'
-#' @inheritParams estimate_att
+#' @inheritParams estimate_att_rashomon
+#' @param use_rashomon Logical. Dispatch switch for the per-split estimator: TRUE calls
+#'   \code{\link{estimate_att_rashomon}} (one interpretable structure per nuisance via
+#'   cross-fold Rashomon-set intersection + fold-specific leaf refits), FALSE (default)
+#'   calls \code{\link{estimate_att_crossfit}} (a single tree per nuisance per fold).
+#'   The Rashomon-only arguments (\code{rashomon_bound_multiplier},
+#'   \code{rashomon_bound_adder}, \code{max_leaves}, \code{auto_tune_intersecting},
+#'   \code{escalate_intersection}) are forwarded only when TRUE.
 #' @param n_splits Integer. Number of independent cross-fit repetitions. Default 1 (no repetition).
 #' @param aggregation Character. How to combine M point estimates:
 #'   \itemize{
@@ -25,7 +32,8 @@
 #'   - sigma_splits: vector of M within-fold SEs (theta-hat scale)
 #'   - between_var: mean squared deviation of split estimates (theta-hat scale)
 #'   - within_var: mean within-fold variance (theta-hat scale)
-#'   - ... (other estimate_att outputs)
+#'   - ... (other per-split estimator outputs; see \code{\link{estimate_att_crossfit}} /
+#'     \code{\link{estimate_att_rashomon}})
 #'
 #' @references Chernozhukov et al. (2018), "Double/debiased machine learning for treatment
 #'   and structural parameters", Econometrics Journal.
@@ -51,6 +59,7 @@
 #' }
 #'
 #' @export
+#' @keywords internal
 att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
                               regularization = 0.1, cv_regularization = TRUE, cv_K = 5,
                               stratified = TRUE, seed = NULL,
@@ -67,17 +76,24 @@ att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
   aggregation <- match.arg(aggregation)
 
   if (n_splits == 1) {
-    # No repetition - call standard estimate_att
-    return(estimate_att(X, A, Y, K = K, outcome_type = outcome_type,
+    # No repetition - delegate directly to the single-split estimator.
+    if (use_rashomon) {
+      return(estimate_att_rashomon(X, A, Y, K = K, outcome_type = outcome_type,
+                     regularization = regularization,
+                     cv_regularization = cv_regularization, cv_K = cv_K,
+                     stratified = stratified,
+                     seed = seed, verbose = verbose,
+                     rashomon_bound_multiplier = rashomon_bound_multiplier,
+                     rashomon_bound_adder = rashomon_bound_adder,
+                     max_leaves = max_leaves,
+                     auto_tune_intersecting = auto_tune_intersecting,
+                     escalate_intersection = escalate_intersection, ...))
+    }
+    return(estimate_att_crossfit(X, A, Y, K = K, outcome_type = outcome_type,
                    regularization = regularization,
                    cv_regularization = cv_regularization, cv_K = cv_K,
                    stratified = stratified,
-                   seed = seed, verbose = verbose, use_rashomon = use_rashomon,
-                   rashomon_bound_multiplier = rashomon_bound_multiplier,
-                   rashomon_bound_adder = rashomon_bound_adder,
-                   max_leaves = max_leaves,
-                   auto_tune_intersecting = auto_tune_intersecting,
-                   escalate_intersection = escalate_intersection, ...))
+                   seed = seed, verbose = verbose, ...))
   }
 
   # Run M independent cross-fits
@@ -89,18 +105,28 @@ att_repeated <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
     # Different seed for each split (if seed provided)
     split_seed <- if (!is.null(seed)) seed + m * 1000 else NULL
 
-    result_m <- estimate_att(
-      X, A, Y, K = K, outcome_type = outcome_type,
-      regularization = regularization,
-      cv_regularization = cv_regularization, cv_K = cv_K,
-      stratified = stratified,
-      seed = split_seed, verbose = verbose, use_rashomon = use_rashomon,
-      rashomon_bound_multiplier = rashomon_bound_multiplier,
-      rashomon_bound_adder = rashomon_bound_adder,
-      max_leaves = max_leaves,
-      auto_tune_intersecting = auto_tune_intersecting,
-      escalate_intersection = escalate_intersection, ...
-    )
+    result_m <- if (use_rashomon) {
+      estimate_att_rashomon(
+        X, A, Y, K = K, outcome_type = outcome_type,
+        regularization = regularization,
+        cv_regularization = cv_regularization, cv_K = cv_K,
+        stratified = stratified,
+        seed = split_seed, verbose = verbose,
+        rashomon_bound_multiplier = rashomon_bound_multiplier,
+        rashomon_bound_adder = rashomon_bound_adder,
+        max_leaves = max_leaves,
+        auto_tune_intersecting = auto_tune_intersecting,
+        escalate_intersection = escalate_intersection, ...
+      )
+    } else {
+      estimate_att_crossfit(
+        X, A, Y, K = K, outcome_type = outcome_type,
+        regularization = regularization,
+        cv_regularization = cv_regularization, cv_K = cv_K,
+        stratified = stratified,
+        seed = split_seed, verbose = verbose, ...
+      )
+    }
 
     theta_splits[m] <- result_m$theta
     sigma_splits[m] <- result_m$sigma

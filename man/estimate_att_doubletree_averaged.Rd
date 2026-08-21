@@ -125,7 +125,7 @@ predictions (all observations use the same averaged tree).
 If Rashomon intersection is empty for either nuisance, the function stops
 with an informative error suggesting:
 - Increase rashomon_bound_multiplier
-- Use estimate_att() with use_rashomon=FALSE
+- Use estimate_att_crossfit()
 - Use estimate_att_msplit_averaged() (more robust to empty intersection)
 }
 \section{Inference}{
@@ -133,7 +133,7 @@ with an informative error suggesting:
 The point estimate \code{theta} is the averaged single tree: interpretable, but its
 leaves are fit IN-SAMPLE, so it carries a positive bias that does not vanish with n.
 To recover valid inference we pair it with its cross-fit twin (the
-\code{estimate_att(use_rashomon = TRUE)} estimator, which shares the structure but
+\code{estimate_att_rashomon()} estimator, which shares the structure but
 uses out-of-sample leaves). The reported \code{ci_95} is an Armstrong-Kolesar honest
 interval \eqn{\hat\theta_{display} \pm cv(B/\mathrm{SE}_{cf})\cdot\mathrm{SE}_{cf}}
 with a conservative bias bound \eqn{B = |\delta| + z\cdot se_\delta}. This targets
@@ -142,6 +142,6 @@ estimate. For a purely valid (unbiased) estimate, use \code{theta_crossfit}.
 }
 
 \seealso{
-\code{\link{estimate_att}}, \code{\link{estimate_att_msplit_averaged}},
+\code{\link{estimate_att_crossfit}}, \code{\link{estimate_att_msplit_averaged}},
   \code{\link{fit_nuisances_rashomon}}, \code{\link{average_trees}}
 }

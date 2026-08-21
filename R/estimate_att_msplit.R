@@ -398,7 +398,7 @@ estimate_att_msplit <- function(X, A, Y,
   # structure AND leaves), which is structure-orthogonal, and report the AK honest interval
   # (conservative bound B = |delta| + z*se_delta, se_delta = 0 -> tightest). msplit exposes
   # no fold_indices, so build a fresh stratified K-fold split with the canonical
-  # use_rashomon=FALSE settings. (msplit was NOT in the Phase-A diagnostic; the verification
+  # estimate_att_crossfit() settings. (msplit was NOT in the Phase-A diagnostic; the verification
   # MC checks its coverage directly.)
   twin_folds <- create_folds(n, K, strata = A, seed = seed_base)
   eta_cf <- get_fully_foldspecific_twin(

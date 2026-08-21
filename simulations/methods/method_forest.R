@@ -2,7 +2,7 @@
 #'
 #' Cross-fitted ATT estimator using random forests for both
 #' propensity e(X) and outcome m0(X) estimation. Matches the structure
-#' of doubletree::estimate_att but uses ranger instead of trees.
+#' of doubletree::estimate_att_crossfit but uses ranger instead of trees.
 #'
 #' Paper reference: forest baseline comparison
 #'
@@ -216,7 +216,7 @@ att_forest <- function(X, A, Y, K = 5, seed = NULL,
   # 95% CI (normal approximation)
   ci <- theta + c(-1.96, 1.96) * sigma
 
-  # Return results (same structure as doubletree::estimate_att)
+  # Return results (same structure as doubletree::estimate_att_crossfit)
   result <- list(
     theta = theta,
     sigma = sigma,

@@ -1,6 +1,6 @@
 # Tests for the Rashomon-tolerance escalation control (escalate_intersection).
 #
-# Escalation was previously unreachable via the public API: estimate_att resolved
+# Escalation was previously unreachable via the public API: the estimator resolved
 # rashomon_bound_multiplier = NULL -> log(n)/n BEFORE fit_nuisances_rashomon, and
 # fit_nuisances_rashomon resolved it again, so the c-grid always collapsed to {1}
 # (c=1). These tests pin the corrected behavior:
@@ -27,7 +27,7 @@ test_that("default path does not escalate: rashomon_c_* is 1 or NA", {
   skip_on_cran()
 
   d <- make_binary_dgp(300)
-  fit <- estimate_att(d$X, d$A, d$Y, K = 3, use_rashomon = TRUE,
+  fit <- estimate_att_rashomon(d$X, d$A, d$Y, K = 3,
                       escalate_intersection = FALSE, verbose = FALSE)
 
   # Default: fixed theory tolerance, a SINGLE c-grid point (no widening). The
@@ -49,7 +49,7 @@ test_that("escalate_intersection = TRUE can widen tolerance (rashomon_c_* >= 1) 
   # theory tolerance, so escalation has something to do. We assert the mechanism is
   # LIVE (c can exceed 1) and never regresses below the theory value.
   d <- make_binary_dgp(200)
-  fit <- estimate_att(d$X, d$A, d$Y, K = 5, use_rashomon = TRUE,
+  fit <- estimate_att_rashomon(d$X, d$A, d$Y, K = 5,
                       escalate_intersection = TRUE, verbose = FALSE)
 
   for (cval in c(fit$rashomon_c_e, fit$rashomon_c_m0)) {
@@ -69,7 +69,7 @@ test_that("explicit rashomon_bound_multiplier pins a fixed tolerance regardless 
 
   # With an explicit multiplier, escalate_intersection is ignored: the c-grid is the
   # single point {multiplier / theory} = {1}, so c cannot exceed 1.
-  fit <- estimate_att(d$X, d$A, d$Y, K = 3, use_rashomon = TRUE,
+  fit <- estimate_att_rashomon(d$X, d$A, d$Y, K = 3,
                       rashomon_bound_multiplier = eps,
                       escalate_intersection = TRUE, verbose = FALSE)
 

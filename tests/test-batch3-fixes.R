@@ -17,7 +17,7 @@ Y <- rbinom(n, 1, 0.5)
 # Test Issue #27: cv_K must be integer
 cat("Test 1: cv_K must be integer\n")
 result <- tryCatch({
-  estimate_att(X, A, Y, K = 3, cv_regularization = TRUE, cv_K = 3.5, regularization = 0.1)
+  estimate_att_crossfit(X, A, Y, K = 3, cv_regularization = TRUE, cv_K = 3.5, regularization = 0.1)
   "NO_ERROR"
 }, error = function(e) "ERROR")
 stopifnot(result == "ERROR")
@@ -26,13 +26,13 @@ cat("  PASS: Non-integer cv_K caught\n")
 # Test Issue #28: regularization validation (already existed, just verify it works)
 cat("Test 2: regularization validation\n")
 result <- tryCatch({
-  estimate_att(X, A, Y, K = 3, regularization = -0.1)
+  estimate_att_crossfit(X, A, Y, K = 3, regularization = -0.1)
   "NO_ERROR"
 }, error = function(e) "ERROR")
 stopifnot(result == "ERROR")
 
 result <- tryCatch({
-  estimate_att(X, A, Y, K = 3, regularization = 0)
+  estimate_att_crossfit(X, A, Y, K = 3, regularization = 0)
   "NO_ERROR"
 }, error = function(e) "ERROR")
 stopifnot(result == "ERROR")
@@ -49,11 +49,11 @@ A <- rbinom(n, 1, 0.5)
 Y_binary <- rbinom(n, 1, 0.5)
 Y_continuous <- rnorm(n)
 
-fit_binary <- estimate_att(X, A, Y_binary, K = 3, outcome_type = "binary",
+fit_binary <- estimate_att_crossfit(X, A, Y_binary, K = 3, outcome_type = "binary",
                            regularization = 0.1, verbose = FALSE)
 stopifnot(!is.null(fit_binary$theta))
 
-fit_continuous <- estimate_att(X, A, Y_continuous, K = 3, outcome_type = "continuous",
+fit_continuous <- estimate_att_crossfit(X, A, Y_continuous, K = 3, outcome_type = "continuous",
                                regularization = 0.1, verbose = FALSE)
 stopifnot(!is.null(fit_continuous$theta))
 cat("  PASS: Both outcome types work correctly\n")
@@ -75,7 +75,7 @@ n <- 100
 X <- data.frame(x1 = runif(n), x2 = runif(n))
 A <- rbinom(n, 1, 0.5)
 Y <- rbinom(n, 1, 0.5)
-fit <- estimate_att(X, A, Y, K = 3, regularization = 0.1, verbose = FALSE,
+fit <- estimate_att_crossfit(X, A, Y, K = 3, regularization = 0.1, verbose = FALSE,
                     cv_regularization = FALSE, discretize_method = "quantiles")
 stopifnot(!is.null(fit))
 stopifnot(!is.null(fit$theta))

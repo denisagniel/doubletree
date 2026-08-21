@@ -1,278 +1,340 @@
-#' Estimate the Average Treatment Effect on the Treated (ATT)
+#' Full-Sample ATT with Two Optimal Trees (the paper's primary estimator)
 #'
-#' Estimates the ATT using efficient influence function-based estimation with
-#' cross-fitting and optimal decision trees (via optimaltrees) for the nuisance
-#' functions e(X) and m0(X). This is a doubly robust, semiparametric estimator.
-#' Binary outcomes use log-loss for both nuisances; continuous outcomes use
-#' log-loss for propensity and squared_error for m0.
+#' @description
+#' Estimates the Average Treatment Effect on the Treated (ATT) exactly as
+#' specified in \code{inst/paper/theory.tex} \strong{Part II} ("Full-sample
+#' inference with two optimal trees", \code{\\label{sec:main}}): both nuisance
+#' partitions \emph{and} both sets of leaf values are computed from all \eqn{n}
+#' observations. There is \strong{no sample splitting, no cross-fitting, no
+#' intersection of candidate sets, and no averaging over fits}. The resulting
+#' in-sample nuisance predictions are fed to the unchanged efficient
+#' influence function (EIF) solver, giving the plain Wald interval whose
+#' asymptotic validity is Theorem \code{thm:main} / Corollary
+#' \code{cor:variance}.
 #'
-#' When \code{use_rashomon = TRUE}, nuisances are fit via
-#' \code{optimaltrees::cross_fitted_rashomon}: one interpretable tree per nuisance
-#' (e, m0) via intersection of Rashomon sets across folds with fold-specific refits
-#' for valid cross-fitted estimation. The same K and fold assignment are used for
-#' Rashomon and the score.
-#'
-#' @param X Data.frame or matrix of covariates. Must be binary (0/1) for optimaltrees.
-#' @param A Integer or numeric vector of treatment (0/1).
-#' @param Y Numeric vector of outcome. Binary (0/1) when outcome_type is "binary"; any numeric when "continuous".
-#' @param K Number of cross-fitting folds. Default 5.
-#' @param outcome_type Character. "binary" (default) or "continuous". Continuous requires optimaltrees squared_error loss for m0, m1.
-#' @param regularization Numeric. Tree complexity penalty passed to optimaltrees. Default 0.1.
-#'   Only used if \code{cv_regularization = FALSE}. For most applications, use
-#'   \code{cv_regularization = TRUE} (default) for data-adaptive selection.
-#' @param cv_regularization Logical. If TRUE (default), use cross-validation to select
-#'   regularization parameter \eqn{\lambda} separately for each nuisance function
-#'   (e, m0) using a theory-driven grid centered on \eqn{(\log n)/n}. If FALSE, use
-#'   fixed \code{regularization} value.
-#'
-#'   \strong{When to use TRUE (recommended):} You don't know the right penalty or want
-#'   robustness across varied data structures. Uses theory-driven grid:
-#'   \eqn{(\log n)/n \times [0.25, 0.5, 1, 2, 4]}. Adds computational cost (nested CV)
-#'   but improves model selection and inference quality.
-#'
-#'   \strong{When to use FALSE:} You have a theory-justified fixed value (e.g., from
-#'   \code{optimaltrees::cv_regularization()} on pilot data) or need maximum speed.
-#'   Set \code{cv_regularization = FALSE} only when you have strong theoretical
-#'   justification for a specific \eqn{\lambda} value.
-#'
-#'   \strong{Theory:} Manuscript recommends \eqn{\lambda \propto (\log n)/n} for
-#'   minimax-optimal trees. CV automatically implements this recommendation.
-#' @param cv_K Integer. Number of folds for cross-validation of regularization. Default 5. Only used if \code{cv_regularization = TRUE}.
-#' @param stratified Logical. If TRUE (default), fold assignment is stratified by A.
-#' @param seed Optional. Random seed for fold creation.
-#' @param verbose Logical. Passed to optimaltrees. Default FALSE.
-#' @param use_rashomon Logical. If TRUE, fit nuisances via \code{optimaltrees::cross_fitted_rashomon} (one interpretable tree per nuisance via intersection + refit per fold). Default FALSE (single tree per fold).
-#' @param rashomon_bound_multiplier Numeric or NULL. Rashomon tolerance
-#'   \eqn{\varepsilon_n} controlling the size of the Rashomon set (trees with
-#'   penalized risk \eqn{\le (1 + \varepsilon_n) \cdot \text{best}}).
-#'   \strong{Default: NULL}, which uses the theory-justified fixed value
-#'   \eqn{\varepsilon_n = \log(n)/n} via \code{optimaltrees::select_epsilon_n(nrow(X))}.
-#'
-#'   \strong{Theory:} A fixed, deterministic \eqn{\varepsilon_n \asymp \log(n)/n}
-#'   is \eqn{o(n^{-1/2})} and, under the structural-margin condition, yields both a
-#'   non-empty cross-fold intersection and valid inference with zero intersection
-#'   overhead (manuscript Corollary "Rashomon tolerance without the intersection
-#'   trade-off"). Do not enlarge \eqn{\varepsilon_n} to force an intersection; if
-#'   the intersection is empty at the theory value, the method falls back to
-#'   fold-specific trees (still valid, one tree per fold instead of one shared tree).
-#'   An explicit numeric is honored but only fixed, deterministic choices of order
-#'   \eqn{\log(n)/n} carry the validity guarantee.
-#' @param rashomon_bound_adder Numeric. Additive Rashomon bound (not recommended for cross-fitted estimation).
-#'   Default: 0.
-#' @param max_leaves Optional integer. Passed to \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}. Restricts Rashomon set to trees with at most this many leaves.
-#' @param auto_tune_intersecting Logical. If TRUE, increase
-#'   \code{rashomon_bound_multiplier} until a structure appears in the intersection
-#'   across all K folds. Default: FALSE.
-#'
-#'   \strong{Not valid for inference.} Selecting \eqn{\varepsilon_n} from the data
-#'   (post-selection) is not covered by the valid-inference theory and can inflate
-#'   \eqn{\varepsilon_n} beyond \eqn{o(n^{-1/2})}, voiding the CLT; a \code{warning}
-#'   is emitted when TRUE. Use it only for exploration. For inference, keep the
-#'   fixed theory \eqn{\varepsilon_n} (leave \code{rashomon_bound_multiplier = NULL})
-#'   and, if the intersection is empty, fall back to fold-specific trees
-#'   (\code{use_rashomon = FALSE}).
-#' @param escalate_intersection Logical. If TRUE (and \code{rashomon_bound_multiplier}
-#'   is left NULL), widen the Rashomon tolerance \eqn{\varepsilon_n = c \cdot \log(n)/n}
-#'   over an escalating grid of \eqn{c} (1, 2, ..., 1000) until the cross-fold
-#'   intersection is non-empty, rather than pinning the single theory value. Default FALSE.
-#'   Distinct from \code{auto_tune_intersecting}: escalation keeps \eqn{\lambda} fixed and
-#'   steps the tolerance multiplier at the doubletree level, recording the selected \eqn{c}.
-#'
-#'   \strong{Trades the fixed-\eqn{\varepsilon_n} validity guarantee for a non-empty
-#'   intersection.} The selected \eqn{c} is data-dependent (post-selection) and can be
-#'   large at realistic \eqn{n}, so finite-sample coverage is not guaranteed and must be
-#'   validated empirically (see the escalation coverage sweep in the arbitration
-#'   simulation). Opt-in practical/study device; the returned \code{rashomon_c_e} /
-#'   \code{rashomon_c_m0} record the selected multiplier per nuisance. An explicit
-#'   \code{rashomon_bound_multiplier} always pins a single fixed tolerance, overriding it.
-#' @param max_depth Integer. Maximum GOSDT tree depth for the nuisance fits
-#'   (\code{0L} = unlimited). Default \code{4L}, applied to BOTH the Rashomon and the
-#'   plain cross-fit paths so they are symmetric. Bounding depth prevents the
-#'   continuous-covariate blow-up (unbounded GOSDT on many thresholds) and keeps the
-#'   plain cross-fit nuisances from being deeper than their Rashomon twin. Set
-#'   \code{max_depth = 0L} for unlimited depth (not recommended with continuous covariates).
-#' @param discretize_method Character. Method for discretizing continuous features.
-#'   Default: "quantiles" (theory-recommended, do not override unless you have good reason).
-#'   Uses threshold encoding (k bins → k-1 features) for computational efficiency.
-#' @param discretize_bins Integer or "adaptive". Number of bins for discretization.
-#'   Default: "adaptive" (theory-recommended, do not override unless you have good reason).
-#'   Uses b_n = max(2, ceiling(log(n)/3)) as suggested by nonparametric theory
-#'   for optimal bias-variance tradeoff. Threshold encoding: k bins → k-1 binary features.
-#' @param ... Additional arguments passed to optimaltrees (\code{fit_tree} when \code{use_rashomon = FALSE}, \code{cross_fitted_rashomon} when \code{use_rashomon = TRUE}).
+#' This is the flagship entry point. For the two secondary paths see
+#' \code{\link{estimate_att_crossfit}} (Part I, the \eqn{K}-fold cross-fitting
+#' fallback that does \emph{not} require structural sparsity) and
+#' \code{\link{estimate_att_rashomon}} (the superseded shared-Rashomon-structure
+#' variant, excluded from the current theory).
 #'
 #' @details
-#' \strong{Regularization Selection:} By default (\code{cv_regularization = TRUE}),
-#' the regularization parameter \eqn{\lambda} is selected via 5-fold cross-validation
-#' on each training fold, using a theory-driven grid: \eqn{(\log n / n) \times [0.25, 0.5, 1, 2, 4]}.
-#' This implements the manuscript's recommendation that \eqn{\lambda \propto (\log n)/n} for
-#' minimax-optimal trees. Fixed regularization (\code{cv_regularization = FALSE}) should
-#' only be used when you have strong theoretical justification for a specific value.
+#' \strong{Structure selection (\code{theory.tex} eq.~\code{eq:select}).} For
+#' each nuisance \eqn{j \in \{e, \mu\}} the tree structure solves
+#' \deqn{\hat\tau_j \in \arg\min_{\tau \in \mathcal{T}^{(j)}_n}
+#'       \{R^{(j)}_n(\tau) + \lambda_n |\tau|\},}
+#' where \eqn{\mathcal{T}^{(j)}_n} restricts to partitions of at most
+#' \eqn{\bar L} = \code{leaf_budget} leaves, each carrying at least \eqn{m_n}
+#' observations (\emph{control} observations when \eqn{j = \mu}). This is a
+#' \strong{fixed} penalty \eqn{\lambda_n}, not a cross-validated one: the
+#' \code{cv_regularization_adaptive()} machinery used by
+#' \code{\link{estimate_att_crossfit}} is the wrong mechanism here, because it
+#' enforces neither a leaf-count cap nor a minimum-leaf-mass floor. The right
+#' mechanism is \code{optimaltrees::bisect_lambda_to_budget()}, which tries
+#' \code{lambda_n} first (per \code{prop:parsimony}, "the budget binds
+#' asymptotically", this alone already respects the budget with probability
+#' tending to one) and only bisects upward on overshoot.
 #'
-#' @return List with elements: theta (point estimate); sigma (estimated SE; the
-#'   fully-fold-specific twin's SE when \code{use_rashomon = TRUE}, the plain Wald SE
-#'   otherwise); ci_95 (when \code{use_rashomon = TRUE}, the HONEST bias-aware 95\% CI
-#'   built from the fully-fold-specific twin -- the shared intersection structure is not
-#'   orthogonal to each fold, so its Wald SE undercovers; otherwise the plain Wald 95\% CI);
-#'   ci_95_wald (the plain Wald interval of the display estimate, always); theta_crossfit,
-#'   sigma_crossfit, delta, se_delta (fully-fold-specific twin, bias diagnostic
-#'   \eqn{\hat\theta - \hat\theta_{twin}}, and its SE; NA when \code{use_rashomon = FALSE});
-#'   score_values (influence at theta); nuisance_fits (per-fold models or Rashomon list);
-#'   fold_indices; n; K; converged (logical; TRUE if rashomon intersection succeeded or if
-#'   use_rashomon=FALSE); epsilon_n (numeric; rashomon_bound_multiplier if use_rashomon=TRUE,
-#'   NA otherwise).
-#' @references Manuscript equation (2) for the orthogonal score.
+#' Because the \eqn{\mu} tree is fit on the control subset alone
+#' (\code{X[A == 0, ]}, \code{Y[A == 0]}), the leaf-mass floor on that fit
+#' \emph{is} automatically a control-count floor, as \code{eq:feasible}
+#' requires -- no group-specific floor argument is needed.
+#'
+#' \strong{Identifying assumption.} Part II's central limit theorem holds under
+#' \strong{structural sparsity} (\code{ass:sparsity}): a tree of at most
+#' \eqn{\bar L} leaves represents \emph{both} true nuisances exactly
+#' (\eqn{\delta_e = \delta_\mu = 0}; \code{def:sufficient}). This is this
+#' estimator's own identifying assumption and it is \emph{not} checkable from
+#' data. \code{theory.tex} notes the cost is asymmetric: sparsity is cheap for
+#' \emph{hierarchical} structure (active covariate set varying by region --- as
+#' few as \eqn{s + 1} leaves) and expensive for \emph{additive} structure (a
+#' leaf per configuration of the active coordinates). When sparsity plausibly
+#' fails, use \code{\link{estimate_att_crossfit}}, which does not need it.
+#'
+#' \strong{No automatic fallback.} \code{estimate_att()},
+#' \code{\link{estimate_att_crossfit}} and \code{\link{estimate_att_rashomon}}
+#' are separate, explicit entry points. This function reports sparsity-proxy
+#' \emph{diagnostics} (\code{certified_e}, \code{certified_m0}, etc.) but never
+#' switches estimator on the basis of them: doing so would turn estimator
+#' choice into data-dependent post-selection inference that the paper does not
+#' analyse.
+#'
+#' \strong{Variance (\code{cor:variance}, eq.~\code{eq:vhat}).} The variance
+#' estimator is the ordinary empirical-influence-function plug-in
+#' \eqn{\hat V = n^{-1}\sum_i \hat\psi_i^2}, i.e. exactly what
+#' \code{\link{att_se}} / the shared \code{eif_att_solve()} already compute; they
+#' are reused unchanged.
+#'
+#' \strong{Known finite-sample caveat (not hidden).} \code{theory.tex}
+#' (immediately after eq.~\code{eq:vhat}, and again in its appendix discussion)
+#' observes that because \eqn{\hat\mu}, \eqn{\hat e} and \eqn{\hat\theta}
+#' together consume \eqn{2\bar L + 1} fitted parameters, this in-sample plug-in
+#' is \strong{downward biased by a relative factor of order}
+#' \eqn{(2\bar L + 1)/n}, so the reported \code{sigma} is mildly optimistic and
+#' the nominal 95\% interval can undercover in small samples. The theory
+#' mentions a degrees-of-freedom divisor \eqn{n - (|\hat\tau_e| +
+#' |\hat\tau_\mu| + 1)} as "a reasonable finite-sample convention", but this is
+#' explicitly parenthetical --- it is \emph{not} required for the asymptotic
+#' result (the bias vanishes precisely because \eqn{\bar L} is fixed in \eqn{n},
+#' \code{ass:budget}). It is deliberately \strong{not} implemented here:
+#' applying it would mean changing the shared \code{att_se()} /
+#' \code{eif_att_solve()} used by the other two estimators, or duplicating
+#' their logic. This function therefore reports the plain \eqn{n}-normalised
+#' plug-in, matching \code{\link{estimate_att_crossfit}}'s and
+#' \code{\link{estimate_att_rashomon}}'s convention exactly, so the three are
+#' directly comparable. Callers wanting the convention can rescale:
+#' \code{sigma * sqrt(n / (n - (n_leaves_e + n_leaves_m0 + 1)))}, using the
+#' returned \code{n}, \code{n_leaves_e} and \code{n_leaves_m0}.
+#'
+#' \strong{Covariates must be binary.} \code{theory.tex}
+#' Assumption~\code{ass:finite} takes \eqn{\mathcal{X}} to be finite, and
+#' continuous-covariate approximation theory is explicitly excluded from the
+#' current paper. Operationally the restriction is also load-bearing:
+#' \code{optimaltrees::bisect_lambda_to_budget()} verifies the \eqn{m_n} floor
+#' by mapping rows of the \emph{supplied} \code{X} to leaves, while a tree fit
+#' on discretised continuous covariates splits on \emph{threshold-indicator}
+#' features, so the two disagree. Non-binary \code{X} is therefore rejected up
+#' front with a pointer to \code{\link{estimate_att_crossfit}} (which has no
+#' leaf-feasibility step and does accept continuous covariates) rather than
+#' allowed to fail obscurely or, worse, silently mis-check feasibility.
+#'
+#' @param X Data.frame or matrix of covariates. Must be binary (0/1); see
+#'   "Covariates must be binary" above.
+#' @param A Integer or numeric vector of treatment (0/1).
+#' @param Y Numeric vector of outcome. Binary (0/1) when \code{outcome_type} is
+#'   \code{"binary"}; any numeric when \code{"continuous"}.
+#' @param leaf_budget Integer, \strong{required, no default}. The leaf budget
+#'   \eqn{\bar L}. Per \code{theory.tex} Assumption~\code{ass:budget} this is a
+#'   fixed, analyst-chosen \emph{structural} parameter, constant in \eqn{n} ---
+#'   there is no sensible package-wide default, so the caller must supply it.
+#'   Larger \eqn{\bar L} makes \code{ass:sparsity} easier to satisfy but the
+#'   fitted trees less interpretable and the finite-sample variance bias
+#'   (order \eqn{(2\bar L + 1)/n}) larger.
+#' @param outcome_type Character. \code{"binary"} (default) or
+#'   \code{"continuous"}. Determines the loss used for the \eqn{\mu} tree
+#'   (\code{"log_loss"} vs \code{"squared_error"}).
+#' @param lambda_n Numeric penalty per leaf in \code{eq:select}. Default
+#'   \code{NULL} resolves to \eqn{\log(n)/n}. That rate is what
+#'   \code{prop:parsimony} needs: it requires \eqn{\lambda_n \to 0}
+#'   (Assumption~\code{ass:global}) \emph{and} \eqn{n\lambda_n \to \infty}
+#'   simultaneously, and \eqn{\log(n)/n} satisfies both. (The formula coincides
+#'   numerically with \code{optimaltrees::select_epsilon_n()}, but that function
+#'   returns a Rashomon \emph{tolerance} --- a different quantity from a
+#'   selection penalty --- and is deliberately not called here.)
+#' @param m_n Integer minimum observations per leaf, the \eqn{m_n} of
+#'   \code{eq:feasible}. Default \code{1L}, matching
+#'   \code{optimaltrees::bisect_lambda_to_budget()}'s own default: a
+#'   \emph{trivial} floor that forbids empty leaves but imposes no binding
+#'   minimum-leaf-mass constraint. That is sufficient, because
+#'   Assumption~\code{ass:construct}(d) asks only for \eqn{m_n/n \to 0} and
+#'   \eqn{\bar L\, m_n \lesssim n}, both satisfied trivially at \eqn{m_n = 1}.
+#'   Raise it to stabilise leaf values at the cost of shrinking the feasible
+#'   candidate set.
+#' @param verbose Logical. Forwarded to \code{optimaltrees}. Default
+#'   \code{FALSE}.
+#' @param discretize_method Character. Passed through to \code{optimaltrees}.
+#'   Default \code{"quantiles"}. With binary \code{X} (the only supported case)
+#'   discretisation is a no-op, so this argument exists for signature
+#'   consistency with \code{\link{estimate_att_crossfit}}.
+#' @param discretize_bins Integer or \code{"adaptive"}. Passed through to
+#'   \code{optimaltrees}. Default \code{"adaptive"}. See
+#'   \code{discretize_method}.
+#' @param ... Additional arguments forwarded to
+#'   \code{optimaltrees::bisect_lambda_to_budget()} (and hence to
+#'   \code{optimaltrees::fit_tree()}) for \emph{both} the \eqn{e} and \eqn{\mu}
+#'   fits.
+#'
+#' @return A list with elements:
+#'   \item{theta}{Point estimate \eqn{\hat\theta} of the ATT.}
+#'   \item{sigma}{Wald standard error, the plain \eqn{n}-normalised EIF plug-in
+#'     \eqn{\sqrt{n^{-1}\sum_i \hat\psi_i^2 / n}}. \strong{Mildly downward
+#'     biased in finite samples} by a relative factor of order
+#'     \eqn{(2\bar L + 1)/n}; see "Known finite-sample caveat" in Details.}
+#'   \item{ci_95}{Wald 95\% confidence interval \eqn{\hat\theta \pm 1.96\,
+#'     \sigma}. Asymptotically valid under \code{ass:sparsity}; inherits the
+#'     same finite-sample downward variance bias, so slight undercoverage at
+#'     small \eqn{n} is expected.}
+#'   \item{ci_95_wald}{Identical to \code{ci_95}, retained so callers can
+#'     compare display and Wald intervals uniformly across all three
+#'     \code{estimate_att*} entry points.}
+#'   \item{score_values}{Influence-function values \eqn{\hat\psi_i} at
+#'     \eqn{\hat\theta}.}
+#'   \item{nuisance_fits}{List with \code{e_model}, \code{m0_model} (the fitted
+#'     \code{OptimalTreesModel} objects) and the in-sample \code{propensity}
+#'     (clamped) and \code{outcome_control} predictions, mirroring
+#'     \code{\link{estimate_att_crossfit}}'s diagnostic fields.}
+#'   \item{n}{Sample size.}
+#'   \item{leaf_budget, lambda_n, m_n}{The resolved tuning values actually used
+#'     (\code{lambda_n} is the resolved \eqn{\log(n)/n} when the argument was
+#'     \code{NULL}).}
+#'   \item{certified_e, certified_m0}{Logical. \code{TRUE} iff the returned fit
+#'     is \emph{proven} to solve \code{eq:select} exactly (see
+#'     \code{optimaltrees::bisect_lambda_to_budget()}).}
+#'   \item{used_search_e, used_search_m0}{Logical. \code{FALSE} iff
+#'     \code{lambda_n} alone already respected \code{leaf_budget}, so no
+#'     bisection was needed --- the asymptotically typical case under
+#'     \code{prop:parsimony}.}
+#'   \item{n_leaves_e, n_leaves_m0}{Realised leaf counts \eqn{|\hat\tau_e|},
+#'     \eqn{|\hat\tau_\mu|}.}
+#'   \item{gap_e, gap_m0}{Computable suboptimality slack when the corresponding
+#'     \code{certified_*} is \code{FALSE} but the fit is feasible and within
+#'     budget; \code{0} when certified, \code{NA} when infeasible or the budget
+#'     could not be met.}
+#'
+#' \strong{How to read the diagnostics.} \code{certified_* == TRUE} together
+#' with \code{used_search_* == FALSE} and a small, \eqn{n}-stable
+#' \code{n_leaves_*} is the operational signature that \code{prop:parsimony}'s
+#' conclusion has kicked in, which is \emph{consistent with}
+#' \code{ass:sparsity} holding at this \eqn{\bar L}. It is \strong{not} a proof
+#' or a test of it: \code{ass:sparsity} is an assumption about \eqn{P}, is not
+#' identified from a single sample, and a certified fit can occur while
+#' \eqn{\delta_e, \delta_\mu > 0}. Treat these fields as a signal to reconsider
+#' \eqn{\bar L} or to switch deliberately to
+#' \code{\link{estimate_att_crossfit}}, never as a licence to auto-switch.
+#'
+#' @references
+#' \code{inst/paper/theory.tex}: Section \code{sec:main} (full-sample
+#' construction), eq.~\code{eq:select} (structure selection),
+#' eq.~\code{eq:feasible} (leaf-mass feasible set), Assumption
+#' \code{ass:budget} (fixed leaf budget), Assumption \code{ass:sparsity}
+#' (structural sparsity), Proposition \code{prop:parsimony} (the budget binds
+#' asymptotically), Theorem \code{thm:main} (CLT), Corollary
+#' \code{cor:variance} / eq.~\code{eq:vhat} (variance estimation).
+#'
+#' @seealso \code{\link{estimate_att_crossfit}} for the Part I cross-fitting
+#'   fallback that does not require structural sparsity;
+#'   \code{\link{estimate_att_rashomon}} for the superseded shared-structure
+#'   variant; \code{\link{att_se}} and \code{\link{att_ci}} for the shared
+#'   variance/interval kernel.
+#'
 #' @examples
 #' \dontrun{
-#' # Decision guide for key parameters:
-#'
-#' # 1. epsilon_n (rashomon_bound_multiplier):
-#' #    - Default NULL uses the theory value optimaltrees::select_epsilon_n(nrow(X)) = log(n)/n
-#' #    - Override with an explicit fixed numeric only if you have a reason
-#'
-#' # 2. regularization:
-#' #    - Default (recommended): cv_regularization = TRUE (data-adaptive)
-#' #    - Fixed only when theory-justified: cv_regularization = FALSE, regularization = 0.05
-#'
-#' # 3. Rashomon vs fold-specific:
-#' #    - Rashomon (use_rashomon = TRUE): interpretability, single tree/nuisance
-#' #    - Fold-specific (FALSE): robustness, no intersection requirement
-#'
-#' # Recommended workflow for new dataset:
-#' library(optimaltrees)  # Required dependency
+#' library(optimaltrees)
 #' set.seed(42)
-#' n <- 300
-#' X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
-#' A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
-#' Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-#'
-#' # Default: theory epsilon_n = log(n)/n (rashomon_bound_multiplier = NULL) +
-#' # CV-selected lambda (both recommended)
-#' fit1 <- estimate_att(
-#'   X, A, Y,
-#'   K = 5,
-#'   use_rashomon = TRUE
-#'   # rashomon_bound_multiplier = NULL -> optimaltrees::select_epsilon_n(nrow(X))
-#'   # cv_regularization = TRUE is the default
+#' n <- 400
+#' # Hierarchically sparse nuisances: e depends on X1 only, m0 on X2 only,
+#' # so a 2-leaf tree represents each exactly (ass:sparsity holds at Lbar = 4).
+#' X <- data.frame(
+#'   X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5), X3 = rbinom(n, 1, 0.5)
 #' )
-#' print(fit1$theta)   # Point estimate
-#' print(fit1$ci_95)   # 95\% Wald confidence interval
+#' A <- rbinom(n, 1, ifelse(X$X1 == 1, 0.65, 0.35))
+#' Y <- rbinom(n, 1, 0.25 + 0.30 * X$X2 + 0.15 * A)
 #'
-#' # Alternative: Fixed lambda (when theory-justified)
-#' fit2 <- estimate_att(
-#'   X, A, Y,
-#'   K = 5,
-#'   cv_regularization = FALSE,
-#'   regularization = 0.05
-#' )
-#' print(fit2$theta)
+#' fit <- estimate_att(X, A, Y, leaf_budget = 4L)
+#' fit$theta
+#' fit$ci_95
+#'
+#' # Sparsity-proxy diagnostics (a signal, never an auto-switch):
+#' c(fit$certified_e, fit$certified_m0)
+#' c(fit$n_leaves_e, fit$n_leaves_m0)
 #' }
 #' @export
-estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"),
-                   regularization = 0.1, cv_regularization = TRUE, cv_K = 5,
-                   stratified = TRUE, seed = NULL, verbose = FALSE,
-                   use_rashomon = FALSE, rashomon_bound_multiplier = NULL,
-                   rashomon_bound_adder = 0, max_leaves = NULL,
-                   auto_tune_intersecting = FALSE,
-                   escalate_intersection = FALSE,
-                   max_depth = 4L,
-                   discretize_method = "quantiles",
-                   discretize_bins = "adaptive",
-                   ...) {
+estimate_att <- function(X, A, Y, leaf_budget,
+                         outcome_type = c("binary", "continuous"),
+                         lambda_n = NULL, m_n = 1L, verbose = FALSE,
+                         discretize_method = "quantiles",
+                         discretize_bins = "adaptive",
+                         ...) {
   outcome_type <- match.arg(outcome_type)
   check_att_data(X, A, Y, outcome_type = outcome_type)
   if (is.matrix(X)) X <- as.data.frame(X)
   n <- nrow(X)
 
-  # Bound GOSDT search depth for BOTH nuisance paths (0L = unlimited). The Rashomon
-  # path already defaulted to 4L; the plain cross-fit path (fit_nuisances_fold) was
-  # previously uncapped, so continuous-covariate DGPs blew up and its nuisance trees
-  # were deeper than the Rashomon twin's -- muddying comparisons. Default 4L makes the
-  # two paths symmetric (see MEMORY estimate-att-depth-cap-asymmetry). Callers can pass
-  # max_depth = 0L to restore unlimited depth.
-  if (!is.numeric(max_depth) || length(max_depth) != 1 || is.na(max_depth) || max_depth < 0) {
-    stop("max_depth must be a single non-negative integer (0 = unlimited), got: ",
-         max_depth, call. = FALSE)
+  # -- leaf_budget: Lbar of ass:budget. Fixed, analyst-chosen, no default. -----
+  if (missing(leaf_budget) || is.null(leaf_budget)) {
+    stop("`leaf_budget` is required and has no default. It is the leaf budget ",
+         "Lbar of theory.tex Assumption ass:budget: a FIXED, analyst-chosen ",
+         "structural parameter (constant in n), so no package-wide default is ",
+         "meaningful. Supply e.g. leaf_budget = 4L.", call. = FALSE)
   }
-  max_depth <- as.integer(max_depth)
-
-  # Resolve the Rashomon tolerance. NULL -> theory value epsilon_n = log(n)/n
-  # (= o(n^{-1/2})), the fixed, deterministic rate that yields valid inference
-  # under the structural-margin condition (manuscript Cor. margin-resolution).
-  # EXCEPTION: when escalate_intersection = TRUE and the caller gave no explicit
-  # multiplier, leave it NULL so fit_nuisances_rashomon runs the c-grid escalation
-  # (widening epsilon_n until the intersection is non-empty) instead of pinning the
-  # single theory tolerance. An explicit multiplier is always honored as fixed.
-  escalating <- isTRUE(escalate_intersection) && is.null(rashomon_bound_multiplier)
-  if (is.null(rashomon_bound_multiplier) && !escalating) {
-    rashomon_bound_multiplier <- optimaltrees::select_epsilon_n(n)
-    if (verbose && use_rashomon) {
-      message("Using theory epsilon_n = log(n)/n = ",
-              signif(rashomon_bound_multiplier, 3))
-    }
+  if (!is.numeric(leaf_budget) || length(leaf_budget) != 1 ||
+      is.na(leaf_budget) || leaf_budget < 1 ||
+      leaf_budget != as.integer(leaf_budget)) {
+    stop("leaf_budget must be a single positive integer, got: ", leaf_budget,
+         call. = FALSE)
   }
+  leaf_budget <- as.integer(leaf_budget)
 
-  # Data-adaptive epsilon_n (auto_tune_intersecting) is a post-selection device
-  # not covered by the valid-inference theory; warn when combined with Rashomon.
-  if (use_rashomon && isTRUE(auto_tune_intersecting)) {
-    warning(
-      "auto_tune_intersecting = TRUE selects the Rashomon tolerance from the ",
-      "data (post-selection) and voids the o(n^{-1/2}) valid-inference ",
-      "guarantee; use it for exploration only. For inference, keep the fixed ",
-      "theory epsilon_n (rashomon_bound_multiplier = NULL) and fall back to ",
-      "use_rashomon = FALSE if the intersection is empty.",
-      call. = FALSE
-    )
+  # -- m_n: minimum leaf mass of eq:feasible. ---------------------------------
+  if (!is.numeric(m_n) || length(m_n) != 1 || is.na(m_n) || m_n < 1 ||
+      m_n != as.integer(m_n)) {
+    stop("m_n must be a single positive integer, got: ", m_n, call. = FALSE)
+  }
+  m_n <- as.integer(m_n)
+
+  # -- lambda_n: FIXED penalty of eq:select, NOT CV-selected. -----------------
+  # Default log(n)/n is the prop:parsimony-compatible rate: it needs
+  # lambda_n -> 0 (ass:global) AND n*lambda_n -> infinity at the same time.
+  # Computed inline on purpose: optimaltrees::select_epsilon_n() happens to use
+  # the same formula but returns a Rashomon TOLERANCE, a different quantity.
+  if (is.null(lambda_n)) {
+    lambda_n <- log(n) / n
+  } else if (!is.numeric(lambda_n) || length(lambda_n) != 1 ||
+             !is.finite(lambda_n) || lambda_n <= 0) {
+    stop("lambda_n must be NULL (default log(n)/n) or a single positive ",
+         "finite number, got: ", lambda_n, call. = FALSE)
   }
 
-  # Validate critical parameters only (R's type coercion handles the rest)
-
-  # K must be integer >= 2
-  if (!is.numeric(K) || length(K) != 1 || K < 2) {
-    stop("K must be a single integer >= 2, got: ", K, call. = FALSE)
-  }
-  if (K != as.integer(K)) {
-    stop("K must be an integer, got: ", K, call. = FALSE)
-  }
-
-  # max_leaves must be positive integer if provided
-  if (!is.null(max_leaves)) {
-    if (!is.numeric(max_leaves) || length(max_leaves) != 1 || max_leaves < 1) {
-      stop("max_leaves must be NULL or a single positive integer, got: ", max_leaves, call. = FALSE)
-    }
-    if (max_leaves != as.integer(max_leaves)) {
-      stop("max_leaves must be an integer, got: ", max_leaves, call. = FALSE)
-    }
-  }
-
-  # Valid discretize_method
+  # -- discretize_method: same allowed set as estimate_att_crossfit(). --------
   valid_methods <- c("quantiles", "median")
   if (!discretize_method %in% valid_methods) {
-    stop("discretize_method must be one of: ", paste(valid_methods, collapse = ", "),
-         ", got: ", discretize_method, call. = FALSE)
+    stop("discretize_method must be one of: ",
+         paste(valid_methods, collapse = ", "), ", got: ", discretize_method,
+         call. = FALSE)
   }
 
-  # Consolidated validation: check for sufficient treated/control units
-  # Need at least 2 units per fold for meaningful cross-fitting
+  # -- Covariates must be binary (see roxygen "Covariates must be binary"). ---
+  # Not cosmetic: bisect_lambda_to_budget() checks the m_n floor by mapping rows
+  # of the SUPPLIED X to leaves, but a tree fit on discretised continuous
+  # covariates splits on threshold-indicator features, so the check either errors
+  # ("split references feature index k but X has p columns") or, for non-binary
+  # integers, silently mis-assigns leaves and mis-verifies eq:feasible.
+  non_binary <- !vapply(X, function(col) {
+    (is.numeric(col) || is.logical(col)) && all(col %in% c(0, 1))
+  }, logical(1))
+  if (any(non_binary)) {
+    stop("estimate_att() requires binary (0/1) covariates; column(s) ",
+         paste(names(X)[non_binary], collapse = ", "), " are not. ",
+         "theory.tex Assumption ass:finite takes the covariate space to be ",
+         "finite, and continuous-covariate approximation theory is excluded ",
+         "from the current paper. Operationally, the leaf-mass check inside ",
+         "optimaltrees::bisect_lambda_to_budget() maps rows of the supplied X ",
+         "to leaves, which is incompatible with a tree fit on discretised ",
+         "threshold indicators. Either discretise X to 0/1 indicators ",
+         "yourself, or use estimate_att_crossfit(), which has no ",
+         "leaf-feasibility step and accepts continuous covariates.",
+         call. = FALSE)
+  }
+
+  # -- Sufficient treated/control mass. ---------------------------------------
+  # No K-fold framing here: both trees are fit on all n. The e tree needs both
+  # arms present; the mu tree is fit on controls only, so eq:feasible's
+  # Lbar * m_n <~ n becomes a CONTROL-count requirement for that fit.
   n_treated <- sum(A == 1)
   n_control <- sum(A == 0)
-  min_per_fold <- 2
-
-  if (n_treated < K * min_per_fold) {
-    stop("Insufficient treated units for K=", K, " fold cross-fitting. ",
-         "Need at least ", K * min_per_fold, " treated units, got: ", n_treated, ". ",
-         "Either reduce K or collect more data.",
+  if (n_treated < 1) {
+    stop("No treated units (A = 1); the ATT is not defined. ", call. = FALSE)
+  }
+  if (n_control < 1) {
+    stop("No control units (A = 0); the control-outcome tree cannot be fit.",
          call. = FALSE)
   }
-
-  if (n_control < K * min_per_fold) {
-    stop("Insufficient control units for K=", K, " fold cross-fitting. ",
-         "Need at least ", K * min_per_fold, " control units, got: ", n_control, ". ",
-         "Either reduce K or collect more data.",
+  if (n_control < leaf_budget * m_n) {
+    stop("Insufficient control units for leaf_budget = ", leaf_budget,
+         " at m_n = ", m_n, ". The control-outcome tree is fit on controls ",
+         "only, so eq:feasible requires at least leaf_budget * m_n = ",
+         leaf_budget * m_n, " control units, got: ", n_control, ". ",
+         "Either reduce leaf_budget or m_n, or collect more data.",
          call. = FALSE)
   }
+  if (n < leaf_budget * m_n) {
+    stop("Insufficient observations for leaf_budget = ", leaf_budget,
+         " at m_n = ", m_n, ": eq:feasible requires at least ",
+         leaf_budget * m_n, " observations, got: ", n, ".", call. = FALSE)
+  }
 
-  # Validate treatment proportion (pi_hat) is in (0,1)
-  # This is redundant with the sample size checks above, but serves as explicit validation
+  # Treatment proportion must be interior (redundant with the counts above, kept
+  # as explicit validation exactly as on the cross-fit path).
   pi_hat <- mean(A)
   if (pi_hat <= 0 || pi_hat >= 1) {
     stop("Invalid treatment proportion: pi_hat = ", pi_hat,
@@ -280,159 +342,83 @@ estimate_att <- function(X, A, Y, K = 5, outcome_type = c("binary", "continuous"
          call. = FALSE)
   }
 
-  # Regularization must be positive if not using CV
-  if (!cv_regularization) {
-    if (!is.numeric(regularization) || length(regularization) != 1 || regularization <= 0) {
-      stop("regularization must be a single positive numeric value, got: ",
-           regularization, call. = FALSE)
-    }
-  }
+  # == Nuisance fits: BOTH on all n observations (sec:main). ==================
+  # Propensity e(X): all rows, treated and control, log_loss.
+  e_fit <- optimaltrees::bisect_lambda_to_budget(
+    X, A,
+    leaf_budget = leaf_budget,
+    lambda_n = lambda_n,
+    m_n = m_n,
+    loss_function = "log_loss",
+    discretize_method = discretize_method,
+    discretize_bins = discretize_bins,
+    verbose = verbose,
+    ...
+  )
 
-  # cv_K must be integer >= 2 if using CV regularization
-  if (cv_regularization) {
-    if (!is.numeric(cv_K) || length(cv_K) != 1 || cv_K < 2) {
-      stop("cv_K must be a single integer >= 2 when cv_regularization = TRUE, got: ",
-           cv_K, call. = FALSE)
-    }
-    if (cv_K != as.integer(cv_K)) {
-      stop("cv_K must be an integer, got: ", cv_K, call. = FALSE)
-    }
-  }
+  # Control outcome m0(X) = mu: CONTROL SUBSET ONLY. This restriction is what
+  # makes the m_n floor on this fit automatically a control-count floor, as
+  # eq:feasible requires for j = mu -- hence no group=/group_value= needed.
+  X0 <- X[A == 0, , drop = FALSE]
+  Y0 <- Y[A == 0]
+  loss_outcome <- if (outcome_type == "continuous") "squared_error" else "log_loss"
+  m0_fit <- optimaltrees::bisect_lambda_to_budget(
+    X0, Y0,
+    leaf_budget = leaf_budget,
+    lambda_n = lambda_n,
+    m_n = m_n,
+    loss_function = loss_outcome,
+    discretize_method = discretize_method,
+    discretize_bins = discretize_bins,
+    verbose = verbose,
+    ...
+  )
 
-  # When escalating, rashomon_bound_multiplier stays NULL (the sentinel that triggers
-  # c-grid escalation downstream); validate the numeric form only otherwise.
-  if (!escalating &&
-      (!is.numeric(rashomon_bound_multiplier) || length(rashomon_bound_multiplier) != 1 || rashomon_bound_multiplier < 0)) {
-    stop("rashomon_bound_multiplier must be a single non-negative numeric value, got: ",
-         rashomon_bound_multiplier, call. = FALSE)
-  }
+  # == In-sample predictions for ALL n rows. ==================================
+  # Both models are queried against the FULL X. There is no held-out/held-in
+  # distinction on this path: everything is in-sample by construction, and that
+  # in-sample-ness is exactly what Part II's theory analyses and licenses.
+  models <- list(e_model = e_fit$fit, m0_model = m0_fit$fit,
+                 outcome_type = outcome_type)
+  pred <- predict_nuisances_fold(models, X, fold_rows = seq_len(n))
 
-  # Issue #21: Validate rashomon_bound_adder
-  if (!is.numeric(rashomon_bound_adder) || length(rashomon_bound_adder) != 1 || rashomon_bound_adder < 0) {
-    stop("rashomon_bound_adder must be a single non-negative numeric value, got: ",
-         rashomon_bound_adder, call. = FALSE)
-  }
+  # predict_nuisances_fold() does NOT clamp (on the cross-fit path the clamp
+  # lives one level up, in get_fold_specific_eta()). Apply the same shared
+  # bounds here so psi_att()'s propensity precondition holds; ass:construct(c)
+  # requires clipping anyway, and in-sample leaf refits can hit 0 or 1 exactly
+  # under perfect within-leaf separation.
+  e_hat <- pmax(.PROPENSITY_LOWER_BOUND, pmin(.PROPENSITY_UPPER_BOUND, pred$e))
+  m0_hat <- pred$m0
 
-  fold_indices <- create_folds(n, K, strata = if (stratified) A else NULL, seed = seed)
+  # == Shared EIF solve (cor:variance / eq:vhat), reused UNCHANGED. ===========
+  .att <- eif_att_solve(Y, A, e_hat, m0_hat, n)
 
-  if (use_rashomon) {
-    nuisance_fits <- fit_nuisances_rashomon(X, A, Y, fold_indices, outcome_type = outcome_type,
-                                           regularization = regularization,
-                                           cv_regularization = cv_regularization, cv_K = cv_K,
-                                           verbose = verbose,
-                                           rashomon_bound_multiplier = rashomon_bound_multiplier,
-                                           rashomon_bound_adder = rashomon_bound_adder,
-                                           max_leaves = max_leaves,
-                                           auto_tune_intersecting = auto_tune_intersecting,
-                                           escalate_intersection = escalate_intersection,
-                                           max_depth = max_depth,
-                                           discretize_method = discretize_method,
-                                           discretize_bins = discretize_bins, ...)
-    eta <- get_fold_specific_eta_rashomon(nuisance_fits, X, fold_indices)
-  } else {
-    nuisance_fits <- vector("list", K)
-    for (k in seq_len(K)) {
-      # max_depth flows via ... -> fit_tree_with_cv -> cv_regularization_adaptive/fit_tree,
-      # bounding GOSDT depth on the plain cross-fit path (was previously uncapped).
-      nuisance_fits[[k]] <- fit_nuisances_fold(X, A, Y, fold_id = k, fold_indices = fold_indices,
-                                              outcome_type = outcome_type,
-                                              regularization = regularization,
-                                              cv_regularization = cv_regularization, cv_K = cv_K,
-                                              verbose = verbose,
-                                              max_depth = max_depth,
-                                              discretize_method = discretize_method,
-                                              discretize_bins = discretize_bins, ...)
-    }
-    eta <- get_fold_specific_eta(nuisance_fits, X, fold_indices)
-  }
-
-  # Shared EIF solve (closed form theta = sum(psi(0)) / sum(A/pi); see eif_att_solve).
-  .att <- eif_att_solve(Y, A, eta$e, eta$m0, n)
-  theta <- .att$theta
-  score_values <- .att$score_values
-  sigma <- .att$sigma
-  ci_95 <- .att$ci_95              # plain Wald interval (used as-is on the non-Rashomon path)
-  ci_95_wald <- .att$ci_95
-
-  # HONEST (bias-aware) CI for the shared-Rashomon path. The shared intersection
-  # structure "saw" every fold, so its per-fold Wald SE underestimates the estimate's
-  # true spread (Phase-A 2026-07-15: se/emp_sd falls with n -> undercoverage). We pair
-  # the shared estimate with the FULLY fold-specific twin (per-fold structure AND
-  # leaves), whose delta = theta_shared - theta_twin captures that selection variance,
-  # and report the AK honest interval widened by a conservative bound B = |delta| +
-  # z*se_delta with se_delta = 0 (the tightest interval consistent with the coverage
-  # guarantee; see honest_ci). This restores coverage >= 0.97 empirically. On the
-  # fully-fold-specific path (use_rashomon = FALSE) the twin IS the estimator, so no
-  # honesty correction is needed and the plain Wald ci_95 stands.
-  theta_crossfit <- NA_real_; sigma_crossfit <- NA_real_
-  delta <- NA_real_; se_delta <- NA_real_
-  if (use_rashomon) {
-    eta_twin <- get_fully_foldspecific_twin(
-      X, A, Y, fold_indices, outcome_type = outcome_type,
-      regularization = regularization, cv_regularization = cv_regularization,
-      cv_K = cv_K, verbose = verbose, max_depth = max_depth,
-      discretize_method = discretize_method, discretize_bins = discretize_bins, ...)
-    .att_twin <- eif_att_solve(Y, A, eta_twin$e, eta_twin$m0, n)
-    theta_crossfit <- .att_twin$theta
-    sigma_crossfit <- .att_twin$sigma
-    delta <- theta - theta_crossfit
-    # se_delta = 0: raw |delta| bound (widening; a real se_delta only inflates B).
-    se_delta <- 0
-    hon <- honest_ci(theta, sigma_crossfit, delta, se_delta = se_delta, level = 0.95)
-    sigma <- sigma_crossfit        # reported SE is the valid twin's SE
-    ci_95 <- hon$ci                # reported CI is the honest bias-aware interval
-
-    if (verbose) {
-      message(sprintf("Shared-Rashomon ATT (display): %.4f", theta))
-      message(sprintf("Fully-fold-specific twin ATT:  %.4f  (SE %.4f)",
-                      theta_crossfit, sigma_crossfit))
-      message(sprintf("Honest 95%% CI (bias-aware):    [%.4f, %.4f]  (cv %.2f, B %.4f)",
-                      ci_95[1], ci_95[2], hon$cv, hon$B))
-    }
-  }
-
-  # Add predictions to nuisance_fits for diagnostics
-  nuisance_fits$propensity <- eta$e
-  nuisance_fits$outcome_control <- eta$m0
-
-  # Add convergence information for rashomon method
-  if (use_rashomon) {
-    # Rashomon converged if both models have intersecting trees (no fallback)
-    converged <- !is.null(nuisance_fits$cf_e) &&
-                 !is.null(nuisance_fits$cf_m0) &&
-                 nuisance_fits$cf_e@n_intersecting > 0 &&
-                 nuisance_fits$cf_m0@n_intersecting > 0
-    # Tolerance multipliers selected by escalation (epsilon_n = c*log(n)/n per nuisance).
-    rashomon_c_e  <- if (is.null(nuisance_fits$rashomon_c_e))  NA_real_ else nuisance_fits$rashomon_c_e
-    rashomon_c_m0 <- if (is.null(nuisance_fits$rashomon_c_m0)) NA_real_ else nuisance_fits$rashomon_c_m0
-    # Report the actual escalated tolerance (max over nuisances), not the input NULL.
-    c_vals <- c(rashomon_c_e, rashomon_c_m0)
-    epsilon_n <- if (all(is.na(c_vals))) NA_real_ else max(c_vals, na.rm = TRUE) * (log(n) / n)
-  } else {
-    # Non-rashomon always converges (uses fold-specific trees)
-    converged <- TRUE
-    epsilon_n <- NA_real_
-    rashomon_c_e <- NA_real_
-    rashomon_c_m0 <- NA_real_
-  }
+  nuisance_fits <- list(
+    e_model = e_fit$fit,
+    m0_model = m0_fit$fit,
+    propensity = e_hat,
+    outcome_control = m0_hat
+  )
 
   list(
-    theta = theta,
-    sigma = sigma,                 # honest twin SE (Rashomon) or Wald SE (fold-specific)
-    ci_95 = ci_95,                 # honest bias-aware CI (Rashomon) or Wald CI (fold-specific)
-    ci_95_wald = ci_95_wald,       # plain Wald interval of the display estimate (always)
-    theta_crossfit = theta_crossfit,  # fully-fold-specific twin (NA if use_rashomon=FALSE)
-    sigma_crossfit = sigma_crossfit,
-    delta = delta,                 # theta_shared - theta_twin (bias diagnostic)
-    se_delta = se_delta,
-    score_values = score_values,
+    theta = .att$theta,
+    sigma = .att$sigma,                # plain n-normalised EIF plug-in
+    ci_95 = .att$ci_95,                # Wald interval
+    ci_95_wald = .att$ci_95,           # same, named for cross-estimator parity
+    score_values = .att$score_values,
     nuisance_fits = nuisance_fits,
-    fold_indices = fold_indices,
     n = n,
-    K = K,
-    converged = converged,
-    epsilon_n = epsilon_n,
-    rashomon_c_e = rashomon_c_e,
-    rashomon_c_m0 = rashomon_c_m0
+    leaf_budget = leaf_budget,
+    lambda_n = lambda_n,
+    m_n = m_n,
+    # Sparsity-proxy diagnostics: reported, NEVER acted on automatically.
+    certified_e = e_fit$certified,
+    certified_m0 = m0_fit$certified,
+    used_search_e = e_fit$used_search,
+    used_search_m0 = m0_fit$used_search,
+    n_leaves_e = e_fit$n_leaves,
+    n_leaves_m0 = m0_fit$n_leaves,
+    gap_e = e_fit$gap,
+    gap_m0 = m0_fit$gap
   )
 }

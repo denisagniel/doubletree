@@ -105,25 +105,27 @@ estimate <- function(data, config) {
 
 # --- 2. Standard cross-fit: K separate trees, out-of-sample (valid, no 1 tree) -
 # max_depth = 4L matches .est_full and the Rashomon path. As of 2026-07-14 this is the
-# estimate_att DEFAULT (the package now caps both nuisance paths at 4L), so passing it
-# is redundant -- kept explicit to pin the comparison against future default changes.
+# estimate_att_crossfit DEFAULT (the package caps both nuisance paths at 4L), so passing
+# it is redundant -- kept explicit to pin the comparison against future default changes.
 # Bounding depth avoids the continuous-covariate blow-up (unbounded GOSDT: n=2000/
 # continuous >24 GB, ~1300 s/unit vs ~150 s capped) and keeps the plain cross-fit trees
 # from being deeper than the Rashomon twin.
 .est_crossfit <- function(X, A, Y) {
-  r <- doubletree::estimate_att(X, A, Y, K = SIM_K, use_rashomon = FALSE,
-                                max_depth = 4L, verbose = FALSE)
-  .result(r$theta, r$sigma, converged = isTRUE(r$converged))
+  r <- doubletree::estimate_att_crossfit(X, A, Y, K = SIM_K,
+                                         max_depth = 4L, verbose = FALSE)
+  # The cross-fit path has no intersection step, so it always "converges" (it no longer
+  # reports a `converged` field -- it was a constant TRUE on this path).
+  .result(r$theta, r$sigma, converged = TRUE)
 }
 
 # --- 3. Doubletree: Rashomon-intersection structure, cross-fit leaves (twin) --
-# As of Phase B (2026-07-15) estimate_att(use_rashomon=TRUE) reports an HONEST bias-aware
+# As of Phase B (2026-07-15) estimate_att_rashomon() reports an HONEST bias-aware
 # CI built from the FULLY fold-specific twin (the shared intersection structure is not
 # orthogonal to each fold, so its Wald SE undercovers). We pass that honest interval as
 # ci_lower/ci_upper and record the twin + delta for the 3-way coverage comparison.
 .est_doubletree <- function(X, A, Y, escalate = FALSE) {
-  r <- doubletree::estimate_att(
-    X, A, Y, K = SIM_K, use_rashomon = TRUE,
+  r <- doubletree::estimate_att_rashomon(
+    X, A, Y, K = SIM_K,
     rashomon_bound_multiplier = NULL, auto_tune_intersecting = FALSE,
     escalate_intersection = escalate,
     verbose = FALSE)

@@ -7,8 +7,8 @@
 #
 # Per rep on the complex DGP it computes THREE estimators of the same ATT:
 #   oracle  : plug the TRUE e(X), m0(X) into the EIF solve      -> validity gate
-#   shared  : estimate_att(use_rashomon=TRUE)  (shared structure, the suspect)
-#   foldspec: estimate_att(use_rashomon=FALSE) (fully fold-specific, the honest twin)
+#   shared  : estimate_att_rashomon()  (shared structure, the suspect)
+#   foldspec: estimate_att_crossfit() (fully fold-specific, the honest twin)
 #
 # Then it evaluates, BY n:
 #   (1) coverage of each estimator's Wald CI          (oracle & foldspec ~0.95 expected)
@@ -20,7 +20,7 @@
 # -----------------------------------------------------------------------------
 # MEMORY SAFETY (2026-07-15 rewrite): the previous version fanned out
 # `parallel::mclapply` over (detectCores()-1) workers, each running a full
-# Rashomon `estimate_att` up to n=2000. Nine concurrent GOSDT fits exhausted
+# Rashomon `estimate_att_rashomon` up to n=2000. Nine concurrent GOSDT fits exhausted
 # 16 GB and HARD-CRASHED the host (3rd such OOM: 07-01, 07-07, 07-15). This
 # version runs STRICTLY SERIALLY, each unit in a KILLABLE callr subprocess whose
 # resident memory is polled via `ps` (captures GOSDT's C++ allocations, which
@@ -111,13 +111,13 @@ covered <- function(theta, se, truth = TRUTH) {
                   error = function(e) NULL)
   # (shared) Rashomon shared-structure estimator (the suspect)
   sh <- tryCatch(
-    estimate_att(X, A, Y, K = K, use_rashomon = TRUE,
+    estimate_att_rashomon(X, A, Y, K = K,
                  rashomon_bound_multiplier = NULL, auto_tune_intersecting = FALSE,
                  max_depth = 4L, verbose = FALSE),
     error = function(e) NULL)
   # (foldspec) fully fold-specific estimator (the honest twin)
   fs <- tryCatch(
-    estimate_att(X, A, Y, K = K, use_rashomon = FALSE, max_depth = 4L, verbose = FALSE),
+    estimate_att_crossfit(X, A, Y, K = K, max_depth = 4L, verbose = FALSE),
     error = function(e) NULL)
 
   if (is.null(sh) || is.null(fs) || is.null(orc)) {

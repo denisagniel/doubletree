@@ -126,11 +126,11 @@ fallback) versus \eqn{|\hat\delta| \ll \mathrm{SE}} (faithful summary).
 \details{
 When the intersection is empty for a nuisance (margin fails: near-tied
 structures, weak overlap), there is no single shared structure and the function
-errors with guidance to fall back to \code{estimate_att(use_rashomon = FALSE)}
+errors with guidance to fall back to \code{\link{estimate_att_crossfit}}
 (fold-specific trees; valid but not single-tree). This mirrors the honest
 fallback in the theory: do not force a single tree when the margin does not hold.
 }
 \seealso{
-\code{\link{estimate_att}} (fold-specific / cross-fit),
+\code{\link{estimate_att_crossfit}} (fold-specific / cross-fit),
   \code{\link{estimate_att_doubletree_averaged}} (single averaged tree, Approach 4).
 }

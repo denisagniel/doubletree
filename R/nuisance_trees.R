@@ -52,7 +52,8 @@ fit_tree_with_cv <- function(X, y, loss_function, cv_reg, cv_K, reg,
 #'
 #' Fits propensity e(X) and outcome regression m0(X) on training data
 #' (all rows not in fold_id) using optimaltrees. Propensity uses log_loss; outcome
-#' trees use log_loss (binary Y) or squared_error (continuous Y). Used internally by estimate_att.
+#' trees use log_loss (binary Y) or squared_error (continuous Y). Used internally by
+#' \code{\link{estimate_att_crossfit}}.
 #'
 #' @param X Data.frame or matrix of covariates (binary 0/1).
 #' @param A Integer vector of treatment (0/1).
@@ -286,7 +287,7 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 #' @description
 #' Fits the \strong{fully} fold-specific nuisances: for each fold \eqn{k}, both the
 #' tree STRUCTURE and the leaf values are learned on \eqn{D^{(-k)}} (a single tree per
-#' nuisance per fold, exactly the \code{estimate_att(use_rashomon = FALSE)} estimator),
+#' nuisance per fold, exactly the \code{\link{estimate_att_crossfit}} estimator),
 #' then predicts the held-out fold \eqn{k}. This is distinct from
 #' \code{\link{get_fold_specific_eta_rashomon}}, whose structure is the Rashomon
 #' intersection across ALL K folds (shared, hence NOT orthogonal to fold \eqn{k}) with
@@ -308,7 +309,7 @@ get_fold_specific_eta <- function(nuisance_fits, X, fold_indices,
 #' @param outcome_type "binary" or "continuous".
 #' @param regularization,cv_regularization,cv_K,verbose,max_depth,discretize_method,discretize_bins
 #'   Passed through to \code{\link{fit_nuisances_fold}} (identical to the
-#'   \code{use_rashomon = FALSE} path in \code{estimate_att}).
+#'   \code{\link{estimate_att_crossfit}} path).
 #' @param ... Additional arguments forwarded to \code{fit_nuisances_fold}.
 #' @return List with \code{e} (clamped propensity) and \code{m0} (control-outcome)
 #'   out-of-sample predictions, length \code{nrow(X)}.

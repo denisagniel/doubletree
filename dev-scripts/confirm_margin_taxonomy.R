@@ -23,8 +23,8 @@ run_dgp <- function(gen, label) {
   cf_th <- cf_cov <- ms_th <- ms_cov <- ms_freq <- rep(NA_real_, REPS)
   for (r in seq_len(REPS)) {
     dat <- gen(n); sb <- 1000L * r
-    cf <- tryCatch(estimate_att(dat$X, dat$A, dat$Y, K = K, seed = sb,
-                    use_rashomon = FALSE, outcome_type = "binary"),
+    cf <- tryCatch(estimate_att_crossfit(dat$X, dat$A, dat$Y, K = K, seed = sb,
+                    outcome_type = "binary"),
                    error = function(e) NULL)
     ms <- tryCatch(estimate_att_msplit(dat$X, dat$A, dat$Y, M = M, K = K,
                     seed_base = sb, structure_selection = "modal",

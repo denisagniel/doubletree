@@ -3,12 +3,12 @@
 # =============================================================================
 # THROWAWAY verification (Phase B, 2026-07-15). Unlike diagnose_complex.R (which
 # hand-built the honest CI from a fold-specific twin), this checks the CI the PACKAGE
-# now reports directly -- estimate_att(use_rashomon=TRUE)$ci_95, msplit$ci_95,
+# now reports directly -- estimate_att_rashomon()$ci_95, msplit$ci_95,
 # single_tree$ci_95 -- so it verifies the shipped code path, not a reconstruction.
 #
 # For each (n, rep) on the complex DGP it records coverage + width + power (excl 0) for:
-#   doubletree  = estimate_att(use_rashomon=TRUE)   (now honest)
-#   crossfit    = estimate_att(use_rashomon=FALSE)  (valid Wald baseline)
+#   doubletree  = estimate_att_rashomon()    (now honest)
+#   crossfit    = estimate_att_crossfit()    (valid Wald baseline)
 #   single_tree = estimate_att_single_tree(inference="single")  (honest)
 #   msplit      = estimate_att_msplit               (now honest)
 #
@@ -59,8 +59,8 @@ OUT_RDS <- file.path(study_root, "dev-scripts", "verify_phaseB_results.rds")
   ci_row <- function(ci) if (is.null(ci) || any(!is.finite(ci))) c(NA, NA) else ci
   grab <- function(expr) tryCatch(expr, error = function(e) NULL)
 
-  dt <- grab(estimate_att(X, A, Y, K = 5, use_rashomon = TRUE, max_depth = 4L, verbose = FALSE))
-  cf <- grab(estimate_att(X, A, Y, K = 5, use_rashomon = FALSE, max_depth = 4L, verbose = FALSE))
+  dt <- grab(estimate_att_rashomon(X, A, Y, K = 5, max_depth = 4L, verbose = FALSE))
+  cf <- grab(estimate_att_crossfit(X, A, Y, K = 5, max_depth = 4L, verbose = FALSE))
   st <- grab(estimate_att_single_tree(X, A, Y, K = 5, inference = "single", verbose = FALSE))
   ms <- grab(estimate_att_msplit(X, A, Y, M = 5, K = 5, verbose = FALSE))
 
