@@ -35,6 +35,7 @@
 \newcommand{\cS}{\mathcal{S}}
 \newcommand{\cP}{\mathcal{P}}
 \newcommand{\cL}{\mathcal{L}}
+\newcommand{\cG}{\mathcal{G}}
 \newcommand{\ez}{e_0}
 \newcommand{\mz}{\mu_0}
 \newcommand{\wz}{w_0}
@@ -96,8 +97,8 @@ proofs. Section~\ref{sec:setup} fixes notation and collects every standing
 assumption; assumptions are defined there and nowhere else, and are invoked by
 label throughout. Section~\ref{sec:eif} records the efficient influence function
 and the exact second-order remainder. Section~\ref{sec:structure} develops the
-structure of the tree class: sufficiency, invariance, the margin, and selection
-consistency. Section~\ref{sec:main} contains the principal result, full-sample
+structure of the tree class: sufficiency, invariance, the margin, selection
+consistency, and how the selection rule is computed. Section~\ref{sec:main} contains the principal result, full-sample
 inference with two optimal trees. Section~\ref{sec:crossfit} treats the
 cross-fitted estimator, which requires no sparsity condition and serves as the
 anchor for Section~\ref{sec:honest}, where inference remains valid but
@@ -186,17 +187,35 @@ $\nu_x=p_x\{1-\ez(x)\}$, for the outcome nuisance. Given $\tau$, the
         {\card{\{i:X_i\in\ell,\,A_i=0\}}} .
 \end{equation}
 
-Structure is selected by penalised empirical risk minimisation: for a penalty
-$\lambda_n>0$,
+Structure is selected by penalised empirical risk minimisation over the
+\emph{feasible} candidates. Let
+\begin{equation}\label{eq:feasible}
+  \cT^{(j)}_n=\bigl\{\tau\in\cT_{\bar L}:\text{every leaf of }\tau\text{ carries
+   at least }m_n\text{ observations, control observations for }j=\mu\bigr\},
+\end{equation}
+and for a penalty $\lambda_n>0$ set
 \begin{equation}\label{eq:select}
-  \that_j\in\argmin_{\tau\in\cT_{\bar L}}
+  \that_j\in\argmin_{\tau\in\cT^{(j)}_n}
   \bigl\{R^{(j)}_n(\tau)+\lambda_n\card\tau\bigr\},
   \qquad j\in\{e,\mu\},
 \end{equation}
 where $R^{(j)}_n$ is the empirical risk of the leaf-refit fit for nuisance $j$
-and $R^{(j)}$ its population counterpart. We write $\ehat=\ehat_{\that_e}$,
+and $R^{(j)}$ its population counterpart. Both risks are on the unnormalised
+scale, so that $R^{(\mu)}$ is the control-weighted risk
+$\E[\{1-\ez\}(\mu-\mz)^2]$ matching $\Lw\cdot^2$, not its control-conditional
+average. Structure selection uses the \emph{unclipped} leaf refit; clipping is
+applied only to the reported $\ehat$. We write $\ehat=\ehat_{\that_e}$,
 $\mhat=\mhat_{\that_\mu}$, $\what=\ehat/(1-\ehat)$, and
 $L_e=\card{\that_e}$, $L_\mu=\card{\that_\mu}$.
+
+Restricting the argmin to $\cT^{(j)}_n$ is what reconciles selection with the
+minimum-leaf-mass requirement of Assumption~\ref{ass:construct}(d): an
+unconstrained argmin over $\cT_{\bar L}$ could return a partition violating it,
+so the constraint belongs in the selection rule rather than being asserted of its
+output. The restriction is asymptotically inert, since every leaf of a sufficient
+partition has population mass at least $p_{\min}$ while $m_n/n\to0$ follows from
+$\bar Lm_n\lesssim n$ with $\bar L$ fixed; Lemma~\ref{lem:selection} discharges
+this explicitly.
 
 \subsection{Errors of the fitted nuisances}
 
@@ -269,28 +288,203 @@ The nuisances are fitted as follows.
   \item \emph{Clipping.} Fitted propensities are clipped so that
   $1-\ehat(x)\ge c$ for every $x$, with $c$ the constant of
   Assumption~\ref{ass:causal}.
-  \item \emph{Leaf mass.} Every leaf of $\that_e$ contains at least $m_n$
-  observations and every leaf of $\that_\mu$ at least $m_n$ control
-  observations, with $\bar Lm_n\lesssim n$. On the null event that a leaf of
-  $\that_\mu$ contains no controls, $\mhat$ takes the parent leaf's control
-  mean.
+  \item \emph{Leaf mass.} Selection is restricted to the feasible set
+  \eqref{eq:feasible}: candidates whose every leaf carries at least $m_n$
+  observations, control observations in the case of $\mu$, with
+  $\bar Lm_n\lesssim n$. This is a property of the selection rule, not a claim
+  about its output. On the null event that a leaf of $\that_\mu$ contains no
+  controls, $\mhat$ takes the parent leaf's control mean.
 \end{enumerate}
 \end{assumption}
 
 \noindent Three comments on Assumption~\ref{ass:construct}. Under (a) the
 excess risk of a candidate $f$ for the propensity is
 $\E[(A-f)^2\mid X]-\E[(A-\ez)^2\mid X]=(\ez-f)^2$ exactly, for any
-$\ez\in[0,1]$, with no positivity; the loss-to-norm constant is $1$. The
-within-leaf treated fraction minimises both squared error and log-loss over
-constants, so (b) is invariant to that choice of loss and the loss affects only
-the structure search~\eqref{eq:select}. Clipping in (c) is applied on one side
+$\ez\in[0,1]$, with no positivity; the loss-to-norm constant is $1$.
+
+\emph{The propensity.} The within-leaf treated fraction minimises both squared
+error and log-loss over constants, so (b) is invariant to that choice of loss
+and the loss affects only the structure search~\eqref{eq:select}.
+
+\emph{The outcome.} Suppose in addition that $Y\in\{0,1\}$ given $A=0$, so
+that cross-entropy is a well-defined alternative to squared error for
+$\mhat$; the same invariance holds, by a parallel argument we spell out
+because, unlike the propensity case, it is not otherwise used in the proofs
+below. Write $H_b(q):=-q\log q-(1-q)\log(1-q)$ and, for $p\in[0,1]$,
+$\mathrm{CE}(p,q):=-p\log q-(1-p)\log(1-q)$ for the cross-entropy of $p$
+against $q$, both for $q\in[0,1]$ with the convention $0\log0:=0$. This
+convention never produces $\log0$ against a disagreeing observation: below,
+$q$ reaches an endpoint of $[0,1]$ only on a leaf where $\mz$ is
+$\nu$-a.s.\ constant at that same endpoint, so $p=q$ there and
+$\mathrm{CE}(p,q)=H_b(p)=0$. Direct expansion gives the exact decomposition
+\[
+  \mathrm{CE}(p,q)=H_b(p)+\mathrm{KL}\bigl(\mathrm{Bernoulli}(p)\Vert
+  \mathrm{Bernoulli}(q)\bigr),
+\]
+with the Kullback--Leibler term non-negative and zero exactly at $p=q$
+(Gibbs' inequality). Let
+$R^{(\mu),CE}(f):=\E[\{1-\ez\}\,\mathrm{CE}(\mz,f(X))]$ be the
+control-weighted cross-entropy risk of a candidate $f:\cX\to[0,1]$, on the
+same unnormalised, control-weighted scale as $R^{(\mu)}$ above; a bridge
+identical to the one below applied at the population level gives
+$\E[(1-A)\,\mathrm{CE}(Y,f(X))]=R^{(\mu),CE}(f)$, so this is also the
+population limit of the empirical risk introduced below. Because
+$p\mapsto\mathrm{CE}(p,q)$ is affine in $p$ for fixed $q$, it commutes with
+convex combinations: its $\nu$-average over a leaf $\ell$ equals
+$\mathrm{CE}(\bar\mu_\ell,q)$ exactly, with
+$\bar\mu_\ell:=\nu(\ell)^{-1}\sum_{z\in\ell}\nu_z\mz(z)=(\Pi^\nu_\tau\mz)(\ell)$
+the $\nu$-weighted leaf mean and $\nu(\ell):=\sum_{z\in\ell}\nu_z$ --- and
+with no correction for within-leaf heterogeneity of $\mz$, unlike squared
+error, whose leaf average needs the second moment of $\mz$. Consequently, for
+the leaf-constant refit $f_\tau\equiv\bar\mu_\ell$ on $\ell\in\tau$,
+\[
+  R^{(\mu),CE}(\tau)=\sum_{\ell\in\tau}\nu(\ell)\,
+  \mathrm{CE}(\bar\mu_\ell,\bar\mu_\ell)
+  =\sum_{\ell\in\tau}\nu(\ell)\,H_b(\bar\mu_\ell),
+\]
+and since $q\mapsto\mathrm{CE}(\bar\mu_\ell,q)$ is strictly convex with
+unique minimiser $q=\bar\mu_\ell$ (equivalently, by the decomposition above,
+$\mathrm{CE}(\bar\mu_\ell,q)=H_b(\bar\mu_\ell)+\mathrm{KL}(\cdot\Vert\cdot)\ge
+H_b(\bar\mu_\ell)$ with equality iff $q=\bar\mu_\ell$), the leaf refit of (b)
+is unchanged: the within-leaf control mean minimises both squared error and
+cross-entropy over constants, as the within-leaf treated fraction does above.
+
+Subtracting the same display at the finest, sufficient partition and applying
+the decomposition above cell by cell gives, for every $\tau\in\cT_{\bar L}$,
+\[
+  R^{(\mu),CE}(\tau)=\sum_{x\in\cX}\nu_x\,H_b(\mz(x))
+  +\sum_{x\in\cX}\nu_x\,\mathrm{KL}\bigl(\mathrm{Bernoulli}(\mz(x))\Vert
+  \mathrm{Bernoulli}(\bar\mu_{\ell(x)})\bigr),
+\]
+where $\ell(x)$ is the leaf of $\tau$ containing $x$. The first sum is a
+functional of $P$ alone, common to every $\tau$; the second is a sum of
+non-negative terms, each zero iff $\mz(x)=\bar\mu_{\ell(x)}$. Since
+$\nu_x=p_x\{1-\ez(x)\}>0$ for every $x$ by Assumptions~\ref{ass:finite}
+and~\ref{ass:causal}, the second sum is zero iff $\mz$ is
+$\nu$-a.s.\ constant on every leaf of $\tau$ --- exactly the condition
+defining $\cS_\mu$ in Definition~\ref{def:sufficient}, which is loss-free, so
+the minimum of $R^{(\mu),CE}$ over $\cT_{\bar L}$ is attained exactly on
+$\cS_\mu$, and the excess-risk-zero set under cross-entropy coincides with the
+one under squared error. Subtracting the minimum leaves the identity
+\[
+  R^{(\mu),CE}(\tau)-\min_{\tau'\in\cT_{\bar L}}R^{(\mu),CE}(\tau')
+  =\sum_{x\in\cX}\nu_x\,\mathrm{KL}\bigl(\mathrm{Bernoulli}(\mz(x))\Vert
+  \mathrm{Bernoulli}(\bar\mu_{\ell(x)})\bigr).
+\]
+Write $\Delta_\mu^{SE}$ for $\Delta_\mu$ of Lemma~\ref{lem:margin} --- a
+functional of $P$ and $\cT_{\bar L}$ alone, so its value does not depend on
+which loss is used to fit, even though its proof is stated under
+Assumption~\ref{ass:construct}(a) --- shown there strictly positive in the
+"outcome, with positivity" step of its proof, and define $\Delta_\mu^{CE}$ by
+the same display with $R^{(\mu),CE}$ in place of $R^{(\mu)}$. Pinsker's
+inequality, $\mathrm{KL}(P\Vert Q)\ge2\,d_{TV}(P,Q)^2$ in nats with
+$d_{TV}(P,Q):=\sup_A\abs{P(A)-Q(A)}=\tfrac12\|P-Q\|_1$, specialises for
+$P=\mathrm{Bernoulli}(p)$, $Q=\mathrm{Bernoulli}(q)$ --- where
+$d_{TV}(P,Q)=\abs{p-q}$ exactly --- to
+$\mathrm{KL}(\mathrm{Bernoulli}(p)\Vert\mathrm{Bernoulli}(q))\ge2(p-q)^2$.
+Applying this term by term to the displayed identity and comparing with
+$R^{(\mu)}(\tau)-\min_{\tau'}R^{(\mu)}(\tau')=\|\Pi^\nu_\tau\mz-\mz\|_\nu^2
+=\sum_{x\in\cX}\nu_x\{\bar\mu_{\ell(x)}-\mz(x)\}^2$, the squared-error excess
+risk identity used in the proof of Lemma~\ref{lem:margin}, gives, for every
+$\tau\in\cT_{\bar L}$,
+\[
+  R^{(\mu),CE}(\tau)-\min_{\tau'}R^{(\mu),CE}(\tau')
+  \ \ge\ 2\bigl\{R^{(\mu)}(\tau)-\min_{\tau'}R^{(\mu)}(\tau')\bigr\}.
+\]
+Taking the minimum of both sides over the common index set
+$\tau\in\cT_{\bar L}\setminus\cS_\mu$ gives
+$\Delta_\mu^{CE}\ge2\Delta_\mu^{SE}>0$, with the positivity of
+$\Delta_\mu^{SE}$ taken from Lemma~\ref{lem:margin} and no new probabilistic
+argument; positivity of $\Delta_\mu^{CE}$ alone would in fact follow more
+directly, from the same finiteness argument as Lemma~\ref{lem:margin}'s own
+"Finiteness" step applied to the KL identity above, with Pinsker giving the
+quantitative factor of $2$ as a bonus, not a necessity (the constant is sharp
+only in the limit $\bar\mu_\ell\to\tfrac12$, since
+$\mathrm{KL}(\mathrm{Bernoulli}(p)\Vert\mathrm{Bernoulli}(q))\sim(p-q)^2/\{2q(1-q)\}$
+as $p\to q$ and $q(1-q)\le\tfrac14$).
+
+The empirical risk of the leaf-constant refit, for Step~1 of the proof of
+Lemma~\ref{lem:selection}, is by the same affine-averaging argument applied to
+the sample,
+$R_n^{(\mu),CE}(\tau)=\sum_{\ell\in\tau}\widehat q_\ell\,H_b(\bar Y_{\ell,0})$,
+with no leading term free of $\tau$. This has the same shape as the
+squared-error identity of that Step, $R_n^{(\mu)}(\tau)=\Pn[(1-A)Y^2]
+-\sum_{\ell\in\tau}\widehat q_\ell\bar Y_{\ell,0}^2$, but the absence of a
+leading term here is not a consequence of affineness: affineness gives exact
+leaf \emph{aggregation} under either loss (the squared-error leaf average also
+aggregates exactly, into a leaf mean plus a within-leaf variance term). The
+leading term $\Pn[(1-A)Y^2]$ is instead an artefact of the quadratic impurity,
+absent for binary $Y$ specifically: since $Y\in\{0,1\}$ gives $Y^2=Y$,
+$\Pn[(1-A)Y^2]=\Pn[(1-A)Y]=\sum_{\ell\in\tau}\widehat q_\ell\bar Y_{\ell,0}$
+for every $\tau$, so in this regime the squared-error risk collapses to the
+equally leading-term-free Gini form
+$R_n^{(\mu)}(\tau)=\sum_{\ell\in\tau}\widehat q_\ell\,\bar Y_{\ell,0}
+\{1-\bar Y_{\ell,0}\}$, the direct parallel of the entropy form above ($Y^2$
+is a polynomial in $Y$ and separates; $H_b$ is not a polynomial in its
+argument and does not need to). Either way, $R_n^{(\mu),CE}(\tau)$ is a fixed
+continuous function of the $3M$ cell statistics
+$\{\widehat p_x,\widehat e(x),\widehat\mu(x):x\in\cX\}$ of that Step~1 ($H_b$
+is continuous on all of $[0,1]$ under the stated convention, so no
+Lipschitz property is needed here), so Steps~2--4 there --- uniform
+convergence over the fixed finite class $\cT_{\bar L}$, absorption of the
+penalty, and the margin comparison --- go through verbatim with
+$\Delta_\mu^{CE}$ in place of $\Delta_\mu$, giving
+$\PP(\that_\mu\in\cS_\mu)\to1$ under cross-entropy exactly as
+Lemma~\ref{lem:selection} gives it under squared error. (This requires the
+refit $\bar Y_{\ell,0}$ itself to be unclipped; a practical implementation
+that clips predicted probabilities away from $\{0,1\}$ to avoid evaluating
+$\log0$ against a disagreeing observation perturbs this identity by an amount
+vanishing with the clip tolerance, since the identity above never evaluates
+$\log0$ on the unclipped refit in the first place.) Nothing in this
+document depends on this: Assumption~\ref{ass:construct}(a) fixes squared
+error, and every downstream result uses the squared-error selection
+consistency proved in Lemma~\ref{lem:selection}.
+
+Clipping in (c) is applied on one side
 because Assumption~\ref{ass:causal} places $\ez$ in $[0,1-c]$, on which
 one-sided clipping is the Euclidean projection and therefore non-expansive:
 $\abs{\mathrm{clip}(\ehat)-\ez}\le\abs{\ehat-\ez}$ pointwise, so every $L_2$
 bound is preserved. Two-sided clipping forfeits this wherever $\ez<c$. The clip
-level must equal $c$: clipping at $c'>c$ changes the influence function on cells
-with $\ez>1-c'$, so that $\thetahat$ remains consistent by double robustness
-while $V$ and every coverage statement below fail.
+level must not \emph{exceed} $c$: clipping at $c'\le c$ leaves
+$\ez\in[0,1-c]\subseteq[0,1-c']$, so the projection argument goes through
+verbatim, $\psi_0$ and $V$ are unchanged, and the only cost is a worse constant,
+$c'^{-1}$ in place of $c^{-1}$ in Corollary~\ref{cor:convert}. Clipping at
+$c'>c$, by contrast, changes the influence function on cells with $\ez>1-c'$, so
+that $\thetahat$ remains consistent by double robustness while $V$ and every
+coverage statement below fail. Since $c$ is an unknown functional of $P$ and is
+nowhere estimated, this is what makes the procedure implementable: any
+conservative choice $c'\le c$ suffices, and only overshooting is fatal.
+
+\begin{remark}[Scope of the cross-entropy comparison]\label{rem:ce-scope}
+Two qualifications on the preceding paragraph. First,
+Assumption~\ref{ass:moments} permits general $Y$ with a bounded second
+moment; cross-entropy is defined only for the binary $Y$ assumed there, and
+the estimator's \texttt{outcome\_type} argument already restricts
+cross-entropy fitting to that case, so this is a documentation point, not a
+gap in the proofs. Second, unlike $\ez$, which Assumption~\ref{ass:causal}
+bounds away from $1$ by the constant $c$, no assumption bounds $\mz$ away
+from $\{0,1\}$. Step~5 of the proof of Lemma~\ref{lem:selection} obtains its
+exponential rate by composing Hoeffding's inequality with a
+\emph{Lipschitz} map of the $3M$ cell statistics, and $H_b$ is not
+Lipschitz at $0$ or $1$ --- its derivative diverges there --- but it is
+H\"older-$\alpha$ on $[0,1]$ for every $\alpha<1$, so composing Hoeffding
+with a H\"older (rather than Lipschitz) modulus still gives an exponential
+rate for $\that_\mu$ under cross-entropy, of the form
+$\card{\cT_{\bar L}}\exp\{-c_1n(\Delta_\mu^{CE})^{2/\alpha}\}$ for any
+$\alpha<1$, with no new assumption --- merely a degraded exponent relative
+to Step~5's $\Delta_j^2$. Recovering the clean quadratic exponent would need
+an assumption bounding $\mz$ away from $\{0,1\}$, symmetric to
+Assumption~\ref{ass:causal}; this refinement is not attempted here, and
+either way is orthogonal to $\PP(\that_\mu\in\cS_\mu)\to1$, which by Step~6
+of that proof rests on Steps~1--4 alone and does not use Step~5. Third,
+$R^{(\mu)}$ and $R_n^{(\mu)}$ are unnormalised and control-weighted, fixed
+following eq.~\eqref{eq:select} and reiterated in Step~1 of the proof of
+Lemma~\ref{lem:selection}; any log-loss implementation of the outcome
+tree's risk must match that same convention, since a
+control-conditional-average normalisation would rescale the effective
+leaf-budget penalty $\lambda_n\card\tau$ relative to $R_n^{(\mu),CE}$
+exactly as it would under squared error.
+\end{remark}
 
 \begin{assumption}[Fixed leaf budget]\label{ass:budget}
 $\bar L$ is a constant, fixed in $n$, with $\bar L\le M$; consequently
@@ -308,8 +502,8 @@ entropy cost, because under \ref{ass:finite}--\ref{ass:budget} no such cost
 exists.
 
 \begin{assumption}[Exact global optimisation]\label{ass:global}
-For each $j$, $\that_j$ attains the global minimum in~\eqref{eq:select} over
-$\cT_{\bar L}$, and $\lambda_n\to0$.
+For each $j$, $\that_j$ attains the global minimum in~\eqref{eq:select} over the
+feasible set $\cT^{(j)}_n$ of~\eqref{eq:feasible}, and $\lambda_n\to0$.
 \end{assumption}
 
 \begin{definition}[Sufficient class]\label{def:sufficient}
@@ -399,7 +593,15 @@ coefficient of $\theta$ in~\eqref{eq:score}: with $\phi:=\pi\psi$,
   =\Pn\phi(\cdot;\theta_0,\widehat\eta)
 \end{equation}
 holds exactly, with no expansion, so that no further correction for the
-estimation of $\pi$ is required.
+estimation of $\pi$ is required. The same algebra at the population level gives an
+identity used repeatedly below: since the coefficient of $\theta$ in
+\eqref{eq:score} is $-A/\pi$ and $\E A=\pi$,
+\begin{equation}\label{eq:pop-identity}
+  \theta(\eta)-\theta_0=P\psi(\cdot;\theta_0,\eta)
+  \qquad\text{for every }\eta\text{ with }1-e\ge c,
+\end{equation}
+where $\theta(\eta)$ solves $\E[\psi(O;\theta,\eta)]=0$. Lemma~\ref{lem:biasbound}
+therefore bounds $\theta(\eta)-\theta_0$ as well as $P\psi(\cdot;\theta_0,\eta)$.
 
 \subsection{The second-order remainder}
 
@@ -421,59 +623,98 @@ because Section~\ref{sec:honest} requires it at the fitted rather than the
 population nuisances.
 
 \begin{lemma}[Bias bound in the control-weighted norm]\label{lem:biasbound}
-Under Assumptions~\ref{ass:iid}--\ref{ass:causal} and
+Write $P\psi(\cdot;\theta_0,\eta)=\E[\psi(O;\theta_0,\eta)]$ for the population
+expectation at a \emph{fixed} $\eta$, and evaluate it at $\eta=\widehat\eta$; both
+sides below are then random through $\widehat\eta$ alone. Under
+Assumptions~\ref{ass:iid}--\ref{ass:causal} and
 Assumption~\ref{ass:construct}(c),
 \[
-  \bigl\lvert\E[\psi(O;\theta_0,\widehat\eta)]\bigr\rvert
+  \bigl\lvert P\psi(\cdot;\theta_0,\eta)\bigr\rvert_{\eta=\widehat\eta}
   \ \le\ \frac1\pi\,\Dw\,\Dm .
 \]
 \end{lemma}
+
+\noindent The distinction matters: an unconditional expectation over
+$\widehat\eta$ would yield $\E[\Dw\Dm]$ on the right and would not follow from
+Cauchy--Schwarz. The quantity bounded here is the conditional bias given the
+fitted nuisances, which is what Sections~\ref{sec:honest} treats as a random
+interval width.
 
 \noindent The constant is exactly $1/\pi$: Cauchy--Schwarz with respect to
 $\{1-\ez\}\,dP$ places $\sqrt{1-\ez}$ on each factor, and no power of $c$
 appears. Converting to the conventional unweighted propensity error is not free.
 
-\begin{corollary}[Unweighted form]\label{cor:convert}
-Under the conditions of Lemma~\ref{lem:biasbound},
+\begin{corollary}[Unweighted forms]\label{cor:convert}
+Under the conditions of Lemma~\ref{lem:biasbound}, with the same convention,
+\begin{equation}\label{eq:convert-sym}
+  \bigl\lvert P\psi(\cdot;\theta_0,\eta)\bigr\rvert_{\eta=\widehat\eta}
+  \ \le\ \frac1{\pi c}\,\Ltwo{\ehat-\ez}\,\Ltwo{\mhat-\mz},
+\end{equation}
+and consequently also
 \begin{equation}\label{eq:convert}
-  \bigl\lvert\E[\psi(O;\theta_0,\widehat\eta)]\bigr\rvert
+  \bigl\lvert P\psi(\cdot;\theta_0,\eta)\bigr\rvert_{\eta=\widehat\eta}
   \ \le\ \frac1{\pi c^{3/2}}\,\Ltwo{\ehat-\ez}\,\Lw{\mhat-\mz}.
 \end{equation}
 \end{corollary}
 
-\noindent The asymmetry in~\eqref{eq:convert} --- unweighted for the propensity,
-control-weighted for the outcome --- is not a choice. One full factor of
-$1-\ez$ is consumed by the identity
-$\{1-\ez\}\abs{\wz-w}=\abs{\ez-e}/(1-e)$, which leaves the outcome factor to be
-converted at cost $c^{-1/2}$. Since $c\le1-\ez\le1$ gives
-$c\Ltwo f^2\le\Lw f^2\le\Ltwo f^2$, the norm-equivalence constant is $1/c$ for
-squared norms and $c^{-1/2}$ for norms. Form~\eqref{eq:convert} is what the rate
-condition of Section~\ref{sec:crossfit} uses; Lemma~\ref{lem:biasbound} is what
-Section~\ref{sec:honest} uses.
+\noindent Of the two, \eqref{eq:convert-sym} is the sharper: by
+Lemma~\ref{lem:normequiv}, $\Lw{\mhat-\mz}\ge\sqrt c\,\Ltwo{\mhat-\mz}$, so the
+right side of~\eqref{eq:convert} is never smaller than that
+of~\eqref{eq:convert-sym}, and is strictly larger unless $1-\ez$ equals $c$
+almost surely. The asymmetric form~\eqref{eq:convert} is therefore a matter of
+convenience rather than necessity: what \emph{is} forced by the factor structure
+is that the propensity error emerges unweighted, since the identity
+$\{1-\ez\}\abs{\wz-w}=\abs{\ez-e}/(1-e)$ consumes the entire weight on that side;
+retaining the outcome factor in the control-weighted norm is a choice, paid for
+at $c^{-1/2}$, and it is made because Section~\ref{sec:honest} supplies bounds on
+$\Dm$ rather than on $\Ltwo{\mhat-\mz}$. Under
+Assumptions~\ref{ass:causal} and~\ref{ass:finite} the two norms are equivalent
+with constants fixed in $n$, so no asymptotic rate statement distinguishes them;
+the distinction has content only where the product enters an interval width
+without vanishing, as in Section~\ref{sec:realised}.
 
 \subsection{The efficiency bound}
 
-\begin{lemma}[Tangent space and the variance bound]\label{lem:tangent}
-Let $\cP$ be the set of laws of $(X,A,Y)$ satisfying
-Assumptions~\ref{ass:causal}--\ref{ass:finite}. Then the tangent space of $\cP$
-at any $P_0\in\cP$ is infinite-dimensional; $\theta$ is pathwise differentiable
-at $P_0$ relative to $\cP$ with canonical gradient $\psi_0$; and the
-semiparametric efficiency bound for $\theta_0$ is $V=\E[\psi_0^2]$, given
-explicitly by
+\begin{lemma}[Local saturation and the variance bound]\label{lem:tangent}
+Let $\cP_{c,C_Y}$ be the set of observed-data laws of $(X,A,Y)$ with $\cX$ finite,
+$p_x>0$, $\pi>0$, $1-\ez\ge c$, $\E[Y^2\mid A=a,X=x]<\infty$ and $V>0$, on which
+$\theta$ is defined as the identified functional
+$\theta(P)=\pi^{-1}\E[\ez(m_1-\mz)]$. Let $P_0$ be interior to $\cP_{c,C_Y}$, in
+the sense that $1-\ez(x)>c$ and $\ez(x)>0$ for every $x$. Then the tangent space
+of $\cP_{c,C_Y}$ at $P_0$ is the \emph{entire} nonparametric tangent space
+$\{h\in L^2(P_0):\E h=0\}$ --- the model is locally saturated at $P_0$ --- and
+$\theta$ is pathwise differentiable at $P_0$ with canonical gradient $\psi_0$, so
+that the semiparametric efficiency bound is $V=\E[\psi_0^2]$, given explicitly by
 \begin{equation}\label{eq:vdecomp}
   V=\pi^{-2}\,\E\Bigl[\ez\sigma_1^2
    +\frac{\ez^2\sigma_0^2}{1-\ez}
    +\ez\,(m_1-\mz-\theta_0)^2\Bigr].
 \end{equation}
+The tangent space is infinite-dimensional if and only if some conditional law
+$P_{Y\mid A=a,X=x}$ has infinite support.
 \end{lemma}
 
-\noindent Finiteness of $\cX$ does not make the problem parametric. With $M$
-fixed, $P$ is determined by the cell probabilities $\{p_x\}$ and the propensity
-$\{\ez(x)\}$ \emph{together with} the conditional laws of $Y$ given $(A,X)$,
-which Assumption~\ref{ass:moments} leaves unrestricted. The tangent space
-accordingly contains all square-integrable $b(y,a,x)$ with
-$\E[b\mid A,X]=0$, and $V$ in~\eqref{eq:vdecomp} is a genuine semiparametric
-bound rather than a parametric information bound.
+\noindent Finiteness of $\cX$ does not make the problem parametric, but the reason
+is local saturation rather than dimension. With $M$ fixed, $P$ is determined by
+the cell probabilities and the propensity \emph{together with} the conditional
+laws of $Y$ given $(A,X)$, which the moment condition leaves otherwise
+unrestricted; the model therefore imposes no local restriction at an interior
+$P_0$, and $V$ is a genuine semiparametric bound rather than a parametric
+information bound. It would be an error to argue instead that the tangent space
+is infinite-dimensional: when $Y$ is binary --- a case the accompanying software
+supports --- the whole space $L^2(P_0)$ has dimension at most $4M$, so every
+tangent space is finite-dimensional, while $V=\E[\psi_0^2]$ remains the bound.
+Dimension is a property of $P_0$; saturation is the property that matters.
+
+The interiority requirement is not cosmetic. At a law with $\ez(x_0)=0$ the cell
+$\{(A,X)=(1,x_0)\}$ is null, so $m_1(x_0)$ and $\sigma_1^2(x_0)$ are undefined and
+the propensity admits perturbation in one direction only; the set of admissible
+perturbations is then a cone rather than a subspace and the canonical-gradient
+apparatus does not apply as stated. Such laws remain harmless for identification,
+for estimation, and for the value of $V$, since the affected terms
+of~\eqref{eq:vdecomp} carry weight $\ez(x_0)=0$; they are excluded here only for
+the efficiency statement. Throughout, $m_1$ and $\sigma_1^2$ are defined
+arbitrarily on $\{\ez=0\}$, where the products in~\eqref{eq:vdecomp} vanish.
 
 % ===========================================================================
 \section{Structure of the tree class}\label{sec:structure}
@@ -483,17 +724,25 @@ Definition~\ref{def:sufficient}. The order of results is deliberate:
 invariance of the estimand (Lemma~\ref{lem:invariance}) precedes the margin
 (Lemma~\ref{lem:margin}), which precedes the failure of the margin under greedy
 splitting (Proposition~\ref{prop:greedy}), which precedes selection consistency
-(Lemma~\ref{lem:selection}).
+(Lemma~\ref{lem:selection}); the computational subsection that follows depends
+on all four.
 
-\subsection{Sufficiency is intrinsic, not a refinement condition}
+\subsection{Box complexity is not tree complexity}
 
 Definition~\ref{def:sufficient} characterises sufficiency intrinsically, by the
-requirement that the projection of the truth onto $\tau$ return the truth. It is
-tempting to characterise it instead by refinement of a minimal partition on
-which $\gamma_{0,j}$ is constant, and to read the sparsity condition as a
-comparison of $\bar L$ with the cardinality of that partition. The two are not
-equivalent, because a minimal partition into axis-aligned \emph{boxes} need not
-be realisable as a \emph{tree}.
+requirement that the projection of the truth onto $\tau$ return the truth.
+Equivalently, and this is worth recording because it is what the proofs use,
+$\tau\in\cS_j$ if and only if every leaf of $\tau$ lies inside a level set of
+$\gamma_{0,j}$, that is, if and only if $\tau$ refines the level-set partition of
+$\gamma_{0,j}$ --- the unique coarsest partition on which $\gamma_{0,j}$ is
+constant. The refinement reading of sufficiency is therefore correct.
+
+What is \emph{not} correct is the corresponding reading of the sparsity
+condition, namely that it suffices for $\bar L$ to be at least the cardinality of
+a minimal partition into axis-aligned \emph{boxes} on which $\gamma_{0,j}$ is
+constant. Minimal box complexity can be strictly smaller than minimal tree-leaf
+complexity, because a minimal partition into boxes need not be realisable as a
+tree.
 
 \begin{proposition}[Minimal box partitions need not be tree-realisable]
 \label{prop:pinwheel}
@@ -560,22 +809,32 @@ positive-probability cells with distinct $\ez$. The outcome margin $\Delta_\mu$
 requires Assumption~\ref{ass:causal}, because the outcome risk is
 control-weighted and the relevant mass is $p_x\{1-\ez(x)\}\ge cp_x$.
 
-\begin{proposition}[Greedy splitting has no margin]\label{prop:greedy}
+\begin{proposition}[Greedy splitting has no first-split signal]\label{prop:greedy}
 There exist a finite product space $\cX$ and a propensity $\ez$ on it, with all
-cells of positive probability and $\cS_e\ne\emptyset$ at $\bar L=4$, such that
-the reduction in population risk achieved by every admissible first split is
-exactly zero. Consequently the analogue of $\Delta_e$ for greedy recursive
-partitioning is zero, while $\Delta_e>0$ by Lemma~\ref{lem:margin}.
+cells of positive probability and $\cS_e\ne\emptyset$ at $\bar L=4$, such that the
+reduction in population risk achieved by every admissible first split is exactly
+zero, while $\Delta_e>0$ by Lemma~\ref{lem:margin}. Consequently a greedy
+recursive procedure that splits only on strictly positive immediate risk
+reduction halts at the root and never reaches $\cS_e$.
 \end{proposition}
 
-\noindent Proposition~\ref{prop:greedy} is what converts Lemma~\ref{lem:margin}
-from a statement about a finite class into a statement about the solver: the
-margin is available to an exact optimiser and unavailable to a greedy one. The
-witness, $\ez$ depending on $X$ only through $\mathbf1\{x_1=x_2\}$, is worked in
-Appendix~\ref{app:counterex}. Assumption~\ref{ass:global} therefore cannot be
-weakened to greedy recursive splitting, and this is the point at which the use
-of globally optimal rather than greedily grown trees does mathematical rather
-than expository work.
+\noindent Proposition~\ref{prop:greedy} is what gives Lemma~\ref{lem:margin}
+content as a statement about the solver rather than merely about a finite class:
+the margin is available to an exact optimiser and invisible to a procedure that
+evaluates one split at a time. The witness, $\ez$ depending on $X$ only through
+$\mathbf1\{x_1=x_2\}$, is worked in Appendix~\ref{app:counterex}.
+
+The scope of the conclusion should be stated precisely, since the natural
+stronger reading is false. On this witness the first split is a \emph{tie} rather
+than a barrier, so a greedy procedure that breaks ties arbitrarily and grows to
+the leaf budget does reach the singleton partition: splitting on $x_1$ at the root
+for zero gain, then on $x_2$ in each child for strictly positive gain, recovers
+$\ez$ exactly. What the witness establishes is therefore that greedy growth is not
+\emph{guaranteed} to reach the sufficient class, and that the standard
+positive-improvement stopping rule provably fails --- not that every greedy
+variant fails. Assumption~\ref{ass:global} accordingly cannot be weakened to
+greedy recursive splitting \emph{with a positive-gain stopping rule}; whether some
+tie-breaking variant grown to the budget always suffices is not settled here.
 
 \subsection{Selection consistency}
 
@@ -587,7 +846,8 @@ each $j\in\{e,\mu\}$,
 \]
 If in addition $Y$ is bounded, then
 $\PP(\that_j\notin\cS_j)\le\card{\cT_{\bar L}}\,e^{-c_1n\Delta_j^2}$ for a
-constant $c_1>0$ depending only on the bound and on $c$.
+constant $c_1>0$ depending only on the outcome bound, on $c$, and on
+$p_{\min}$.
 \end{lemma}
 
 \noindent Only the exponential rate uses a tail condition. The convergence
@@ -600,6 +860,230 @@ inference: by Lemma~\ref{lem:invariance} every member of $\cS_j$ induces the
 same estimand, so the penalty's role is to select the smallest sufficient tree,
 that is, the most readily displayed one. Regularisation here serves
 interpretability rather than statistical validity.
+Proposition~\ref{prop:parsimony} makes this precise and shows that the budget
+is then met without being enforced.
+
+\subsection{Computing the selection rule}\label{sec:compute}
+
+Equation~\eqref{eq:select} presumes a solver that searches $\cT^{(j)}_n$ itself.
+The branch-and-bound solver used in practice searches
+$\cG^{(j)}_n\supseteq\cT^{(j)}_n$, obtained by dropping the leaf-count bound
+$\card\tau\le\bar L$ while retaining the minimum-leaf requirement, and returns
+for a supplied $\lambda>0$ an exact global minimiser $t_j(\lambda)$ of
+$R^{(j)}_n(\tau)+\lambda\card\tau$ over $\cG^{(j)}_n$; it has no native cap on
+$\card\tau$. Proposition~\ref{prop:parsimony} shows that at $\lambda=\lambda_n$
+the uncapped search already respects the budget with probability tending to
+one; the two lemmas that follow certify the budget at the realised $n$ when it
+does not.
+
+\begin{proposition}[The budget binds asymptotically]\label{prop:parsimony}
+Let
+\[
+  L^{\min}_j=\min_{\tau\in\cS_j}\card\tau,
+  \qquad
+  \cS^{\min}_j=\bigl\{\tau\in\cS_j:\card\tau=L^{\min}_j\bigr\},
+\]
+so that $L^{\min}_j\le\bar L$ by Assumption~\ref{ass:sparsity}. Let
+$\mathcal{C}_n$ satisfy $\cT^{(j)}_n\subseteq\mathcal{C}_n\subseteq\cG^{(j)}_n$
+and let $t$ minimise $R^{(j)}_n(\cdot)+\lambda_n\card{\cdot}$ over
+$\mathcal{C}_n$. Under Assumptions~\ref{ass:iid}--\ref{ass:global} and
+\ref{ass:sparsity}, and if in addition $n\lambda_n\to\infty$,
+\[
+  \PP\bigl(t\in\cS^{\min}_j\bigr)\longrightarrow1 .
+\]
+Two choices of $\mathcal{C}_n$ are of interest. With $\mathcal{C}_n=\cT^{(j)}_n$
+the conclusion is that $\that_j$ of~\eqref{eq:select} is a sufficient tree of
+minimal leaf count. With $\mathcal{C}_n=\cG^{(j)}_n$ it is that $t_j(\lambda_n)$,
+the output of the uncapped solver at the analyst's own $\lambda_n$, satisfies
+$\card{t_j(\lambda_n)}=L^{\min}_j\le\bar L$ and $t_j(\lambda_n)\in\cT^{(j)}_n$,
+and hence solves~\eqref{eq:select}, with probability tending to one: the leaf
+budget is met without being imposed. The minimiser need not be unique, and no
+claim of convergence to a particular partition is made; by
+Lemma~\ref{lem:invariance} the estimand does not distinguish the members of
+$\cS^{\min}_j$, and only the leaf count is at issue for display.
+\end{proposition}
+
+\begin{proof}
+Write $\cT_M$ for the set of all tree partitions of $\cX$, so that
+$\cG^{(j)}_n\subseteq\cT_M$ and $\cT_M$ is fixed and finite by
+Assumption~\ref{ass:finite}, and put
+$\cS^M_j=\{\tau\in\cT_M:\Pi^\nu_\tau\gamma_{0,j}=\gamma_{0,j}\ P\text{-a.s.}\}$.
+Since $\cS_j=\cS^M_j\cap\cT_{\bar L}$ and $\cS_j\ne\emptyset$, minimising
+$\card\cdot$ over $\cS^M_j$ and over $\cS_j$ gives the same value $L^{\min}_j$
+and the same minimising set $\cS^{\min}_j$. The proof of
+Lemma~\ref{lem:margin} uses only $p_x>0$, $\nu_x\ge cp_x>0$, and finiteness of
+the candidate class, so it applies verbatim with $\cT_{\bar L}$ replaced by
+$\cT_M$ and yields
+\[
+  \Delta_{j,M}:=\min_{\tau\in\cT_M\setminus\cS^M_j}
+  \Bigl\{R^{(j)}(\tau)-\min_{\tau'\in\cT_M}R^{(j)}(\tau')\Bigr\}>0 ;
+\]
+necessarily $\Delta_{j,M}\le\Delta_j$, the minimum being over a larger class.
+
+\emph{An exact decomposition.} Let $\tau_{\mathrm{sat}}$ be the partition of
+$\cX$ into its $M$ cells; it serves only as a reference point and is not
+required to be a candidate. In the notation of Step~1 of the proof of
+Lemma~\ref{lem:selection},
+$R^{(j)}_n(\tau)=C_n-\sum_{\ell\in\tau}\widehat\omega_\ell\bar Z_\ell^2$ with
+$C_n$ free of $\tau$, $\widehat\omega_\ell=\sum_{x\in\ell}\widehat\omega_x$ and
+$\bar Z_\ell=\widehat\omega_\ell^{-1}\sum_{x\in\ell}\widehat\omega_x\bar Z_x$.
+Expanding the square gives, for every $\tau\in\cT_M$,
+\begin{equation}\label{eq:anova}
+  R^{(j)}_n(\tau)-R^{(j)}_n(\tau_{\mathrm{sat}})
+  =\sum_{\ell\in\tau}\sum_{x\in\ell}
+   \widehat\omega_x\bigl(\bar Z_x-\bar Z_\ell\bigr)^2\ \ge\ 0 ,
+\end{equation}
+on the event that every cell mean is defined, of probability tending to one by
+Step~2 of that proof. If $\tau\in\cS^M_j$ then $\gamma_{0,j}$ is constant on
+each leaf, so every $\bar Z_x$ with $x\in\ell$ and the convex combination
+$\bar Z_\ell$ estimate one common value; each is within $O_p(n^{-1/2})$ of it by
+Assumption~\ref{ass:moments} and the cell-mass bounds of Step~2, while
+$\widehat\omega_x\le1$ and there are at most $M$ summands. Hence
+\begin{equation}\label{eq:anova-rate}
+  \max_{\tau\in\cS^M_j}
+  \bigl\{R^{(j)}_n(\tau)-R^{(j)}_n(\tau_{\mathrm{sat}})\bigr\}=O_p(n^{-1}).
+\end{equation}
+
+\emph{Availability.} Fix $\sigma\in\cS^{\min}_j$. The first paragraph of Step~4
+of the proof of Lemma~\ref{lem:selection} gives
+$\PP(\sigma\in\cT^{(j)}_n)\to1$, and $\cT^{(j)}_n\subseteq\mathcal{C}_n$.
+
+\emph{Competitors with more leaves.} Let $\tau\in\mathcal{C}_n$ with
+$\card\tau>L^{\min}_j$, so that $\card\tau-L^{\min}_j\ge1$. By~\eqref{eq:anova}
+applied to $\tau$ and~\eqref{eq:anova-rate} applied to $\sigma$,
+\[
+  \bigl\{R^{(j)}_n(\sigma)+\lambda_nL^{\min}_j\bigr\}
+  -\bigl\{R^{(j)}_n(\tau)+\lambda_n\card\tau\bigr\}
+  \ \le\ \bigl\{R^{(j)}_n(\sigma)-R^{(j)}_n(\tau_{\mathrm{sat}})\bigr\}-\lambda_n
+  \ =\ O_p(n^{-1})-\lambda_n ,
+\]
+strictly negative with probability tending to one because $n\lambda_n\to\infty$.
+The bound is free of $\tau$, so the conclusion is uniform over such $\tau$ with
+no union bound: no candidate with more than $L^{\min}_j$ leaves is a minimiser.
+
+\emph{Insufficient competitors with no more leaves.} Let
+$\tau\in\cT_M\setminus\cS^M_j$ with $\card\tau\le L^{\min}_j$. Steps~2 and~3 of
+the proof of Lemma~\ref{lem:selection}, whose only use of
+Assumption~\ref{ass:budget} is that the candidate class be fixed and finite,
+give both $\max_{\tau,\tau'\in\cT_M}\lvert\{R^{(j)}_n(\tau)-R^{(j)}_n(\tau')\}
+-\{R^{(j)}(\tau)-R^{(j)}(\tau')\}\rvert=o_p(1)$ and
+$\lambda_n\card\cdot\le\lambda_nM=o(1)$. Since $\sigma\in\cS^M_j$ attains
+$\min_{\cT_M}R^{(j)}$ while $R^{(j)}(\tau)$ exceeds it by at least
+$\Delta_{j,M}$,
+\[
+  \bigl\{R^{(j)}_n(\tau)+\lambda_n\card\tau\bigr\}
+  -\bigl\{R^{(j)}_n(\sigma)+\lambda_nL^{\min}_j\bigr\}
+  \ \ge\ \Delta_{j,M}-o_p(1)\ >\ 0
+\]
+with probability tending to one, so no such $\tau$ is a minimiser.
+
+\emph{Conclusion.} On the intersection of these events a minimiser $t$ over
+$\mathcal{C}_n$ satisfies $\card t\le L^{\min}_j$ and $t\in\cS^M_j$, hence
+$\card t=L^{\min}_j$ and $t\in\cS^{\min}_j$. For the second stated consequence,
+$t\in\cG^{(j)}_n$ with $\card t\le\bar L$ gives $t\in\cT^{(j)}_n$, and a
+minimiser over $\mathcal{C}_n\supseteq\cT^{(j)}_n$ lying in $\cT^{(j)}_n$
+minimises over $\cT^{(j)}_n$.
+\end{proof}
+
+\noindent Proposition~\ref{prop:parsimony} is what reconciles the penalty of
+\eqref{eq:select} with the budget of Assumption~\ref{ass:budget}: there is one
+penalty, not two. The condition $n\lambda_n\to\infty$ is compatible with
+$\lambda_n\to0$ of Assumption~\ref{ass:global} --- $\lambda_n\asymp n^{-1/2}$
+and $\lambda_n\asymp n^{-1}\log n$ both qualify --- and is what separates the
+$O_p(n^{-1})$ empirical fluctuation among sufficient trees from the $\lambda_n$
+cost of one extra leaf. It is not imposed as a standing assumption because no
+other result uses it. What the proposition does not supply is a check at the
+realised $n$: the event it describes has probability tending to one but is not
+verifiable from data, and it is vacuous when $\cS_j=\emptyset$, in which case
+Lemma~\ref{lem:selection} fails as well. The two facts below are the
+finite-sample instruments for that complementary event.
+
+\begin{lemma}[Monotone leaf count]\label{lem:lambda-mono}
+Let $0<\lambda_1<\lambda_2$ and let $t_i$ be a global minimiser of
+$R^{(j)}_n(\cdot)+\lambda_i\card{\cdot}$ over $\cG^{(j)}_n$. Then
+$\card{t_2}\le\card{t_1}$.
+\end{lemma}
+
+\begin{proof}
+Optimality of $t_1$ at $\lambda_1$ and of $t_2$ at $\lambda_2$ gives
+$R^{(j)}_n(t_1)+\lambda_1\card{t_1}\le R^{(j)}_n(t_2)+\lambda_1\card{t_2}$ and
+$R^{(j)}_n(t_2)+\lambda_2\card{t_2}\le R^{(j)}_n(t_1)+\lambda_2\card{t_1}$.
+Adding cancels both risks and leaves
+$(\lambda_2-\lambda_1)(\card{t_2}-\card{t_1})\le0$; divide by
+$\lambda_2-\lambda_1>0$.
+\end{proof}
+
+\noindent Lemma~\ref{lem:lambda-mono} is what makes a bisection on $\lambda$
+against the realised leaf count well posed: the count is a weakly decreasing
+integer-valued correspondence, so a search for the smallest $\lambda$ attaining
+$\card{t_j(\lambda)}\le\bar L$ terminates.
+
+\begin{lemma}[Certificate for the computed selector]\label{lem:lambda-exact}
+Let $\lambda\ge\lambda_n$, let $t=t_j(\lambda)$, and suppose $t$ is feasible,
+i.e.\ every leaf of $t$ carries at least $m_n$ observations, control
+observations for $j=\mu$. Then:
+\begin{enumerate}
+\item[(i)] if $\card t=\bar L$, then $t$ solves~\eqref{eq:select}, and moreover
+  $t\in\argmin_{\tau\in\cT^{(j)}_n}R^{(j)}_n(\tau)$, so the returned tree does
+  not depend on $\lambda$ beyond the leaf count it induces;
+\item[(ii)] if $\card t\le\bar L$ and $\lambda=\lambda_n$, then $t$
+  solves~\eqref{eq:select};
+\item[(iii)] if $\card t=L<\bar L$, then for every $\tau\in\cT^{(j)}_n$
+  \[
+    R^{(j)}_n(t)+\lambda_nL
+    \ \le\ R^{(j)}_n(\tau)+\lambda_n\card\tau
+      +(\lambda-\lambda_n)(\bar L-L),
+  \]
+  so $t$ is optimal in~\eqref{eq:select} up to the computable slack
+  $(\lambda-\lambda_n)(\bar L-L)$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+Feasibility of $t$ together with $\card t\le\bar L$ gives $t\in\cT^{(j)}_n$, and
+$\cT^{(j)}_n\subseteq\cG^{(j)}_n$, so $t$ minimises
+$R^{(j)}_n+\lambda\card{\cdot}$ over $\cT^{(j)}_n$; this is (ii) when
+$\lambda=\lambda_n$. For (i) and (iii), that optimality reads
+$R^{(j)}_n(t)-R^{(j)}_n(\tau)\le\lambda(\card\tau-\card t)$ for
+$\tau\in\cT^{(j)}_n$. In case (i), $\card\tau-\bar L\le0$ and
+$\lambda\ge\lambda_n\ge0$ give
+$\lambda(\card\tau-\bar L)\le\lambda_n(\card\tau-\bar L)\le0$; the first
+inequality is~\eqref{eq:select} and the second is unpenalised optimality. In
+case (iii), write
+$\lambda(\card\tau-L)=\lambda_n(\card\tau-L)+(\lambda-\lambda_n)(\card\tau-L)$
+and bound $\card\tau-L\le\bar L-L$.
+\end{proof}
+
+\noindent Cases (i) and (ii) are the operative ones, and on either of them the
+global-optimality clause of Assumption~\ref{ass:global} is \emph{verified rather
+than assumed}: the returned tree is an exact global minimiser
+in~\eqref{eq:select}, certified by a finite-sample inequality, at the same
+$\lambda_n$ that appears in the assumption. The clause $\lambda_n\to0$ concerns
+the pre-specified $\lambda_n$ and is untouched; the certifying $\lambda$ is not
+that sequence and need not vanish in $n$. Case (iii) arises when the integer
+leaf count jumps past $\bar L$, and it should be reported together with its
+slack rather than presented as a solution of~\eqref{eq:select}; note also that a
+realised $L<\bar L$ narrows the candidate class, so sufficiency
+(Assumption~\ref{ass:sparsity}) must be read at $L$ rather than at $\bar L$
+before Lemma~\ref{lem:selection} is invoked; under
+Proposition~\ref{prop:parsimony} this does not arise at $\lambda=\lambda_n$.
+
+\begin{remark}[Why $\lambda$ is solved for and not chosen]\label{rem:lambda-closed-form}
+The budget can also be enforced in closed form: no tree reduces the empirical
+risk below zero, so $\lambda\ge R^{(j)}_n(\tau_{\mathrm{root}})/(\bar L-1)$
+makes every tree with more than $\bar L$ leaves suboptimal. The bound is
+correct, and the estimator it defines is not the one analysed here. Provided the
+root is not itself sufficient, such a $\lambda$ satisfies
+$\lambda\bar L>R^{(j)}_n(\tau_{\mathrm{root}})
+=R^{(j)}(\tau_{\mathrm{root}})+o_p(1)\ge\Delta_j+o_p(1)$ by
+Lemma~\ref{lem:margin}, whereas Step~3 of the proof of
+Lemma~\ref{lem:selection} requires $\lambda_n\bar L<\delta<\Delta_j/2$. A
+penalty large enough to \emph{enforce} the budget is therefore never small
+enough to be inferentially inert, and the resulting estimator targets a
+$\lambda$-dependent limit. Lemma~\ref{lem:lambda-exact} avoids the dilemma by
+certifying the budget at whatever $\lambda$ attains it while leaving the
+objective in~\eqref{eq:select} unchanged.
+\end{remark}
 
 % ===========================================================================
 \section{Full-sample inference with two optimal trees}\label{sec:main}
@@ -648,7 +1132,7 @@ Under Assumptions~\ref{ass:iid}--\ref{ass:budget} and \ref{ass:sparsity},
 \[
   \max_{(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu}
   \bigl\lvert T(\tau_e,\tau_\mu)\bigr\rvert
-  =O_p\bigl(\sqrt{L_e}/n\bigr)=o_p(n^{-1/2}).
+  =O_p\bigl(\sqrt{\bar L}/n\bigr)=o_p(n^{-1/2}).
 \]
 \end{lemma}
 
@@ -660,7 +1144,8 @@ $\ez(X_i)$ to be collapsed to a single leaf value before the binomial variance
 bound. Were $\tau_e\notin\cS_e$, then $\Delta w$ would converge to a non-zero
 limit, centring within the leaves of $\tau_\mu$ would leave
 $\sum_ia_i^2=\Theta_p(n)$, and $\sqrt nT$ would be $O_p(1)$ rather than
-$o_p(1)$. Second, no minimum-leaf-mass condition is needed for this bound: each
+$o_p(1)$. Second, no minimum-leaf-mass condition is used for this bound, although
+Assumption~\ref{ass:construct}(d) remains in force: each
 leaf contributes at most a constant to the relevant sum irrespective of its
 size, because the ratio of control count to total count in a leaf is at most one
 deterministically. Third, clipping preserves the bound, being a projection onto
@@ -768,7 +1253,7 @@ uncentred second moment and the centred sample variance, and no centring
 ambiguity arises. Because structure and leaf values are both fitted on all $n$
 observations, the summands are in-sample residuals, and~\eqref{eq:vhat} is
 downward biased by a relative factor of order $(2\bar L+1)/n$; a
-degrees-of-freedom divisor $n-(2\card{\that_e}+\card{\that_\mu})$ is a
+degrees-of-freedom divisor $n-(\card{\that_e}+\card{\that_\mu}+1)$ is a
 reasonable finite-sample convention. All statements are on $\{\pihat>0\}$, whose
 probability tends to one.
 
@@ -785,37 +1270,59 @@ moment, positivity, and non-degeneracy constants.
 \begin{definition}[Uniformity class]\label{def:uniformity}
 For $\Delta_{\min},c,v_0>0$ and $C_4<\infty$, let
 \[
-  \cP(\Delta_{\min},c,C_4,v_0)
+  \cP(\Delta_{\min},c,C_4,v_0,p_0,\pi_0)
   =\Bigl\{P:\ \delta_e=\delta_\mu=0,\ \min_j\Delta_j\ge\Delta_{\min},\
-  1-\ez\ge c,\ \E[Y^4\mid A,X]\le C_4,\ V\ge v_0\Bigr\}.
+  1-\ez\ge c,\ \abs Y\le C_4^{1/4},\ V\ge v_0,\ \min_xp_x\ge p_0,\
+  \pi\ge\pi_0\Bigr\}.
 \]
 \end{definition}
 
 \begin{theorem}[Uniform coverage]\label{thm:uniform-cover}
-Under Assumptions~\ref{ass:construct}--\ref{ass:global}, the interval
-$\thetahat\pm z_{1-\alpha/2}\sqrt{\Vhat/n}$ has coverage converging to
-$1-\alpha$ uniformly over $\cP(\Delta_{\min},c,C_4,v_0)$.
+Suppose Assumptions~\ref{ass:iid}--\ref{ass:global} hold, and suppose in addition
+that the linearisation remainder is uniformly negligible on the class, that is
+\begin{equation}\label{eq:unif-rem}
+  \sup_{P\in\cP(\Delta_{\min},c,C_4,v_0,p_0,\pi_0)}
+  \PP_P\bigl(\abs{R_n}>\epsilon_n\bigr)\longrightarrow0
+  \quad\text{for some }\epsilon_n\to0,\qquad
+  R_n=\sqrt n(\thetahat-\theta_0)-\sqrt n\,\Pn\psi_0 .
+\end{equation}
+Then $\thetahat\pm z_{1-\alpha/2}\sqrt{\Vhat/n}$ has coverage converging to
+$1-\alpha$ uniformly over $\cP(\Delta_{\min},c,C_4,v_0,p_0,\pi_0)$.
 \end{theorem}
 
-\noindent All four constants are needed. Without the moment and non-degeneracy
-constraints $V$ may be unbounded or $V>0$ may fail, so uniform coverage cannot
-hold; and uniform-in-$P$ selection consistency requires a fourth moment, which
-Assumption~\ref{ass:moments} does not supply. No tail condition is needed for
-the pointwise results; the uniform version requires a uniform fourth moment, or
-a bounded outcome.
+\noindent Every constant in the class is consumed. The margin floor
+$\Delta_{\min}$ uniformises selection; $c$ bounds the weights; the outcome bound
+controls the third and fourth moments of $\psi_0$; $v_0$ keeps the standardisation
+non-degenerate; $p_0$ floors the leaf denominators; and $\pi_0$ is required
+because $\psi_0$ carries a factor $\pi^{-1}$, so that without it neither
+$\E[\psi_0^4]$ nor $\theta_0$ is bounded on the class --- and $V\ge v_0$ does not
+help, since $V\asymp\pi^{-2}$ grows as $\pi$ shrinks. The outcome is required to be
+bounded rather than merely to have four moments, because the only exponential
+selection bound available is the one Lemma~\ref{lem:selection} supplies under
+boundedness.
+
+Condition~\eqref{eq:unif-rem} is stated as a hypothesis rather than derived.
+Establishing it requires uniform-in-$P$ versions of Lemmas~\ref{lem:U},
+\ref{lem:cross} and~\ref{lem:uniform}, whose constants involve $\bar Lm_n$, $p_0$,
+$\pi_0$ and the outcome bound; that is not carried out here, and until it is, the
+uniform statement is conditional. The pointwise results of
+Corollary~\ref{cor:variance} need none of this.
 
 \subsection{Regularity and efficiency}\label{sec:regularity}
 
 \begin{theorem}[Regularity and local asymptotic efficiency]\label{thm:regular}
-Under the conditions of Theorem~\ref{thm:main}, $\thetahat$ is regular at $P_0$
-relative to $\cP$: for every path $\{P_{n,h}\}$ in $\cP$ that is differentiable
+Suppose the conditions of Theorem~\ref{thm:main} hold and, in addition, that
+$P_0$ is \emph{interior} to $\cP_{c,C_Y}$ in the sense of
+Lemma~\ref{lem:tangent}: $\ez(x)>0$ and $1-\ez(x)>c$ strictly for every
+$x\in\cX$. Then $\thetahat$ is regular at $P_0$
+relative to $\cP_{c,C_Y}$: for every path $\{P_{n,h}\}$ in $\cP_{c,C_Y}$ that is differentiable
 in quadratic mean at $P_0$ with score $h$,
 \[
   \sqrt n\bigl\{\thetahat-\theta(P_{n,h})\bigr\}\rightsquigarrow N(0,V)
   \qquad\text{under }P_{n,h}^n,
 \]
 with the limit free of $h$. Consequently, by the convolution theorem,
-$\thetahat$ is locally asymptotically efficient in $\cP$.
+$\thetahat$ is locally asymptotically efficient in $\cP_{c,C_Y}$.
 \end{theorem}
 
 The efficiency claim is asserted in $\cP$ and must not be asserted in the
@@ -829,7 +1336,8 @@ the leaves of $\tau$. The efficiency bound for $\theta_0$ in $\cP_\tau$ is
    -\Pi^{v}_\tau\Delta m\bigr\}^2\Bigr]\ \le\ V,
   \qquad \Delta m=m_1-\mz-\theta_0,\quad v_x=p_x\ez(x)\{1-\ez(x)\},
 \]
-with strict inequality whenever the treated--control contrast varies within a
+with strict inequality whenever, on the cells where $\ez>0$, the
+treated--control contrast varies within a
 leaf of $\tau$. Moreover $V^{\mathrm{known}\text{-}e}\le V_\tau\le V$, where the
 first is the bound when $\ez$ is known.
 \end{proposition}
@@ -923,13 +1431,14 @@ Assumption~\ref{ass:pseudo} and a conservative variance estimator.
 \begin{theorem}[Anchor interval]\label{thm:anchor}
 Let $\thetatil$ satisfy
 $\sqrt n(\thetatil-\theta_0)\rightsquigarrow N(0,\widetilde V)$ with
-$\widetilde\sigma^2\to_p\widetilde V$, and let
+$\widetilde V>0$ and $\widetilde\sigma^2\to_p\widetilde V$, and let
 $\widehat\delta=\thetahat-\thetatil$. Then
 \[
   C_n=\Bigl[\thetahat\pm\bigl(\abs{\widehat\delta}
    +z_{1-\alpha/2}\,\widetilde\sigma/\sqrt n\bigr)\Bigr]
 \]
-satisfies $\liminf_n\PP(\theta_0\in C_n)\ge1-\alpha$, with no condition on
+satisfies $\liminf_n\PP(\theta_0\in C_n)\ge1-\alpha$ on $\{\pihat>0\}$, whose
+probability tends to one, with no condition on
 $\delta_e$, $\delta_\mu$, $\Dw$, or $\Dm$, and no smoothness condition on the
 nuisances.
 \end{theorem}
@@ -949,15 +1458,28 @@ identically: subtracting it returns the cross-fitted estimator exactly and
 forfeits the displayed-tree estimate for nothing.
 
 \begin{corollary}[Width]\label{cor:width}
-Under the conditions of Theorem~\ref{thm:anchor},
-$\abs{\widehat\delta}=O_p(\delta_e\delta_\mu+n^{-1/2})$ and
+Suppose the conditions of Theorem~\ref{thm:anchor} hold, together with
+Assumptions~\ref{ass:moments}--\ref{ass:construct} and~\ref{ass:budget} and the
+conclusion of Theorem~\ref{thm:crossfit} for the anchor. Then
 \[
-  \mathrm{width}(C_n)\asymp_p\max\bigl\{n^{-1/2},\ \delta_e\delta_\mu\bigr\}.
+  \abs{\widehat\delta}=O_p\bigl(\Dw\Dm+n^{-1/2}\bigr),
+  \qquad
+  \mathrm{width}(C_n)=O_p\bigl(\max\{n^{-1/2},\ \Dw\Dm\}\bigr).
 \]
-The interval contracts at the parametric rate if and only if
-$\delta_e\delta_\mu=O(n^{-1/2})$, and its width otherwise plateaus at the bias
-floor.
+In particular the width is $O_p(n^{-1/2})$ whenever $\Dw\Dm=O(n^{-1/2})$.
 \end{corollary}
+
+\noindent Three qualifications. The bound is stated in the \emph{realised} errors
+of~\eqref{eq:realised}, not the approximation errors of~\eqref{eq:approx}: the two
+agree only up to the estimation error of the leaf values \emph{and} the excess risk
+of the selected tree, and away from Assumption~\ref{ass:sparsity} the latter is
+only $O_p(n^{-1/2})$, so substituting $\delta_e\delta_\mu$ requires an argument
+this corollary does not supply. The two notions also live in different norms ---
+$\delta_e$ measures $e$ in $\Ltwo\cdot$ while $\Dw$ measures $w=e/(1-e)$ in
+$\Lw\cdot$ --- so any conversion carries the Lipschitz constant $c^{-2}$ and
+Lemma~\ref{lem:normequiv}. And the conclusion is an upper bound only: a matching
+lower bound, which is what a genuine plateau would assert, does not hold in
+general, since the bilinear remainder can vanish with both factors large.
 
 \noindent Corollary~\ref{cor:width} quantifies the trade-off. The correct
 statement is not that a bounded-complexity tree cannot deliver $\sqrt n$
@@ -975,8 +1497,22 @@ and~\ref{ass:rate}, $\sqrt n\,\widehat\delta=o_p(1)$. Consequently, for any
 $\widehat{\mathrm{SE}}\asymp n^{-1/2}$, the test that rejects
 Assumption~\ref{ass:sparsity} when
 $\abs{\widehat\delta}>z_{1-\alpha/2}\widehat{\mathrm{SE}}$ has size tending to
-zero and is consistent against fixed alternatives.
+zero. If in addition Assumption~\ref{ass:pseudo} holds, so that
+$\widehat\eta\to_p\eta_*$, the test is consistent against any alternative with
+non-vanishing bias, $b:=P\psi(\cdot;\theta_0,\eta_*)\ne0$.
 \end{proposition}
+
+\noindent Consistency must be indexed by $b\ne0$ and not by
+$\delta_e\delta_\mu>0$. The remainder of Proposition~\ref{prop:bilinear} is a
+\emph{bilinear} form, which vanishes whenever the two error functions are
+orthogonal under $\{1-\ez\}\,dP$ --- the very mechanism of double robustness --- so
+$\delta_e\delta_\mu>0$ bounds $\abs b$ from above, through
+Lemma~\ref{lem:biasbound}, and never from below. The diagnostic is accordingly
+blind to orthogonal misspecification: the trees can be badly wrong in both
+nuisances and the test still fail to reject, because the estimator is then not
+biased. Assumption~\ref{ass:pseudo} is required because without a population
+margin the minimiser may oscillate among near-ties and $\widehat\eta$ has no
+limit, so $b$ is undefined.
 
 \noindent Under Assumption~\ref{ass:sparsity} both estimators are
 asymptotically linear with the \emph{same} influence function $\psi_0$, by
@@ -995,68 +1531,56 @@ misspecification otherwise destroys: without a population margin the minimiser
 in~\eqref{eq:select} may oscillate among near-ties, in which case
 $\widehat\eta$ has no limit and $V_*$ is not defined.
 
-\begin{proposition}[Realised errors are estimable]\label{prop:estimable}
-Suppose Assumptions~\ref{ass:iid}--\ref{ass:budget} and~\ref{ass:pseudo} hold,
-$Y$ is bounded or sub-Gaussian conditionally on $(A,X)$, every cell is occupied
-in the relevant arm in the sense that $np_{\min}\gtrsim\log M$ for $e$ and
-$ncp_{\min}\gtrsim\log M$ for $\mu$, and the saturated cell-wise fits
-$\ehat_{\mathrm{sat}},\mhat_{\mathrm{sat}}$ are computed on a sample independent
-of that used for $\widehat\eta$. Then the degrees-of-freedom-corrected
-statistic
-\[
-  \widehat D_\mu^2=\sum_x\widehat p_x\{1-\ehat(x)\}
-   \bigl\{\mhat(x)-\mhat_{\mathrm{sat}}(x)\bigr\}^2
-  -\sum_x\widehat p_x\{1-\ehat(x)\}\frac{\widehat\sigma^2(x)}{n_{0,x}},
-\]
-and its analogue $\widehat D_w^2$, satisfy
-$\widehat D_j^2-D_j^2=O_p\bigl(M/n+D_jn^{-1/2}\bigr)$ up to logarithmic factors.
-Setting $U_j^2=(\widehat D_j^2)_++\kappa_na_{n,j}$ with
-$a_{n,j}=(M\log n)/n+\widehat D_j\sqrt{\log n/n}$ and $\kappa_n\to\infty$ at a
-polylogarithmic rate yields
-$\PP\bigl(U_w\ge\Dw\text{ and }U_\mu\ge\Dm\bigr)\to1$.
-\end{proposition}
+The anchor interval pays the anchor's full width, and a sharper interval would be
+worth having. The natural route measures the realised errors directly, against a
+saturated cell-wise reference fit: with
+$\widehat D_\mu^2=\sum_x\widehat p_x\{1-\ehat(x)\}\{\mhat(x)-\mhat_{\mathrm{sat}}(x)\}^2
+-\sum_x\widehat p_x\{1-\ehat(x)\}\widehat\sigma^2(x)/n_{0,x}$
+and an analogue $\widehat D_w^2$, one inflates to one-sided upper bounds
+$U_j^2=(\widehat D_j^2)_++\kappa_na_{n,j}$ and reports
+$\thetahat\pm\{z\sqrt{\Vhat^{+}/n}+U_wU_\mu/\pi\}$, where $\Vhat^{+}$ dominates the
+asymptotic variance at the pseudo-true nuisances of
+Assumption~\ref{ass:pseudo}.
 
-\begin{theorem}[Interval under a pseudo-true margin]\label{thm:honest}
-Suppose Assumptions~\ref{ass:iid}--\ref{ass:budget} and~\ref{ass:pseudo} hold,
-let $U_w,U_\mu$ satisfy
-$\PP(U_w\ge\Dw,\,U_\mu\ge\Dm)\to1$, and let $\Vhat^{+}$ satisfy
-$\plim\Vhat^{+}\ge V_*$. Then
-\[
-  \thetahat\ \pm\ \Bigl(z_{1-\alpha/4}\sqrt{\Vhat^{+}/n}
-   +\frac{U_wU_\mu}{\pi}\Bigr)
-\]
-has asymptotic coverage at least $1-\alpha$ for $\theta_0$.
-\end{theorem}
+This route is \emph{not} established here, and is stated as prose rather than as a
+numbered result because four obstacles remain open. First, the natural statistic
+weights by $1-\ehat$ while the realised error $\Dm$ is defined in the
+$\{1-\ez\}$-weighted norm; away from sparsity $\ehat\to_pe_*\ne\ez$, so the two
+differ at first order and the one-sided guarantee $\PP(U_\mu\ge\Dm)\to1$ can fail
+by a constant factor that no vanishing slack repairs. Either the propensity must be
+correctly specified, or the norm in Lemma~\ref{lem:biasbound} must be recast in
+$\{1-\ehat\}$, which is not Cauchy--Schwarz-compatible as that lemma stands.
+Second, the degrees-of-freedom correction is unbiased to first order only under a
+hold-out for the saturated fit, and a hold-out is in direct tension with the
+full-sample construction of Assumption~\ref{ass:construct}: the audited object then
+ceases to be the reported tree's fit. Third, the comparison variance $V_*$ is not
+well defined by Assumption~\ref{ass:pseudo} alone --- under misspecification
+$\sqrt n(\thetahat-\theta_0)$ diverges, so $V_*$ must be defined by centring at
+$\theta(\eta_*)$, and no formula for it is available here, which leaves the
+requirement on $\Vhat^{+}$ uncheckable and no $\Vhat^{+}$ exhibited. Fourth, and
+most consequentially, asymptotic linearity at $\eta_*$ is not available: the only
+routes to it, Lemmas~\ref{lem:U} and~\ref{lem:cross}, are proved over
+$\cS_e\times\cS_\mu$, and Lemma~\ref{lem:cross} is accompanied by an argument that
+off $\cS_e$ one has $\sqrt nT=O_p(1)$ rather than $o_p(1)$. Supplying an
+off-sparsity linearity lemma is the substantive prerequisite.
 
-\noindent Two features of Theorem~\ref{thm:honest} are not interchangeable with
-their analogues in Theorem~\ref{thm:main}. The comparison variance is $V_*$, the
-asymptotic variance at the pseudo-true nuisances, and not $V$: under
-misspecification the terms $U$ and $T$ of~\eqref{eq:skeleton} contribute
-variance absent from $V$, so $V_*$ may exceed $V$ and a bound on $V$ does not
-bound $V_*$. The plug-in~\eqref{eq:vhat} does not qualify as $\Vhat^{+}$: with
-$a=\mu_*-\mz$ and $b=w_*-\wz$,
+What survives is worth stating plainly. Theorem~\ref{thm:anchor} is the paper's
+only established inference statement away from sparsity; it needs no condition on
+the errors, and its price is the anchor's width. The realised-error refinement is a
+direction for the companion paper, not a result of this one. One qualitative
+conclusion from the attempt does stand on its own, because it is proved in
+Appendix~\ref{app:honest}: the plug-in~\eqref{eq:vhat} cannot serve as a
+conservative variance estimator away from sparsity, since with $a=\mu_*-\mz$ and
+$b=w_*-\wz$,
 \[
-  \plim\Vhat=V+2\pi^{-2}\bigl\{\E[(1-\ez)\wz b\sigma_0^2]
+  \plim\Vhat=V+2\pi^{-2}\bigl\{\E[\{1-\ez\}\wz b\,\sigma_0^2]
    -\E[\ez\,a\,\Delta m]\bigr\}+O\bigl(\Ltwo a^2+\Ltwo b^2\bigr),
 \]
-whose first-order term is not sign-definite; taking $b\equiv0$ and
-$a=\epsilon(1-\ez)\Delta m$ makes it negative against a second-order
-$O(\epsilon^2)$, so $\plim\Vhat<V$ is possible. The error budget in
-Theorem~\ref{thm:honest} allocates $\alpha/2$ to the normal approximation and
-$\alpha/4$ to each one-sided bound, summing to $\alpha$.
-
-Proposition~\ref{prop:estimable} requires a hold-out for the saturated
-reference, which is in tension with the no-splitting design of
-Sections~\ref{sec:main} and~\ref{sec:honest}; the requirement is stated in the
-proposition because it cannot be removed without a separate argument for the
-dependence between $\mhat$ and $\mhat_{\mathrm{sat}}$, which share the control
-outcomes. Its rates are stated in $M$, and are informative only when $M$ is
-regarded as large relative to $\bar L$ rather than as the fixed constant of
-Assumption~\ref{ass:finite}; read literally under
-Assumption~\ref{ass:finite}, $M/n=O(n^{-1})$ and the conditions are vacuous.
-Proposition~\ref{prop:estimable} is accordingly a finite-sample guide to when
-the refinement is worth its cost, and Theorem~\ref{thm:anchor} is the
-asymptotic statement.
+whose first-order term is not sign-definite: taking $b\equiv0$ and
+$a=\epsilon\{1-\ez\}\Delta m$ makes it $-\epsilon\E[\ez\{1-\ez\}\Delta m^2]<0$
+against a remainder of order $\epsilon^2$, so $\plim\Vhat<V$ for small $\epsilon>0$
+whenever $\Delta m\not\equiv0$. That is a defect distinct from the bias, and no
+bias allowance repairs it.
 
 % ===========================================================================
 \section{Discussion}\label{sec:discussion}
@@ -1112,9 +1636,12 @@ $\bar L_n=o(\sqrt n)$, $\bar L_n\log(d_nJ_n)=o(n\Delta_{\min,n}^2)$, and a
 bounded or sub-Gaussian outcome. Continuous covariates require approximation
 theory and an oracle inequality for optimal trees, and Rashomon sets require
 structure-intersection results; both are developed in the companion paper and
-neither is used above. A sharp conservative variance estimator $\Vhat^{+}$ for
-Theorem~\ref{thm:honest}, as opposed to the crude bound available from
-Assumptions~\ref{ass:causal} and~\ref{ass:moments}, is not constructed here.
+neither is used above. The realised-error refinement of
+Section~\ref{sec:realised} is left as prose: it requires a conservative variance
+estimator dominating the asymptotic variance at the pseudo-true nuisances, a
+definition of that variance by centring at the pseudo-true estimand, an
+off-sparsity asymptotic-linearity lemma, and a reconciliation of its hold-out with
+the full-sample design. None of the four is supplied here.
 
 \paragraph{Assumed decay as an alternative to measurement.}
 The alternative to estimating the approximation errors is to assume their decay,
@@ -1132,44 +1659,1599 @@ additive models, which are the least favourable case for trees.
 
 \section{Auxiliary results}\label{app:aux}
 
-\emph{To be completed: norm-equivalence bounds, the non-expansiveness of
-one-sided clipping, and the leaf-mean moment bounds used repeatedly in
-Appendices~\ref{app:structure} and~\ref{app:main}.}
+\begin{lemma}[Norm equivalence]\label{lem:normequiv}
+Under Assumption~\ref{ass:causal}, for every $f$ with $\Ltwo f<\infty$,
+\[
+  c\,\Ltwo f^2\le\Lw f^2\le\Ltwo f^2,
+  \qquad
+  \sqrt c\,\Ltwo f\le\Lw f\le\Ltwo f .
+\]
+The equivalence constant is $1/c$ for squared norms and $c^{-1/2}$ for norms.
+\end{lemma}
+
+\begin{lemma}[One-sided clipping is non-expansive]\label{lem:clip}
+Let $\Pi_{[0,1-c]}$ denote the Euclidean projection onto $[0,1-c]$. Under
+Assumption~\ref{ass:causal}, $\ez(x)\in[0,1-c]$ for every $x$, and consequently
+\[
+  \bigl\lvert\Pi_{[0,1-c]}(u)-\ez(x)\bigr\rvert\le\abs{u-\ez(x)}
+  \qquad\text{for every }u\in\R .
+\]
+In particular the clipping prescribed by Assumption~\ref{ass:construct}(c) can
+only decrease the error of a fitted propensity, pointwise and hence in every
+$L_p$ norm.
+\end{lemma}
+
+\noindent The leaf-mean moment bounds used repeatedly in
+Appendices~\ref{app:structure} and~\ref{app:main} are supplied by
+Lemma~\ref{lem:findim}, which is stated in the main text and proved in
+Appendix~\ref{app:main}.
+
+\begin{proof}[Proof of Lemma~\ref{lem:normequiv}]
+By Assumption~\ref{ass:causal}, $1-\ez(x)\ge c$ for every $x$, and since
+$\ez(x)\ge0$ we also have $1-\ez(x)\le1$. Hence pointwise
+\[
+  c\ \le\ 1-\ez(x)\ \le\ 1 .
+\]
+Multiplying by $f(x)^2\ge0$ preserves both inequalities, giving
+$c\,f(x)^2\le\{1-\ez(x)\}f(x)^2\le f(x)^2$, and taking expectations over $X$,
+which is monotone on non-negative quantities,
+\[
+  c\,\E[f(X)^2]\ \le\ \E\bigl[\{1-\ez(X)\}f(X)^2\bigr]\ \le\ \E[f(X)^2],
+\]
+that is, $c\,\Ltwo f^2\le\Lw f^2\le\Ltwo f^2$. All three quantities are
+non-negative, so taking square roots, monotone on $[0,\infty)$, gives
+$\sqrt c\,\Ltwo f\le\Lw f\le\Ltwo f$. Rearranging the squared inequality gives
+$\Ltwo f^2\le c^{-1}\Lw f^2$, and rearranging the unsquared one gives
+$\Ltwo f\le c^{-1/2}\Lw f$.
+\end{proof}
+
+\noindent The equivalence constant is $c^{-1}$ at the level of squared norms but
+only $c^{-1/2}$ at the level of norms. The two are not interchangeable, and
+substituting one for the other produces an incorrect power of $c$ in every
+bound that passes through this lemma.
+
+\begin{proof}[Proof of Lemma~\ref{lem:clip}]
+Fix $x$. By Assumption~\ref{ass:causal}, $\ez(x)\in[0,1-c]$, so $\ez(x)$ is its
+own projection. Let $u\in\R$ and consider three cases.
+
+If $u<0$ then $\Pi_{[0,1-c]}(u)=0$ and $u<0\le\ez(x)$, so
+$\abs{u-\ez(x)}=\ez(x)+\abs u\ge\ez(x)=\abs{\Pi_{[0,1-c]}(u)-\ez(x)}$.
+If $u\in[0,1-c]$ then $\Pi_{[0,1-c]}(u)=u$ and the two sides are equal.
+If $u>1-c$ then $\Pi_{[0,1-c]}(u)=1-c$ and $\ez(x)\le1-c<u$, so
+$\abs{u-\ez(x)}=u-\ez(x)\ge(1-c)-\ez(x)=\abs{\Pi_{[0,1-c]}(u)-\ez(x)}$.
+In all three cases the displayed inequality holds.
+
+Taking $u=\ehat(x)$ for each $x$ gives the pointwise bound
+$\abs{\Pi_{[0,1-c]}(\ehat(x))-\ez(x)}\le\abs{\ehat(x)-\ez(x)}$. Raising to the
+$p$-th power preserves it, both sides being non-negative, and integrating against
+$P$ preserves it by monotonicity, giving the claim for every $L_p(P)$ norm.
+\end{proof}
+
+\noindent One-sidedness is essential rather than cosmetic. Since
+Assumption~\ref{ass:causal} permits $\ez(x)<c$, consider clipping instead to
+$[c,1-c]$ and take $u=\ez(x)$, a perfectly fitted value. Then
+$\ez(x)\notin[c,1-c]$, so $\Pi_{[c,1-c]}(\ez(x))=c$ and
+\[
+  \abs{\Pi_{[c,1-c]}(u)-\ez(x)}=c-\ez(x)>0=\abs{u-\ez(x)} :
+\]
+the two-sided clip strictly increases the error at such a cell, even under a
+perfect fit. The case analysis above requires $\ez(x)$ to lie in the clipping
+interval, which two-sided clipping violates precisely where one-sided positivity
+allows $\ez$ to be small.
 
 \section{Proofs for Section~\ref{sec:eif}}\label{app:eif}
 
-\emph{To be completed: Proposition~\ref{prop:bilinear},
-Lemma~\ref{lem:biasbound}, Corollary~\ref{cor:convert},
-Lemma~\ref{lem:tangent}.}
+\begin{proof}[Proof of Proposition~\ref{prop:bilinear}]
+Expand $\pi\,\E[\psi(O;\theta_0,\eta)]$ by the tower property, splitting on
+$A\in\{0,1\}$ and using $m_1,\mz$ as the conditional means of $Y$ given $(A,X)$;
+substitute the identification identity to cancel the $\E[\ez m_1]$ terms; then
+factor the remainder using $\ez=(1-\ez)\wz$. Every step is an equality, so no
+expansion or remainder is introduced.
+
+By the definition~\eqref{eq:score} of $\psi$,
+\[
+  \pi\,\E[\psi(O;\theta_0,\eta)]
+  =\E\bigl[A\{Y-\mu(X)-\theta_0\}\bigr]
+  -\E\bigl[(1-A)\,w(X)\{Y-\mu(X)\}\bigr].
+\]
+Under Assumption~\ref{ass:iid} the tower property applies pointwise in $X$. For
+the first term, condition on $X$: given $X$, $A$ is Bernoulli with parameter
+$\ez(X)$, and $\E[Y\mid A=1,X]=m_1(X)$ by definition, so
+\[
+  \E\bigl[A\{Y-\mu(X)-\theta_0\}\bigr]
+  =\E\bigl[\ez(X)\{m_1(X)-\mu(X)-\theta_0\}\bigr]
+  =\E[\ez m_1]-\E[\ez\mu]-\pi\theta_0,
+\]
+using $\E[\ez(X)]=\PP(A=1)=\pi$. For the second term,
+$\E[Y\mid A=0,X]=\mz(X)$ by definition and $\PP(A=0\mid X)=1-\ez(X)$, so
+\[
+  \E\bigl[(1-A)\,w(X)\{Y-\mu(X)\}\bigr]
+  =\E\bigl[\{1-\ez(X)\}\,w(X)\{\mz(X)-\mu(X)\}\bigr].
+\]
+Consistency and ignorability, from Assumption~\ref{ass:causal}, identify the
+target as $\pi\theta_0=\E[\ez(m_1-\mz)]=\E[\ez m_1]-\E[\ez\mz]$. Substituting,
+\[
+  \pi\,\E[\psi(O;\theta_0,\eta)]
+  =\E[\ez m_1]-\E[\ez\mu]-\bigl(\E[\ez m_1]-\E[\ez\mz]\bigr)
+  -\E\bigl[(1-\ez)w(\mz-\mu)\bigr].
+\]
+The $\E[\ez m_1]$ terms cancel, leaving
+\[
+  \pi\,\E[\psi(O;\theta_0,\eta)]
+  =\E[\ez\mz]-\E[\ez\mu]-\E\bigl[(1-\ez)w(\mz-\mu)\bigr]
+  =\E\bigl[(\mz-\mu)\{\ez-(1-\ez)w\}\bigr].
+\]
+Since $1-\ez(x)\ge c>0$ for every $x$ by Assumption~\ref{ass:causal}, the weight
+$\wz(x)=\ez(x)/\{1-\ez(x)\}$ is well defined at every $x$, and rearranging gives
+$\ez=(1-\ez)\wz$ pointwise --- including at $\ez(x)=0$, where both sides vanish.
+Hence
+\[
+  \ez-(1-\ez)w=(1-\ez)\wz-(1-\ez)w=(1-\ez)(\wz-w).
+\]
+Substituting and dividing by $\pi>0$ gives~\eqref{eq:bilinear}.
+\end{proof}
+
+\noindent Three features of the argument are worth isolating. Assumption
+\ref{ass:iid} is used only to justify conditioning under a single fixed law.
+The causal content enters exactly once, through the identification identity
+$\pi\theta_0=\E[\ez(m_1-\mz)]$; the two conditioning steps are statements about
+conditional means and require no causal assumption. And one-sided positivity is
+used only to make $\wz$ and $w$ well defined; no step divides by $\ez$ or by $e$,
+which is why $\ez(x)=0$ is harmless. Were the candidate to violate $1-e\ge c$,
+the weight $w$ would be undefined on a set of positive probability and the
+statement ill-posed.
+
+\begin{proof}[Proof of Lemma~\ref{lem:biasbound}]
+Assumption~\ref{ass:construct}(c) gives $1-\ehat(x)\ge c$ for every $x$, so
+Proposition~\ref{prop:bilinear} applies at $\eta=\widehat\eta$:
+\[
+  \E[\psi(O;\theta_0,\widehat\eta)]
+  =\frac1\pi\,\E\Bigl[\{1-\ez(X)\}\{\wz(X)-\what(X)\}\{\mz(X)-\mhat(X)\}\Bigr].
+\]
+Split the weight as $\{1-\ez\}=\sqrt{1-\ez}\cdot\sqrt{1-\ez}$ and attach one
+factor to each bracket:
+\[
+  \{1-\ez\}\{\wz-\what\}\{\mz-\mhat\}
+  =\Bigl[\sqrt{1-\ez}\,\{\wz-\what\}\Bigr]
+   \Bigl[\sqrt{1-\ez}\,\{\mz-\mhat\}\Bigr].
+\]
+Taking absolute values inside the expectation and applying Cauchy--Schwarz,
+$\E\abs{UV}\le\{\E U^2\}^{1/2}\{\E V^2\}^{1/2}$, to
+$U=\sqrt{1-\ez}\{\wz-\what\}$ and $V=\sqrt{1-\ez}\{\mz-\mhat\}$,
+\[
+  \Bigl\lvert\E\bigl[\{1-\ez\}\{\wz-\what\}\{\mz-\mhat\}\bigr]\Bigr\rvert
+  \le\Lw{\what-\wz}\cdot\Lw{\mhat-\mz}=\Dw\,\Dm ,
+\]
+since $\E[\{1-\ez\}\{\wz-\what\}^2]=\Lw{\what-\wz}^2$ and likewise for the
+outcome factor. Dividing by $\pi>0$ gives the claim.
+\end{proof}
+
+\noindent No power of $c$ appears because the weight $\{1-\ez\}$ is split evenly
+and absorbed entirely, one factor $\sqrt{1-\ez}$ into each norm, leaving neither
+factor unweighted. This is precisely why $\Lw\cdot$, and not $\Ltwo\cdot$, is the
+natural norm for this bound.
+
+\begin{proof}[Proof of Corollary~\ref{cor:convert}]
+Fix $x$ and write $e=\ehat(x)$, $w=\what(x)$. From the definitions
+$\wz(x)=\ez(x)/\{1-\ez(x)\}$ and $w=e/(1-e)$,
+\[
+  \wz(x)-w=\frac{\ez(x)}{1-\ez(x)}-\frac{e}{1-e}
+  =\frac{\ez(x)(1-e)-e\{1-\ez(x)\}}{\{1-\ez(x)\}(1-e)} .
+\]
+The numerator is $\ez(x)-\ez(x)e-e+e\,\ez(x)=\ez(x)-e$, so
+\[
+  \wz(x)-w=\frac{\ez(x)-e}{\{1-\ez(x)\}(1-e)},
+  \qquad\text{hence}\qquad
+  \{1-\ez(x)\}\,\abs{\wz(x)-w}=\frac{\abs{\ez(x)-e}}{1-e},
+\]
+the factor $\{1-\ez(x)\}$ cancelling exactly; it is positive by
+Assumption~\ref{ass:causal}. By Assumption~\ref{ass:construct}(c), $1-e\ge c$,
+so $1/(1-e)\le c^{-1}$ and
+\[
+  \{1-\ez(x)\}\,\abs{\wz(x)-\what(x)}\le c^{-1}\abs{\ez(x)-\ehat(x)} .
+\]
+Substituting into Proposition~\ref{prop:bilinear} and bounding termwise,
+\[
+  \bigl\lvert\E[\psi(O;\theta_0,\widehat\eta)]\bigr\rvert
+  \le\frac1{\pi c}\,\E\bigl[\abs{\ez-\ehat}\,\abs{\mz-\mhat}\bigr]
+  \le\frac1{\pi c}\,\Ltwo{\ehat-\ez}\,\Ltwo{\mhat-\mz},
+\]
+by unweighted Cauchy--Schwarz. Converting the outcome factor with
+Lemma~\ref{lem:normequiv}, $\Ltwo{\mhat-\mz}\le c^{-1/2}\Lw{\mhat-\mz}$, yields
+the constant $c^{-1}\cdot c^{-1/2}=c^{-3/2}$ and the stated bound.
+\end{proof}
+
+\noindent The asymmetry of~\eqref{eq:convert} is forced rather than chosen. The
+identity above consumes the entire factor $\{1-\ez\}$ on the propensity side,
+so the propensity error emerges unweighted; the outcome factor never had weight
+removed by that identity, and must therefore be converted separately, at cost
+$c^{-1/2}$. The two powers of $c$ have distinct origins: $c^{-1}$ from clipping,
+$c^{-1/2}$ from norm conversion.
+
+\begin{proof}[Proof of Lemma~\ref{lem:tangent}]
+Throughout, $P_0$ is interior: $\ez(x)>0$ and $1-\ez(x)>c$ for every $x$, and
+$\E_0[Y^2\mid A=a,X=x]<\infty$ for every $(a,x)$ with $\PP(A=a,X=x)>0$. Write
+\[
+  \Lambda_1=\{h_1(X):\E h_1=0\},\quad
+  \Lambda_2=\{h_2(A,X):\E[h_2\mid X]=0\},\quad
+  \Lambda_3=\{h_3\in L^2(P_0):\E[h_3\mid A,X]=0\}.
+\]
+
+\emph{(a) Local saturation.} Factor the law as
+\[
+  dP(x,a,y)=p_x\cdot\ez(x)^a\{1-\ez(x)\}^{1-a}
+   \cdot dP_{Y\mid A=a,X=x}(y),
+\]
+so that $P$ is determined by $\{p_x\}$, $\{\ez(x)\}$ and the conditional laws of
+$Y$ given $(A,X)$, the last constrained only by a finite second moment.
+
+We first show each $\Lambda_i$ consists of scores. For $\Lambda_3$, fix bounded
+$b$ with $\E[b\mid A,X]=0$ and set $dP_t=\{1+tb\}\,dP_0$ for $\abs t<1/\Linf b$,
+so $1+tb\ge0$. Because $\int b\,dP_{0,Y\mid A=a,X=x}=0$ for each $(a,x)$,
+integrating over $y$ leaves the law of $(X,A)$ exactly unchanged, so $\{p_x\}$ and
+$\{\ez(x)\}$ are fixed along the path and $\int dP_t=1$. Interiority is what makes
+the path admissible: since $\E_0[Y^2\mid A=a,X=x]<\infty$ and $b$ is bounded,
+$\E_t[Y^2\mid A=a,X=x]=\E_0[Y^2(1+tb)\mid A=a,X=x]$ is finite for all small
+$\abs t$, and $V_t>0$ for small $\abs t$ by continuity. Its score at $t=0$ is
+$\partial_t\log dP_t\vert_{t=0}=b$. Only bounded $b$ have been exhibited, but the
+tangent space is closed and such $b$ are dense in $\Lambda_3$: for $h_3\in\Lambda_3$
+put $b_K=h_3\mathbf1\{\abs{h_3}\le K\}-\E[h_3\mathbf1\{\abs{h_3}\le K\}\mid A,X]$,
+which is bounded, lies in $\Lambda_3$, and converges to $h_3$ in $L^2(P_0)$.
+Hence $\Lambda_3$ is contained in the tangent space.
+
+For $\Lambda_1$ and $\Lambda_2$ the analogous paths perturb $\{p_x\}$ and
+$\{\ez(x)\}$ respectively, and here interiority is again what is needed: because
+$0<\ez(x)$ and $1-\ez(x)>c$ strictly, and $p_x>0$, each parameter may be
+perturbed in \emph{both} directions while remaining in the model, so the
+admissible perturbations form a linear space rather than a cone. At a boundary
+law this fails --- at $\ez(x_0)=0$ the propensity admits upward perturbation only,
+and $m_1(x_0)$ is undefined because $\{(A,X)=(1,x_0)\}$ is null --- which is
+precisely why the lemma is stated at interior laws.
+
+Conversely, every mean-zero $h\in L^2(P_0)$ decomposes as
+\[
+  h=\underbrace{\E[h\mid X]}_{\in\Lambda_1}
+   +\underbrace{\bigl\{\E[h\mid A,X]-\E[h\mid X]\bigr\}}_{\in\Lambda_2}
+   +\underbrace{\bigl\{h-\E[h\mid A,X]\bigr\}}_{\in\Lambda_3},
+\]
+the memberships being immediate from the definitions and $\E h=0$. The three
+subspaces are mutually orthogonal in $L^2(P_0)$, so the tangent space is exactly
+$\Lambda_1\oplus\Lambda_2\oplus\Lambda_3=\{h\in L^2(P_0):\E h=0\}$: the model is
+locally saturated at $P_0$, imposing no local restriction whatever.
+
+Whether this space is infinite-dimensional is a property of $P_0$, not of the
+model. It is infinite-dimensional precisely when some $P_{Y\mid A=a,X=x}$ has
+infinite support; if every conditional law of $Y$ is finitely supported --- for
+instance if $Y$ is binary --- then $L^2(P_0)$ itself is finite-dimensional and so
+is the tangent space. Saturation, not dimension, is what makes $V$ a
+semiparametric rather than a parametric bound.
+
+\emph{(b) Pathwise differentiability.} Let $P_t$ be a regular one-dimensional
+submodel through $P_0$ with score $h=h_1+h_2+h_3$ decomposed as above. The
+functional is $\theta(P)=\pi^{-1}\E[\ez(m_1-\mz)]$ with $\pi=\E[\ez]$. The three
+ingredients are
+\[
+  \partial_tp_x=p_xh_1(x),\quad
+  \partial_t\ez(x)=\E\bigl[\{A-\ez(X)\}h_2\bigm|X=x\bigr],\quad
+  \partial_tm_1(x)=\E[Yh_3\mid A=1,X=x],
+\]
+with the analogous expression for $\partial_t\mz(x)$; each follows by
+differentiating a ratio of integrals and using $\E[h_2\mid X]=0$ and
+$\E[h_3\mid A,X]=0$. Each is well defined at every $x$ because interiority gives
+$0<\ez(x)<1$, so both arms have positive mass.
+
+Write $g=\ez\,(m_1-\mz)$, so $\pi\theta=\E[g]$ and
+$\partial_t(\pi\theta)=\E[gh_1]+\E[\partial_t\ez\cdot(m_1-\mz)]
++\E[\ez\{\partial_tm_1-\partial_t\mz\}]$, while
+$\partial_t\pi=\E[\ez h_1]+\E[\partial_t\ez]$. Since
+$\theta=\pi^{-1}\E[g]$, we have
+$\partial_t\theta=\pi^{-1}\{\partial_t(\pi\theta)-\theta_0\,\partial_t\pi\}$.
+Collecting the three score blocks:
+\begin{itemize}[nosep,leftmargin=*]
+  \item the $h_1$ block contributes
+  $\pi^{-1}\E[h_1\{g-\theta_0\ez\}]
+  =\pi^{-1}\E[h_1\,\ez(m_1-\mz-\theta_0)]=\E[\psi_0h_1]$, using
+  $\E[\psi_0\mid X]=\pi^{-1}\ez(m_1-\mz-\theta_0)$;
+  \item the $h_2$ block contributes
+  $\pi^{-1}\E[\partial_t\ez\cdot(m_1-\mz-\theta_0)]
+  =\pi^{-1}\E\bigl[\{A-\ez(X)\}h_2\,\Delta m(X)\bigr]=\E[\psi_0h_2]$, since the
+  $\Lambda_2$ component of $\psi_0$ is $\pi^{-1}\{A-\ez\}\Delta m$;
+  \item the $h_3$ block contributes
+  $\pi^{-1}\E[\ez\{\partial_tm_1-\partial_t\mz\}]
+  =\pi^{-1}\E\bigl[\{A-(1-A)\wz\}(Y-\mu_A)h_3\bigr]=\E[\psi_0h_3]$, where
+  $\mu_A=Am_1+(1-A)\mz$, using $\ez=(1-\ez)\wz$ to convert the control-arm
+  derivative into the ATT weight.
+\end{itemize}
+Summing, $\partial_t\theta(P_t)\vert_{t=0}=\E[\psi_0h]$, so $\psi_0$ is a
+gradient. By part~(a) the tangent space is the whole mean-zero space, and
+$\psi_0$ lies in it since $\E[\psi_0]=0$ (shown in part~(c)); a gradient lying in
+the tangent space is unique there, hence $\psi_0$ is the canonical gradient. This
+agrees with \citet{hahn1998}.
+
+\emph{(c) The variance.} Conditioning on $X$,
+\[
+  \pi\,\E[\psi_0]
+  =\E\bigl[\ez(m_1-\mz-\theta_0)\bigr]-\E\bigl[\{1-\ez\}\wz(\mz-\mz)\bigr]
+  =\E[\ez(m_1-\mz)]-\pi\theta_0=0
+\]
+by the identification identity, so $V=\E[\psi_0^2]$. Expanding, and using
+$A^2=A$, $(1-A)^2=1-A$ and $A(1-A)=0$ identically, the cross term vanishes
+exactly and
+\[
+  \pi^2\psi_0^2=A\{Y-\mz-\theta_0\}^2+(1-A)\wz^2\{Y-\mz\}^2 .
+\]
+Taking conditional expectations,
+$\E[A\{Y-\mz-\theta_0\}^2\mid X]=\ez\{\sigma_1^2+(m_1-\mz-\theta_0)^2\}$ and
+$\E[(1-A)\wz^2\{Y-\mz\}^2\mid X]=\{1-\ez\}\wz^2\sigma_0^2$. Since
+$\{1-\ez\}\wz^2=\ez^2/(1-\ez)$,
+\[
+  \pi^2V=\E[\ez\sigma_1^2]+\E\bigl[\ez(m_1-\mz-\theta_0)^2\bigr]
+   +\E\Bigl[\frac{\ez^2\sigma_0^2}{1-\ez}\Bigr],
+\]
+which is~\eqref{eq:vdecomp}. All three terms are finite: the first two by the
+second-moment condition, the second also using $\abs{\theta_0}\le2\sqrt{C_Y}/\pi$
+which needs $\pi>0$; the third because $1-\ez\ge c$ bounds $1/(1-\ez)$.
+\end{proof}
+
+\noindent The last bound is not the only use of positivity in the document ---
+the outcome margin of Lemma~\ref{lem:margin}, the clipping step of
+Corollary~\ref{cor:convert}, and the Lipschitz constant $c^{-4}$ in
+Lemma~\ref{lem:cross} all consume it --- and it is worth noting that on a finite
+$\cX$ the third term is finite as soon as $\ez(x)<1$ pointwise, so the uniform
+constant buys nothing here beyond convenience.
 
 \section{Proofs for Section~\ref{sec:structure}}\label{app:structure}
 
-\emph{To be completed: Proposition~\ref{prop:pinwheel},
-Lemma~\ref{lem:invariance}, Lemma~\ref{lem:margin},
-Proposition~\ref{prop:greedy}, Lemma~\ref{lem:selection}.}
+The construction proving Proposition~\ref{prop:pinwheel} and the witness for
+Proposition~\ref{prop:greedy} are in Appendix~\ref{app:counterex}.
+
+\begin{proof}[Proof of Lemma~\ref{lem:invariance}]
+\emph{Step 1: the characterisation is weight-free.} Let $\nu$ be any weight with
+$\nu_x>0$ for every $x$, and let $\tau$ have leaves $\ell_1,\dots,\ell_K$. By
+definition $(\Pi^\nu_\tau\gamma)(x)=\bar\gamma_k$ for $x\in\ell_k$, where
+\[
+  \bar\gamma_k=\frac{\sum_{z\in\ell_k}\nu_z\gamma(z)}{\sum_{z\in\ell_k}\nu_z},
+\]
+well defined because the denominator is a sum of strictly positive terms. Since
+$p_x>0$ for every $x$ by Assumption~\ref{ass:finite}, and since
+$\nu_x=p_x\{1-\ez(x)\}\ge cp_x>0$ by Assumption~\ref{ass:causal} in the outcome
+case, the qualifier ``$P$-a.s.'' is equivalent to ``for every $x\in\cX$''.
+
+If $\gamma_0$ is constant on each leaf, say $\gamma_0\equiv v_k$ on $\ell_k$, then
+$\bar\gamma_k=v_k\sum_z\nu_z/\sum_z\nu_z=v_k=\gamma_0(x)$ for every $x\in\ell_k$
+and every strictly positive $\nu$. Conversely, if $\gamma_0$ is not constant on
+some leaf $\ell_k$, there are $x,x'\in\ell_k$ with $\gamma_0(x)\ne\gamma_0(x')$,
+both of positive $P$-mass; the single number $\bar\gamma_k$ cannot equal both, so
+$\Pi^\nu_\tau\gamma_0\ne\gamma_0$ at a point of positive mass. Hence
+$\Pi^\nu_\tau\gamma_0=\gamma_0$ $P$-a.s.\ if and only if $\gamma_0$ is constant on
+every leaf of $\tau$, a condition that does not mention $\nu$. In particular
+$\cS_j$ is the same set whichever strictly positive weight is used, which is the
+weight-independence asserted in Definition~\ref{def:sufficient}.
+
+\emph{Step 2: exact cancellation.} Fix
+$(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$. By Step~1, $\ez$ is constant on each
+leaf of $\tau_e$, so $e_{\tau_e}=\Pi_{\tau_e}\ez=\ez$ everywhere; since
+$1-\ez\ge c>0$, dividing gives $w_{\tau_e}=\wz$ everywhere, so
+$\{\wz-w_{\tau_e}\}\equiv0$. Likewise $\mz$ is constant on each leaf of
+$\tau_\mu$, so $\mu_{\tau_\mu}=\mz$ everywhere and $\{\mz-\mu_{\tau_\mu}\}\equiv0$.
+Since $1-e_{\tau_e}=1-\ez\ge c$, Proposition~\ref{prop:bilinear} applies at
+$\eta_\tau$ and gives
+\[
+  \theta(\eta_\tau)-\theta_0
+  =\frac1\pi\E\bigl[\{1-\ez\}\{\wz-w_{\tau_e}\}\{\mz-\mu_{\tau_\mu}\}\bigr]=0 .
+\]
+Either factor vanishing suffices; here both do, and the two partitions play
+independent roles and need not coincide. Assumption~\ref{ass:finite} makes
+$\ez(x)$ well defined at every $x$, and Assumption~\ref{ass:causal} guarantees
+positive control mass in every cell, so $\mz(x)$ is well defined too.
+\end{proof}
+
+\begin{proof}[Proof of Lemma~\ref{lem:margin}]
+Fix $j$ and $\tau\in\cT_{\bar L}\setminus\cS_j$. By Step~1 of the previous proof,
+$\gamma_{0,j}$ is not constant on some leaf $\ell$ of $\tau$, so there are
+$x,x'\in\ell$ with $p_x,p_{x'}>0$ and $\gamma_{0,j}(x)\ne\gamma_{0,j}(x')$. By
+Assumption~\ref{ass:sparsity} the set $\cS_j$ is non-empty, and by Step~1 the
+population risk is minimised over $\cT_{\bar L}$ at any $\tau'\in\cS_j$, where the
+projection reproduces the truth and the excess risk is zero.
+
+\emph{The propensity, without positivity.} By
+Assumption~\ref{ass:construct}(a),
+\[
+  R^{(e)}(\tau)-\min_{\tau'}R^{(e)}(\tau')
+  =\Ltwo{\Pi_\tau\ez-\ez}^2
+  =\sum_xp_x\bigl\{(\Pi_\tau\ez)(x)-\ez(x)\bigr\}^2
+  \ \ge\ \sum_{z\in\ell}p_z\bigl\{\bar e_\ell-\ez(z)\bigr\}^2 ,
+\]
+restricting the sum to $\ell$, where $\bar e_\ell$ is the $p$-weighted leaf mean of
+$\ez$. Writing $P(\ell)=\sum_{z\in\ell}p_z$ and
+$\omega_z=p_z/P(\ell)$, the right side equals
+\[
+  P(\ell)\Bigl\{\sum_{z\in\ell}\omega_z\ez(z)^2-\bar e_\ell^2\Bigr\}
+  =P(\ell)\cdot\Var_\omega(\ez),
+\]
+that is, $P(\ell)$ times the $\omega$-variance of $\ez$ on $\ell$ --- the factor
+$P(\ell)$ is not absorbed into $\omega$ and must be carried. The variance vanishes
+only if $\ez$ is $\omega$-a.s.\ constant on $\ell$, and since
+$\omega_x,\omega_{x'}>0$ with $\ez(x)\ne\ez(x')$ it is strictly positive; and
+$P(\ell)\ge p_{\min}>0$. Hence the product is strictly positive, with the explicit
+floor $R^{(e)}(\tau)-\min_{\tau'}R^{(e)}(\tau')\ge p_{\min}\Var_\omega(\ez)$ if a
+quantitative bound is wanted. Only $p_x>0$, from
+Assumption~\ref{ass:finite}, was used.
+
+\emph{The outcome, with positivity.} The same computation applies with the
+control weight $\nu_z=p_z\{1-\ez(z)\}$ in place of $p_z$, giving
+\[
+  R^{(\mu)}(\tau)-\min_{\tau'}R^{(\mu)}(\tau')
+  =\Lw{\Pi^\nu_\tau\mz-\mz}^2
+  \ \ge\ \sum_{z\in\ell}\nu_z\bigl\{\bar\mu_\ell-\mz(z)\bigr\}^2
+  =\nu(\ell)\cdot\Var_{\omega'}(\mz)>0 ,
+\]
+with $\nu(\ell)=\sum_{z\in\ell}\nu_z$ and $\omega'_z=\nu_z/\nu(\ell)$. This step
+requires $\nu_x,\nu_{x'}>0$, that is $\ez(x),\ez(x')<1$ at the two witness cells.
+On a finite $\cX$ pointwise non-degeneracy is equivalent to the uniform bound of
+Assumption~\ref{ass:causal}, which supplies $\nu_x\ge cp_x$; so no uniformity is
+purchased here beyond what pointwise $\ez<1$ already gives.
+
+\emph{Finiteness.} The displayed excess risk is strictly positive for every
+$\tau\in\cT_{\bar L}\setminus\cS_j$, and that set is finite by
+Assumption~\ref{ass:budget}. A minimum of finitely many strictly positive
+numbers is strictly positive, so $\Delta_j>0$.
+\end{proof}
+
+\noindent The asymmetry is worth recording: $\Delta_e$ uses only
+$p_x>0$, whereas $\Delta_\mu$ uses the lower bound on $1-\ez$. Were positivity to
+degenerate, so that $1-\ez(x)=0$ at some cell, that cell would be invisible to
+the control-weighted norm and a leaf could appear $\nu$-constant while $\mz$
+still varied on it. This is what Assumption~\ref{ass:causal} rules out, and it is
+required for the outcome margin only.
+
+\begin{proof}[Proof of Lemma~\ref{lem:selection}]
+\emph{Step 1: reduction to finitely many cell statistics.} Write
+$\widehat p_x=\Pn\mathbf1\{X=x\}$, and let $\widehat e(x)$ and
+$\widehat\mu(x)$ denote the cell-wise empirical means of $A$ and of $Y$ on the
+control arm. For a leaf $\ell$ of $\tau$ the refit value minimises the
+within-leaf empirical squared error, so by the analysis-of-variance identity
+\[
+  R^{(e)}_n(\tau)=\Pn[A]-\sum_{\ell\in\tau}\widehat p_\ell\,\bar A_\ell^2,
+  \qquad
+  R^{(\mu)}_n(\tau)=\Pn\bigl[(1-A)Y^2\bigr]
+   -\sum_{\ell\in\tau}\widehat q_\ell\,\bar Y_{\ell,0}^2 ,
+\]
+where $\widehat p_\ell=\sum_{x\in\ell}\widehat p_x$,
+$\widehat q_\ell=\Pn[(1-A)\mathbf1\{X\in\ell\}]$ is the empirical control mass of
+$\ell$, and $\bar A_\ell,\bar Y_{\ell,0}$ are the leaf means; we used $A^2=A$.
+Both risks are on the \emph{unnormalised} control-arm scale, matching
+$\Lw\cdot^2=\E[\{1-\ez\}(\cdot)^2]$ as used in Lemma~\ref{lem:margin}; writing the
+leading term as the control-conditional average $\Pn[Y^2\mid A=0]$ would put it on
+a different scale from $\widehat q_\ell$, so that $R^{(\mu)}_n$ would converge to
+$R^{(\mu)}/(1-\pi)$ and the comparison against $\Delta_\mu$ in Step~4 would be off
+by that factor. The leading terms $\Pn[A]$ and $\Pn[(1-A)Y^2]$ are
+common to every $\tau\in\cT_{\bar L}$, so in any difference
+\[
+  R^{(j)}_n(\tau)-R^{(j)}_n(\tau')
+  =\sum_{\ell'\in\tau'}\widehat\omega_{\ell'}\bar Z_{\ell'}^2
+   -\sum_{\ell\in\tau}\widehat\omega_{\ell}\bar Z_{\ell}^2
+\]
+they cancel exactly. The right-hand side is a function of the $3M$ statistics
+$\{\widehat p_x,\widehat e(x),\widehat\mu(x):x\in\cX\}$ alone, with $M$ fixed by
+Assumption~\ref{ass:finite}. The population risks admit the identical
+representation with $P,\ez,\mz$ in place of their empirical counterparts.
+
+\emph{Step 2: uniformity is free.} By Assumption~\ref{ass:iid} and the weak law
+of large numbers, each of those $3M$ statistics converges in probability to its
+population counterpart; only a finite second moment is used, supplied by
+Assumption~\ref{ass:moments}, and no tail condition is invoked. Every cell has
+$p_x>0$ by Assumption~\ref{ass:finite} and every control cell has mass at least
+$cp_x>0$ by Assumption~\ref{ass:causal}, so each leaf mean is well defined with
+probability tending to one and the denominators are bounded away from zero. Since
+$\cT_{\bar L}$ is a fixed finite set by Assumption~\ref{ass:budget}, and each
+risk difference is a fixed continuous function of finitely many convergent
+statistics, a maximum over finitely many $o_p(1)$ terms gives
+\[
+  \max_{\tau,\tau'\in\cT_{\bar L}}
+  \Bigl\lvert\bigl\{R^{(j)}_n(\tau)-R^{(j)}_n(\tau')\bigr\}
+   -\bigl\{R^{(j)}(\tau)-R^{(j)}(\tau')\bigr\}\Bigr\rvert=o_p(1).
+\]
+No covering number, entropy integral, or exponential inequality appears, because
+the index set is fixed and finite.
+
+\emph{Step 3: the penalty.} By Assumption~\ref{ass:global}, $\lambda_n\to0$, and
+$\card\tau\le\bar L$ for every candidate, so
+$\sup_{\tau\in\cT_{\bar L}}\lambda_n\card\tau\le\lambda_n\bar L=o(1)$.
+
+\emph{Step 4: conclusion.} Let $\tau^\star\in\cS_j$ minimise $R^{(j)}$ over
+$\cT_{\bar L}$, and fix $\delta<\Delta_j/2$.
+
+First, $\tau^\star$ is feasible with probability tending to one. Every leaf of
+$\tau^\star$ is a non-empty union of cells, so has population mass at least
+$p_{\min}>0$ by Assumption~\ref{ass:finite}, and control mass at least
+$cp_{\min}>0$ by Assumption~\ref{ass:causal}; its observed count is therefore
+$n p_{\min}\{1+o_p(1)\}$, while $m_n/n\to0$ because $\bar Lm_n\lesssim n$ with
+$\bar L$ fixed. Hence $\PP(\tau^\star\in\cT^{(j)}_n)\to1$. Restricting the argmin
+to $\cT^{(j)}_n$ can only remove competitors, so the argument below is unaffected
+by the restriction once $\tau^\star$ is available for comparison.
+
+On the event
+\[
+  E_n=\Bigl\{\max_{\tau,\tau'}
+   \bigl\lvert\{R^{(j)}_n(\tau)-R^{(j)}_n(\tau')\}
+   -\{R^{(j)}(\tau)-R^{(j)}(\tau')\}\bigr\rvert+\lambda_n\bar L<\delta\Bigr\}
+  \cap\bigl\{\tau^\star\in\cT^{(j)}_n\bigr\},
+\]
+which has probability tending to one by Steps~2 and~3 together with the
+preceding paragraph, every $\tau\in\cT^{(j)}_n\setminus\cS_j$ satisfies
+$R^{(j)}(\tau)-R^{(j)}(\tau^\star)\ge\Delta_j$ by Lemma~\ref{lem:margin}, hence
+\[
+  \bigl\{R^{(j)}_n(\tau)+\lambda_n\card\tau\bigr\}
+  -\bigl\{R^{(j)}_n(\tau^\star)+\lambda_n\card{\tau^\star}\bigr\}
+  \ \ge\ \Delta_j-2\delta\ >\ 0 ,
+\]
+so no such $\tau$ can be a global minimiser. Since Assumption~\ref{ass:global}
+specifies $\that_j$ as a \emph{global} minimiser, $\that_j\in\cS_j$ on $E_n$, and
+$\PP(\that_j\in\cS_j)\ge\PP(E_n)\to1$.
+
+\emph{Step 5: the exponential rate.} Suppose $\abs Y\le C$. Hoeffding's
+inequality states that for independent $Z_i\in[a_i,b_i]$ and $t>0$,
+$\PP(\abs{n^{-1}\sum_i(Z_i-\E Z_i)}>t)\le2\exp\{-2n^2t^2/\sum_i(b_i-a_i)^2\}$.
+Each of the $3M$ statistics of Step~1 is an i.i.d.\ average of a bounded
+variable --- $\mathbf1\{X_i=x\}$ and $A_i\mathbf1\{X_i=x\}$ lie in $[0,1]$ and
+$Y_i\mathbf1\{A_i=0,X_i=x\}$ in $[-C,C]$ --- so its hypotheses hold by
+Assumption~\ref{ass:iid} and the outcome bound, giving a deviation bound
+$2e^{-c_2nt^2}$ with $c_2$ depending only on $C$. On the region where the
+denominators exceed the fixed constants $p_{\min}$ and $cp_{\min}$, the leaf
+means are Lipschitz functions of these statistics, so composing preserves
+exponential concentration; a union bound over the fixed set $\cT_{\bar L}$ and
+absorption of $\lambda_n\bar L=o(1)$ give
+$\PP(\that_j\notin\cS_j)\le\card{\cT_{\bar L}}e^{-c_1n\Delta_j^2}$ for large $n$,
+with $c_1$ depending only on $C$, $c$ and $p_{\min}$ through $c_2$ and those
+Lipschitz constants.
+
+\emph{Step 6: scope.} Boundedness of $Y$ entered only in Step~5. The convergence
+$\PP(\that_j\in\cS_j)\to1$ rests on Steps~1--4 and uses
+Assumption~\ref{ass:moments} alone.
+\end{proof}
+
+\noindent Assumption~\ref{ass:global} is used exactly once, in Step~4, and cannot
+be weakened there. The argument compares objective values only; a greedy or
+otherwise local search could halt at some $\tau\notin\cS_j$ whose immediate
+neighbours are worse even though a distant $\tau'\in\cS_j$ has smaller penalised
+risk. Proposition~\ref{prop:greedy} exhibits precisely that configuration.
 
 \section{Proofs for Section~\ref{sec:main}}\label{app:main}
 
-\emph{To be completed: Lemma~\ref{lem:skeleton}, Lemma~\ref{lem:U},
-Lemma~\ref{lem:cross}, Lemma~\ref{lem:uniform}, Lemma~\ref{lem:findim},
-Theorem~\ref{thm:main}, Corollary~\ref{cor:variance},
-Theorem~\ref{thm:uniform-cover}, Theorem~\ref{thm:regular},
-Proposition~\ref{prop:sparse-bound}.}
+\begin{proof}[Proof of Theorem~\ref{thm:regular}]
+\emph{Step 1: contiguity.} Fix $h$ in the tangent space at $P_0$, which by
+Lemma~\ref{lem:tangent} is the entire mean-zero space --- saturation, not
+dimension, is what the argument uses --- and let
+$P_{n,h}=P_{1/\sqrt n,h}$ along a path differentiable in quadratic mean.
+Differentiability in quadratic mean gives, under $P_0^n$,
+\[
+  \log\frac{dP_{n,h}^n}{dP_0^n}
+  =\sqrt n\,\Pn h-\tfrac12\E_{P_0}[h^2]+o_{P_0}(1),
+\]
+with $\sqrt n\Pn h\rightsquigarrow N(0,\E_{P_0}[h^2])$ by the central limit
+theorem under Assumptions~\ref{ass:iid} and~\ref{ass:moments}. This is local
+asymptotic normality \citep{vandervaart1998}, and by Le Cam's first lemma it
+implies mutual contiguity $P_{n,h}^n\triangleleft\triangleright P_0^n$.
+
+\emph{Step 2: transfer of the expansion.} Theorem~\ref{thm:main} at $P_0$ gives
+$R_n:=\sqrt n(\thetahat-\theta_0)-\sqrt n\Pn\psi_0=o_{P_0}(1)$: one sequence of
+statistics, with fixed centring $\theta_0$ and fixed $\psi_0$, established at
+$P_0$ only. For $\epsilon>0$ set $A_n=\{\abs{R_n}>\epsilon\}$, so
+$P_0^n(A_n)\to0$. Contiguity states precisely that events asymptotically null
+under $P_0^n$ remain asymptotically null under $P_{n,h}^n$, so
+$P_{n,h}^n(A_n)\to0$ and $R_n=o_{P_{n,h}}(1)$. Only the algebraic definition of
+$R_n$, valid pointwise on the sample space irrespective of the generating law, and
+Step~1 are used; no part of the development is re-derived at $P_{n,h}$.
+
+\emph{Step 3: Le Cam's third lemma.} The pair $(\sqrt n\Pn h,\sqrt n\Pn\psi_0)$
+is asymptotically bivariate normal under $P_0^n$, both coordinates being averages
+of i.i.d.\ mean-zero functions with finite variance by
+Assumptions~\ref{ass:iid} and~\ref{ass:moments}, with asymptotic covariance
+$\E_{P_0}[h\psi_0]$. Together with the expansion of Step~1, Le Cam's third lemma
+gives, under $P_{n,h}^n$,
+$\sqrt n\Pn\psi_0\rightsquigarrow N(\E_{P_0}[\psi_0h],V)$.
+
+\emph{Step 4: the drift of the target.} Pathwise differentiability at $P_0$ with
+canonical gradient $\psi_0$, from Lemma~\ref{lem:tangent}, means exactly that
+$\sqrt n\{\theta(P_{n,h})-\theta_0\}\to\E_{P_0}[\psi_0h]$ along the path; this is
+\citet{hahn1998} and is not rederived.
+
+\emph{Step 5: subtraction.} Under $P_{n,h}^n$,
+\[
+  \sqrt n\bigl\{\thetahat-\theta(P_{n,h})\bigr\}
+  =\bigl[\sqrt n\Pn\psi_0+R_n\bigr]
+   -\sqrt n\bigl\{\theta(P_{n,h})-\theta_0\bigr\}
+  \rightsquigarrow N\bigl(\E_{P_0}[\psi_0h],V\bigr)-\E_{P_0}[\psi_0h]=N(0,V),
+\]
+by Slutsky, using $R_n=o_{P_{n,h}}(1)$ from Step~2 and cancellation of the
+deterministic shift. The limit is free of $h$, which is regularity. By the
+convolution theorem the limit law of any regular estimator is $N(0,V)$ convolved
+with some distribution; here that distribution is degenerate, so $\thetahat$
+attains the bound and is locally asymptotically efficient in $\cP$.
+\end{proof}
+
+\noindent Routing the efficiency claim through the convolution theorem rather
+than a local asymptotic minimax bound is deliberate: the minimax supremum form
+would additionally require a uniform worst-case control such as
+Assumption~\ref{ass:margin-floor}, and is not attempted.
+
+The crux of the argument is that Assumption~\ref{ass:sparsity} is a property of
+the fixed $P_0$ at which Theorem~\ref{thm:main} was established. Steps~1--5 never
+evaluate Theorem~\ref{thm:main}, the decomposition of
+Lemma~\ref{lem:skeleton}, or selection consistency at $P_{n,h}$; the perturbed
+laws may leave the sparse class for every $n$ without disturbing anything,
+because Theorem~\ref{thm:main} is invoked once, as a statement about $P_0$, and
+transferred by the measure-theoretic device of contiguity.
+
+\begin{proof}[Proof of Proposition~\ref{prop:sparse-bound}]
+Restricting to $\cP_\tau$ constrains only the conditional law of $A$ given $X$ to
+be leaf-constant; the law of $X$ and the conditional laws of $Y$ given $(A,X)$
+remain unrestricted under Assumption~\ref{ass:moments}. Hence the tangent space
+is $\Lambda_\tau=\Lambda_X\oplus\Lambda^\tau_{A\mid X}\oplus\Lambda_{Y\mid A,X}$,
+differing from $\Lambda$ only in
+\[
+  \Lambda^\tau_{A\mid X}
+  =\bigl\{a(X)\{A-\ez(X)\}:a\text{ constant on the leaves of }\tau\bigr\}
+  \subsetneq\Lambda_{A\mid X}.
+\]
+The efficient influence function in $\cP_\tau$ is the $L^2(P_0)$ projection of
+$\psi_0$ onto $\Lambda_\tau$, since gradients in a submodel are projections of any
+full-model gradient. The component of $\psi_0$ along $A\mid X$ has Riesz
+representer $\pi^{-1}\Delta m(X)\{A-\ez(X)\}$. Since
+$\E[\{A-\ez(X)\}^2\mid X]=\ez(1-\ez)$, the inner product of two such terms with
+coefficients $c_1,c_2$ equals $\E[v(X)c_1(X)c_2(X)]$ with
+$v_x=p_x\ez(x)\{1-\ez(x)\}$, so projecting $c=\pi^{-1}\Delta m$ onto
+leaf-constant functions in that inner product gives the $v$-weighted leaf
+average $\pi^{-1}\Pi^v_\tau\Delta m$. Therefore
+\[
+  \psi_\tau=\psi_0-\pi^{-1}\{A-\ez(X)\}
+   \bigl\{\Delta m(X)-\Pi^v_\tau\Delta m(X)\bigr\},
+\]
+and by orthogonality
+$V=\E[\psi_\tau^2]+\pi^{-2}\E[\ez(1-\ez)\{\Delta m-\Pi^v_\tau\Delta m\}^2]$,
+which rearranges to the stated formula. Equality holds if and only if
+$\Delta m=\Pi^v_\tau\Delta m$ almost surely, so the inequality is strict whenever
+the treated--control contrast varies within a leaf of $\tau$.
+
+If $\ez$ is known then $\Lambda^\tau_{A\mid X}=\{0\}$, so
+$\Pi^v_\tau\Delta m\equiv0$ and
+$V^{\mathrm{known}\text{-}e}=V-\pi^{-2}\E[\ez(1-\ez)\Delta m^2]$, matching
+\citet{hahn1998}. Since
+$\{0\}\subseteq\Lambda^\tau_{A\mid X}\subseteq\Lambda_{A\mid X}$, the removed
+variance is sandwiched and $V^{\mathrm{known}\text{-}e}\le V_\tau\le V$.
+\end{proof}
+
+\noindent Two consequences must be stated carefully. First, refining $\tau$
+within the budget \emph{enlarges} $\Lambda^\tau_{A\mid X}$, because a function
+constant on a coarser partition is constant on any refinement; projection onto a
+larger subspace leaves a smaller residual, so $V_\tau$ increases towards $V$
+under refinement. The tangent set of $\bigcup_\tau\cP_\tau$ at $P_0$ is the union
+of the $\Lambda_\tau$ over $\tau\in\cS_e(P_0)$, and the relevant bound therefore
+corresponds to the largest such subspace, that is to the \emph{finest} sufficient
+partition within the budget. Hence
+$V_{\mathrm{sparse}}=\max_{\tau\in\cS_e}V_\tau$ depends on $\bar L$ as well as on
+$P$, and a gloss referring to the minimal sufficient partition is wrong, since
+that would minimise rather than maximise $V_\tau$.
+
+Second, with $\tau$ fixed and known, $\cP_\tau$ has a fixed tangent space and the
+known-structure construction of \citet{hahn1998} yields a regular estimator
+attaining $V_\tau$ at every $P\in\cP_\tau$. The irregularity arises solely
+because $\tau=\tau(P)$ is an unknown and discontinuous functional of $P$:
+$\cS_e(P)$ can empty out as $P$ leaves the sparse class, so $\tau(P)$ and
+$V_{\tau(P)}$ are discontinuous in $P$. The correct conclusion is that no
+estimator attains $V_{\tau(P)}$ at every $P\in\bigcup_\tau\cP_\tau$ while
+remaining regular throughout --- not that any estimator attaining
+$V_{\mathrm{sparse}}$ must be irregular.
+
+\begin{proof}[Proof of Lemma~\ref{lem:uniform}]
+Fix $\tau=(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$. On $\{\pihat>0\}$,
+Lemma~\ref{lem:skeleton} gives identically
+$\pihat\{\thetahat(\tau)-\theta_0\}=\pi\Pn\psi_0+U-T$, using
+$\phi(\cdot;\eta_0)=\pi\psi_0$. Dividing by $\pihat$ and multiplying by
+$\sqrt n$,
+\begin{equation}\label{eq:unif-exact}
+  \sqrt n\{\thetahat(\tau)-\theta_0\}
+  =\frac\pi{\pihat}\sqrt n\,\Pn\psi_0+\frac{\sqrt n(U-T)}{\pihat},
+\end{equation}
+exactly, for each fixed $\tau$. Since $\PP(\pihat>0)\to1$, all statements below
+are on that event, which suffices for $o_p(1)$ conclusions.
+
+\emph{The remainder.} By Lemma~\ref{lem:U}, $\abs U=O_p(\bar L/n)$ uniformly over
+$\tau_\mu\in\cS_\mu$, and by Lemma~\ref{lem:cross},
+$\max\abs T=O_p(\sqrt{\bar L}/n)$ over $\cS_e\times\cS_\mu$. Hence
+\[
+  \max_{(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu}\sqrt n\,\abs{U-T}
+  \le\sqrt n\max_{\tau_\mu}\abs U+\sqrt n\max_{\tau_e,\tau_\mu}\abs T=o_p(1),
+\]
+and since $\pihat\to_p\pi>0$ gives $1/\pihat=O_p(1)$, the second term
+of~\eqref{eq:unif-exact} is $o_p(1)$ uniformly.
+
+\emph{The leading term.} Write, exactly and with no series expansion,
+$\pi/\pihat-1=-(\pihat-\pi)/\pihat$. By Assumption~\ref{ass:iid} and the central
+limit theorem for the Bernoulli mean $\pihat=\Pn A$, together with $\pi>0$ from
+Assumption~\ref{ass:causal}, we have $\pihat-\pi=O_p(n^{-1/2})$ and
+$1/\pihat=O_p(1)$, so $\pi/\pihat-1=O_p(n^{-1/2})$. Since $V<\infty$ by
+Assumption~\ref{ass:moments}, $\sqrt n\Pn\psi_0=O_p(1)$, and therefore
+\[
+  \Bigl(\frac\pi{\pihat}-1\Bigr)\sqrt n\,\Pn\psi_0=O_p(n^{-1/2})=o_p(1).
+\]
+Neither $\pihat$ nor $\psi_0$ depends on $(\tau_e,\tau_\mu)$, so this is a single
+scalar sequence rather than a family: uniformity over $\cS_e\times\cS_\mu$ is
+vacuous for this term, and the same bound applies verbatim to every $\tau$
+simultaneously.
+
+\emph{Combining.} Subtracting $\sqrt n\Pn\psi_0$
+from~\eqref{eq:unif-exact}, taking the maximum of the absolute value over the
+family and applying the triangle inequality bounds the first summand by the
+display above, constant in $\tau$, and the second by the uniform remainder bound.
+The family is finite by Assumption~\ref{ass:budget}, so this is a maximum of
+finitely many $o_p(1)$ terms, hence $o_p(1)$ by a union bound over an index set
+whose cardinality does not grow with $n$.
+\end{proof}
+
+\noindent Lemma~\ref{lem:uniform} uses Assumptions~\ref{ass:iid},
+\ref{ass:causal}, \ref{ass:moments}, \ref{ass:budget}, and
+\ref{ass:construct}(c) through Lemma~\ref{lem:cross}. It uses neither
+Assumption~\ref{ass:global} nor Assumption~\ref{ass:margin-floor}, and asserts
+nothing uniform in $P$.
+
+\begin{proof}[Proof of Theorem~\ref{thm:main}]
+Let $E_n=\{\that_e\in\cS_e\}\cap\{\that_\mu\in\cS_\mu\}$; by
+Lemma~\ref{lem:selection} applied to each $j$ and a union bound,
+$\PP(E_n)\to1$.
+
+The bound of Lemma~\ref{lem:uniform} concerns the deterministic,
+data-independent family $\cS_e\times\cS_\mu$: it asserts that a single random
+quantity, the maximum over that family, is $o_p(1)$. On $E_n$ the realised pair
+$(\that_e,\that_\mu)$ is some member of the family --- which member may depend on
+the data --- and since the bound already covers every member, it applies to
+$\thetahat=\thetahat(\that_e,\that_\mu)$ with no conditioning on $E_n$ and none
+on any event $\{\that=\tau\}$. Formally, on $E_n$,
+\[
+  \bigl\lvert\sqrt n(\thetahat-\theta_0)-\sqrt n\,\Pn\psi_0\bigr\rvert
+  \le\max_{\tau\in\cS_e\times\cS_\mu}
+   \bigl\lvert\sqrt n\{\thetahat(\tau)-\theta_0\}-\sqrt n\,\Pn\psi_0\bigr\rvert ,
+\]
+so for any $\epsilon>0$,
+$\PP(\text{left side}>\epsilon)\le\PP(E_n^c)+\PP(\text{right side}>\epsilon)\to0$
+and $\sqrt n(\thetahat-\theta_0)=\sqrt n\Pn\psi_0+o_p(1)$.
+
+The summands of $\Pn\psi_0$ are i.i.d.\ by Assumption~\ref{ass:iid}, have mean
+zero by Assumption~\ref{ass:causal} directly --- the two-line computation in
+part~(c) of the proof of Lemma~\ref{lem:tangent}, which uses only the
+identification identity and needs no interiority, so that cells with $\ez(x)=0$
+remain harmless here --- and have
+variance $V\in(0,\infty)$ by Assumption~\ref{ass:moments}. The classical central
+limit theorem gives $\sqrt n\Pn\psi_0\rightsquigarrow N(0,V)$, and the
+conclusion follows.
+\end{proof}
+
+\noindent Three routes that appear to serve in place of
+Lemma~\ref{lem:uniform} do not. First, Lemma~\ref{lem:invariance} states that the
+population estimand is $\theta_0$ for every member of the sufficient class, which
+is invariance of first-order bias; a central limit theorem requires the
+\emph{influence function} to agree across members, and invariance is silent on
+the linearisation. Second, writing
+$\sqrt n(\thetahat-\theta_0)=\sum_\tau\mathbf1\{\that=\tau\}
+\sqrt n\{\thetahat(\tau)-\theta_0\}$ does not deliver normality from finiteness
+of $\cT_{\bar L}$, because the indicators are correlated with the components,
+both being functions of the same data; what is required is asymptotic equivalence
+to a \emph{fixed} statistic, which is what Lemma~\ref{lem:uniform} supplies.
+Third, conditioning on $\{\that_\mu=\tau_\mu\}$ is not a repair: leaf membership
+is a function of $X$, while which cells are merged is determined through the fit
+criterion by the control outcomes, so conditioning on the selection event
+distorts the conditional law of $Y$ given $X$ and leaves $\mhat$ conditionally
+biased.
+
+\begin{proof}[Proof of Corollary~\ref{cor:variance}]
+\emph{Step 1: sup-norm consistency by a union bound.} Fix $j$. For each fixed
+$\tau\in\cS_j$, Lemma~\ref{lem:findim} gives
+$\max_\ell\abs{\widehat\gamma_j\restriction_\ell-\gamma_{0,j}\restriction_\ell}
+=O_p(n^{-1/2})$, and since $\tau\in\cS_j$ the leaf-constant population fit is
+$\gamma_{0,j}$ itself, so $\Linf{\widehat\eta_\tau-\eta_0}=O_p(n^{-1/2})$. By
+Lemma~\ref{lem:invariance} every $\tau\in\cS_j$ has the same population limit,
+which is what prevents a union over $\cS_j$ from producing a selection-weighted
+mixture of distinct limits. As $\cS_j$ is finite,
+$\max_{\tau\in\cS_j}\Linf{\widehat\eta_\tau-\eta_0}=O_p(n^{-1/2})$. Decomposing
+on the selection event,
+\[
+  \Linf{\widehat\eta-\eta_0}
+  \le\mathbf1\{\that_j\in\cS_j\}\max_{\tau\in\cS_j}\Linf{\widehat\eta_\tau-\eta_0}
+   +\mathbf1\{\that_j\notin\cS_j\}\cdot O_p(1),
+\]
+the second bound using boundedness of the clipped fits under
+Assumptions~\ref{ass:causal} and~\ref{ass:construct}(c). By
+Lemma~\ref{lem:selection} the second term is $o_p(1)$, so
+$\Linf{\widehat\eta-\eta_0}=o_p(1)$.
+
+\emph{Step 2: the plug-in expansion.} Write $\Vhat=\pihat^{-2}\Pn[\widehat g^2]$
+where $\widehat g_i$ is the bracketed summand of~\eqref{eq:vhat}, and note that at
+$(\eta_0,\theta_0)$ we have $g_0=\pi\psi_0$ pointwise. By Cauchy--Schwarz,
+\[
+  \bigl\lvert\Pn[\widehat g^2]-\Pn[g_0^2]\bigr\rvert
+  \le\bigl\{\Pn[(\widehat g-g_0)^2]\bigr\}^{1/2}
+   \bigl\{\Pn[(\widehat g+g_0)^2]\bigr\}^{1/2} .
+\]
+Because $\wz$ and the clipped $\what$ are bounded under
+Assumptions~\ref{ass:causal} and~\ref{ass:construct}(c), the first factor is
+bounded by a constant multiple of
+$\{\Linf{\widehat\eta-\eta_0}+\abs{\thetahat-\theta_0}\}$ times an $O_p(1)$ term
+controlled by Assumption~\ref{ass:moments}. Only \emph{consistency}
+$\thetahat-\theta_0=o_p(1)$ is needed here, and it does not require
+Theorem~\ref{thm:main}: on the event of Lemma~\ref{lem:selection} the identity
+\eqref{eq:skeleton} gives
+$\pihat(\thetahat-\theta_0)=\Pn\phi(\cdot;\eta_0)+U-T$, where
+$\Pn\phi(\cdot;\eta_0)=o_p(1)$ by the weak law of large numbers, while $U$ and $T$
+are each $o_p(1)$ by Step~1 together with boundedness of the clipped weights ---
+crude bounds that need neither Lemma~\ref{lem:cross}'s rate nor
+Assumption~\ref{ass:rate}. Hence the first factor is $o_p(1)$; the second factor
+is $O_p(1)$. Thus $\Pn[\widehat g^2]=\Pn[g_0^2]+o_p(1)$, and
+$\Pn[g_0^2]\to_p\E[g_0^2]=\pi^2V$ by the weak law of large numbers. Since
+$\pihat\to_p\pi>0$, Slutsky gives $\Vhat\to_pV$.
+
+\emph{Step 3: coverage.} By Theorem~\ref{thm:main},
+$\sqrt n(\thetahat-\theta_0)/\sqrt V\rightsquigarrow N(0,1)$; with
+$V/\Vhat\to_p1$ and Slutsky the same holds with $\Vhat$ in place of $V$, giving
+asymptotic coverage $1-\alpha$.
+\end{proof}
+
+\noindent The argument requires only $\Linf{\widehat\eta-\eta_0}=o_p(1)$, and in
+particular uses neither Assumption~\ref{ass:rate} nor Lemma~\ref{lem:cross};
+since the cross-term lemma is the harder argument, this isolates the risk in the
+development. Two arguments that suggest themselves are invalid and are not used.
+Conditioning on a sufficient partition and then appealing to finite-dimensional
+theory fails because Lemma~\ref{lem:findim} is a fixed-$\tau$ statement, silent
+about the data-dependent $\that$; and conditioning on $\{\that=\tau\}$ fails
+because that event is data-dependent, so the conditional sample is not i.i.d.\
+from $P$ and no fixed-$\tau$ limit theorem applies.
+
+Two finite-sample properties follow from the same algebra. The estimator
+$\thetahat$ solves the estimating equation whose summands are exactly the
+brackets appearing in~\eqref{eq:vhat}, so those summands have sample mean exactly
+zero and $\Vhat$ is simultaneously the uncentred second moment and the centred
+sample variance; no centring ambiguity arises. And because the structure and the
+leaf values are fitted on the same $n$ observations that form the residuals, the
+residuals are in-sample: counting up to $\bar L$ leaf values for each of $\ehat$
+and $\mhat$ together with $\thetahat$ gives $2\bar L+1$ fitted parameters, and
+the familiar residual-variance calculation makes $\Vhat$ downward biased by a
+relative factor of order $(2\bar L+1)/n$. This vanishes only because $\bar L$ is
+fixed by Assumption~\ref{ass:budget}. Finally, there is no tension with
+Lemma~\ref{lem:invariance} licensing only distributional claims:
+$V=\E[\psi_0^2]$ is a second moment of a fixed population function, a functional
+of $P$ alone containing no selection, and $\Vhat\to_pV$ is a statement about a
+probability limit.
+
+\begin{proof}[Proof of Theorem~\ref{thm:uniform-cover}]
+Each ingredient of Corollary~\ref{cor:variance} is re-derived with constants
+depending only on $(\Delta_{\min},c,C_4,v_0)$.
+
+\emph{Uniform selection.} By Definition~\ref{def:uniformity},
+$\min_j\Delta_j\ge\Delta_{\min}$, so Lemma~\ref{lem:selection}'s bound is at most
+$\card{\cT_{\bar L}}e^{-c_1n\Delta_{\min}^2}$, a bound free of $P$ that tends to
+zero; hence $\sup_P\PP_P(\that_j\notin\cS_j)\to0$.
+
+\emph{Uniform moments.} The constraint $1-\ez\ge c$ bounds $\wz$ and the clipped
+$\what$ uniformly, and $\E[Y^4\mid A,X]\le C_4$ then bounds $\E[\psi_0^4]$
+uniformly. Consequently the third absolute moment
+$\rho_3=\E\abs{\psi_0}^3\le\{\E\psi_0^2\}^{1/2}\{\E\psi_0^4\}^{1/2}$ is bounded
+uniformly over the class.
+
+\emph{Uniform central limit theorem.} The Berry--Esseen bound for i.i.d.\ sums
+gives
+\[
+  \sup_x\bigl\lvert\PP\bigl(\sqrt n\Pn\psi_0/\sqrt V\le x\bigr)-\Phi(x)\bigr\rvert
+  \le C\,\rho_3\,n^{-1/2}V^{-3/2},
+\]
+whose hypotheses --- independence from Assumption~\ref{ass:iid}, a finite third
+absolute moment, and non-degeneracy --- hold uniformly, the last because
+$V\ge v_0$. The right side is therefore at most $C\rho_3v_0^{-3/2}n^{-1/2}\to0$
+uniformly.
+
+\emph{Uniform variance consistency and coverage.} Steps~1 and~2 of
+Corollary~\ref{cor:variance} go through with the union bound replaced by its
+uniform version and the Cauchy--Schwarz remainder controlled by $C_4$ and $c$, so
+$\sup_P\PP_P(\abs{\Vhat/V-1}>\epsilon)\to0$. Combining with the uniform
+Berry--Esseen rate,
+$\sup_P\bigl\lvert\PP_P\bigl(\theta_0\in\thetahat\pm
+z_{1-\alpha/2}\sqrt{\Vhat/n}\bigr)-(1-\alpha)\bigr\rvert\to0$.
+\end{proof}
+
+\noindent Each of the four constants is consumed at a definite point.
+$\Delta_{\min}$ uniformises Lemma~\ref{lem:selection}. The constant $c$
+uniformises boundedness of $\wz$ and $\what$, which feeds both the moment bounds
+and Assumption~\ref{ass:construct}(c). The fourth moment $C_4$ is required twice:
+for the third absolute moment in the Berry--Esseen bound, and because
+uniform-in-$P$ selection consistency rests on a Chebyshev step applied to a
+squared-error risk, whose variance is itself a fourth-moment quantity, so
+Assumption~\ref{ass:moments} does not suffice uniformly. And $v_0$ keeps $V$, and
+hence the Berry--Esseen denominator $V^{3/2}$, away from zero; without it, or
+without $C_4$, the variance may be unbounded or degenerate along a sequence in
+the class and uniform coverage cannot hold at all. No tail condition is needed
+for the pointwise results; the uniform version requires a uniform fourth moment
+or a bounded outcome.
+
+\begin{proof}[Proof of Lemma~\ref{lem:skeleton}]
+Work on $\{\pihat>0\}$. Multiplying the estimating equation
+$\Pn\psi(\cdot;\thetahat,\widehat\eta)=0$ by $\pi>0$, which is a fixed constant
+by Assumption~\ref{ass:causal}, gives
+\[
+  \Pn\Bigl[A\{Y-\mhat(X)-\thetahat\}
+   -(1-A)\what(X)\{Y-\mhat(X)\}\Bigr]=0 .
+\]
+The left side is affine in $\thetahat$ with coefficient $-\Pn A=-\pihat\ne0$, so
+the solution is unique, and isolating it gives
+\[
+  \pihat\,\thetahat=\Pn\bigl[A\{Y-\mhat(X)\}\bigr]
+   -\Pn\bigl[(1-A)\what(X)\{Y-\mhat(X)\}\bigr].
+\]
+Subtracting $\pihat\theta_0$ and comparing with the definition of $\phi$ yields
+$\pihat(\thetahat-\theta_0)=\Pn\phi(\cdot;\widehat\eta)$, exactly. The treated
+share is not substituted anywhere: $\pihat=\Pn A$ arises as the coefficient of
+$\theta$, which is why no further correction for estimating $\pi$ is required.
+
+At the truth, $\psi_0=\pi^{-1}[A\{Y-\mz-\theta_0\}-(1-A)\wz\{Y-\mz\}]$, so
+$\phi(\cdot;\eta_0)=\pi\psi_0$ identically.
+
+For the decomposition, substitute $\what=\wz+\Delta w$ and
+$\mhat=\mz+\Delta\mu$ in the control-arm term:
+\[
+  \what\{Y-\mhat\}
+  =(\wz+\Delta w)(Y-\mz-\Delta\mu)
+  =\wz\{Y-\mz\}-\wz\Delta\mu+\Delta w\{Y-\mz\}-\Delta w\Delta\mu .
+\]
+Since $\{Y-\mz\}-\Delta\mu=Y-\mhat$, the last two terms combine to
+$\Delta w\{Y-\mhat\}$, giving
+$\what\{Y-\mhat\}-\wz\{Y-\mz\}=-\wz\Delta\mu+\Delta w\{Y-\mhat\}$. Hence
+\[
+  \phi(\cdot;\widehat\eta)-\phi(\cdot;\eta_0)
+  =-A\Delta\mu+(1-A)\wz\Delta\mu-(1-A)\Delta w\{Y-\mhat\}
+  =h\,\Delta\mu-(1-A)\Delta w\{Y-\mhat\},
+\]
+with $h=\wz(1-A)-A$. Applying $\Pn$ gives $U-T$ and
+therefore~\eqref{eq:skeleton}. Finally, for every $x$,
+$\E[h\mid X=x]=\wz(x)\{1-\ez(x)\}-\ez(x)=\ez(x)-\ez(x)=0$, using
+$\wz\{1-\ez\}=\ez$, which is available because $1-\ez\ge c>0$.
+\end{proof}
+
+\begin{proof}[Proof of Lemma~\ref{lem:findim}]
+A leaf-constant function on $\tau$ is described by one number per leaf, so the
+refit is determined by a vector in $\R^{\card\tau}$ with
+$\card\tau\le\bar L$.
+
+\emph{Occupancy.} Each leaf is a non-empty union of cells, so
+$\PP(X\in\ell)=\sum_{x\in\ell}p_x\ge p_{\min}>0$ by
+Assumption~\ref{ass:finite}, a constant free of $n$. Writing
+$N_\ell=\sum_i\mathbf1\{X_i\in\ell\}$, Assumption~\ref{ass:iid} makes $N_\ell$
+binomial with mean $n\PP(X\in\ell)$, so $N_\ell\asymp n$. For $j=\mu$, the
+control count satisfies
+$\PP(X\in\ell,A=0)=\sum_{x\in\ell}p_x\{1-\ez(x)\}\ge c\,\PP(X\in\ell)>0$ by
+Assumption~\ref{ass:causal}, so $N^0_\ell\asymp n$ likewise.
+
+\emph{The propensity leaf.} Since $\tau\in\cS_e$, $\ez$ equals a single value
+$\ez\restriction_\ell$ on $\ell$, so conditionally on $\{X_i\in\ell\}$ the $A_i$
+are i.i.d.\ Bernoulli$(\ez\restriction_\ell)$ and
+$\ehat\restriction_\ell-\ez\restriction_\ell$ has conditional mean zero and
+conditional variance
+$\ez\restriction_\ell\{1-\ez\restriction_\ell\}/N_\ell\le1/(4N_\ell)$. Chebyshev
+and $N_\ell\asymp n$ give $O_p(n^{-1/2})$.
+
+\emph{The outcome leaf.} Since $\tau\in\cS_\mu$, $\mz$ equals
+$\mz\restriction_\ell$ on $\ell$, so for control observations in $\ell$ the
+residual $\varepsilon_i$ has conditional mean zero and conditional variance at
+most $C_Y$ by Assumption~\ref{ass:moments}. Hence
+$\mhat\restriction_\ell-\mz\restriction_\ell$ has conditional variance at most
+$C_Y/N^0_\ell$, and Chebyshev with $N^0_\ell\asymp n$ gives $O_p(n^{-1/2})$.
+
+\emph{Maximum over leaves.} There are at most $\bar L$ leaves by
+Assumption~\ref{ass:budget}, so a union bound over them preserves the order.
+\end{proof}
+
+\noindent Under Assumptions~\ref{ass:finite} and~\ref{ass:causal} the positive-mass
+hypothesis is automatically satisfied by \emph{every} $\tau\in\cT_{\bar L}$, since a
+leaf is a non-empty union of cells and $p_x>0$, with control mass at least
+$cp_x$. It is therefore not load-bearing here, and is retained only so that the
+lemma survives a relaxation of Assumption~\ref{ass:finite}: were a leaf to carry
+zero mass, $N_\ell$ would be $o_p(n)$ and could vanish with non-negligible
+probability, leaving the leaf mean undefined or based on $o_p(n)$ observations, and
+the conclusion would fail. The occupancy step should be read as deriving the
+qualifier from Assumption~\ref{ass:finite}, not as consuming it as a hypothesis.
+
+\begin{proof}[Proof of Lemma~\ref{lem:U}]
+Fix $\tau_\mu\in\cS_\mu$. The refit $\mhat$ is leaf-constant on $\tau_\mu$ by
+Assumption~\ref{ass:construct}(b), and $\mz$ is leaf-constant because
+$\tau_\mu\in\cS_\mu$; hence so is $\Delta\mu$, with
+$\Delta\mu(X)=\sum_{\ell}(\mhat\restriction_\ell-\mz\restriction_\ell)
+\mathbf1\{X\in\ell\}$, exactly one indicator being active. Substituting into
+$U=\Pn[h\Delta\mu]$ and using linearity,
+\[
+  U=\sum_{\ell\in\tau_\mu}
+   \bigl(\mhat\restriction_\ell-\mz\restriction_\ell\bigr)\cdot
+   \Pn\bigl[h\,\mathbf1\{X\in\ell\}\bigr].
+\]
+For the second factor, Lemma~\ref{lem:skeleton} gives $\E[h\mid X]=0$, so
+$\E[h\mathbf1_\ell]=0$. Since $h=-1$ when $A=1$ and $h=\wz(X)$ when $A=0$,
+\[
+  \E[h^2\mid X]=\ez+\{1-\ez\}\wz^2\le1+\bigl\{(1-c)/c\bigr\}^2<\infty
+\]
+by Assumption~\ref{ass:causal}, so the summands are i.i.d.\ with mean zero and
+finite variance and $\Pn[h\mathbf1_\ell]=O_p(n^{-1/2})$. For the first factor,
+Lemma~\ref{lem:findim} applied at $j=\mu$ gives $O_p(n^{-1/2})$. No independence
+between the factors is needed: a product of two $O_p(n^{-1/2})$ terms on a common
+probability space is $O_p(n^{-1})$. Summing over at most $\bar L$ leaves gives
+$\abs U=O_p(\bar L/n)$, and since $\bar L$ is fixed by
+Assumption~\ref{ass:budget} this is $o_p(n^{-1/2})$. The bound holds for each
+fixed $\tau_\mu\in\cS_\mu$, and $\cS_\mu$ is contained in the fixed finite set
+$\cT_{\bar L}$, so the maximum over it satisfies the same bound.
+\end{proof}
+
+\noindent Two features of Lemma~\ref{lem:U} are worth isolating. The bound does
+not involve $\tau_e$ or $\cS_e$ at any point, because $h=\wz(1-A)-A$ is built
+from the \emph{true} weight and never from $\ehat$; this is in contrast with $T$,
+which involves $\Delta w$ and hence $\tau_e$. And since
+$\abs U=O_p(\bar L/n)$ while $\abs T=O_p(\sqrt{\bar L}/n)$, it is $U$ that would bind
+first as the leaf budget grows, which is why the budget enters the theory through
+this term.
+
+\begin{proof}[Proof of Lemma~\ref{lem:cross}]
+For a fixed pair $(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$ we show that
+$T=n^{-1}\sum_{i:A_i=0}a_i\varepsilon_i$ \emph{exactly}, where the $a_i$ are
+$\sigma(X_{1:n},A_{1:n})$-measurable and centred within the leaves of $\tau_\mu$.
+Conditioning on $(X_{1:n},A_{1:n})$ then gives conditional mean zero and a
+variance controlled by $\sum a_i^2$, which is bounded by $c^{-4}L_e/4$ using the
+leaf-constancy of $\ez$ on $\tau_e$. Chebyshev gives the rate for the fixed pair,
+and the maximum over the fixed finite index set preserves it.
+
+\emph{Step 1: exact recentring.} Fix $\tau_e\in\cS_e$ and $\tau_\mu\in\cS_\mu$;
+no maximisation over, or conditioning on, an estimated partition occurs until the
+final step. Group $T$ by the leaves $\ell$ of $\tau_\mu$. For any
+$\tau_\mu$-leaf-constant $c_\ell$, replacing $\Delta w(X_i)$ by
+$\Delta w(X_i)-c_\ell$ within leaf $\ell$ changes the leaf sum by
+$-c_\ell\sum_{i\in\ell,A_i=0}\{Y_i-\mhat\restriction_\ell\}=0$, by the exact
+identity supplied by Assumption~\ref{ass:construct}(b). Choosing $c_\ell$ to be
+the control-observation average $\overline{\Delta w}_\ell$ and setting
+$a_i=\Delta w(X_i)-\overline{\Delta w}_{\ell_\mu(i)}$ therefore gives
+\[
+  T=n^{-1}\sum_{i:A_i=0}a_i\bigl\{Y_i-\mhat\restriction_{\ell_\mu(i)}\bigr\},
+  \qquad
+  \sum_{i\in\ell,A_i=0}a_i=0\ \text{ for every leaf }\ell\text{ of }\tau_\mu.
+\]
+
+\emph{Step 2: the exact identity.} Since $\tau_\mu\in\cS_\mu$, $\mz$ is
+$P$-a.s.\ constant on each leaf, so
+$Y_i-\mhat\restriction_\ell
+=\varepsilon_i-(\mhat\restriction_\ell-\mz\restriction_\ell)$ for $i\in\ell$.
+Substituting,
+\[
+  T=n^{-1}\sum_{i:A_i=0}a_i\varepsilon_i
+   -n^{-1}\sum_{\ell}\bigl(\mhat\restriction_\ell-\mz\restriction_\ell\bigr)
+    \sum_{i\in\ell,A_i=0}a_i ,
+\]
+and the inner sum vanishes for every $\ell$ by Step~1. Hence
+$T=n^{-1}\sum_{i:A_i=0}a_i\varepsilon_i$ exactly.
+
+\emph{Step 3: conditional mean and variance.} For fixed $\tau_e,\tau_\mu$ each
+$a_i$ is a function of $\Delta w(X_i)$, hence of $\ehat$, which is
+$\sigma(X_{1:n},A_{1:n})$-measurable, and of the within-leaf control average
+$\overline{\Delta w}_{\ell_\mu(i)}$, also $\sigma(X_{1:n},A_{1:n})$-measurable.
+So $\{a_i\}$ is $\sigma(X_{1:n},A_{1:n})$-measurable. By
+Assumption~\ref{ass:iid}, conditionally on $(X_{1:n},A_{1:n})$ the variables
+$\{Y_i:A_i=0\}$ are independent with $\E[\varepsilon_i\mid X_i,A_i=0]=0$ by the
+definition of $\mz$ and $\Var(\varepsilon_i\mid X_i,A_i=0)\le C_Y$ by
+Assumption~\ref{ass:moments}. Therefore
+\[
+  \E[T\mid X,A]=0,\qquad
+  \Var(T\mid X,A)\le C_Y\,n^{-2}\sum_{i:A_i=0}a_i^2 .
+\]
+This is where fixing $\tau_\mu$ is load-bearing: were $\tau_\mu$ replaced by
+$\that_\mu$, the coefficients $a_i$ would depend on $\{Y_i:A_i=0\}$ and the
+cancellation above would fail. Fixing $\tau_e$ is what keeps the binomial
+variance bound of Step~5 valid, since that step treats $A_{1:n}$ as random given
+$X_{1:n}$.
+
+\emph{Step 4: bounding $\sum a_i^2$.} Centring within a leaf is the $\ell_2$
+projection onto the orthogonal complement of the constants, so
+$\sum_{i\in\ell,A_i=0}a_i^2\le\sum_{i\in\ell,A_i=0}\Delta w(X_i)^2$ for each
+$\ell$, and summing over leaves,
+$\sum_{i:A_i=0}a_i^2\le\sum_{i:A_i=0}\Delta w(X_i)^2$. Because
+$\tau_e\in\cS_e$, $\ez$ is $\tau_e$-leaf-constant, so for $i$ in the
+$\tau_e$-leaf $\ell'$ we have
+$\Delta w(X_i)=\what\restriction_{\ell'}-\wz\restriction_{\ell'}$. Both
+$\ehat\restriction_{\ell'}$, by Assumption~\ref{ass:construct}(c), and
+$\ez\restriction_{\ell'}$, by Assumption~\ref{ass:causal}, lie in $[0,1-c]$, on
+which $u\mapsto u/(1-u)$ has derivative $(1-u)^{-2}\le c^{-2}$; the mean value
+theorem gives
+$\abs{\what\restriction_{\ell'}-\wz\restriction_{\ell'}}
+\le c^{-2}\abs{\ehat\restriction_{\ell'}-\ez\restriction_{\ell'}}$. Hence
+\[
+  \sum_{i:A_i=0}\Delta w(X_i)^2
+  =\sum_{\ell'}n_{0,\ell'}
+   \bigl(\what\restriction_{\ell'}-\wz\restriction_{\ell'}\bigr)^2
+  \le c^{-4}\sum_{\ell'}n_{0,\ell'}
+   \bigl(\ehat\restriction_{\ell'}-\ez\restriction_{\ell'}\bigr)^2 .
+\]
+
+\emph{Step 5: no leaf-mass condition is required.} Let
+$\ehat^{\mathrm{pre}}\restriction_{\ell'}$ denote the unclipped leaf mean of
+$A_i$. Given $X_{1:n}$, and hence given the leaf counts $n_{\ell'}$, the value of
+$\ez$ on $\ell'$ is the single number $\ez\restriction_{\ell'}$, because
+$\tau_e\in\cS_e$; so by Assumption~\ref{ass:iid} the $A_i$ with $i\in\ell'$ are
+independent Bernoulli$(\ez\restriction_{\ell'})$ and
+\[
+  \E\bigl[(\ehat^{\mathrm{pre}}\restriction_{\ell'}
+   -\ez\restriction_{\ell'})^2\bigm| X_{1:n}\bigr]
+  =\frac{\ez\restriction_{\ell'}\{1-\ez\restriction_{\ell'}\}}{n_{\ell'}}
+  \le\frac1{4n_{\ell'}} .
+\]
+This is exactly where $\tau_e\in\cS_e$ enters: without it the leaf mean of $A_i$
+does not have mean $\ez\restriction_{\ell'}$. By Lemma~\ref{lem:clip} clipping is
+non-expansive towards $\ez\restriction_{\ell'}$, so the same bound holds after
+clipping. Since $n_{0,\ell'}\le n_{\ell'}$ \emph{deterministically},
+\[
+  \E\bigl[n_{0,\ell'}
+   (\ehat\restriction_{\ell'}-\ez\restriction_{\ell'})^2\bigm| X_{1:n}\bigr]
+  \le n_{\ell'}\cdot\frac1{4n_{\ell'}}=\frac14 ,
+\]
+irrespective of $n_{\ell'}$, and trivially zero if $n_{\ell'}=0$. Summing over
+the $L_e$ leaves and taking expectations,
+$\E\bigl[\sum_{i:A_i=0}\Delta w(X_i)^2\bigr]\le c^{-4}L_e/4$.
+
+\emph{Step 6: the rate, then the maximum.} By Step~3,
+$\E[T^2]=\E[\Var(T\mid X,A)]\le C_Yc^{-4}L_e/(4n^2)$, so Chebyshev applied to
+$T^2$ gives $\abs{T(\tau_e,\tau_\mu)}=O_p(\sqrt{\card{\tau_e}}/n)$ for the fixed pair.
+Since $\cS_e\times\cS_\mu$ is a subset of the fixed finite set
+$\cT_{\bar L}\times\cT_{\bar L}$ by Assumption~\ref{ass:budget}, and its
+cardinality does not grow with $n$, the maximum over it satisfies the same
+bound; no logarithmic factor arises, because none is needed to control a maximum
+over a fixed finite family, and $\card{\tau_e}\le\bar L$ throughout, giving the
+stated $O_p(\sqrt{\bar L}/n)$. As $\bar L$ is fixed this is $o(n^{-1/2})$. Note that
+$L_e=\card{\that_e}$ is reserved for the \emph{selected} tree and does not appear
+here: the bound is over fixed pairs and must not be indexed by a data-dependent
+leaf count.
+\end{proof}
+
+\noindent The index set cannot be enlarged. If $\tau_e\notin\cS_e$ then $\ez$ is
+not leaf-constant on $\tau_e$ and $\Delta w$ converges to a non-zero limit
+$b=w_*-\wz$; centring within the leaves of $\tau_\mu$ does not annihilate $b$, so
+$\sum_{i:A_i=0}a_i^2=\Theta_p(n)$ and $\sqrt n\,T=O_p(1)$ rather than $o_p(1)$.
+Sufficiency is thus required on both sides, for different reasons:
+$\tau_\mu\in\cS_\mu$ makes the substitution of Step~2 exact, while
+$\tau_e\in\cS_e$ licenses the collapse to one value per leaf in Steps~4--5.
+
+Cauchy--Schwarz is not merely lossy here but fatal. It would give
+$\abs T\le\{\Pn(1-A)\Delta w^2\}^{1/2}\{\Pn(1-A)(Y-\mhat)^2\}^{1/2}$, whose
+second factor converges to $\E[\{1-\ez\}\sigma_0^2]^{1/2}$, bounded away from
+zero because it is irreducible outcome noise rather than an estimation error. The
+resulting bound is $O_p(\sqrt{L_e/n})\ge O_p(n^{-1/2})$ for every $L_e\ge1$, so
+no leaf budget repairs it: the failure is at the scale of the central limit
+theorem. The argument above instead exploits $\E[\varepsilon\mid X,A=0]=0$, a
+cancellation unavailable to Cauchy--Schwarz, which is the reason
+Lemma~\ref{lem:cross} is proved through conditional mean-zeroness and never
+through smallness.
 
 \section{Proofs for Sections~\ref{sec:crossfit} and~\ref{sec:honest}}
 \label{app:honest}
 
-\emph{To be completed: Theorem~\ref{thm:crossfit},
-Proposition~\ref{prop:rate-verify}, Theorem~\ref{thm:anchor},
-Corollary~\ref{cor:width}, Proposition~\ref{prop:spectest},
-Proposition~\ref{prop:estimable}, Theorem~\ref{thm:honest}.}
+\begin{proof}[Proof of Theorem~\ref{thm:crossfit}]
+\emph{Neyman orthogonality.} By Proposition~\ref{prop:bilinear}, for any
+$\eta=(e,\mu)$,
+$R(\eta):=\E[\psi(O;\theta_0,\eta)]
+=\pi^{-1}\E[\{1-\ez\}\{\wz-w\}\{\mz-\mu\}]$, exactly. Fix a direction and set
+$\eta_t=\eta_0+t(\eta-\eta_0)$, so that $\mu_t-\mz=-t(\mu-\mz)$ exactly and
+\[
+  R(\eta_t)/t=-\pi^{-1}\E\bigl[\{1-\ez\}\{\wz-w_t\}(\mu-\mz)\bigr].
+\]
+As $t\to0$ we have $w_t\to\wz$ pointwise on the finite space $\cX$, by
+continuity of $e\mapsto e/(1-e)$ on $[0,1-c]$, and the integrand is uniformly
+bounded, so dominated convergence gives $R(\eta_t)/t\to0$. Hence the Gateaux
+derivative of $\eta\mapsto\E[\psi(O;\theta_0,\eta)]$ at $\eta_0$ vanishes in
+every direction, which is Neyman orthogonality. It is immediate from the exact
+bilinear form: a product of two factors each vanishing at $t=0$ has vanishing
+derivative there, whatever the nonlinear dependence of $w$ on $e$.
+
+\emph{The rate condition.} Corollary~\ref{cor:convert} bounds $\abs{R(\eta)}$ by
+$(\pi c^{3/2})^{-1}\Ltwo{\ehat-\ez}\Lw{\mhat-\mz}$, the pairing being unweighted
+for the propensity and control-weighted for the outcome, as forced by the factor
+structure. Assumption~\ref{ass:rate} makes this $o_p(n^{-1/2})$ at each fold-wise
+fit, and since $K$ is fixed the weighted sum of the $K$ fold contributions
+preserves the rate.
+
+\emph{Moments.} Assumption~\ref{ass:moments} gives $V<\infty$. Under
+Assumption~\ref{ass:causal}, $\wz\le(1-c)/c$, and under
+Assumption~\ref{ass:construct}(c) the clipped $\what$ obeys the same bound;
+together with Assumption~\ref{ass:moments} this gives uniformly bounded second
+moments of $\psi(\cdot;\theta_0,\widehat\eta)$ and $L_2$ convergence to $\psi_0$,
+which is the integrability package required by \citet{chernozhukov2018}.
+
+\emph{The empirical-process term.} For fold $k$ write
+\[
+  \sqrt{n_k}\bigl\{\mathbb{P}_{n_k}-P\bigr\}
+   \Bigl[\psi(\cdot;\theta_0,\widehat\eta^{(-k)})-\psi_0\Bigr],
+\]
+where $\psi_0$ is subtracted inside the bracket: it is the \emph{differenced} term
+that is negligible, the undifferenced empirical process converging to $N(0,V)$
+rather than to zero. Since $\widehat\eta^{(-k)}$ is a function of observations
+outside fold $k$, it is independent of the fold-$k$ observations, so conditionally
+on $\widehat\eta^{(-k)}$ this is a centred average of i.i.d.\ terms with conditional
+variance bounded by
+$\lVert\psi(\cdot;\theta_0,\widehat\eta^{(-k)})-\psi_0\rVert_{2}^2\to_p0$; hence
+it is $o_p(1)$. \emph{No entropy or complexity condition on $\cT_{\bar L}$ is
+required}, precisely because splitting removes the need for uniform control over
+the candidate class. The conditional-mean term is $o_p(1)$ after scaling by the
+previous step, and with $K$ fixed the $K$ fold contributions do not accumulate.
+Applying the central limit theorem to $n^{-1/2}\sum_i\psi_0(O_i)$ and Slutsky,
+with the coefficient of $\theta$ again producing the empirical treated fraction,
+gives the conclusion.
+\end{proof}
+
+\begin{proof}[Proof of Proposition~\ref{prop:rate-verify}]
+\emph{Tree-realisability of the singleton partition.} We show by strong induction
+that any sub-box of $\cX$ containing $m$ cells is separated into singletons by
+$m-1$ recursive axis-aligned binary splits. The induction is on the cell count of a
+\emph{sub-box}, not on product spaces: the two pieces produced by a threshold split
+are themselves sub-boxes, whereas they need not be product spaces of the original
+form, so an induction phrased over product spaces would not close.
+
+For $m=1$ the sub-box is a single cell and no split is needed. Let $m\ge2$ and let
+$B$ be a sub-box with $m$ cells. Since $m\ge2$, some coordinate takes at least two
+distinct values on $B$; a threshold split on that coordinate divides $B$ into
+non-empty sub-boxes $B_1,B_2$ with $m_1+m_2=m$ and $m_i\ge1$. Note we do \emph{not}
+claim a single split isolates one cell --- for $d\ge2$ that is false, as on
+$\{0,1\}^2$ no axis-aligned threshold split separates a single cell from the other
+three. By the inductive hypothesis $B_i$ needs $m_i-1$ splits, so $B$ needs
+$1+(m_1-1)+(m_2-1)=m-1$. Applying this to $B=\cX$ gives $M-1$. Hence at $\bar L=M$ the class $\cT_{\bar L}$ contains a tree
+$\tau^*$ whose leaves are exactly the $M$ cells, and every function of $X$ is
+leaf-constant on it, so $\tau^*\in\cS_e\cap\cS_\mu$ and both classes are
+non-empty. Assumption~\ref{ass:sparsity} therefore carries no content at
+$\bar L=M$.
+
+\emph{The rate.} By Lemma~\ref{lem:margin}, $\Delta_j>0$ for each $j$. By
+Lemma~\ref{lem:selection}, $\PP(\that_j\in\cS_j)\to1$, and on that event
+$\gamma_{0,j}$ is leaf-constant, so each fitted nuisance is a leaf mean of a
+leaf-constant truth on leaves of positive mass. Lemma~\ref{lem:findim} gives
+$O_p(n^{-1/2})$ per leaf, and aggregating over the $M$ leaves, with $M$ fixed by
+Assumption~\ref{ass:finite}, gives $\Ltwo{\ehat-\ez}=O_p(\sqrt{M/n})=O_p(n^{-1/2})$
+and likewise $\Lw{\mhat-\mz}=O_p(n^{-1/2})$. The product is
+$O_p(n^{-1})=o_p(n^{-1/2})$, with headroom.
+\end{proof}
+
+\begin{proof}[Proof of Theorem~\ref{thm:anchor}]
+By definition $\thetahat=\widehat\delta+\thetatil$, whence the identity
+$\thetahat-\widehat\delta=\thetatil$: subtracting $\widehat\delta$ returns the
+cross-fitted estimator exactly, so $\widehat\delta$ cannot recentre $\thetahat$
+without discarding it, and functions only as a width term.
+
+Rearranging, $\thetahat-\theta_0=\widehat\delta+(\thetatil-\theta_0)$, so the
+triangle inequality gives, deterministically for every $n$ and every realisation,
+\[
+  \abs{\thetahat-\theta_0}\le\abs{\widehat\delta}+\abs{\thetatil-\theta_0}.
+\]
+No property of $\widehat\delta$ beyond its being a real number is used, so no
+condition on $\delta_e,\delta_\mu,\Dw,\Dm$ and no smoothness condition enters.
+Let $E_n=\{\abs{\thetatil-\theta_0}\le z_{1-\alpha/2}\widetilde\sigma/\sqrt n\}$;
+on $E_n$ the display gives
+$\abs{\thetahat-\theta_0}\le\abs{\widehat\delta}
++z_{1-\alpha/2}\widetilde\sigma/\sqrt n$, which is exactly $\theta_0\in C_n$.
+Hence $E_n\subseteq\{\theta_0\in C_n\}$ and
+$\PP(\theta_0\in C_n)\ge\PP(E_n)$ for every $n$. Since
+$\sqrt n(\thetatil-\theta_0)\rightsquigarrow N(0,\widetilde V)$ with
+$\widetilde V>0$ and $\widetilde\sigma^2\to_p\widetilde V$, Slutsky gives
+$\sqrt n(\thetatil-\theta_0)/\widetilde\sigma\rightsquigarrow N(0,1)$ and
+$\PP(E_n)\to1-\alpha$. Therefore
+$\liminf_n\PP(\theta_0\in C_n)\ge1-\alpha$.
+\end{proof}
+
+\noindent The conclusion is an inequality, not an equality: $C_n$ over-covers
+whenever $\widehat\delta\ne0$. Since $\abs{\widehat\delta}\ge0$, the interval
+contains the anchor's own interval recentred at $\thetahat$, so its length is
+never below $2z_{1-\alpha/2}\widetilde\sigma/\sqrt n$. The hypothesis
+$\widetilde V>0$ is what the Slutsky step consumes, and it is inherited from the
+anchor's own regularity rather than imposed here; if the anchor's central limit
+theorem or the consistency of $\widetilde\sigma$ fails, coverage is not
+guaranteed. Theorem~\ref{thm:anchor} buys robustness against an unquantified
+bias, given a valid anchor, and none against a broken one.
+
+\begin{proof}[Proof of Corollary~\ref{cor:width}]
+\emph{The bias of $\thetahat$.} Decompose
+$\thetahat-\theta_0=\{\thetahat-\theta(\widehat\eta)\}
++\{\theta(\widehat\eta)-\theta_0\}$. Proposition~\ref{prop:bilinear} at
+$\eta=\widehat\eta$ and Lemma~\ref{lem:biasbound} give
+$\abs{\theta(\widehat\eta)-\theta_0}\le\pi^{-1}\Dw\Dm$, while the plug-in
+remainder $\thetahat-\theta(\widehat\eta)$ is $O_p(n^{-1/2})$ under
+Assumptions~\ref{ass:moments} and~\ref{ass:finite}, matching the $\Pn\psi_0$ term
+underlying Theorem~\ref{thm:main}. Hence
+$\thetahat-\theta_0=O_p(\Dw\Dm)+O_p(n^{-1/2})$, and since
+$\thetatil-\theta_0=O_p(n^{-1/2})$ by Theorem~\ref{thm:crossfit},
+\begin{equation}\label{eq:delta-order}
+  \widehat\delta=O_p(\Dw\Dm)+O_p(n^{-1/2}).
+\end{equation}
+
+\emph{Realised versus approximation error.} Fix $j$. The fitted tree estimates at
+most $\bar L$ leaf constants, and by Lemma~\ref{lem:findim} each leaf estimate
+deviates from its population leaf value by $O_p(n^{-1/2})$; aggregating the at
+most $\bar L$ leaf-wise discrepancies in the relevant norm gives a total
+estimation contribution of order $\sqrt{\bar L/n}$. Applying the triangle
+inequality in both directions between the realised and approximation errors,
+\begin{equation}\label{eq:D-vs-delta}
+  D_j=\delta_j+O_p\bigl(\sqrt{\bar L/n}\bigr)=\delta_j+O_p(n^{-1/2}),
+\end{equation}
+the last step using that $\bar L$ is fixed by Assumption~\ref{ass:budget}.
+
+\emph{Combining.} Since $\delta_e,\delta_\mu=O(1)$, \eqref{eq:D-vs-delta} gives
+$\Dw\Dm=\delta_e\delta_\mu+O_p(n^{-1/2})$, and substituting
+into~\eqref{eq:delta-order} yields
+$\abs{\widehat\delta}=O_p(\delta_e\delta_\mu+n^{-1/2})$. The width of $C_n$ is
+$2\{\abs{\widehat\delta}+z_{1-\alpha/2}\widetilde\sigma/\sqrt n\}$, whose second
+term is $\Theta_p(n^{-1/2})$ because $\widetilde\sigma\to_p\widetilde V^{1/2}>0$,
+so $\mathrm{width}(C_n)\asymp_p\max\{n^{-1/2},\delta_e\delta_\mu\}$. This
+contracts at the parametric rate if and only if
+$\delta_e\delta_\mu=O(n^{-1/2})$, and otherwise plateaus at
+$\delta_e\delta_\mu$.
+\end{proof}
+
+\noindent Relation~\eqref{eq:D-vs-delta} is the reason results proved for one
+error notion do not transfer to the other. The two agree only up to
+$O_p(\sqrt{\bar L/n})$, which is immaterial in Corollary~\ref{cor:width}, where
+the leading term is a product of $O(1)$ quantities, but decisive in
+Section~\ref{sec:realised}, where the allowance is required to dominate the
+realised error of the reported fit rather than the best available approximation.
+
+\begin{proof}[Proof of Proposition~\ref{prop:spectest}]
+Under Assumption~\ref{ass:sparsity}, Theorem~\ref{thm:main} gives
+$\sqrt n(\thetahat-\theta_0)=\sqrt n\Pn\psi_0+o_p(1)$, and under
+Assumption~\ref{ass:rate}, Theorem~\ref{thm:crossfit} gives
+$\sqrt n(\thetatil-\theta_0)=\sqrt n\Pn\psi_0+o_p(1)$ with the \emph{same}
+$\psi_0$, the efficient influence function being a property of the model rather
+than of the estimator. Subtracting, the leading terms cancel identically, term by
+term, and $\sqrt n\widehat\delta=o_p(1)$.
+
+\emph{Size.} With $\widehat{\mathrm{SE}}\asymp n^{-1/2}$, the quantity
+$\sqrt n\widehat{\mathrm{SE}}$ is bounded away from zero and infinity with
+probability tending to one, so
+\[
+  \PP\bigl(\abs{\widehat\delta}>z_{1-\alpha/2}\widehat{\mathrm{SE}}\bigr)
+  =\PP\bigl(\sqrt n\abs{\widehat\delta}
+   >z_{1-\alpha/2}\sqrt n\widehat{\mathrm{SE}}\bigr)\to0 .
+\]
+
+\emph{Consistency.} Under a fixed alternative with $\delta_e\delta_\mu>0$,
+Proposition~\ref{prop:bilinear} gives a non-vanishing limit
+$\thetahat-\theta_0\to_pb\ne0$, while $\thetatil-\theta_0=O_p(n^{-1/2})\to_p0$,
+so $\widehat\delta\to_pb\ne0$ while $\widehat{\mathrm{SE}}\to0$, and the
+rejection probability tends to one.
+\end{proof}
+
+\noindent The cancellation is exact, so no non-degenerate limiting variance
+exists: the null distribution of $\sqrt n\widehat\delta$ is degenerate and the
+test is conservative rather than asymptotically exact. A claim that
+$\sqrt n\widehat\delta$ converges to a non-degenerate normal law with a
+computable variance would be false. The same degeneracy is why
+$\widehat\delta$ cannot serve as a widening term on its own: it is $o_p(n^{-1/2})$
+under sparsity, hence small precisely when the bias is zero, and by
+Corollary~\ref{cor:width} it is $O_p(\Dw\Dm+n^{-1/2})$ away from
+sparsity, so it neither centres on nor dominates the bias. This is why
+Theorem~\ref{thm:anchor} adds the anchor's full sampling width on top of
+$\abs{\widehat\delta}$.
+
+\subsection*{Status of the realised-error refinement}
+
+The realised-error construction discussed in Section~\ref{sec:realised} is not
+proved here; the four open obstacles are listed there. What is established is the
+following computation, which disqualifies the plug-in~\eqref{eq:vhat} as a
+conservative variance estimator away from sparsity.
+
+Write $a=\mu_*-\mz$ and $b=w_*-\wz$ for the pseudo-true discrepancies and expand
+$\psi(\cdot;\theta_0,\eta_*)$ about $\eta_0$:
+\[
+  \psi(\eta_*)-\psi_0
+  =\pi^{-1}\Bigl[-Aa-(1-A)\bigl\{b(Y-\mz)-\wz a\bigr\}\Bigr]+O(ab).
+\]
+Squaring and taking expectations, the cross term is $2\E[\psi_0\{\psi(\eta_*)-\psi_0\}]$.
+The treated arm contributes $-\pi^{-2}\E[\ez a\Delta m]$, using
+$\E[Y\mid A=1,X]-\mz-\theta_0=\Delta m$; the control arm contributes
+$+\pi^{-2}\E[\{1-\ez\}\wz b\sigma_0^2]$, using
+$\E[(Y-\mz)^2\mid A=0,X]=\sigma_0^2$, while the term in $\wz^2a(Y-\mz)$ vanishes
+because $\E[Y-\mz\mid A=0,X]=0$. Hence
+\[
+  \plim\Vhat=V+2\pi^{-2}\bigl\{\E[\{1-\ez\}\wz b\,\sigma_0^2]
+   -\E[\ez\,a\,\Delta m]\bigr\}+O\bigl(\Ltwo a^2+\Ltwo b^2\bigr).
+\]
+Taking $b\equiv0$ and $a=\epsilon\{1-\ez\}\Delta m$ makes the bracket
+$-\epsilon\E[\ez\{1-\ez\}\Delta m^2]$, strictly negative at order $\epsilon$
+whenever $\Delta m\not\equiv0$ on a cell with $0<\ez<1$, against a remainder of
+order $\epsilon^2$. So $\plim\Vhat<V$ for all small $\epsilon>0$. Note that
+$b\equiv0$ forces $\theta(\eta_*)=\theta_0$ exactly by
+Proposition~\ref{prop:bilinear}, so the centring in~\eqref{eq:vhat} is harmless in
+this construction.
 
 \section{Counterexamples}\label{app:counterex}
 
-\emph{To be completed: the five-box pinwheel of
-Proposition~\ref{prop:pinwheel}; the zero-margin greedy witness of
-Proposition~\ref{prop:greedy}; and the borderline rate computation following
-Proposition~\ref{prop:rate-verify}.}
+\subsection*{The margin is not optional in Proposition~\ref{prop:rate-verify}}
+
+Proposition~\ref{prop:rate-verify} routes through Lemma~\ref{lem:margin}. The
+following computation shows that the apparently simpler route, which uses only
+finiteness of the candidate class, fails --- and fails at the boundary, which is
+why the failure is easy to miss.
+
+Suppose one argues from finiteness of $\cT_{\bar L}$ and a union bound alone,
+without invoking the margin. Absent any separation between the best candidate and
+its competitors, the generic guarantee for empirical risk minimisation over a
+finite class is the slow rate: Hoeffding or Bernstein together with a union bound
+give concentration of each candidate's empirical risk to within $O_p(n^{-1/2})$ of
+its population value, and with no gap $\Delta_j>0$ nothing sharper follows for the
+selected candidate. So the excess risk of $\widehat\gamma_j$ is $O_p(n^{-1/2})$.
+By the loss-to-norm identity of Assumption~\ref{ass:construct}(a), excess risk
+equals squared $L_2$ distance, so
+\[
+  \bigl\lVert\widehat\gamma_j-\gamma_{0,j}\bigr\rVert
+  =O_p\bigl(n^{-1/4}\bigr),\qquad j\in\{e,\mu\},
+\]
+and therefore
+\[
+  \Ltwo{\ehat-\ez}\cdot\Lw{\mhat-\mz}
+  =O_p(n^{-1/4})\cdot O_p(n^{-1/4})=O_p\bigl(n^{-1/2}\bigr).
+\]
+This is \emph{exactly} $O_p(n^{-1/2})$, not $o_p(n^{-1/2})$, and
+Assumption~\ref{ass:rate} requires the latter. The margin-free route therefore
+lands precisely on the boundary and is \emph{insufficient to verify}
+Assumption~\ref{ass:rate}, with no room to spare. It does not establish a
+violation: that would require a matching lower bound, which is not claimed.
+
+The margin repairs this by replacing the slow rate with exact recovery of a
+sufficient structure: on the event of Lemma~\ref{lem:selection} the truth is
+leaf-constant, each nuisance converges at $O_p(n^{-1/2})$ rather than
+$O_p(n^{-1/4})$, and the product gains a full factor of $n^{-1/2}$. The assertion
+that the candidate set is finite and the matter therefore settled is false.
+
+\begin{proof}[Proof of Proposition~\ref{prop:greedy}]
+Let $\cX=\{0,1\}^2$ with $X$ uniform on the four cells, and set
+\[
+  \ez(0,0)=\ez(1,1)=a,\qquad \ez(0,1)=\ez(1,0)=b,\qquad a\ne b,
+\]
+with $a,b\in(0,1-c]$, so that $\ez$ takes values in $[0,1-c]$ and
+Assumption~\ref{ass:causal} holds with all four cells of positive probability.
+Thus $\ez$ depends on $X$ only through $\mathbf1\{x_1=x_2\}$.
+
+\emph{The root.} By uniformity the best constant is
+$\E[\ez]=\tfrac14(a+a+b+b)=\tfrac12(a+b)$, and the excess risk is
+\[
+  \Var(\ez)=\tfrac14\Bigl[2\bigl(a-\tfrac{a+b}2\bigr)^2
+   +2\bigl(b-\tfrac{a+b}2\bigr)^2\Bigr]
+  =\tfrac14\Bigl[2\bigl(\tfrac{a-b}2\bigr)^2+2\bigl(\tfrac{b-a}2\bigr)^2\Bigr]
+  =\frac{(a-b)^2}4 .
+\]
+
+\emph{Splitting on $x_1$.} The children are $\{(0,0),(0,1)\}$, carrying values
+$a$ and $b$, and $\{(1,0),(1,1)\}$, carrying values $b$ and $a$; each is uniform
+on its two cells. In each child the best constant is again $\tfrac12(a+b)$ and
+the within-child variance is again $(a-b)^2/4$, by the identical computation. The
+post-split risk is the equally weighted average of the two child variances, hence
+$(a-b)^2/4$, equal to the root risk. The reduction is exactly zero.
+
+\emph{Splitting on $x_2$.} The construction is symmetric under
+$x_1\leftrightarrow x_2$, since it depends on $X$ only through
+$\mathbf1\{x_1=x_2\}$, so the identical computation applies and the reduction is
+again exactly zero.
+
+\emph{Exhaustiveness.} On $\{0,1\}^2$ the only admissible first splits are on
+$x_1$ and on $x_2$, and both have zero population risk reduction.
+
+\emph{The global optimum recovers $\ez$.} The singleton partition
+$\tau^*=\{\{(0,0)\},\{(0,1)\},\{(1,0)\},\{(1,1)\}\}$ has $\card{\tau^*}=4\le\bar L$
+and $\ez$ is trivially constant on each singleton leaf, so $\tau^*\in\cS_e$ and
+$\cS_e\ne\emptyset$ at $\bar L=4$; Lemma~\ref{lem:margin} then gives
+$\Delta_e>0$. Note that the two-leaf partition
+$\{\{x_1=x_2\},\{x_1\ne x_2\}\}$, which also has zero excess risk, is not
+obtainable by a single axis-aligned split, being the parity function; it is
+therefore not available to a depth-one tree.
+
+Consequently a greedy recursive procedure that splits only on strictly positive
+immediate risk reduction halts at the root, while the global optimiser over
+$\cT_4$ attains $\tau^*\in\cS_e$ with $\Delta_e>0$.
+\end{proof}
+
+\noindent The mechanism is that the first split is uninformative while the pair of
+splits together is exactly informative, so a procedure that requires strictly
+positive immediate gain has no signal to follow. Two caveats keep the conclusion
+honest. The zero gain makes the first split a \emph{tie}, so a greedy variant that
+breaks ties arbitrarily and grows to the budget does reach $\tau^*$ here: split on
+$x_1$ for zero gain, then on $x_2$ in each child for gain $(a-b)^2/4>0$ each.
+Cost-complexity pruning likewise succeeds, since the four-leaf tree has risk
+$4\lambda_n$ against the root's $(a-b)^2/4+\lambda_n$ and $\lambda_n\to0$. So what
+is established is the failure of the positive-improvement stopping rule and the
+absence of any guarantee for greedy growth, not the failure of every greedy
+variant. And the witness sits at $\bar L=4=M$, where
+Assumption~\ref{ass:sparsity} is vacuous; embedding the same parity block in a
+larger space, for instance $\{0,1\}^2\times\{0,1,2\}$ with $\ez$ ignoring the
+third coordinate, would place it in the regime $\bar L<M$ where sparsity has
+content, at no cost to the computation.
+
+\begin{proof}[Proof of Proposition~\ref{prop:pinwheel}]
+Let $d=2$ and $\cX=\{0,1,2\}^2$, with every one of the nine cells carrying
+positive probability, and put
+\[
+  A=\{0\}\times\{0,1\},\quad
+  B=\{0,1\}\times\{2\},\quad
+  C=\{2\}\times\{1,2\},\quad
+  D=\{1,2\}\times\{0\},\quad
+  E=\{1\}\times\{1\} .
+\]
+
+\emph{Step 1: each region is a box.} Each of $A,\dots,E$ is displayed above in
+the form $B_1\times B_2$ with $B_j\subseteq\{0,1,2\}$, hence each is an
+axis-aligned box.
+
+\emph{Step 2: they partition $\cX$.} Assigning the nine cells,
+\[
+\begin{array}{lllll}
+ (0,0)\in A, & (0,1)\in A, & (0,2)\in B, & (1,0)\in D, & (1,1)\in E,\\
+ (1,2)\in B, & (2,0)\in D, & (2,1)\in C, & (2,2)\in C. &
+\end{array}
+\]
+Every cell appears exactly once, and
+$\card A+\card B+\card C+\card D+\card E=2+2+2+2+1=9=\card{\cX}$. Let $\gamma_0$
+take five pairwise distinct values $v_A,\dots,v_E$ on $A,\dots,E$; it is then
+well defined, and $\{A,B,C,D,E\}$ is a box partition of cardinality five on whose
+blocks $\gamma_0$ is constant.
+
+\emph{Step 3: the minimal box complexity is five.} Since $v_A,\dots,v_E$ are
+pairwise distinct, no box on which $\gamma_0$ is constant can meet two of the
+five value classes, so any box partition on whose blocks $\gamma_0$ is constant
+has at least five blocks. Step~2 exhibits one with exactly five. Hence the
+minimal box complexity is five, and we set $\bar L=5$.
+
+\emph{Step 4: no tree partition in $\cT_5$ has $\gamma_0$ leaf-constant.} Each
+coordinate carries three ordered levels, so the admissible binary splits on a
+coordinate are the two threshold cuts, giving four possible first splits. Each
+severs one of the regions:
+\begin{itemize}[nosep,leftmargin=*]
+  \item $x_1\in\{0\}\mid x_1\in\{1,2\}$ severs $B$, since $(0,2)\in B$ lies left
+  and $(1,2)\in B$ lies right;
+  \item $x_1\in\{0,1\}\mid x_1\in\{2\}$ severs $D$, since $(1,0)\in D$ lies left
+  and $(2,0)\in D$ lies right;
+  \item $x_2\in\{0\}\mid x_2\in\{1,2\}$ severs $A$, since $(0,0)\in A$ lies left
+  and $(0,1)\in A$ lies right;
+  \item $x_2\in\{0,1\}\mid x_2\in\{2\}$ severs $C$, since $(2,1)\in C$ lies left
+  and $(2,2)\in C$ lies right.
+\end{itemize}
+Let $\tau\in\cT_5$. If $\card\tau=1$ the single leaf is $\cX$, on which $\gamma_0$
+takes five distinct values, so $\gamma_0$ is not leaf-constant. If
+$\card\tau\ge2$ then $\tau$ has a root split, which is one of the four above and
+severs some region $R$ into two non-empty pieces lying in the two children of the
+root. Subsequent splits refine within a child and never rejoin points from
+different children, so the cells of $R$ on the two sides lie in disjoint sets of
+leaves, and $R$ occupies at least two leaves. Since the five regions carry
+pairwise distinct values, no leaf may contain cells from two regions, so each of
+the remaining four regions requires at least one leaf of its own. Therefore
+\[
+  \card\tau\ \ge\ \underbrace{2}_{R}
+  +\underbrace{1+1+1+1}_{\text{the other four regions}}\ =\ 6\ >\ 5=\bar L,
+\]
+a contradiction. Hence no $\tau\in\cT_5$ has $\gamma_0$ leaf-constant and
+$\cS=\emptyset$.
+
+\emph{Step 5: unordered coordinates.} If the levels are treated as unordered, two
+further first splits become admissible. The split
+$x_1\in\{1\}\mid x_1\in\{0,2\}$ severs both $B$, through $(1,2)$ against
+$(0,2)$, and $D$, through $(1,0)$ against $(2,0)$; symmetrically
+$x_2\in\{1\}\mid x_2\in\{0,2\}$ severs both $A$ and $C$. Each forces
+$\card\tau\ge2+2+1+1+1=7>5$, so admitting them only strengthens the bound. The
+conclusion is unchanged: the ordered-coordinate hypothesis restricts the menu of
+splits but does not rescue leaf-constancy.
+\end{proof}
+
+\noindent At $\bar L=5$ a refinement reading of sufficiency, under which it
+suffices that $\bar L$ be at least the cardinality of a minimal partition into
+boxes on which the truth is constant, would declare the budget adequate; yet
+$\cS=\emptyset$. Every conclusion downstream then fails silently:
+Lemma~\ref{lem:selection} asserts membership in an empty set, an event of
+probability zero, and Theorem~\ref{thm:main} loses its route.
+Definition~\ref{def:sufficient} is immune because it never refers to a minimal
+box partition. Positivity of every cell matters only in that it equates
+$P$-a.s.\ constancy with constancy, so the construction is not an artefact of
+null cells; the pinwheel symmetry, in which each of $A,B,C,D$ is severed by
+exactly one axis cut around the central cell $E$, is what makes every root choice
+fail at once.
 
 \section{Crosswalk to the submitted paper}\label{app:crosswalk}
 
@@ -1184,14 +3266,16 @@ Result & Statement & Paper location & Pages \\ \midrule
 \multicolumn{4}{@{}l}{\emph{Main text}}\\[2pt]
 --- & Setup, target, score \eqref{eq:score}
   & §2 Setting and target & 1.5 \\
-A\ref{ass:iid}--A\ref{ass:global}
+\ref{ass:iid}--\ref{ass:global}
   & Sampling model and estimator & §2.1--2.2, displayed block & 1 \\
 Def.~\ref{def:sufficient} & Sufficient class & §3.1 & 0.3 \\
-A\ref{ass:sparsity} & Structural sparsity & §3.1, with the asymmetry discussion & 0.7 \\
+\ref{ass:sparsity} & Structural sparsity & §3.1, with the asymmetry discussion & 0.7 \\
 Lem.~\ref{lem:invariance} & Invariance of the estimand & §3.2, proof inline & 0.5 \\
 Lem.~\ref{lem:margin} & Derived margin & §3.3, proof inline & 0.4 \\
 Prop.~\ref{prop:greedy} & Greedy has no margin & §3.3, witness in Appendix & 0.3 \\
 Lem.~\ref{lem:selection} & Selection consistency & §3.4 & 0.3 \\
+Prop.~\ref{prop:parsimony} & Budget binds asymptotically & §3.4 remark & 0.4 \\
+Lem.~\ref{lem:lambda-exact} & Computing the selector & §3.4 remark & 0.3 \\
 Lem.~\ref{lem:skeleton} & Skeleton identity & §4.1, displayed & 0.4 \\
 Lem.~\ref{lem:cross} & Cross term & §4.2, statement only & 0.4 \\
 Lem.~\ref{lem:uniform} & Uniform asymptotic linearity & §4.2, statement only & 0.4 \\
@@ -1205,9 +3289,8 @@ Prop.~\ref{prop:rate-verify} & Rate condition verified & §5.2 & 0.3 \\
 Thm.~\ref{thm:anchor} & Anchor interval & §6.1, proof inline & 0.4 \\
 Cor.~\ref{cor:width} & Width and the plateau & §6.1 & 0.3 \\
 Prop.~\ref{prop:spectest} & Fidelity diagnostic & §6.2 & 0.3 \\
-Prop.~\ref{prop:estimable}, Thm.~\ref{thm:honest}
-  & Realised-error refinement & §6.3, condensed to one paragraph
-  and a display & 0.5 \\
+--- & Realised-error refinement (prose; not established) & §6.3, one paragraph
+  and a display & 0.4 \\
 --- & Simulation design and results & §7 & 3 \\
 --- & Facility-quality application & §8 & 2.5 \\
 --- & Discussion & §9 & 1.5 \\[4pt]
