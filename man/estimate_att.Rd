@@ -13,6 +13,7 @@ estimate_att(
   lambda_n = NULL,
   m_n = 1L,
   verbose = FALSE,
+  propensity_loss = c("log_loss", "squared_error"),
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   ...
@@ -60,6 +61,24 @@ candidate set.}
 
 \item{verbose}{Logical. Forwarded to \code{optimaltrees}. Default
 \code{FALSE}.}
+
+\item{propensity_loss}{Character. Loss used to fit and select the
+propensity (\eqn{e}) tree: \code{"log_loss"} (default) or
+\code{"squared_error"}. Both are proper scoring rules, so for a
+\strong{fixed} partition they give the identical leaf estimate --
+\code{propensity_loss} can only change which partition
+\code{bisect_lambda_to_budget()} selects (log-loss's near-boundary split
+weighting, \eqn{\sim 1/[q(1-q)]}, versus squared-error's uniform
+weighting), not the leaf values themselves. This is an empirical,
+decision-relevant choice, not a validity question: the loss-norm link for
+log-loss holds via Pinsker's inequality with a universal constant and no
+boundedness assumption on the truth (uniform loss-boundedness for
+estimation comes from clipping the \emph{fitted} propensity, orthogonal
+to the fitting loss). See
+\code{quality_reports/specs/2026-08-20_propensity-loss-choice.md} in the
+\code{global-scholars} project for the ablation that motivates the
+default. The \eqn{\mu}/outcome tree's loss is unaffected -- it is always
+determined by \code{outcome_type}.}
 
 \item{discretize_method}{Character. Passed through to \code{optimaltrees}.
 Default \code{"quantiles"}. With binary \code{X} (the only supported case)

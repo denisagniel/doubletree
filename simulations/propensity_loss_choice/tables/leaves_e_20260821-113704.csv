@@ -1,0 +1,9 @@
+dgp,n,arm,leaves_1,leaves_2,leaves_3,leaves_4
+simple,500,L,277,23,0,0
+simple,500,S,300,0,0,0
+simple,2000,L,153,138,9,0
+simple,2000,S,293,7,0,0
+weak_overlap,500,L,0,0,36,264
+weak_overlap,500,S,0,6,294,0
+weak_overlap,2000,L,0,0,0,300
+weak_overlap,2000,S,0,0,219,81

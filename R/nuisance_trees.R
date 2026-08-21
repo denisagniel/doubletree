@@ -211,18 +211,62 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
   # Note: discretization is now handled automatically by predict() using
   # the model's stored discretization metadata. No need to manually discretize.
 
-  # Predict propensity scores (predict() will apply discretization if needed)
-  pe <- predict(models$e_model, X_sub, type = "prob")
-
-  # Validate propensity prediction format
-  if (!is.matrix(pe) || ncol(pe) != 2) {
-    stop("Propensity model predict() returned unexpected format. ",
-         "Expected 2-column matrix (class 0/1 probabilities), got: ",
-         if (is.matrix(pe)) paste0("matrix with ", ncol(pe), " columns")
-         else paste0(class(pe), " (not a matrix)"),
-         call. = FALSE)
+  # Predict propensity scores (predict() will apply discretization if needed).
+  # e_model's own loss_function decides the predict() call, not outcome_type
+  # (which governs the m0/mu tree only): propensity_loss (see estimate_att()'s
+  # `propensity_loss` argument, quality_reports/specs/2026-08-20_propensity-loss-choice.md)
+  # lets the e tree be fit with "squared_error" instead of the default
+  # "log_loss". A squared-error fit on a 0/1 target is a regression whose
+  # fitted value already IS the propensity estimate; predict(type = "prob")
+  # ignores `type` for a regression loss and returns a plain numeric vector
+  # (optimaltrees::predict_from_tree(), "Regression: return fitted values"),
+  # not the 2-column probability matrix the log_loss path returns. Branch on
+  # loss_function rather than trying to shoehorn both into type = "prob".
+  # @loss_function is an S7::class_character property with a validator (see
+  # optimaltrees::OptimalTreesModel), so it is never NULL for a genuine
+  # OptimalTreesModel -- the only realistic failure is models$e_model NOT
+  # being S7 at all, in which case `@` throws before is.null() ever runs. A
+  # plain is.null() guard protects nothing; fall back to "log_loss" only on
+  # that access failure. This fallback is safe specifically because the
+  # log_loss branch below fails loud (not silently) on a squared_error model
+  # (`!is.matrix(pe)`), so misrouting into it cannot produce a silent wrong
+  # answer -- see the squared_error branch's own type="response" note below
+  # for why the reverse direction needs an explicit guard instead.
+  e_loss <- tryCatch(models$e_model@loss_function, error = function(e) NULL)
+  if (length(e_loss) != 1L || is.na(e_loss)) e_loss <- "log_loss"
+  if (identical(e_loss, "squared_error")) {
+    # type = "response" (not the default "class"/omitted) is load-bearing:
+    # optimaltrees::predict_from_tree() only ignores `type` and returns
+    # fitted values for a genuine squared_error model. If e_loss were ever
+    # wrong (e.g. desynced from the model), omitting `type` would silently
+    # accept a log_loss model's {0,1} class predictions as propensities;
+    # type = "response" instead forces the log_loss path to return its
+    # 2-column matrix, which fails the length check below loudly.
+    pe <- predict(models$e_model, X_sub, type = "response")
+    if (!is.numeric(pe) || length(pe) != nrow(X_sub)) {
+      stop("Propensity model predict() returned unexpected format for a ",
+           "squared_error fit. Expected numeric vector of length ",
+           nrow(X_sub), ", got: ", class(pe), " with length ", length(pe),
+           call. = FALSE)
+    }
+    if (anyNA(pe) || any(pe < 0 | pe > 1)) {
+      stop("Propensity model predict() returned invalid values for a ",
+           "squared_error fit (NA or outside [0, 1]). This should not ",
+           "happen for a leaf mean of a 0/1 target; investigate the fit.",
+           call. = FALSE)
+    }
+    e_vec <- as.numeric(pe)
+  } else {
+    pe <- predict(models$e_model, X_sub, type = "prob")
+    if (!is.matrix(pe) || ncol(pe) != 2) {
+      stop("Propensity model predict() returned unexpected format. ",
+           "Expected 2-column matrix (class 0/1 probabilities), got: ",
+           if (is.matrix(pe)) paste0("matrix with ", ncol(pe), " columns")
+           else paste0(class(pe), " (not a matrix)"),
+           call. = FALSE)
+    }
+    e_vec <- pe[, 2L]
   }
-  e_vec <- pe[, 2L]
 
   # Predict control outcomes
   if (outcome_type == "continuous") {

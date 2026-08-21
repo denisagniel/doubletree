@@ -132,6 +132,23 @@
 #'   candidate set.
 #' @param verbose Logical. Forwarded to \code{optimaltrees}. Default
 #'   \code{FALSE}.
+#' @param propensity_loss Character. Loss used to fit and select the
+#'   propensity (\eqn{e}) tree: \code{"log_loss"} (default) or
+#'   \code{"squared_error"}. Both are proper scoring rules, so for a
+#'   \strong{fixed} partition they give the identical leaf estimate --
+#'   \code{propensity_loss} can only change which partition
+#'   \code{bisect_lambda_to_budget()} selects (log-loss's near-boundary split
+#'   weighting, \eqn{\sim 1/[q(1-q)]}, versus squared-error's uniform
+#'   weighting), not the leaf values themselves. This is an empirical,
+#'   decision-relevant choice, not a validity question: the loss-norm link for
+#'   log-loss holds via Pinsker's inequality with a universal constant and no
+#'   boundedness assumption on the truth (uniform loss-boundedness for
+#'   estimation comes from clipping the \emph{fitted} propensity, orthogonal
+#'   to the fitting loss). See
+#'   \code{quality_reports/specs/2026-08-20_propensity-loss-choice.md} in the
+#'   \code{global-scholars} project for the ablation that motivates the
+#'   default. The \eqn{\mu}/outcome tree's loss is unaffected -- it is always
+#'   determined by \code{outcome_type}.
 #' @param discretize_method Character. Passed through to \code{optimaltrees}.
 #'   Default \code{"quantiles"}. With binary \code{X} (the only supported case)
 #'   discretisation is a no-op, so this argument exists for signature
@@ -232,10 +249,12 @@
 estimate_att <- function(X, A, Y, leaf_budget,
                          outcome_type = c("binary", "continuous"),
                          lambda_n = NULL, m_n = 1L, verbose = FALSE,
+                         propensity_loss = c("log_loss", "squared_error"),
                          discretize_method = "quantiles",
                          discretize_bins = "adaptive",
                          ...) {
   outcome_type <- match.arg(outcome_type)
+  propensity_loss <- match.arg(propensity_loss)
   check_att_data(X, A, Y, outcome_type = outcome_type)
   if (is.matrix(X)) X <- as.data.frame(X)
   n <- nrow(X)
@@ -343,13 +362,17 @@ estimate_att <- function(X, A, Y, leaf_budget,
   }
 
   # == Nuisance fits: BOTH on all n observations (sec:main). ==================
-  # Propensity e(X): all rows, treated and control, log_loss.
+  # Propensity e(X): all rows, treated and control. loss_function is
+  # `propensity_loss` (default log_loss); both are proper scoring rules, so
+  # for a FIXED partition they give the identical leaf estimate -- the only
+  # way they can differ is in which splits/partition get selected. See
+  # quality_reports/specs/2026-08-20_propensity-loss-choice.md.
   e_fit <- optimaltrees::bisect_lambda_to_budget(
     X, A,
     leaf_budget = leaf_budget,
     lambda_n = lambda_n,
     m_n = m_n,
-    loss_function = "log_loss",
+    loss_function = propensity_loss,
     discretize_method = discretize_method,
     discretize_bins = discretize_bins,
     verbose = verbose,
