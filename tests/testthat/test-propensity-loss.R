@@ -146,22 +146,26 @@ test_that("predict_nuisances_fold() errors rather than silently misreading a mis
   )
 })
 
-test_that("KNOWN GAP: the log_loss branch's format guard does not catch a squared_error model mis-flagged as log_loss", {
-  # Discovered while testing the Required #1 fix, NOT introduced by it, and
-  # NOT fixed here (out of scope for the propensity_loss diff; this is a
-  # property of optimaltrees::predict.optimaltrees_model()'s dispatch, which
-  # trusts the model's OWN @loss_function slot with no cross-check against
-  # the tree's actual fitted content). Symmetric to Required #1's scenario,
-  # but the log_loss branch's `!is.matrix(pe) || ncol(pe) != 2` guard is a
-  # SHAPE check only: optimaltrees::get_probabilities_from_tree() still
-  # returns a valid-shaped 2-column matrix for a squared_error-fitted tree
-  # (verified empirically), it just silently thresholds the regression leaf
-  # means to hard {0, 1} "probabilities" -- exactly the degenerate-propensity
-  # failure mode the leaf-size-subgroup-enforcement feature exists to prevent,
-  # reappearing through a different door. Like Required #1's scenario, this
-  # requires manually desyncing @loss_function from the model's actual fit;
-  # it is not reachable through any shipped call path today. Flagged as a
-  # follow-up for optimaltrees, not fixed in this diff.
+test_that("predict_nuisances_fold() errors (not degenerates) on a squared_error model mis-flagged as log_loss", {
+  # Mirror image of the Required #1 canary above. Originally documented here as
+  # a KNOWN GAP (2026-08-21 session): optimaltrees::get_probabilities_from_tree()
+  # returned a valid-shaped 2-column matrix for a squared_error-fitted tree
+  # (passing this branch's `!is.matrix(pe) || ncol(pe) != 2` shape check), but
+  # silently thresholded the regression leaf means to hard {0, 1}
+  # "probabilities" -- exactly the degenerate-propensity failure mode the
+  # leaf-size-subgroup-enforcement feature exists to prevent, reappearing
+  # through a different door.
+  #
+  # Closed at the source in optimaltrees (not here): every genuine
+  # classification leaf (log_loss OR misclassification), from both the C++
+  # solver and every R-side refit path, always carries a `probabilities`
+  # field; its absence is now a reliable signal of a squared_error leaf mean
+  # being misrouted through the classification predict path.
+  # get_probabilities_from_tree()'s per-leaf fallback (treefarms.R) now checks
+  # for exactly that and fails loud instead of silently hard-thresholding.
+  # Like Required #1's scenario, this still requires manually desyncing
+  # @loss_function from the model's actual fit; it is not reachable through
+  # any shipped call path today.
   d <- make_binary_dgp(150)
   e_fit_se <- optimaltrees::bisect_lambda_to_budget(d$X, d$A, leaf_budget = 4L,
                                                     loss_function = "squared_error")
@@ -169,8 +173,10 @@ test_that("KNOWN GAP: the log_loss branch's format guard does not catch a square
   misrouted@loss_function <- "log_loss"
   models <- list(e_model = misrouted, m0_model = misrouted, outcome_type = "continuous")
 
-  pred <- predict_nuisances_fold(models, d$X, fold_rows = seq_len(150))
-  expect_true(all(pred$e %in% c(0, 1)))
+  expect_error(
+    predict_nuisances_fold(models, d$X, fold_rows = seq_len(150)),
+    "no 'probabilities' field"
+  )
 })
 
 test_that("predict_nuisances_fold() with empty fold_rows returns empty vectors regardless of e_loss", {
