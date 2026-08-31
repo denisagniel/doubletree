@@ -1,0 +1,925 @@
+%% ============================================================
+%% Refining-grid inference at fixed leaf budget (the "inferential half")
+%% Standalone pre-integration draft
+%%
+%% SUPERSEDED (2026-08-31, later same session): the user decided this
+%% material should NOT be a pre-integration fragment for theory.tex, but
+%% its own fully standalone document with independently elaborated
+%% assumptions -- not an "add-on to the current theory doc." The result
+%% is `refining-grid-standalone.tex` (same directory), which restates
+%% every assumption and background result in full (not by \ref into
+%% theory.tex), fixes several defects found in this fragment across a
+%% 4-pass review (proof-auditor, theory-devils-advocate, domain-reviewer,
+%% Oracle -- see session_notes/doubletree-2026-08-31.md), and is the
+%% current, reviewed artifact. This file is kept only for its drafting
+%% history and the audit trail of what changed and why; do not integrate
+%% it directly, and do not treat it as reflecting the corrected content.
+%% Intended location: immediately after _refining-grid-draft.tex's
+%% Assumption \ref{ass:mesh} and Lemma \ref{lem:mesh-approx} (the KEPT
+%% population-level half), still within the "Robustness to grid
+%% alignment" material planned for Sec.~\ref{sec:setup}/Sec.~3.
+%%
+%% PROVENANCE (2026-08-31 pick-up session, per
+%%   quality_reports/plans/2026-08-31_refining-grid-inferential-half-respec.md):
+%% This spec explicitly deferred drafting until two gates were re-run
+%% against the current (post-"Slice 0") theory.tex:
+%%   (1) a fresh proof-auditor pass on Defect 1 (grid-finiteness conflict),
+%%       since the original 2026-08-28 audit read the OLD ass:finite;
+%%   (2) an Oracle consultation settling whether the "efficiency
+%%       corollary" removed on 2026-08-28 is actually a corollary of
+%%       thm:anchor/cor:width or an independent theorem.
+%% Both gates were run this session. Verdicts, in brief (full detail in
+%% the two background-task transcripts referenced by the session note):
+%%   - Defect 1 resolves as "genuine dependency found," not "silently
+%%     resolved by reading at fixed row n." Four dependencies: D1 (the
+%%     population margin Delta_j -> 0 under refinement; UNREPAIRABLE by
+%%     any uniformity assumption in the target regime h_n=o(n^{-1/2}),
+%%     since rescuing the margin route would need
+%%     Lbar*log(d/h_n)=o(n*h_n^2), whose RHS->0 while LHS diverges), D2
+%%     (union-bound cardinality |cT_{Lbar,n}| diverges -- repairable via
+%%     U1 below), D3 (atom-mass floor min_a P(a) -> 0 -- repairable via
+%%     U2 below, relocating the floor to comparator leaves), D4 (CRITICAL,
+%%     distinct from D1-D3: ass:sparsity is FALSE at every finite row n,
+%%     not just asymptotically, so the entire sparsity-dependent machinery
+%%     -- lem:invariance, lem:margin, lem:selection, lem:U, lem:cross,
+%%     lem:uniform, thm:main, cor:variance, prop:rate-verify -- is simply
+%%     inapplicable at any row; any new result must enter through
+%%     thm:crossfit/thm:anchor/cor:width instead). A fifth finding, D5 (an
+%%     incorrect Boundaries paragraph contradicting this file's own
+%%     TODO(refining-grid) comments, plus two vestigial ass:finite
+%%     citations in thm:crossfit/lem:invariance), was fixed directly in
+%%     theory.tex this same session, independent of the material below.
+%%   - The framing question resolved as a SPLIT verdict, not one corollary:
+%%     the cross-fitted CLT is a true corollary of thm:crossfit (NOT of
+%%     thm:anchor/cor:width); the anchor-interval width is a corollary of
+%%     cor:width but delivers RATE, not EFFICIENCY; the full-sample
+%%     estimator's CLT is an INDEPENDENT THEOREM requiring off-sparsity,
+%%     vanishing-misspecification replacements for lem:U/lem:cross/
+%%     lem:uniform/lem:selection's selection-event device, and a new
+%%     cor:variance limit argument.
+%% User's explicit choice (2026-08-31, after reviewing both verdicts):
+%% full scope -- draft BOTH the true-corollary result and the
+%% independent-theorem result, not just the safer corollary-only subset.
+%% Drafted by a proof-writer subagent seeded with both verdicts verbatim;
+%% NOT yet reviewed by proof-auditor/theory-devils-advocate/domain-reviewer/
+%% Oracle (that Phase-3-style multi-agent review, per the spec's Step 4,
+%% is deliberately deferred until after a first user check-in on this
+%% draft -- see "Compatibility and open items" at the tail of this file
+%% for the drafting agent's own confidence assessment of which parts are
+%% least likely to survive that review unchanged).
+%%
+%% Reuses (all pre-existing, either in theory.tex or in the KEPT
+%% _refining-grid-draft.tex): ass:mesh, lem:mesh-approx, eq:mesh-slab,
+%% eq:mesh-en, eq:mesh-mun (this file); ass:iid, ass:causal, ass:moments,
+%% ass:construct, ass:global, ass:rate, thm:crossfit, thm:anchor,
+%% cor:width, lem:skeleton, prop:bilinear, lem:biasbound, cor:convert,
+%% lem:normequiv, lem:clip, lem:tangent, thm:regular, eq:interior,
+%% eq:vhat, eq:feasible, app:honest (theory.tex).
+%% ============================================================
+
+\subsection{Inference under grid refinement}
+\label{sec:grid-inference}
+
+Continue to use the continuum covariate $Z$, discretisation
+$X_n=Q_n(Z)$, grids $\cA_n$, candidate classes
+$\cT_{\bar L,n}$, mesh $h_n$, and discretised population nuisances
+$\ezn,\mzn$ from Assumption~\ref{ass:mesh}.  The observed data for causal
+identification remain $(Z,A,Y)$; $X_n$ is the analyst's row-$n$ feature map
+used to construct the tree fits.  Thus the true nuisances in the influence
+function remain
+\[
+  \ez^\circ(Z)=P(A=1\mid Z),
+  \qquad
+  \mz^\circ(Z)=E(Y\mid A=0,Z),
+\]
+whereas $\ezn$ and $\mzn$ are their population projections onto
+$\sigma(X_n)$.  This distinction is essential: ignorability given $Z$ does
+not, in general, imply ignorability given the coarsening $X_n$.
+
+For $j=e$, let
+\[
+  \|f\|_e^2=E\{f(Z)^2\},
+\]
+and, for $j=\mu$, let
+\[
+  \|f\|_\mu^2
+  =E[\{1-\ez^\circ(Z)\}f(Z)^2].
+\]
+For a row-$n$ fitted nuisance define
+\[
+  D_{e,n}=\|\widehat e_n-\ez^\circ\|_e,
+  \qquad
+  D_{\mu,n}=\|\widehat\mu_n-\mz^\circ\|_\mu,
+  \qquad
+  D_{w,n}=\|\widehat w_n-w_0^\circ\|_\mu,
+\]
+where $w_0^\circ=\ez^\circ/(1-\ez^\circ)$ and
+$\widehat w_n=\widehat e_n/(1-\widehat e_n)$ after the one-sided clipping of
+Assumption~\ref{ass:construct}(c).
+
+Put
+\[
+  s_n:=1+\log\card{\cT_{\bar L,n}},
+  \qquad
+  r_n:=\sqrt{\frac{s_n}{n}}.
+\]
+
+\begin{assumption}[Uniform refining-grid inferential conditions]
+\label{ass:grid-inference}
+In addition to Assumption~\ref{ass:mesh}, the following conditions hold.
+
+\begin{enumerate}[label=(U\arabic*),leftmargin=*]
+
+\item\label{u:entropy}
+There is a constant $C_T<\infty$, independent of $n$, such that
+\[
+  \log\card{\cT_{\bar L,n}}
+  \le C_T\bar L\log(dJ_{n,\max}),
+  \qquad
+  s_n=o(n).
+\]
+For the root-$n$ conclusions below we impose the stronger condition
+\[
+  s_n=o(\sqrt n).
+  \tag{U1$^+$}\label{eq:u1plus}
+\]
+When $J_{n,\max}\asymp h_n^{-1}$ and $h_n$ is polynomial in $n$,
+$s_n=O\{\bar L\log(d/h_n)\}=O(\log n)$, so both conditions hold.
+
+\item\label{u:comparator}
+For each $j\in\{e,\mu\}$, let $\tau^{\mathrm{comp}}_{j,n}$ be the grid-rounded
+tree constructed in the proof of Lemma~\ref{lem:mesh-approx}.  After deleting
+$P_Z$-null continuum leaves, there is a constant $q_{\min}>0$, independent of
+$n$, such that, for all sufficiently large $n$,
+\[
+  \min_{\ell\in\tau^{\mathrm{comp}}_{j,n}}P\{X_n\in\ell\}
+  \ge q_{\min}.
+\]
+Moreover $m_n/n\to0$, so these comparator trees belong to the feasible sets
+in~\eqref{eq:feasible} with probability tending to one.
+
+\item\label{u:bernstein}
+The squared-loss fits are uniformly bounded: propensity fits lie in $[0,1]$
+before and after clipping, and outcome fits lie in $[-B_Y,B_Y]$.  The penalty
+satisfies
+\[
+  \bar L\lambda_n=O(r_n^2).
+\]
+For each nuisance and each training sample of order $n$, the finite union of
+at-most-$\bar L$-dimensional leaf-constant models satisfies the localized
+quadratic-loss bound
+\begin{equation}\label{eq:grid-bernstein}
+ \sup_{f\in\mathcal F_{j,n}}
+ \frac{\left|(P_n-P)\{\ell_j(f)-\ell_j(\gamma_{0,j}^\circ)\}\right|}
+      {\|f-\gamma_{0,j}^\circ\|_j r_n+r_n^2}
+ =O_p(1),
+\end{equation}
+where
+\[
+ \ell_e(f)=(A-f(X_n))^2,\qquad
+ \ell_\mu(f)=(1-A)\{Y-f(X_n)\}^2,
+\]
+and $\mathcal F_{j,n}$ is the union, over
+$\tau\in\cT_{\bar L,n}$, of the bounded functions constant on the leaves of
+$\tau$.
+
+\item\label{u:approx}
+The grid-alignment errors satisfy
+\[
+  \delta^*_{j,n}=O(\sqrt{h_n}),
+  \qquad j\in\{e,\mu\},
+\]
+as established by Lemma~\ref{lem:mesh-approx}.
+
+\end{enumerate}
+\end{assumption}
+
+\paragraph{Why (U2) is derived rather than postulated.}
+Let $\ell^\circ$ be a positive-mass leaf of one of the fixed continuum trees
+$\tau_j^\circ$, and let $\ell_n$ be its rounded counterpart.  The proof of
+Lemma~\ref{lem:mesh-approx} constructs a disagreement set $B_n$ satisfying
+\[
+  P_Z(B_n)\le(\bar L-1)C_Xh_n.
+\]
+Since $\ell_n\triangle\ell^\circ\subseteq B_n$,
+\[
+  |P_Z(\ell_n)-P_Z(\ell^\circ)|
+  \le P_Z(\ell_n\triangle\ell^\circ)
+  \le(\bar L-1)C_Xh_n.
+\]
+There are finitely many positive-mass continuum leaves.  Hence
+\[
+  q^\circ_{\min}
+  :=\min_{j\in\{e,\mu\}}
+    \min_{\ell^\circ\in\tau_j^\circ:P_Z(\ell^\circ)>0}
+       P_Z(\ell^\circ)>0.
+\]
+For all sufficiently large $n$,
+\[
+  P_Z(\ell_n)\ge q^\circ_{\min}/2.
+\]
+Thus (U2) holds with $q_{\min}=q^\circ_{\min}/2$.  By
+$1-\ez^\circ\ge c$, every such leaf has control mass at least
+$cq_{\min}$.  Finally, $m_n/n\to0$ and the weak law of large numbers imply
+that each comparator leaf eventually contains at least $m_n$ observations
+(and at least $m_n$ controls for the outcome fit) with probability tending
+to one.
+
+\begin{lemma}[Refining-grid oracle inequality]
+\label{lem:grid-oracle}
+Suppose Assumptions~\ref{ass:iid}, \ref{ass:causal},
+\ref{ass:construct}, \ref{ass:global}, \ref{ass:mesh}, and
+\ref{ass:grid-inference} hold.  Let $\widehat\gamma_{j,n}$ be the penalized
+empirical-risk minimizer over the row-$n$ feasible class.  Then, for each
+$j\in\{e,\mu\}$,
+\begin{equation}\label{eq:grid-oracle}
+  \|\widehat\gamma_{j,n}-\gamma_{0,j}^\circ\|_j
+  =O_p\!\left(\sqrt{h_n}+r_n\right).
+\end{equation}
+More generally, if a population oracle attaining $\delta^*_{j,n}$ itself
+has the uniform leaf-mass property in (U2), then
+\[
+  \|\widehat\gamma_{j,n}-\gamma_{0,j}^\circ\|_j
+  =O_p(\delta^*_{j,n}+r_n).
+\]
+After clipping,
+\begin{equation}\label{eq:grid-weight-oracle}
+  D_{w,n}=O_p(\sqrt{h_n}+r_n).
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+\emph{Proof strategy.}
+Use the grid-rounded tree as an actually feasible comparator.  Apply the
+penalized ERM basic inequality, control its empirical-process term by the
+localized Bernstein bound~\eqref{eq:grid-bernstein}, and absorb the resulting
+linear term into the quadratic population excess risk.  This argument compares
+risks and never compares a shrinking population margin.
+
+Fix $j$.  Write $g_j=\gamma_{0,j}^\circ$,
+$\widehat f=\widehat\gamma_{j,n}$, and let $f^{\mathrm{comp}}_{j,n}$ be the
+population leaf projection on $\tau^{\mathrm{comp}}_{j,n}$.  By (U2), the
+comparator is feasible with probability tending to one.  On that event,
+optimality in~\eqref{eq:select} gives
+\begin{align}
+ P_n\ell_j(\widehat f)+\lambda_n\card{\widehat\tau_j}
+ &\le
+ P_n\ell_j(f^{\mathrm{comp}}_{j,n})
+   +\lambda_n\card{\tau^{\mathrm{comp}}_{j,n}},\\
+ P_n\{\ell_j(\widehat f)-\ell_j(g_j)\}
+ &\le
+ P_n\{\ell_j(f^{\mathrm{comp}}_{j,n})-\ell_j(g_j)\}
+   +\bar L\lambda_n.
+ \label{eq:grid-basic}
+\end{align}
+
+For squared loss and a conditional-mean truth, the population excess-risk
+identity is exact.  For the propensity,
+\[
+ P\{\ell_e(f)-\ell_e(\ez^\circ)\}
+ =E\{f(X_n)-\ez^\circ(Z)\}^2=\|f-\ez^\circ\|_e^2.
+\]
+Indeed, expanding the squares gives
+\[
+ (A-f)^2-(A-\ez^\circ)^2
+ =(f-\ez^\circ)^2-2(A-\ez^\circ)(f-\ez^\circ),
+\]
+and the second term has expectation zero because
+$E(A-\ez^\circ\mid Z)=0$ and $f(X_n)$ is $\sigma(Z)$-measurable.  Similarly,
+\[
+ P\{\ell_\mu(f)-\ell_\mu(\mz^\circ)\}
+ =E[\{1-\ez^\circ(Z)\}\{f(X_n)-\mz^\circ(Z)\}^2]
+ =\|f-\mz^\circ\|_\mu^2,
+\]
+because
+$E[(1-A)\{Y-\mz^\circ(Z)\}\mid Z]=0$.
+
+Let
+\[
+  d=\|\widehat f-g_j\|_j,\qquad
+  d_c=\|f^{\mathrm{comp}}_{j,n}-g_j\|_j.
+\]
+Adding and subtracting population risks in~\eqref{eq:grid-basic}, and applying
+\eqref{eq:grid-bernstein} to $\widehat f$ and the comparator, yields
+\[
+ d^2
+ \le d_c^2+O_p(dr_n+r_n^2)+O_p(d_cr_n+r_n^2)
+       +\bar L\lambda_n.
+\]
+By (U3), $\bar L\lambda_n=O(r_n^2)$.  Young's inequality,
+$ab\le a^2/4+b^2$, gives
+\[
+ O_p(dr_n)\le \frac14d^2+O_p(r_n^2),
+ \qquad
+ O_p(d_cr_n)\le \frac14d_c^2+O_p(r_n^2).
+\]
+Consequently,
+\[
+ \frac34d^2\le\frac54d_c^2+O_p(r_n^2),
+\]
+and therefore
+\[
+ d^2=O_p(d_c^2+r_n^2),
+ \qquad
+ d=O_p(d_c+r_n).
+\]
+The comparator construction in Lemma~\ref{lem:mesh-approx} gives
+$d_c=O(\sqrt{h_n})$, proving~\eqref{eq:grid-oracle}.  If an actual minimizer
+attaining $\delta^*_{j,n}$ satisfies (U2), use it as the comparator to obtain
+the sharper displayed statement.
+
+Finally, on $[0,1-c]$ the map $u\mapsto u/(1-u)$ has derivative at most
+$c^{-2}$.  The mean-value theorem, Lemma~\ref{lem:clip}, and
+Lemma~\ref{lem:normequiv} therefore give
+\[
+ D_{w,n}
+ \le c^{-2}\|\widehat e_n-\ez^\circ\|_\mu
+ \le c^{-2}\|\widehat e_n-\ez^\circ\|_e
+ =O_p(\sqrt{h_n}+r_n).
+\]
+\end{proof}
+
+\paragraph{Post-proof audit.}
+\emph{Assumptions:} boundedness supplies the Bernstein envelope; (U1) controls
+the number of partition models; (U2) makes the comparator feasible; (U3)
+controls both local stochastic fluctuations and the penalty; and (U4) supplies
+its approximation rate.
+\emph{Dependencies:} only the squared-loss excess-risk identity,
+\eqref{eq:grid-bernstein}, Young's inequality,
+Lemma~\ref{lem:mesh-approx}, Lemma~\ref{lem:clip}, and
+Lemma~\ref{lem:normequiv} are used.
+\emph{Rates:} the quadratic inequality yields norm error
+$O_p(\sqrt{h_n}+r_n)$, not $O_p(\sqrt{h_n}+n^{-1/2})$ unless
+$s_n=O(1)$.
+\emph{Edge cases:} the result can fail if the comparator loses leaf mass, the
+outcome is unbounded without a replacement tail condition, or the penalty
+dominates $r_n^2$.
+\emph{Tightness:} the $\sqrt{s_n/n}$ model-selection term is generally
+unavoidable over a growing finite class.
+\emph{Failure localization:} the substantive condition is
+\eqref{eq:grid-bernstein}; it is the Bernstein/curvature replacement for the
+invalid shrinking-margin argument.
+No object is treated as invariant across $n$: the grid, class, comparator,
+projections, and fitted functions all carry an explicit row index.
+
+\begin{corollary}[Cross-fitted inference on a refining grid]
+\label{cor:grid-crossfit}
+Suppose the conditions of Lemma~\ref{lem:grid-oracle} hold for every fold-wise
+training sample, with fixed $K$.  Suppose additionally that
+\[
+  h_n=o(n^{-1/2}),
+  \qquad
+  s_n=o(\sqrt n).
+  \label{eq:grid-rootn}
+\]
+Let $\thetatil_n$ be the cross-fitted estimator of
+Theorem~\ref{thm:crossfit}, constructed from the row-$n$ grids.  Then
+\[
+  \sqrt n(\thetatil_n-\theta_0)\rightsquigarrow N(0,V).
+\]
+\end{corollary}
+
+\begin{proof}
+\emph{Proof strategy.}
+Verify Assumption~\ref{ass:rate} using Lemma~\ref{lem:grid-oracle}, and then
+apply Theorem~\ref{thm:crossfit} verbatim.  Cross-fitting removes any need for
+uniform empirical-process control at the score-evaluation stage.
+
+For each fixed fold, its training sample has size
+$n(1-1/K)+O(1)\asymp n$, so Lemma~\ref{lem:grid-oracle} gives
+\[
+ \|\widehat e_n-\ez^\circ\|_e
+   =O_p(\sqrt{h_n}+r_n),
+ \qquad
+ \|\widehat\mu_n-\mz^\circ\|_\mu
+   =O_p(\sqrt{h_n}+r_n).
+\]
+Their product is
+\begin{align}
+ \|\widehat e_n-\ez^\circ\|_e
+ \|\widehat\mu_n-\mz^\circ\|_\mu
+ &=O_p\{(\sqrt{h_n}+r_n)^2\}\\
+ &=O_p\left(h_n+2\sqrt{h_n}\,r_n+r_n^2\right).
+\end{align}
+Multiplying each deterministic rate by $\sqrt n$ gives
+\[
+ \sqrt n\,h_n\to0,
+ \qquad
+ \sqrt n\,r_n^2=\frac{s_n}{\sqrt n}\to0,
+\]
+by~\eqref{eq:grid-rootn}, and
+\[
+ \sqrt n\,\sqrt{h_n}\,r_n
+ =\sqrt{h_ns_n}
+ =\sqrt{(\sqrt n h_n)(s_n/\sqrt n)}
+ \longrightarrow0.
+\]
+Hence
+\[
+ \|\widehat e_n-\ez^\circ\|_e
+ \|\widehat\mu_n-\mz^\circ\|_\mu
+ =o_p(n^{-1/2}),
+\]
+which is precisely Assumption~\ref{ass:rate}, with the covariate in the score
+understood to be $Z$ and the fitted nuisances restricted to functions of
+$X_n=Q_n(Z)$.
+
+The remaining hypotheses of Theorem~\ref{thm:crossfit} are
+Assumptions~\ref{ass:iid}--\ref{ass:moments},
+\ref{ass:construct}, and \ref{ass:global}; they are included above.
+Its proof is grid-free after conditioning on each training fit: the held-out
+empirical-process term is a centred average independent of that fit.
+Theorem~\ref{thm:crossfit} therefore yields
+\[
+ \sqrt n(\thetatil_n-\theta_0)\rightsquigarrow N(0,V).
+\]
+\end{proof}
+
+\paragraph{Post-proof audit.}
+\emph{Assumptions:} the stronger entropy requirement
+$s_n=o(\sqrt n)$ is necessary because the oracle norm error contains
+$\sqrt{s_n/n}$.
+\emph{Dependencies:} Lemma~\ref{lem:grid-oracle} verifies
+Assumption~\ref{ass:rate}; Theorem~\ref{thm:crossfit} then applies directly.
+\emph{Rates:} all three terms in
+$(\sqrt{h_n}+r_n)^2$ are explicitly $o(n^{-1/2})$.
+\emph{Edge cases:} U1 alone, $s_n=o(n)$, is insufficient; it permits
+$s_n/\sqrt n\nrightarrow0$.
+\emph{Tightness:} the mesh condition is sufficient and matches the product
+of two $O(\sqrt{h_n})$ approximation errors.
+\emph{Failure localization:} failure can occur at the DML product-rate step,
+not in Theorem~\ref{thm:crossfit}.
+Nothing is assumed literally invariant across rows except the fixed constants
+$d,\bar L,c,B_Y,C_T$, and $q_{\min}$.
+
+\begin{corollary}[Anchor-interval width under grid refinement]
+\label{cor:grid-width}
+Suppose the conditions of Corollary~\ref{cor:grid-crossfit} hold and the
+cross-fitted variance estimator satisfies
+$\widetilde\sigma_n^2\to_pV$.  Form the anchor interval of
+Theorem~\ref{thm:anchor} using $\thetatil_n$.  Then
+\[
+ \liminf_{n\to\infty}P(\theta_0\in C_n)\ge1-\alpha
+\]
+and
+\begin{equation}\label{eq:grid-width}
+ \operatorname{width}(C_n)
+ =O_p\!\left(
+   \max\left\{
+     \sqrt{\frac{\bar L\log(dJ_{n,\max})}{n}},
+     D_{w,n}D_{\mu,n}
+   \right\}
+ \right).
+\end{equation}
+Under Lemma~\ref{lem:grid-oracle},
+\[
+ D_{w,n}D_{\mu,n}
+ =O_p\left(h_n+\sqrt{h_n}\,r_n+r_n^2\right).
+\]
+This is a width-rate statement, not an efficiency statement.
+\end{corollary}
+
+\begin{proof}
+\emph{Proof strategy.}
+Use Theorem~\ref{thm:anchor} for validity.  Repeat the decomposition in the
+proof of Corollary~\ref{cor:width}, replacing its fixed-class union bound by
+the growing-class rate $r_n$.
+
+Theorem~\ref{thm:anchor} applies because
+Corollary~\ref{cor:grid-crossfit} supplies a valid asymptotically normal anchor
+and $\widetilde\sigma_n^2\to_pV>0$.  Thus validity follows without any
+condition on the full-sample tree estimator.
+
+For width, write
+\[
+ \widehat\delta_n
+ =(\widehat\theta_n-\theta_0)-(\thetatil_n-\theta_0).
+\]
+By Corollary~\ref{cor:grid-crossfit},
+$\thetatil_n-\theta_0=O_p(n^{-1/2})$.  Proposition~\ref{prop:bilinear} and
+Lemma~\ref{lem:biasbound} give
+\[
+ |\theta(\widehat\eta_n)-\theta_0|
+ \le\pi^{-1}D_{w,n}D_{\mu,n}.
+\]
+The fixed-class $O_p(n^{-1/2})$ plug-in fluctuation used in
+Corollary~\ref{cor:width} becomes $O_p(r_n)$ under (U1) and
+\eqref{eq:grid-bernstein}.  Therefore
+\[
+ |\widehat\theta_n-\theta_0|
+ =O_p\{D_{w,n}D_{\mu,n}+r_n\},
+\]
+and hence
+\[
+ |\widehat\delta_n|
+ =O_p\{D_{w,n}D_{\mu,n}+r_n\}.
+\]
+Because
+\[
+ \operatorname{width}(C_n)
+ =2\left\{|\widehat\delta_n|
+   +z_{1-\alpha/2}\widetilde\sigma_n/\sqrt n\right\},
+\]
+and $r_n\ge n^{-1/2}$ by definition of $s_n$, this proves
+\[
+ \operatorname{width}(C_n)
+ =O_p\{\max(r_n,D_{w,n}D_{\mu,n})\}.
+\]
+Finally, Lemma~\ref{lem:grid-oracle} gives
+\[
+ D_{w,n}D_{\mu,n}
+ =O_p\{(\sqrt{h_n}+r_n)^2\}
+ =O_p(h_n+\sqrt{h_n}\,r_n+r_n^2).
+\]
+Substitution and (U1) yield~\eqref{eq:grid-width}.
+\end{proof}
+
+\paragraph{Post-proof audit.}
+\emph{Assumptions:} anchor validity and width control are logically separate;
+only the latter uses the oracle rates.
+\emph{Dependencies:} Theorem~\ref{thm:anchor},
+Corollary~\ref{cor:grid-crossfit},
+Proposition~\ref{prop:bilinear}, and Lemma~\ref{lem:biasbound} are used.
+\emph{Rates:} the fixed-class $n^{-1/2}$ term is replaced by
+$r_n=\sqrt{s_n/n}$.
+\emph{Edge cases:} coverage survives even when the width fails to contract,
+provided the anchor remains valid.
+\emph{Tightness:} no matching lower bound for the width is asserted.
+\emph{Failure localization:} this corollary does not establish
+$\sqrt n(\widehat\theta_n-\thetatil_n)=o_p(1)$ and therefore does not establish
+efficiency of the displayed-tree estimator.
+Every class-dependent rate explicitly retains its $n$ index.
+
+\begin{theorem}[Full-sample inference under vanishing grid misfit]
+\label{thm:grid-fullsample}
+Suppose the conditions of Corollary~\ref{cor:grid-crossfit} hold.  Suppose,
+in addition, that the localized Bernstein control
+\eqref{eq:grid-bernstein} applies jointly to the following finite unions of
+bounded functions:
+\[
+ \{h(\Pi^\nu_\tau\mzn-\mz^\circ):\tau\in\cT_{\bar L,n}\},
+ \quad
+ \{(1-A)(w_\tau-w_0^\circ)^2:\tau\in\cT_{\bar L,n}\},
+\]
+and their pairwise products, where
+$h=w_0^\circ(1-A)-A$.  Then the full-sample estimator
+$\widehat\theta_n$ formed from the two selected row-$n$ trees satisfies
+\[
+ \sqrt n(\widehat\theta_n-\theta_0)
+ =\sqrt n\,P_n\psi_0+o_p(1)
+ \rightsquigarrow N(0,V).
+\]
+Moreover, the plug-in estimator~\eqref{eq:vhat} satisfies
+\[
+ \widehat V_n\to_pV,
+\]
+and the corresponding Wald interval has pointwise asymptotic coverage
+$1-\alpha$.
+
+If, additionally, the interiority condition~\eqref{eq:interior} holds, the
+contiguity argument of Theorem~\ref{thm:regular} applies to the displayed
+asymptotic-linear expansion; thus $\widehat\theta_n$ is regular and locally
+asymptotically efficient at the fixed continuum law $P_0$.
+\end{theorem}
+
+\begin{proof}
+\emph{Proof strategy.}
+Start from the exact skeleton identity of Lemma~\ref{lem:skeleton}.  Replace
+the sparsity-dependent proofs of Lemmas~\ref{lem:U} and~\ref{lem:cross} by
+localized bounds in the vanishing realised errors.  The genuinely new step is
+uniformity over the growing, data-selected partition class.  After proving
+the two remainders are $o_p(n^{-1/2})$, apply the ordinary central limit
+theorem.  Finally prove variance consistency directly from vanishing
+empirical $L_2$ error; the fixed-misspecification counterexample in
+Appendix~\ref{app:honest} disappears because both discrepancies now vanish.
+
+Let
+\[
+ a_{\mu,\tau}
+   :=\Pi^\nu_\tau\mzn-\mz^\circ,
+ \qquad
+ v_{\mu,\tau}
+   :=\widehat\mu_\tau-\Pi^\nu_\tau\mzn.
+\]
+Thus
+\[
+ \widehat\mu_\tau-\mz^\circ=a_{\mu,\tau}+v_{\mu,\tau}.
+\]
+
+\emph{Step 1: replacement for Lemma~\ref{lem:U}.}
+For fixed $\tau$, decompose
+\[
+ U(\tau)
+ =P_n[h\,a_{\mu,\tau}]
+  +P_n[h\,v_{\mu,\tau}].
+\]
+Since $E(h\mid Z)=0$ by Lemma~\ref{lem:skeleton},
+$P[h\,a_{\mu,\tau}]=0$.  The localized Bernstein bound and a peeling argument
+over the deterministic class $\cT_{\bar L,n}$ give, simultaneously for all
+$\tau$,
+\[
+ |P_n[h\,a_{\mu,\tau}]|
+ =O_p\{\|a_{\mu,\tau}\|_\mu r_n+r_n^2\}.
+ \label{eq:grid-U-approx}
+\]
+For the leaf-refit component, write
+$v_{\mu,\tau}=\sum_{\ell\in\tau}v_{\ell,\tau}\mathbf1_\ell$.  Then
+\[
+ P_n[h\,v_{\mu,\tau}]
+ =\sum_{\ell\in\tau}
+   v_{\ell,\tau}P_n[h\mathbf1_\ell].
+\]
+Uniform finite-dimensional least-squares concentration over the same class
+gives
+\[
+ \sum_{\ell\in\tau}
+ |v_{\ell,\tau}P_n[h\mathbf1_\ell]|
+ =O_p(r_n^2)
+ \label{eq:grid-U-refit}
+\]
+uniformly over $\tau$.  This is the growing-class analogue of the
+$O_p(\bar L/n)$ calculation in Lemma~\ref{lem:U}; it uses neither
+leaf-constancy of $\mz^\circ$ nor Assumption~\ref{ass:sparsity}.
+
+Evaluating~\eqref{eq:grid-U-approx}--\eqref{eq:grid-U-refit} at the selected
+partition and using Lemma~\ref{lem:grid-oracle},
+\[
+ |U|
+ =O_p\{D_{\mu,n}r_n+r_n^2\}.
+\]
+Consequently,
+\[
+ \sqrt n\,|U|
+ =O_p\{D_{\mu,n}\sqrt{s_n}+s_n/\sqrt n\}.
+\]
+Now
+\[
+ D_{\mu,n}\sqrt{s_n}
+ =O_p\{\sqrt{h_ns_n}+s_n/\sqrt n\}=o_p(1)
+\]
+by~\eqref{eq:grid-rootn}.  Hence $\sqrt n\,U=o_p(1)$.
+
+\emph{Step 2: replacement for Lemma~\ref{lem:cross}.}
+Steps 1 and 3 of the proof of Lemma~\ref{lem:cross} require neither
+sufficiency nor a fixed grid.  For each fixed pair
+$(\tau_e,\tau_\mu)$, centre
+$\Delta w_\tau=\widehat w_{\tau_e}-w_0^\circ$ within the control observations
+of each $\tau_\mu$ leaf:
+\[
+ b_i=\Delta w_\tau(Z_i)
+ -\overline{\Delta w}_{\ell_\mu(i)}.
+\]
+The exact refit identity gives
+\[
+ T(\tau_e,\tau_\mu)
+ =n^{-1}\sum_{i:A_i=0}b_i\{Y_i-\widehat\mu_{\tau_\mu}(X_{n,i})\}.
+\]
+Insert
+\[
+ Y_i-\widehat\mu_{\tau_\mu}
+ =\varepsilon_i-a_{\mu,\tau_\mu}(Z_i)-v_{\mu,\tau_\mu}(X_{n,i}),
+ \qquad
+ \varepsilon_i=Y_i-\mz^\circ(Z_i).
+\]
+The term containing $v_{\mu,\tau_\mu}$ vanishes exactly because it is constant
+within each $\tau_\mu$ leaf and $\sum_{\ell,A_i=0}b_i=0$.  Therefore
+\[
+ T=T_\varepsilon-T_a,
+\]
+where
+\[
+ T_\varepsilon=n^{-1}\sum_{i:A_i=0}b_i\varepsilon_i,
+ \qquad
+ T_a=n^{-1}\sum_{i:A_i=0}b_i a_{\mu,\tau_\mu}(Z_i).
+\]
+
+Conditionally on $(Z_{1:n},A_{1:n})$, the coefficients $b_i$ are measurable,
+the $\varepsilon_i$ are independent and mean zero, and
+$E(\varepsilon_i^2\mid Z_i,A_i=0)\le B_Y^2$.  Hence
+\[
+ \operatorname{Var}(T_\varepsilon\mid Z,A)
+ \le B_Y^2n^{-2}\sum_{i:A_i=0}b_i^2.
+\]
+Centring is an $\ell_2$ projection, so
+\[
+ \sum_{i:A_i=0}b_i^2
+ \le\sum_{i:A_i=0}\Delta w_\tau(Z_i)^2.
+\]
+The assumed localized empirical-norm control gives, uniformly over
+$\tau_e$,
+\[
+ n^{-1}\sum_{i:A_i=0}\Delta w_\tau(Z_i)^2
+ =O_p(D_{w,n}^2+r_n^2).
+\]
+Conditional Chebyshev therefore yields
+\[
+ |T_\varepsilon|
+ =O_p\{(D_{w,n}+r_n)/\sqrt n\}.
+\]
+
+For $T_a$, Cauchy--Schwarz for the empirical control measure gives
+\[
+ |T_a|
+ \le
+ \left\{P_n[(1-A)b^2]\right\}^{1/2}
+ \left\{P_n[(1-A)a_{\mu,\tau_\mu}^2]\right\}^{1/2}.
+\]
+The same localized norm comparison, applied jointly over the pair of
+partition classes, gives
+\[
+ |T_a|
+ =O_p\{D_{w,n}D_{\mu,n}
+       +(D_{w,n}+D_{\mu,n})r_n+r_n^2\}.
+\]
+Thus
+\[
+ |T|
+ =O_p\!\left[
+ \frac{D_{w,n}+r_n}{\sqrt n}
+ +D_{w,n}D_{\mu,n}
+ +(D_{w,n}+D_{\mu,n})r_n+r_n^2
+ \right].
+\]
+After multiplication by $\sqrt n$, the first term is $o_p(1)$ because
+$D_{w,n}+r_n=o_p(1)$.  The product term is $o_p(1)$ by the calculation in
+Corollary~\ref{cor:grid-crossfit}.  Moreover,
+\[
+ \sqrt n(D_{w,n}+D_{\mu,n})r_n
+ =O_p\{\sqrt{h_ns_n}+s_n/\sqrt n\}=o_p(1),
+\]
+and $\sqrt n r_n^2=s_n/\sqrt n\to0$.  Therefore
+$\sqrt nT=o_p(1)$.
+
+\emph{Step 3: full-sample asymptotic linearity.}
+Lemma~\ref{lem:skeleton} is an exact algebraic identity and does not require
+Assumption~\ref{ass:sparsity}.  Hence
+\[
+ \widehat\pi(\widehat\theta_n-\theta_0)
+ =\pi P_n\psi_0+U-T.
+\]
+Steps 1 and 2 give $\sqrt n(U-T)=o_p(1)$.  Also
+$\widehat\pi-\pi=O_p(n^{-1/2})$ and
+$\sqrt nP_n\psi_0=O_p(1)$, so, exactly as in the proof of
+Lemma~\ref{lem:uniform},
+\[
+ \left(\frac{\pi}{\widehat\pi}-1\right)\sqrt nP_n\psi_0=o_p(1).
+\]
+Therefore
+\[
+ \sqrt n(\widehat\theta_n-\theta_0)
+ =\sqrt nP_n\psi_0+o_p(1).
+\]
+Under Assumptions~\ref{ass:iid}, \ref{ass:causal}, and
+\ref{ass:moments}, the summands $\psi_0(O_i)$ are i.i.d., mean zero, and have
+variance $V\in(0,\infty)$.  The classical central limit theorem and Slutsky's
+theorem give
+\[
+ \sqrt n(\widehat\theta_n-\theta_0)\rightsquigarrow N(0,V).
+\]
+
+\emph{Step 4: plug-in variance under vanishing misspecification.}
+Let $\widehat g_n$ denote the bracketed term in~\eqref{eq:vhat}, and let
+$g_0=\pi\psi_0$.  Bounded propensity weights and bounded outcomes imply
+\[
+ (\widehat g_n-g_0)^2
+ \le C\left[
+   (\widehat e_n-\ez^\circ)^2
+   +(\widehat\mu_n-\mz^\circ)^2
+   +(\widehat\theta_n-\theta_0)^2
+ \right]
+\]
+for a constant $C$ independent of $n$.  The localized empirical-norm control,
+Lemma~\ref{lem:grid-oracle}, and Step 3 therefore give
+\[
+ P_n(\widehat g_n-g_0)^2=o_p(1).
+\]
+Cauchy--Schwarz yields
+\[
+ |P_n\widehat g_n^2-P_ng_0^2|
+ \le
+ \{P_n(\widehat g_n-g_0)^2\}^{1/2}
+ \{P_n(\widehat g_n+g_0)^2\}^{1/2}
+ =o_p(1),
+\]
+because the first factor is $o_p(1)$ and the second is $O_p(1)$.
+The weak law gives
+\[
+ P_ng_0^2\to_pE(g_0^2)=\pi^2V,
+ \qquad
+ \widehat\pi\to_p\pi>0.
+\]
+Consequently
+\[
+ \widehat V_n=\widehat\pi^{-2}P_n\widehat g_n^2\to_pV.
+\]
+Studentization and Slutsky give the asserted Wald coverage.
+
+The fixed-misspecification expansion in Appendix~\ref{app:honest} does not
+contradict this conclusion.  Its first-order discrepancy is linear in
+$a=\mu_*-\mz$ and $b=w_*-w_0$; here
+$\|a\|_2+\|b\|_2=o_p(1)$, so that discrepancy and its quadratic remainder both
+vanish.
+
+\emph{Step 5: regularity.}
+If~\eqref{eq:interior} holds, the preceding expansion has the same fixed
+influence function $\psi_0$ as Theorem~\ref{thm:main}.  The proof of
+Theorem~\ref{thm:regular} uses only that expansion at $P_0$, differentiability
+in quadratic mean, contiguity, Lemma~\ref{lem:tangent}, and Le Cam's third
+lemma.  None depends on the candidate-class cardinality.  Repeating that
+argument gives regularity and attainment of $V$.
+\end{proof}
+
+\paragraph{Post-proof audit.}
+\emph{Assumptions:} unlike the existing Theorem~\ref{thm:main}, this theorem
+does not use Assumption~\ref{ass:sparsity}, Lemma~\ref{lem:margin},
+Lemma~\ref{lem:selection}, or the selection event
+$\{\widehat\tau_j\in\cS_j\}$.
+\emph{Dependencies:} Lemma~\ref{lem:skeleton},
+Proposition~\ref{prop:bilinear}, Lemma~\ref{lem:clip},
+Lemma~\ref{lem:normequiv}, and the oracle inequality are reused.  The
+off-sparsity bounds replacing Lemmas~\ref{lem:U} and~\ref{lem:cross} are new.
+\emph{Rates:} every full-sample remainder reduces to one of
+$\sqrt{h_ns_n}$, $s_n/\sqrt n$, $\sqrt n h_n$, or a vanishing nuisance norm;
+all converge to zero under~\eqref{eq:grid-rootn}.
+\emph{Edge cases:} weak overlap destroys bounded weights; unbounded outcomes
+require a replacement tail condition; loss of comparator leaf mass destroys
+feasibility; and U1 without U1$^+$ does not ensure root-$n$ negligibility.
+\emph{Tightness:} the entropy restriction may be stronger than necessary if a
+sharper local-complexity argument is available.
+\emph{Failure localization:} the least routine part is the joint localized
+empirical-norm control used in Step 2.  A proof that supplies only an additive
+$O_p(r_n)$ bound for squared norms, rather than the relative
+$O_p(D^2+r_n^2)$ bound used above, is insufficient at the root-$n$ scale.
+No grid, partition, projection, or nuisance fit is treated as invariant across
+$n$.
+
+\subsubsection*{Compatibility and open items}
+
+\begin{enumerate}[label=(\alph*),leftmargin=*]
+
+\item The consultations requested
+$D_j=O_p(\delta^*_{j,n}+n^{-1/2})$, but U1 implies a growing class and therefore
+the generic oracle rate is
+\[
+ O_p\!\left(\delta^*_{j,n}
+   +\sqrt{\log\card{\cT_{\bar L,n}}/n}\right),
+\]
+not $O_p(\delta^*_{j,n}+n^{-1/2})$.  The stronger entropy condition
+$s_n=o(\sqrt n)$ was therefore added for Results A and B.  U1 alone is enough
+for consistency but not for the DML product condition.
+
+\item The existing condition $\bar Lm_n\lesssim n$ with fixed $\bar L$ does not
+by itself imply $m_n/n\to0$.  The latter was stated explicitly because it is
+needed to make the positive-mass comparator asymptotically feasible.
+
+\item U2 is derived from~\eqref{eq:mesh-slab} after deleting null continuum
+leaves.  It does not provide a mass floor for every candidate in
+$\cT_{\bar L,n}$, nor is such a floor claimed.
+
+\item Lemma~\ref{lem:mesh-approx} supplies a feasible rounded comparator with
+error $O(\sqrt{h_n})$.  It does not show that an exact minimizer attaining
+$\delta^*_{j,n}$ has uniformly positive leaf masses.  The oracle lemma
+therefore states the unconditional rate using the rounded comparator and gives
+the sharper $\delta^*_{j,n}$ formulation only under an additional oracle
+leaf-mass property.
+
+\item The identification issue in Assumption~\ref{ass:mesh} is resolved here
+by taking $Z$, not $X_n$, as the covariate in the causal model and influence
+function.  The trees are restricted to functions of $X_n=Q_n(Z)$, but their
+errors are measured against the continuum nuisances.  If only $X_n$ is observed,
+an additional assumption establishing ignorability given $X_n$ and equality of
+the resulting row-$n$ target with $\theta_0$ is required; it does not follow
+from Assumption~\ref{ass:mesh}.
+
+\item Result A is a genuine corollary of Theorem~\ref{thm:crossfit}.  Result A'
+uses Theorem~\ref{thm:anchor} only for validity and makes no efficiency claim.
+Result B is independent of Theorem~\ref{thm:main}; it replaces rather than
+extends that theorem's sparsity-dependent selection-event proof.
+
+\item Before integration, the localized finite-union Bernstein condition
+\eqref{eq:grid-bernstein}, especially its joint empirical-norm version used in
+Step 2 of Theorem~\ref{thm:grid-fullsample}, should be extracted into a
+separate technical lemma and proved at the exact level of generality supported
+by the feasible leaf-count constraint.  That is the principal unresolved
+technical integration item.
+
+\end{enumerate}
+
+%% ============================================================
+%% DRAFTING AGENT'S OWN CONFIDENCE ASSESSMENT (verbatim from the
+%% proof-writer subagent that produced the material above, 2026-08-31):
+%%
+%% Highest confidence: the (U2) derivation, Result A (cor:grid-crossfit),
+%% and the rate-only framing of Result A' (cor:grid-width).
+%%
+%% Lowest confidence: Result B's (thm:grid-fullsample) replacement for
+%% Steps 4-5 of lem:cross -- specifically the joint relative empirical-L2
+%% bound asserted for T_a in Step 2 of the proof above ("The same
+%% localized norm comparison, applied jointly over the pair of partition
+%% classes, gives |T_a| = O_p{D_w D_mu + (D_w+D_mu) r_n + r_n^2}"). This
+%% is stated as a consequence of eq:grid-bernstein's joint-union
+%% extension (the theorem's own hypothesis), but that extension is
+%% asserted, not derived from a more primitive condition, and is
+%% flagged in item (g) above as "the principal unresolved technical
+%% integration item." Reviewers should scrutinize this step first.
+%% ============================================================
