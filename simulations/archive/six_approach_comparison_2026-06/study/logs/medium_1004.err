@@ -1,0 +1,11 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+Warning messages:
+1: In build_classification_result(compute_probabilities, has_tree,  :
+  Model training may have failed or serialization returned empty result. Try reducing dataset size or adjusting regularization.
+2: In optimaltrees::fit_rashomon(X = X_train, y = y_train, loss_function = loss_function,  :
+  No trees found in rashomon set. Consider adjusting regularization or rashomon_bound_multiplier.
+3: In optimaltrees::get_rashomon_trees(model, max_leaves = max_leaves) :
+  No trees in Rashomon set
+4: In doTryCatch(return(expr), name, parentenv, handler) :
+  Fold 5: No trees in Rashomon set. Consider adjusting regularization or max_leaves.

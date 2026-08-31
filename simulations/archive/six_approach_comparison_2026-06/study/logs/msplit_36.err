@@ -1,0 +1,6 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+[Rep 27] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+Warning message:
+refit_tree_structure: 1 leaf(ves) received no training observations: 1-0-1-1-1
+Using overall mean (0.5131) for these leaves. This can happen when the new data has a different covariate distribution than the original training data. 

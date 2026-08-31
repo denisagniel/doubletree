@@ -1,0 +1,69 @@
+#!/bin/bash
+#SBATCH --job-name=approach1
+#SBATCH --output=logs/approach1_%a.out
+#SBATCH --error=logs/approach1_%a.err
+#SBATCH --array=1-24
+#SBATCH --time=06:00:00
+#SBATCH --mem=32G
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=short
+
+# Approach 1: Full-Sample Tree
+# 24 jobs = 12 configs × 2 batches; 500 reps per batch = 1000 reps per config
+# 12 configs = 4 DGPs × 3 n values (500, 1000, 2000)
+#
+# Module versions authoritative source: .claude/skills/setup-cluster-simulations/SKILL.md
+module load gcc/14.2.0 R/4.4.2
+
+cd $SLURM_SUBMIT_DIR
+
+JOB_ID=$SLURM_ARRAY_TASK_ID
+APPROACH=1
+N_BATCHES=2
+REPS_PER_BATCH=500
+
+# Decode: config = ceil(job_id / N_BATCHES), batch = ((job_id-1) % N_BATCHES) + 1
+CONFIG_IDX=$(( (JOB_ID - 1) / N_BATCHES + 1 ))  # 1..12
+BATCH=$(( (JOB_ID - 1) % N_BATCHES + 1 ))        # 1..2
+
+# Decode DGP and n from config index
+DGP=$(( (CONFIG_IDX - 1) / 3 + 1 ))    # 1..4
+N_IDX=$(( (CONFIG_IDX - 1) % 3 + 1 ))  # 1..3
+
+if [ $N_IDX -eq 1 ]; then
+  N=500
+elif [ $N_IDX -eq 2 ]; then
+  N=1000
+else
+  N=2000
+fi
+
+REP_START=$(( (BATCH - 1) * REPS_PER_BATCH + 1 ))
+REP_END=$(( BATCH * REPS_PER_BATCH ))
+
+echo "=========================================="
+echo "Approach $APPROACH Job $JOB_ID"
+echo "=========================================="
+echo "Config: $CONFIG_IDX (DGP=$DGP, N=$N)"
+echo "Batch: $BATCH / $N_BATCHES"
+echo "Replications: $REP_START to $REP_END"
+echo "Start time: $(date)"
+echo "=========================================="
+echo ""
+
+Rscript code/run_single_replication.R \
+  --approach $APPROACH \
+  --dgp $DGP \
+  --n $N \
+  --rep_start $REP_START \
+  --rep_end $REP_END \
+  --output results/raw/approach${APPROACH}_${JOB_ID}.rds
+
+EXIT_CODE=$?
+
+echo ""
+echo "=========================================="
+echo "Job $JOB_ID complete | exit=$EXIT_CODE | $(date)"
+echo "=========================================="
+
+exit $EXIT_CODE

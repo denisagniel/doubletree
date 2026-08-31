@@ -1,0 +1,4 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+[Rep 85] Estimator error: Can't get S7 properties with `$`. Did you mean `object@n_intersecting`?
+[Rep 380] Estimator error: Can't get S7 properties with `$`. Did you mean `object@n_intersecting`?

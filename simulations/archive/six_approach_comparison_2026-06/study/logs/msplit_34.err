@@ -1,0 +1,33 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+[Rep 305] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 308] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 309] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 310] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 312] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 318] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 320] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 321] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 324] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 331] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 332] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 333] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 336] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 342] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 344] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 347] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 353] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 369] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 370] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 372] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 374] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 376] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 377] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 378] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 379] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 381] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 383] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 385] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 395] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+[Rep 399] Estimator error: Propensity scores outside acceptable bounds [0.01, 0.99]. This indicates numerical instability in the propensity model. Check that propensity bounds are enforced at prediction time.
+There were 50 or more warnings (use warnings() to see the first 50)

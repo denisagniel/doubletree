@@ -1,0 +1,16 @@
+Warning message:
+replacing previous import ‘S7::validate’ by ‘jsonlite::validate’ when loading ‘optimaltrees’ 
+[Rep 64] Estimator error: Failed to extract probabilities from leaf node.
+
+Node fields: prediction, probabilities
+Prediction value: NA
+Original error: missing value where TRUE/FALSE needed
+
+This indicates invalid leaf node structure.
+[Rep 66] Estimator error: Failed to extract probabilities from leaf node.
+
+Node fields: prediction, probabilities
+Prediction value: NA
+Original error: missing value where TRUE/FALSE needed
+
+This indicates invalid leaf node structure.
