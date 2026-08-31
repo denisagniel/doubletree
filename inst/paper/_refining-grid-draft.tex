@@ -26,6 +26,33 @@
 %% audited and found correct with only minor fixes (applied here), and
 %% needs none of the machinery that failed: it is a population-level
 %% approximation-theoretic statement, not an inferential one.
+%%
+%% UPDATE (2026-08-31): theory.tex underwent a separate "Slice 0"
+%% restatement introducing Assumption ass:solver + a restated
+%% ass:finite (grid atoms cA finite, not cX itself). This file's
+%% ass:mesh predates that and was never reconciled with it -- read the
+%% relationship carefully before integrating, do not assume ass:mesh's
+%% row-n discretization-map framing (Q_n, e_{0,n}) still sits
+%% comfortably alongside ass:solver without a check.
+%%
+%% FURTHER UPDATE (2026-08-31, same session): a separate, more general
+%% result -- Lemma lem:pshab-bridge + Corollary cor:pshab-bridge, added
+%% to theory.tex directly after Remark rem:pshab-fixed-budget -- proves
+%% a grid-restricted approximation bound for the case where the
+%% continuum truth is only approximately (PSHAB-smooth), not exactly,
+%% tree-structured. Under exact continuum representability
+%% (delta_j^*(Lbar)=0), that general bridge SPECIALIZES to exactly this
+%% file's lem:mesh-approx conclusion (delta_j = O(sqrt h)), via the same
+%% rounding-to-grid technique, but without ass:mesh's Q_n/e_{0,n}
+%% apparatus and without the notation collision that apparatus would
+%% create against the bridge's own delta_j^*(Lbar) notation. theory.tex
+%% now states this relationship explicitly in a Remark immediately
+%% after cor:pshab-bridge. CONSEQUENCE: this file's ass:mesh +
+%% lem:mesh-approx are NOT separately integrated into theory.tex as
+%% their own subsection -- the general bridge subsumes their
+%% conclusion. This file is kept for its proof technique (the rounding
+%% construction, independently useful) and its own audit trail, not as
+%% pending integration work.
 %% ============================================================
 
 %% Local macros for this subsection: \ez, \mz, and \wz already expand to e_0,

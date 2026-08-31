@@ -267,12 +267,25 @@ Results stated on one do not transfer to the other.
 
 \subsection{Standing assumptions}
 
-Assumptions~\ref{ass:iid}--\ref{ass:finite} restrict the sampling model,
-\ref{ass:construct}--\ref{ass:global} the estimator, and
-\ref{ass:sparsity}--\ref{ass:pseudo} the structure of the problem. Each result
-below states which it uses. Assumptions \ref{ass:margin-floor} and
-\ref{ass:pseudo} are local to Sections~\ref{sec:uniformity}
-and~\ref{sec:realised} respectively and are never in force elsewhere.
+Assumption~\ref{ass:solver} is in force throughout the document and is never
+restated as a hypothesis below: every search space appearing in any result,
+capped ($\cT_{\bar L}$) or uncapped ($\cT_\cA$ of
+Section~\ref{sec:compute}), is by definition built from the pre-specified
+cutpoints it fixes, so no theorem needs to cite it separately. Of
+Assumptions~\ref{ass:iid}--\ref{ass:finite}, only \ref{ass:iid},
+\ref{ass:causal}, \ref{ass:moments}, and the positive-atom-mass clause of
+\ref{ass:finite} are restrictions on the sampling model $P$; the remaining
+content of \ref{ass:finite} --- that the grid $\cA$ itself is finite and
+fixed in $n$ --- is a choice made by the analyst before seeing the data, not
+a property of $P$, and is more accurately grouped with \ref{ass:solver} as a
+restriction on the estimator's search space. Assumptions
+\ref{ass:construct}--\ref{ass:global} restrict the estimator, and
+\ref{ass:sparsity}--\ref{ass:pseudo} the structure of the problem. Each
+result below states which of \ref{ass:iid}--\ref{ass:pseudo} it uses, with
+Assumption~\ref{ass:solver} always additionally in force. Assumptions
+\ref{ass:margin-floor} and \ref{ass:pseudo} are local to
+Sections~\ref{sec:uniformity} and~\ref{sec:realised} respectively and are
+never in force elsewhere.
 
 \begin{assumption}[Sampling]\label{ass:iid}
 $O_1,\dots,O_n$ are independent and identically distributed copies of
@@ -839,7 +852,7 @@ qualifier, since it is stated $P$-a.s.
 \subsection{Invariance of the estimand}
 
 \begin{lemma}[Invariance over the sufficient class]\label{lem:invariance}
-Under Assumptions~\ref{ass:iid}--\ref{ass:causal}, \ref{ass:finite}, and
+Under Assumptions~\ref{ass:iid}--\ref{ass:causal} and
 \ref{ass:sparsity}, for every $(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$ the
 population leaf-refit nuisances $\eta_\tau=(e_{\tau_e},\mu_{\tau_\mu})$ satisfy
 $\theta(\eta_\tau)=\theta_0$, where $\theta(\eta)$ solves
@@ -872,8 +885,8 @@ does not: the estimand is constant on $\cS_e\times\cS_\mu$.
 % margin conclusion does not carry over as stated. Flagged, not yet revised --
 % see quality_reports/plans/2026-08-28_fixed-Lbar-refining-grid-theory-update.md.
 \begin{lemma}[Positive population margin]\label{lem:margin}
-Under Assumptions~\ref{ass:iid}--\ref{ass:construct}(a) and
-\ref{ass:budget}--\ref{ass:sparsity},
+Under Assumption~\ref{ass:solver}, Assumptions~\ref{ass:iid}--\ref{ass:construct}(a),
+and \ref{ass:budget}--\ref{ass:sparsity},
 \[
   \Delta_j:=\min_{\tau\in\cT_{\bar L}\setminus\cS_j}
   \Bigl\{R^{(j)}(\tau)-\min_{\tau'\in\cT_{\bar L}}R^{(j)}(\tau')\Bigr\}
@@ -929,7 +942,8 @@ tie-breaking variant grown to the budget always suffices is not settled here.
 % Flagged, not yet revised -- see
 % quality_reports/plans/2026-08-28_fixed-Lbar-refining-grid-theory-update.md.
 \begin{lemma}[Selection lands in the sufficient class]\label{lem:selection}
-Under Assumptions~\ref{ass:iid}--\ref{ass:global} and \ref{ass:sparsity}, for
+Under Assumption~\ref{ass:solver}, Assumptions~\ref{ass:iid}--\ref{ass:global},
+and \ref{ass:sparsity}, for
 each $j\in\{e,\mu\}$,
 \[
   \PP\bigl(\that_j\in\cS_j\bigr)\longrightarrow1 .
@@ -1307,7 +1321,8 @@ is exactly zero.
 \subsection{The main result}
 
 \begin{theorem}[Full-sample two-tree central limit theorem]\label{thm:main}
-Under Assumptions~\ref{ass:iid}--\ref{ass:global} and \ref{ass:sparsity}, with
+Under Assumption~\ref{ass:solver}, Assumptions~\ref{ass:iid}--\ref{ass:global},
+and \ref{ass:sparsity}, with
 $\that_e,\that_\mu$ selected by~\eqref{eq:select} on all $n$ observations and
 leaf values refitted on all $n$ observations,
 \[
@@ -1478,8 +1493,9 @@ evaluated at the fold-wise fits.
 \end{assumption}
 
 \begin{theorem}[Cross-fitted central limit theorem]\label{thm:crossfit}
-Under Assumptions~\ref{ass:iid}--\ref{ass:construct}, \ref{ass:global},
-and~\ref{ass:rate}, with $K$-fold cross-fitting and $K$ fixed,
+Under Assumption~\ref{ass:solver}, Assumptions~\ref{ass:iid}--\ref{ass:moments}
+and~\ref{ass:construct}, \ref{ass:global}, and~\ref{ass:rate}, with $K$-fold
+cross-fitting and $K$ fixed,
 \[
   \sqrt n\bigl(\thetahat_{\mathrm{cf}}-\theta_0\bigr)\rightsquigarrow N(0,V).
 \]
@@ -1766,22 +1782,43 @@ developed in the companion paper rather than here.
 grid itself grow finer, $\card{\cA_n}\to\infty$, so that the pre-specified
 cutpoints of Assumption~\ref{ass:solver} approximate an arbitrarily fine
 discretisation of a continuous $\cX$ rather than being fixed once and for
-all. This is not the same failure mode as growing $\bar L_n$: the leaf budget
---- the object $\cT_{\bar L}$'s cardinality depends on --- is what the
-present inferential arguments hold fixed, and refining the grid while
-holding $\bar L$ fixed leaves that cardinality bound, and hence
-Lemmas~\ref{lem:selection} and~\ref{lem:findim}, untouched at each fixed $n$
-along the mesh sequence. What a refining grid buys, at the population level
-only, is that the mesh-alignment bias between a continuous truth and its
-nearest grid-discretised version can be shown to vanish as the mesh width
-$h_n\to0$, at a rate governed by the modulus of continuity of $\ez,\mz$; this
-is a purely approximation-theoretic fact about the sequence of grids, not an
-inferential claim, and it is not developed as part of the present document.
-It is complementary to Remark~\ref{rem:pshab-fixed-budget} below rather than
-a special case of it: the remark bounds the approximation ceiling at the
-document's own single, already-fixed grid, whereas grid refinement asks what
-happens across a sequence of ever-finer grids, a question the remark does
-not address.
+all. This is not the same failure mode as growing $\bar L_n$, and the two
+axes affect different parts of the present arguments differently: the
+per-fixed-$\tau$, $\bar L$-indexed bounds --- Lemma~\ref{lem:U}'s
+$O_p(\bar L/n)$, the leaf-value union bound inside Lemma~\ref{lem:findim},
+Lemma~\ref{lem:cross}'s per-pair variance, and~\eqref{eq:D-vs-delta} --- are
+governed by $\bar L$ alone and remain untouched by refining the grid at any
+fixed $n$. The \emph{class}-indexed objects are not: $\log\card{\cT_{\bar
+L,n}}=O(\bar L\log(dJ_{n,\max}))$ grows without bound as $J_{n,\max}\to\infty$
+under refinement, so the union bounds underlying Lemma~\ref{lem:selection},
+Lemma~\ref{lem:uniform}, and Corollary~\ref{cor:width} would need an explicit
+$\sqrt{\log\card{\cT_{\bar L,n}}/n}$ rate rather than being treated as
+unchanged; the atom-mass floor in Assumption~\ref{ass:finite} likewise
+degrades, since $\min_{a\in\cA_n}P(a)\to0$ under refinement; and, most
+consequentially, Assumption~\ref{ass:sparsity} fails at every finite $n$
+along the sequence, not merely in a limit, because the discretised truth
+cannot in general be made exactly leaf-constant on cutpoints that are fixed
+in advance while the truth's breakpoints need not fall on them. In
+particular the population margin $\Delta_j$ of Lemma~\ref{lem:margin}
+degrades at the same rate as the mesh, $\Delta_{j,n}=O(h_n)$, so exact
+selection consistency (Lemma~\ref{lem:selection}) cannot be rescued by any
+uniform margin floor and must instead be replaced by a finite-class oracle
+inequality; see the \texttt{\%~TODO(refining-grid)} markers on
+Lemmas~\ref{lem:margin} and~\ref{lem:selection} above, which this paragraph
+now confirms rather than merely flags. What a refining grid buys, at the
+population level only, is that the mesh-alignment bias between a continuous
+truth and its nearest grid-discretised version can be shown to vanish as the
+mesh width $h_n\to0$, at a rate governed by the modulus of continuity of
+$\ez,\mz$; this is a purely approximation-theoretic fact about the sequence
+of grids, not an inferential claim, and the inferential consequences
+sketched above are not developed as part of the present document. It is
+complementary to Remark~\ref{rem:pshab-fixed-budget} below rather than a
+special case of it: the remark bounds the best achievable error of the
+\emph{continuum} tree class, not the document's own fixed-grid quantities
+$\delta_e,\delta_\mu$ (Lemma~\ref{lem:pshab-bridge} below relates the two,
+at a cost), whereas grid refinement asks what happens to the grid-alignment
+component of that gap across a sequence of ever-finer grids, a question
+neither the remark nor the bridging lemma addresses.
 
 \emph{Continuous covariates without a fixed grid.} Dropping
 Assumption~\ref{ass:solver} altogether, so that the tree search is not
@@ -1924,8 +1961,166 @@ achievability result; no matching lower bound is asserted here.
 nothing above transfers the oracle bound to the fitted tree $\that_j$.
 \end{remark}
 
-% ===========================================================================
-\appendix
+\noindent Remark~\ref{rem:pshab-fixed-budget} bounds the best achievable
+error of the \emph{continuum} class $\cT_{\bar L}^\circ$, whose cutpoints are
+unrestricted. It does \emph{not}, by itself, bound $\delta_e,\delta_\mu$
+themselves, since $\cT_{\bar L}\subseteq\cT_{\bar L}^\circ$ (every
+grid-restricted tree is a continuum tree, but not conversely) gives only
+$\delta_j\ge\delta_j^*(\bar L)$: the continuum oracle can always do at least
+as well as the grid-restricted one, so its error is a floor under
+$\delta_j$, not a ceiling on it. The following bridges the two, at the cost
+of an explicit, non-asymptotic penalty for the analyst's own cutpoint mesh.
+
+\begin{assumption}[Rectangular covariate space with cutpoint mesh]
+\label{ass:bridge-mesh}
+This assumption is local to Lemma~\ref{lem:pshab-bridge} and
+Corollary~\ref{cor:pshab-bridge} below and is never in force elsewhere.
+$\cX=\prod_{r=1}^d[a_r,b_r]\subset\R^d$ with $d$ fixed. On coordinate $r$ the
+pre-specified cutpoints of Assumption~\ref{ass:solver} are
+$a_r=t_{r,0}<\cdots<t_{r,J_r}=b_r$; write
+$h:=\max_{r\le d}\max_{k\le J_r}(t_{r,k}-t_{r,k-1})$ for the cutpoint mesh.
+Call coordinate $r$ \emph{exhaustive} if every value in $[a_r,b_r]$ is itself
+a cutpoint (so that no rounding of a split on that coordinate is ever
+needed), and \emph{non-exhaustive} otherwise. There is $C_X<\infty$ such
+that
+\[
+  \PP\{\abs{X_r-t}\le u\}\le C_Xu
+  \qquad\text{for every non-exhaustive }r,\ \text{every }t\in[a_r,b_r],
+  \ \text{and every }u\in(0,h] .
+\]
+This holds, with $C_X=2\bar c$, whenever $P_X$ has a Lebesgue density bounded
+above by $\bar c<\infty$ on the non-exhaustive coordinates (a slab
+$\{\abs{X_r-t}\le u\}$ then has Lebesgue measure at most $2u$). The same
+density bound is very likely what is needed to transfer
+Remark~\ref{rem:pshab-fixed-budget}'s achievability bound from the Lebesgue
+measure in which \citet{xu2026} state it into $L_2(P_X)$ in the first place,
+since that remark does not itself specify a reference measure; this should
+be checked against \citet{xu2026}'s exact statement (arXiv:2603.05340)
+before the constants below are treated as sharp.
+\end{assumption}
+
+\begin{lemma}[Grid-restricted approximation bridge]\label{lem:pshab-bridge}
+Under Assumptions~\ref{ass:causal}, \ref{ass:moments}, \ref{ass:solver}, and
+\ref{ass:bridge-mesh}, for every $f\in\cT_{\bar L}^\circ$,
+\[
+  \delta_e\ \le\ \Ltwo{f-\ez}+\sqrt{(\bar L-1)C_Xh},
+  \qquad
+  \delta_\mu\ \le\ \Ltwo{f-\mz}+2\sqrt{C_Y}\sqrt{(\bar L-1)C_Xh},
+\]
+and hence, taking infima over $f\in\cT_{\bar L}^\circ$,
+\[
+  \delta_e\ \le\ \delta_e^*(\bar L)+\sqrt{(\bar L-1)C_Xh},
+  \qquad
+  \delta_\mu\ \le\ \delta_\mu^{*,L_2}(\bar L)+2\sqrt{C_Y}\sqrt{(\bar L-1)C_Xh},
+\]
+where $\delta_\mu^{*,L_2}(\bar L):=\inf_{f\in\cT_{\bar L}^\circ}\Ltwo{f-\mz}$
+satisfies, by Lemma~\ref{lem:normequiv},
+$\delta_\mu^*(\bar L)\le\delta_\mu^{*,L_2}(\bar L)\le c^{-1/2}\delta_\mu^*(\bar L)$.
+\end{lemma}
+
+\begin{proof}
+Fix $f\in\cT_{\bar L}^\circ$ with at most $\bar L-1$ splits. For the
+propensity, let $\tilde f=\Pi_{[0,1-c]}(f)$, the leafwise clipping of
+Lemma~\ref{lem:clip}; since $\ez(x)\in[0,1-c]$ for every $x$
+(Assumption~\ref{ass:causal}), $\tilde f$ is leaf-constant on the same tree
+and $\Ltwo{\tilde f-\ez}\le\Ltwo{f-\ez}$ pointwise, hence in norm. For the
+outcome, let $\tilde f=\Pi_{[-\sqrt{C_Y},\sqrt{C_Y}]}(f)$; since
+$\abs{\mz(x)}\le\sqrt{C_Y}$ for every $x$ (Assumption~\ref{ass:moments} and
+Jensen's inequality applied to $\mz(x)=\E[Y\mid A=0,X=x]$), the identical
+projection argument gives $\Ltwo{\tilde f-\mz}\le\Ltwo{f-\mz}$.
+
+Round each of $\tilde f$'s at most $\bar L-1$ splits to the nearest
+pre-specified cutpoint on its coordinate: on an exhaustive coordinate every
+value is already a cutpoint and no rounding is needed; on a non-exhaustive
+coordinate the nearest cutpoint is within $h$ of the true split location by
+definition of the mesh. Deleting any resulting empty leaves gives a
+grid-restricted tree $g\in\cT_{\bar L}$ --- a feasible comparator for
+$\delta_e,\delta_\mu$, which are minima over exactly this class. Let $B$
+denote the set on which $g$ and $\tilde f$ disagree; a disagreement can occur
+only if $X$ lies within $h$ of one of the at most $\bar L-1$ rounded
+thresholds, so by a union bound and Assumption~\ref{ass:bridge-mesh},
+\[
+  \PP(X\in B)\ \le\ (\bar L-1)C_Xh .
+\]
+Since $g$ and $\tilde f$ agree off $B$ and $\abs{g-\tilde f}$ is bounded by
+the range of $\tilde f$ on $B$ ($1-c$ for the propensity, $2\sqrt{C_Y}$ for
+the outcome),
+\[
+  \Ltwo{g-\tilde f}\ \le\ (1-c)\sqrt{(\bar L-1)C_Xh}
+  \quad\text{(propensity)},
+  \qquad
+  \Ltwo{g-\tilde f}\ \le\ 2\sqrt{C_Y}\sqrt{(\bar L-1)C_Xh}
+  \quad\text{(outcome)}.
+\]
+For the propensity, the displayed bound uses the coarser range-$1$
+projection distance rather than the sharper $(1-c)$ one, matching the
+statement above; either is valid, and the sharper constant may be
+substituted without changing the argument. By the triangle inequality and
+$g\in\cT_{\bar L}$,
+\[
+  \delta_e\ \le\ \Ltwo{g-\ez}
+  \ \le\ \Ltwo{\tilde f-\ez}+\Ltwo{g-\tilde f}
+  \ \le\ \Ltwo{f-\ez}+\sqrt{(\bar L-1)C_Xh} .
+\]
+For the outcome, the same triangle inequality gives
+$\Ltwo{g-\mz}\le\Ltwo{f-\mz}+2\sqrt{C_Y}\sqrt{(\bar L-1)C_Xh}$, and since
+$1-\ez\le1$,
+\[
+  \delta_\mu\ \le\ \Lw{g-\mz}\ \le\ \Ltwo{g-\mz}
+  \ \le\ \Ltwo{f-\mz}+2\sqrt{C_Y}\sqrt{(\bar L-1)C_Xh} .
+\]
+Taking infima over $f\in\cT_{\bar L}^\circ$ on the right of both displayed
+inequalities gives the stated corollaries.
+\end{proof}
+
+\begin{corollary}[Bridged PSHAB bound]\label{cor:pshab-bridge}
+Under the hypotheses of Remark~\ref{rem:pshab-fixed-budget} and
+Lemma~\ref{lem:pshab-bridge}, for $j\in\{e,\mu\}$,
+\[
+  \delta_j\ \le\ C_j^{1/2}\bar L^{-\bar\alpha_j/s_j}+K_j\sqrt{(\bar L-1)C_Xh},
+  \qquad K_e=1,\ K_\mu=2\sqrt{C_Y}.
+\]
+\end{corollary}
+
+\noindent\textbf{Scope: this bound is vacuous at the grids this document
+motivates.} A single-leaf tree is always feasible, so
+$\delta_e\le\Ltwo{\ez-\E\ez}=\mathrm{sd}(\ez(X))\le(1-c)/2$ trivially, with no
+argument at all. The bridge above is informative only when its own rounding
+term is smaller than this trivial ceiling, i.e.\ only when
+$h<1/\{4(\bar L-1)C_X\}$. With $\bar L=8$ and a roughly uniform design
+($C_X\approx2$), this requires $h<1/56$ --- more than fifty cutpoints per
+coordinate. The cutpoints this document motivates throughout are
+\emph{institutional} ones (age brackets, income bands, clinical cutoffs),
+typically a handful per coordinate: five age bands give $h\approx0.2$ and a
+rounding term of order $\sqrt{7\cdot2\cdot0.2}\approx1.7$, which exceeds the
+trivial ceiling of $0.5$ by a factor of roughly three. Corollary~\ref{cor:pshab-bridge} is therefore an honest sense of scale for
+\emph{fine} grids, not a claim that the trees this paper's examples
+motivate --- displayed on an index card, split at a handful of clinically or
+administratively meaningful thresholds --- enjoy a non-vacuous approximation
+guarantee. Sharpening the rounding term to depend on the \emph{local jump}
+of the approximating tree across each threshold, rather than its global
+range, is the only route visible to a non-vacuous bound at a coarse grid,
+and would require jump control on \citet{xu2026}'s dyadic construction that
+is not extracted here.
+
+\begin{remark}[Relation to grid refinement]
+Under \emph{exact} continuum representability --- $\delta_j^*(\bar L)=0$,
+i.e.\ $\gamma_{0,j}$ genuinely is a $\le\bar L$-leaf continuum tree, the
+special case the ``Refining the grid'' discussion above addresses on its own
+terms via a REFINING SEQUENCE of grids --- Lemma~\ref{lem:pshab-bridge}'s
+conclusion specializes to $\delta_j\le\sqrt{(\bar L-1)C_Xh}$ (resp.\ with the
+factor $2\sqrt{C_Y}$ for $\mu$): the population-level grid-alignment result
+explored separately under a refining mesh $h_n\to0$ (companion working
+material, not yet integrated into this document) is the $\delta^*=0$
+special case of the general-$\delta^*$ statement here, not a separate
+phenomenon. The two are not merged into one result in this document: that
+companion result's own apparatus (a discretization map $Q_n$ and row-$n$
+discretized nuisances) is not needed for the general case treated here,
+since here $\delta_j$ already targets the continuum truth $\ez,\mz$
+directly.
+\end{remark}
+
+
 
 \section{Auxiliary results}\label{app:aux}
 
@@ -3338,11 +3533,33 @@ probability tending to one, so
    >z_{1-\alpha/2}\sqrt n\widehat{\mathrm{SE}}\bigr)\to0 .
 \]
 
-\emph{Consistency.} Under a fixed alternative with $\delta_e\delta_\mu>0$,
-Proposition~\ref{prop:bilinear} gives a non-vanishing limit
-$\thetahat-\theta_0\to_pb\ne0$, while $\thetatil-\theta_0=O_p(n^{-1/2})\to_p0$,
-so $\widehat\delta\to_pb\ne0$ while $\widehat{\mathrm{SE}}\to0$, and the
-rejection probability tends to one.
+\emph{Consistency.} Suppose Assumption~\ref{ass:pseudo} holds and consider a
+fixed alternative law with $b\ne0$. The proof technique of
+Lemma~\ref{lem:selection}, applied with the pseudo-true margin
+$\Delta_j^\dagger>0$ of Assumption~\ref{ass:pseudo} in place of the
+sufficient-class margin $\Delta_j$ of Lemma~\ref{lem:margin}, gives
+$\PP(\that_j=\tau_j^\dagger)\to1$ for each $j\in\{e,\mu\}$: no property of
+$\Delta_j^\dagger$ beyond strict positivity is used in that argument. On that
+event the selected partitions are the fixed pseudo-true partitions
+$\tau_e^\dagger,\tau_\mu^\dagger$, so Lemma~\ref{lem:findim} (evaluated at
+$\tau=\tau_e^\dagger,\tau_\mu^\dagger$, its general form covering
+$\tau\notin\cS_j$) gives $\ehat-e_*=O_p(n^{-1/2})$ in $\Ltwo\cdot$ and
+$\mhat-\mu_*=O_p(n^{-1/2})$ in $\Lw\cdot$, hence $\widehat\eta\to_p\eta_*$. By
+\eqref{eq:exact-pi}, $\pihat(\thetahat-\theta_0)=\Pn\phi(\cdot;\theta_0,\widehat\eta)$;
+decompose
+$\Pn\phi(\cdot;\theta_0,\widehat\eta)=\Pn\phi(\cdot;\theta_0,\eta_*)
++\{\Pn\phi(\cdot;\theta_0,\widehat\eta)-\Pn\phi(\cdot;\theta_0,\eta_*)\}$. The
+second term is, exactly as in the proof of Lemma~\ref{lem:findim}, a sum over
+the fixed, finitely many leaves of $\tau_e^\dagger,\tau_\mu^\dagger$ of
+leaf-value differences bounded by a fixed multiple of $\widehat\eta-\eta_*$, hence
+$O_p(n^{-1/2})\to_p0$. The first term satisfies
+$\Pn\phi(\cdot;\theta_0,\eta_*)\to_pP\phi(\cdot;\theta_0,\eta_*)=\pi b$ by
+the law of large numbers, since $\eta_*$ is a fixed pair not depending on $n$
+and $\phi$ is bounded under Assumptions~\ref{ass:causal}
+and~\ref{ass:moments}. Combining with $\pihat\to_p\pi>0$ gives
+$\thetahat-\theta_0\to_pb\ne0$, while $\thetatil-\theta_0=O_p(n^{-1/2})\to_p0$
+by Theorem~\ref{thm:crossfit}, so $\widehat\delta\to_pb\ne0$ while
+$\widehat{\mathrm{SE}}\to_p0$, and the rejection probability tends to one.
 \end{proof}
 
 \noindent The cancellation is exact, so no non-degenerate limiting variance
@@ -3615,6 +3832,10 @@ Cor.~\ref{cor:width} & Width and the plateau & §6.1 & 0.3 \\
 Prop.~\ref{prop:spectest} & Fidelity diagnostic & §6.2 & 0.3 \\
 --- & Realised-error refinement (prose; not established) & §6.3, one paragraph
   and a display & 0.4 \\
+--- & Grid-restricted approximation bridge (Lemma~\ref{lem:pshab-bridge},
+  Cor.~\ref{cor:pshab-bridge}); vacuous at institutional-cutpoint grids per
+  its own scope paragraph & Boundaries/Discussion, not yet in the submitted
+  paper & 0.5 \\
 --- & Simulation design and results & §7 & 3 \\
 --- & Facility-quality application & §8 & 2.5 \\
 --- & Discussion & §9 & 1.5 \\[4pt]

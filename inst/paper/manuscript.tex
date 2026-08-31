@@ -43,7 +43,7 @@
 \item However, in some cases, the high stakes of the application require interpretability.
 \item If the causal estimation is being done in service of health care payment or treatment sentencing, for example, then stakeholders may prefer/demand that estimation is auditable. It may be beneficial/necessary for others to be able to trace the calculation of causal effect step by step. 
 \item Current approaches to causal effect estimation don't allow for all of flexible estimation of nuisance functions, asymptotic guarantees, and interpretability of the entire process.
-\item Linear methods are often used in high-stakes settings because they are perceived to be intepretable, but they are likely to be biased because such models are very difficult to specify correctly. 
+\item Linear models provide one interpretable approach, while trees encode different kinds of structure. Section~\ref{sec:lasso-comparison} compares the assumptions under which penalized linear and tree-based nuisance estimators support valid and efficient inference. 
 \item Tree-based methods may be incorporated into causal	 estimation, but they must be used with sample-splitting (which makes them difficult to audit) and either lack interpretability or asymptotic guarantees.
 \item We propose a novel approach to interpretable treatment effect estimation that offers flexible ML estimation of nuisances, intepretability of all steps, and asymptotic guarantees. We call this approach doubletree, since it relies on two trees, one for the propensity score and one for the outcome function.
 \item Based on optimal decision trees, each tree is easily auditable -- can be constructed to ``fit on an index card."
@@ -87,22 +87,30 @@ quantile.
 
 \subsection{Covariate space, tree partitions, and optimal trees}\label{sec:trees}
 
-The covariate space is a finite product,
+The covariate space $\cX$ need not be finite. Instead, before seeing the data,
+the analyst fixes a finite collection of permissible cutpoints or category
+groupings on each coordinate, such as age brackets, income bands, or clinical
+cutoffs. These cutpoints are never updated using the observed data and generate
+a finite collection of grid atoms $\cA$, fixed in $n$, with
 \[
-  \cX=\prod_{j=1}^d\cX_j,\qquad \card{\cX_j}=J_j,\qquad
-  M=\card{\cX}=\prod_{j\le d}J_j ,
+  M:=\card{\cA}<\infty,
+  \qquad
+  \Prob(X\in a)>0\quad\text{for every }a\in\cA.
 \]
-whose elements we call \emph{cells}, with cell probabilities $p_x=\Prob(X=x)$ and
-$p_{\min}=\min_{x}p_x$. A \emph{tree partition} $\tau$ of $\cX$ is a partition induced by recursive
-axis-aligned binary splits on the coordinates of $\cX$; its blocks are
-\emph{leaves}, $\card\tau$ is its leaf count, and $\ell_\tau(x)$ is the leaf
-containing $x$. Further for leaf $\ell$ define the leaf sample size as $|\ell| = \sum_{i=1}^n \cI\{X_i \in \ell\}$, and the control sample size as $|\ell|_0 = \cI\{X_i \in \ell, A_i = 0\}$. For a strictly positive weight $\nu$ on $\cX$, let $\Pi^\nu_\tau$ denote the $\nu$-weighted projection onto functions constant on the leaves of $\tau$; we write $\Pi_\tau$ for $\Pi^{p}_\tau$, and use the control-weighted version, $\nu_x=p_x\{1-e_0(x)\}$, for the outcome nuisance.
+A \emph{tree partition} $\tau$ of $\cX$ is induced by recursive axis-aligned
+binary splits at these pre-specified cutpoints only. Its blocks are
+\emph{leaves}, each leaf is a union of grid atoms, $\card\tau$ is its leaf
+count, and $\ell_\tau(x)$ is the leaf containing $x$. This restriction on the
+permissible splits is what makes the candidate partition class fixed and
+finite; it is not merely a convention. Further, for leaf $\ell$ define the leaf sample size as $|\ell| = \sum_{i=1}^n \cI\{X_i \in \ell\}$, and the control sample size as $|\ell|_0 = \cI\{X_i \in \ell, A_i = 0\}$. For a strictly positive weight $\nu$ on $\cX$, let $\Pi^\nu_\tau$ denote the $\nu$-weighted projection onto functions constant on the leaves of $\tau$; we write $\Pi_\tau$ for $\Pi^{p}_\tau$, and use the control-weighted version, $\nu_x=p_x\{1-e_0(x)\}$, for the outcome nuisance. Because every leaf is a nonempty union of positive-mass atoms, every candidate leaf automatically has positive probability mass; no separate raw-cell probability floor is required.
 
-We operate under the assumption that a tree is sufficiently interpretable if it obeys a user-specified \emph{leaf budget}, or a maximum number of a leaves the tree partition may have. This budget allows the user to determine how complex the tree may become. If the covariate space is not large ($M$ is moderate), then the leaf budget may be set at $M$. In general, stakeholders may prefer a smaller tree, in which case we set the leaf budget at $\bar L \leq M$. Then, define the space of all possible partitions under that budget as
+We operate under the assumption that a tree is sufficiently interpretable if it obeys a user-specified \emph{leaf budget}, or a maximum number of a leaves the tree partition may have. This budget allows the user to determine how complex the tree may become. The saturated grid budget is $\bar L = M$, one leaf per grid atom. In general, stakeholders may prefer a smaller tree, in which case we set the leaf budget at $\bar L \leq M$. Then, define the space of all possible partitions under that budget as
 \[
-  \cT_{\bar L}=\bigl\{\tau:\tau\text{ a tree partition of }\cX,\
+  \cT_{\bar L}=\bigl\{\tau:\tau\text{ a tree partition of }\cX\text{ built
+  from the pre-specified cutpoints},\
   \card\tau\le\bar L\bigr\}.
 \]
+Since the cutpoints and grid atoms are fixed and finite, $\cT_{\bar L}$ is also fixed and finite.
 
 Finally, we define for any function $\gamma$ a \emph{sufficient class}, or a class of trees that are sufficient to describe the function comprehensively:
  \begin{definition}[Sufficient class]\label{def:sufficient}
@@ -194,7 +202,9 @@ First, note that the doubletree nuisance functions will land in the sufficient c
 \label{lem:selection}
 Suppose the observations are \iid; Assumptions~\ref{ass:causal} and
 \ref{ass:construct} hold; the conditional second moments of $Y$ are uniformly
-bounded; $\cX$ is fixed and finite; $\Lbar$ is fixed;
+bounded; the pre-specified cutpoints and their induced positive-mass grid
+atoms are fixed and finite in $n$, and optimization considers only partitions
+built from those cutpoints; $\Lbar$ is fixed;
 $\Lbar m_n\lesssim n$; and $\tauhat_j$ is an exact global minimizer
 of~\eqref{eq:select}, with $\lambda_n\to0$. If
 $\cS_e\ne\emptyset$ and $\cS_\mu\ne\emptyset$, then, for each
@@ -221,7 +231,8 @@ that $Y$ is bounded. Define
   \right\}.
 \]
 Then $\Delta_j>0$, and for some constant $c_1>0$, depending only on the
-outcome bound and $c$,
+outcome bound, $c$, and the positive leaf masses of the relevant sufficient
+partitions,
 \[
   \Prob\bigl(\tauhat_j\notin\cS_j\bigr)
   \le
@@ -351,7 +362,30 @@ This bound shows that $|\thetahat - \theta_0|$ is controlled, up to constants, b
 
 We therefore need an inferential strategy that is valid regardless of $D_w D_\mu$. The key idea is to rely on a valid, non-interpretable \emph{anchor} estimate, $\thetatilde$: a second estimator that is $\sqrt n$-consistent and asymptotically normal without requiring sparsity. The anchor might be what you would choose outside of high-stakes settings requiring intepretability. In this case, it will help us obtain inference for our interpretable estimate. The anchor need not use optimal trees or cross-fitting, it need only be $\sqrt n$-consistent, but we show in the appendix that a cross-fit estimator using optimal trees can play this role under suitable regularity conditions.
 
-Note that Assumption~\ref{ass:rate} is not vacuous but is automatically satisfied at the saturated budget $\Lbar = M$, since sparsity then holds trivially. With a valid anchor $\thetatilde$ in hand, we can construct an interval centered at the doubletree estimate itself, widened just enough to remain valid regardless of the size of the bias:
+\begin{assumption}[Anchor nuisance rate]\label{ass:rate}
+When the anchor is constructed from $K$ fold-wise nuisance fits, with $K$
+fixed, let $\widetilde e^{(-k)}$ and $\widetilde\mu^{(-k)}$ denote the
+propensity and outcome fits trained without fold $k$. These fits, which need
+not use optimal trees, satisfy
+\[
+  \max_{1\le k\le K}
+  \twonorm{\widetilde e^{(-k)}-e_0}\,
+  \bigl\|\widetilde\mu^{(-k)}-\mu_0\bigr\|_{2,w}
+  =
+  o_p(n^{-1/2}).
+\]
+An anchor constructed by another method may instead be used if it directly
+satisfies the $\sqrt n$-consistency and asymptotic normality conditions stated
+in Theorem~\ref{thm:anchor}.
+\end{assumption}
+
+Assumption~\ref{ass:rate} concerns the anchor rather than the displayed
+doubletree nuisances. It is not made automatic merely by choosing the
+saturated grid budget $\Lbar=M$: when $\cX$ is general, saturation separates
+all grid atoms but cannot force the nuisance functions to be constant within
+those atoms. With a valid anchor $\thetatilde$ in hand, we can construct an
+interval centered at the doubletree estimate itself, widened just enough to
+remain valid regardless of the size of the bias:
 
 \begin{theorem}[Anchor interval]
 \label{thm:anchor}
@@ -434,6 +468,79 @@ margin and $\hat\eta\to_p\eta_*$, the test is consistent whenever
 \end{proposition}
 
 Together, these results mean that a user need never choose, in advance, between reporting an interpretable estimator and reporting a valid one: the same two trees are displayed and used as the point estimate whether or not sparsity holds, and the diagnostic together with the anchor interval's width tell the user how much confidence to place in efficiency versus mere validity.
+
+\subsection{Discussion: is a fixed candidate class basically a parametric model?}
+\label{sec:finite-discussion}
+
+A natural objection to fixing the candidate class $\cT_{\Lbar}$ in advance is that the true splits are not known ahead of time, so restricting the search to a pre-specified grid looks like trading nonparametric flexibility for an essentially parametric hypothesis space. The precise cost is narrower than that, and it is worth separating two different things a fixed, finite candidate class restricts: the analyst's \emph{search}, and the statistical \emph{model} in which $\theta_0$ is defined and efficiency is assessed. Only the former is restricted here.
+
+\begin{theorem}[Regularity and efficiency]
+\label{thm:regular}
+Under the conditions of Theorem~\ref{thm:main} and a mild interiority
+condition on $e_0$ (bounded away from both $0$ and $1-c$ on the interior of
+its support), $\thetahat$ is regular and locally asymptotically efficient
+for $\theta_0$ in the full nonparametric model: no estimator that is regular
+along every parametric submodel through the true law can improve on the
+asymptotic variance $V$.
+\end{theorem}
+
+\begin{proposition}[The submodel bound is not exploited]
+\label{prop:sparse-bound}
+Fix $\tau\in\cS_e$ and let $\cP_\tau$ denote the much smaller submodel in
+which $e_0$ is assumed to be exactly constant on the leaves of $\tau$. The
+semiparametric efficiency bound for $\theta_0$ in $\cP_\tau$ is $V_\tau\le
+V$, strictly smaller than $V$ whenever the treated--control contrast varies
+within a leaf of $\tau$: exact knowledge of the tree structure would
+genuinely lower the achievable variance. By Theorem~\ref{thm:regular}, the
+doubletree estimator does not exploit this -- it remains regular and attains
+$V$, the bound for the full model, not $V_\tau$.
+\end{proposition}
+
+A genuinely parametric restriction on $e_0$ and $\mu_0$ would be cashed in as
+a lower variance; structural sparsity is not. That is the sense in which
+fixing the candidate class is not the objection it first appears to be: it
+buys interpretability, and the estimator declines the resulting information
+rather than exploiting it.
+
+What \emph{does} restrict the data-generating process is structural sparsity
+itself (\S3.1) -- that the true nuisances be \emph{exactly} representable by
+some tree within the budget $\Lbar$ on the analyst's own grid. We do not
+minimize this cost: fixing the grid in advance means the truth must align
+with it exactly, not merely approximately, for Theorem~\ref{thm:main}'s
+guarantees to hold with no further adjustment. This cost can be quantified
+further for continuous covariates split at a fixed set of institutional
+thresholds: companion theoretical work bounds the gap between the best
+interpretable approximation at the analyst's own grid and the best possible
+approximation over an unrestricted tree of the same size by an explicit term
+governed by the grid's mesh width, but that bound is informative only for
+much finer grids than the handful of institutionally motivated cutpoints
+(age brackets, income bands, clinical cutoffs) this paper's examples use --
+at those coarser grids the bound is vacuous relative to a trivial ceiling.
+We report this for completeness rather than as reassurance: refining the
+grid does not, by itself, relax the requirement of structural sparsity.
+
+The reason this is not fatal to the paper's inferential guarantees is
+Theorem~\ref{thm:anchor}: validity does not require structural sparsity to
+hold, and it does not even require the anchor to be built from the same
+interpretable machinery. The anchor need only be some valid, $\sqrt
+n$-consistent estimator (\S3.2); it could be a standard AIPW estimator with
+flexible black-box nuisances entirely unrelated to the displayed trees, and
+the anchor interval's coverage guarantee is unaffected. The question ``what
+if the fixed candidate class is wrong?'' therefore has an answer that does
+not depend on the fixed candidate class at all: report the same two trees,
+and let the anchor -- built however one likes -- absorb the risk. What is
+lost when sparsity fails is efficiency and a point estimate guaranteed to be
+unbiased, not validity, and the loss is explicit and quantified, not hidden,
+in Corollary~\ref{cor:width}'s width.
+
+\subsection{Relation to penalized linear methods}
+\label{sec:lasso-comparison}
+
+Lasso-based nuisance estimation provides a useful comparison. In the orthogonal and debiased-inference literature, nuisance functions are also estimated by penalized empirical risk minimization, typically by minimizing squared loss plus an $\ell_1$ penalty \citep{belloni2014,farrell2015,chernozhukov2018}. Importantly, validity is not made conditional on exact support recovery or model-selection consistency. This separation avoids the nonuniformity associated with inference after selecting a model \citep{leeb2005}. Doubletree uses the same two-tier resolution for a tree class: it provides an efficient point estimate when structural sparsity holds, while the anchor interval remains valid when it may not.
+
+The assumptions that purchase fast nuisance rates differ. Lasso analyses typically impose a restricted-eigenvalue or compatibility condition on the design. For doubletree, the fast selection rate in Proposition~\ref{prop:selection-rate} comes from the positive population-risk margin created by exact structural sparsity: every candidate outside the sufficient class has strictly positive excess risk, and the finite candidate class then yields a fixed gap. Finiteness alone is not enough; without the margin, a union bound over the finite class gives an excess-risk rate that is too slow for efficient inference. Doubletree's route to a fast rate therefore requires exact, rather than approximate, structural sparsity and is not a free alternative to the compatibility conditions used for Lasso.
+
+The corresponding representational trade is also two-sided. Trees represent hierarchical or region-varying structure economically because the covariates that matter may differ across regions of the covariate space, but genuinely additive structure can require a leaf for every configuration of the active covariates. A fixed-basis linear or Lasso model has the mirror-image trade: additive structure is economical, whereas region-varying effects and interactions must be included explicitly. The relevant assumptions therefore depend on the structure of the true nuisance functions; neither representation is uniformly preferable.
 
 \appendix
 
