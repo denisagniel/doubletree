@@ -1,0 +1,1032 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage[round,authoryear]{natbib}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{proposition}{Proposition}
+\theoremstyle{definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\PP}{\mathbb{P}}
+\newcommand{\Pn}{\mathbb{P}_n}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\cX}{\mathcal{X}}
+\newcommand{\cT}{\mathcal{T}}
+\newcommand{\cS}{\mathcal{S}}
+\newcommand{\cP}{\mathcal{P}}
+\newcommand{\ez}{e_0}
+\newcommand{\mz}{\mu_0}
+\newcommand{\wz}{w_0}
+\newcommand{\ehat}{\widehat{e}}
+\newcommand{\mhat}{\widehat{\mu}}
+\newcommand{\what}{\widehat{w}}
+\newcommand{\that}{\widehat{\tau}}
+\newcommand{\thetahat}{\widehat{\theta}}
+\newcommand{\pihat}{\widehat{\pi}}
+\newcommand{\Vhat}{\widehat{V}}
+\newcommand{\Dw}{D_w}
+\newcommand{\Dm}{D_\mu}
+\newcommand{\Ltwo}[1]{\lVert #1 \rVert_{2}}
+\newcommand{\Lw}[1]{\lVert #1 \rVert_{2,w}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\Var}{Var}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\card}{\lvert}{\rvert}
+
+\title{Interpretable Causal Inference with Optimal Decision Trees\\
+\large Notation, assumptions, and main results}
+\author{}
+\date{2026-08-06 --- revision 2, after adversarial check}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Notation, assumptions and main-result statements for the paper, without proofs, so
+the symbol system and assumption set can be checked before drafting.
+\textbf{Revision~2} repairs four blocking defects found in revision~1; these and
+all lesser corrections are listed in Section~\ref{sec:changes}. The largest
+structural change: Part~III is now stated on the \emph{realised} errors of the
+fitted nuisances rather than on approximation errors, which makes the bias
+constant exactly $1/\pi$, removes a hidden per-nuisance rate requirement, and
+makes the allowance estimable rather than assumed.
+\end{abstract}
+
+\tableofcontents
+
+\section{Notation}\label{sec:notation}
+
+\subsection{Data, target, score}
+
+\begin{center}\begin{tabular}{@{}ll@{\hspace{1.5em}}l@{}}
+\toprule
+Symbol & Meaning & Notes \\ \midrule
+$O=(X,A,Y)$ & one observation & $O_1,\dots,O_n$ i.i.d.\ $\sim P$ \\
+$X\in\cX$, $d$ & covariates, dimension & $d$, \textbf{not} $p$ \\
+$A\in\{0,1\}$, $Y\in\R$ & treatment, outcome & $Y(a)$ potential outcome \\
+$\Pn$ & empirical measure & $\Pn f=n^{-1}\sum_if(O_i)$ \\
+$\pi=\PP(A=1)$ & treated share & $\pihat=\Pn A$ \\
+$m_1(x)$ & $\E[Y\mid A=1,X=x]$ & appears only in $V$ \\
+$\sigma^2_a(x)$ & $\Var(Y\mid A=a,X=x)$ & \\
+$\theta_0$ & ATT $=\E[Y(1)-Y(0)\mid A=1]$ & target \\
+$\psi$, $V$, $\Vhat$ & EIF, its variance, plug-in & \eqref{eq:score},
+   \eqref{eq:vdecomp}, \eqref{eq:vhat} \\
+$z_{1-\alpha/2}$ & normal quantile & \\
+\bottomrule
+\end{tabular}\end{center}
+
+\subsection{Covariate space}
+
+\begin{center}\begin{tabular}{@{}ll@{\hspace{1.5em}}l@{}}
+\toprule
+Symbol & Meaning & Notes \\ \midrule
+$\cX=\prod_{j\le d}\cX_j$ & finite product space & \\
+$J$ & levels per coordinate & \textbf{not} $K$ \\
+$M=\card\cX\le J^d$ & number of cells & \emph{fixed} \\
+$p_x=\PP(X=x)$ & cell probability & $p_{\min}=\min\{p_x>0\}$ \\
+$s$ & \emph{local} sparsity & active coordinates per region \\
+$\bar\alpha$ & harmonic-mean smoothness & continuous tier only \\
+$K$, $n_k$ & folds, fold size & Part~I only \\
+\bottomrule
+\end{tabular}\end{center}
+
+Since $s$ is local, the active set may differ across regions and $\gamma_0$ may
+depend on all $d$ coordinates globally while $s$ stays small
+(Remark~\ref{rem:additive}).
+
+\subsection{Nuisances and norms}
+
+$\ez(x)=\PP(A=1\mid X=x)$; $\mz(x)=\E[Y\mid A=0,X=x]$ (controls only);
+$\gamma_{0,j}$ for $j\in\{e,\mu\}$; $\eta=(\ehat,\mhat)$;
+$\wz=\ez/(1-\ez)$ the ATT weight; $c$ the positivity constant
+(A\ref{ass:causal}); $\rho(\cdot,\cdot)$ the loss (\textbf{not} $L$);
+$\Ltwo{f}^2=\E f(X)^2$ and $\Lw{f}^2=\E[\{1-\ez(X)\}f(X)^2]$.
+
+\begin{remark}[Norm equivalence: the constant, stated correctly]\label{rem:normconst}
+Since $c\le1-\ez\le1$,
+\[
+  c\,\Ltwo f^2\le\Lw f^2\le\Ltwo f^2,\qquad
+  \sqrt c\,\Ltwo f\le\Lw f\le\Ltwo f .
+\]
+The constant is $1/c$ for \emph{squared} norms and $c^{-1/2}$ for \emph{norms}.
+Revision~1 wrote $1/c$ for norms, and that slip was the proximate cause of a wrong
+constant in the honest interval; both are fixed here.
+\end{remark}
+
+\subsection{Trees, partitions, selection}
+
+$\tau$ a recursive binary axis-aligned tree partition, $\ell$ a leaf,
+$\card\tau$ its leaf count; $\bar L$ the (fixed) leaf budget;
+$\cT_{\bar L}=\{\tau:\card\tau\le\bar L\}$, a fixed finite set;
+$\cS_j$ the sufficient class (Def.~\ref{def:sufficient}); $\that_j$ the selected
+partition; $m_n$ the minimum leaf count (\textbf{not} fold size); $\lambda_n$ the
+leaf penalty; $R^{(j)},R^{(j)}_n$ population and empirical risk; $\Delta_j$ the
+margin (Lemma~\ref{lem:margin}); $\Delta_{\min}$ its uniformity floor
+(A\ref{ass:margin-floor}). Selection is
+\begin{equation}\label{eq:select}
+  \that_j\in\argmin_{\tau\in\cT_{\bar L}}
+  \bigl\{R^{(j)}_n(\tau)+\lambda_n\card\tau\bigr\},
+\end{equation}
+a \emph{global} minimum; leaf values are within-leaf means (treated fraction for
+$\ehat$, control mean for $\mhat$).
+
+\subsection{Approximation versus realised error}
+
+$\Dw=\Lw{\what-\wz}$ and $\Dm=\Lw{\mhat-\mz}$ are the \emph{realised} errors
+(Def.~\ref{def:realised}), with debiased estimators $\widehat D_j$ and one-sided
+upper bounds $U_w,U_\mu$ (Prop.~\ref{prop:estimable}). $\delta_j$ is the
+\emph{approximation} error (Def.~\ref{def:delta}), with decay exponent $q_j$.
+$\delta_{\mathrm{fid}}=\thetahat-\thetahat_{\mathrm{cf}}$ is the fidelity
+diagnostic (Lemma~\ref{lem:spectest}).
+
+\begin{remark}[Three different objects]\label{rem:D-vs-delta}
+$D_j$ is a property of the \emph{fitted} nuisance on the sample in hand;
+$\delta_j$ an approximation-theoretic minimum over $\cT_{\bar L}$; they satisfy
+$D_j=\delta_j+O_p(\sqrt{\bar L/n})$. \textbf{Revision~1 conflated them}, which
+made the honest interval false (Remark~\ref{rem:whyD}). $\delta_{\mathrm{fid}}$ is
+a difference of \emph{estimators} and bounds neither.
+\end{remark}
+
+\subsection{Symbol collisions resolved}\label{sec:collisions}
+
+\begin{center}\begin{tabular}{@{}lp{5.8cm}l@{}}
+\toprule
+Symbol & Competing meanings & Resolution \\ \midrule
+$s$ & sparsity; smoothness; leaf count &
+  $s$; $\bar\alpha$; $L$ \\
+$K$ & folds; levels per coordinate & $K$; $J$ \\
+$p$ & dimension; cell probability; weak-$\ell_p$ & $d$; $p_x$; weak-$\ell_r$ \\
+$m$ & minimum leaf count; fold size & $m_n$; $n_k$; penalty $\lambda_n$ \\
+$L$ & leaf count; loss function & $L$; $\rho$ \\
+$\delta$ & approximation error; realised error; fidelity diagnostic &
+  $\delta_j$; $D_j$; $\delta_{\mathrm{fid}}$ \\
+\bottomrule
+\end{tabular}\end{center}
+
+\section{The estimator}
+
+The efficient influence function for the ATT \citep{hahn1998} is
+\begin{equation}\label{eq:score}
+  \psi(O;\theta,\eta)=\frac1\pi\Bigl[A\{Y-\mu(X)-\theta\}
+   -(1-A)\,w(X)\{Y-\mu(X)\}\Bigr],\qquad w=\frac e{1-e}.
+\end{equation}
+Solving $\Pn\psi(\cdot;\theta,\widehat\eta)=0$,
+\begin{equation}\label{eq:att-estimator}
+  \thetahat=\frac1{n\pihat}\sum_{i=1}^n\Bigl[A_i\{Y_i-\mhat(X_i)\}
+   -(1-A_i)\,\what(X_i)\{Y_i-\mhat(X_i)\}\Bigr].
+\end{equation}
+
+\begin{remark}[Sign, and why $\pihat$ costs nothing]\label{rem:sign}
+The control-arm term carries a \textbf{minus}; an earlier draft displayed a plus
+while defining the score as \eqref{eq:score}, so the displayed estimator was not
+the one the score defines. Also, $\pihat$ is not substituted --- it \emph{emerges}
+as $n^{-1}\sum A_i$ from the coefficient of $\theta$. With $g:=\pi\psi$,
+$\thetahat-\theta_0=\Pn g(\cdot;\theta_0,\widehat\eta)/\pihat$ exactly, so
+\[
+ \thetahat-\theta_0=\Pn\psi(\cdot;\theta_0,\widehat\eta)
+  -\frac{\pihat-\pi}{\pi}\Pn\psi(\cdot;\theta_0,\widehat\eta)+O_p(n^{-3/2}),
+\]
+whose second term is $O_p(n^{-1})$. No \emph{further} correction for $\pihat$ is
+needed: the $-\theta_0A/\pi$ term inside \eqref{eq:score} already is the
+normalisation adjustment. (Revision~1's display omitted a factor $1/\pi$ and a
+sign; the order was right.)
+\end{remark}
+
+The second-order remainder is exactly bilinear:
+\begin{equation}\label{eq:bilinear}
+  \E[\psi(O;\theta_0,\eta)]
+  =\frac1\pi\E\Bigl[\{1-\ez(X)\}\{\wz(X)-w(X)\}\{\mz(X)-\mu(X)\}\Bigr].
+\end{equation}
+This is the textbook doubly-robust computation
+\citep{robins1995,vanderlaan2003,kennedy2024} and should be cited, not claimed.
+
+\begin{lemma}[Exact bias bound, constant $1/\pi$]\label{lem:biasbound}
+$\bigl\lvert\E[\psi(O;\theta_0,\widehat\eta)]\bigr\rvert\le\pi^{-1}\Dw\Dm$.
+\end{lemma}
+
+\noindent Cauchy--Schwarz with respect to $(1-\ez)\,dP$ splits the weight as
+$\sqrt{1-\ez}$ onto \emph{both} factors; no power of $c$ appears. Converting to
+the conventional unweighted propensity error costs $c^{-3/2}$:
+\begin{equation}\label{eq:convert}
+  \bigl\lvert\E[\psi(O;\theta_0,\widehat\eta)]\bigr\rvert
+  \le\frac1{\pi c^{3/2}}\Ltwo{\ehat-\ez}\,\Lw{\mhat-\mz},
+\end{equation}
+using $(1-\ez)\abs{\wz-w}=\abs{\ez-e}/(1-e)\le c^{-1}\abs{\ez-e}$ and then
+Remark~\ref{rem:normconst}. Form \eqref{eq:convert} is what Part~I's rate
+condition uses; Lemma~\ref{lem:biasbound} is what Part~III uses.
+
+\section{Assumptions}
+
+\begin{assumption}[Identification and one-sided positivity]\label{ass:causal}
+Consistency; $\{Y(0),Y(1)\}\perp A\mid X$; $\pi>0$; and there is $c\in(0,1)$ with
+$1-\ez(x)\ge c$ for every $x\in\cX$.
+\end{assumption}
+
+\begin{remark}[Positivity is one-sided]\label{rem:positivity}
+\textbf{Weakened from earlier drafts}, which assumed $\ez\in[c,1-c]$. Keep two
+statements apart. \emph{Identification} needs only $\ez(x)<1$ pointwise on
+$\{\ez>0\}$, with no uniform constant: $\E[Y(1)\mid A=1]$ comes from treated units
+with no positivity, and cells with $\ez(x)=0$ carry weight $0$ in
+$\theta_0=\pi^{-1}\E[\ez(m_1-\mz)]$. \emph{Inference} needs the uniform
+$1-\ez\ge c$ and nothing more: $\wz$ is bounded iff $1-\ez\ge c$;
+\eqref{eq:bilinear} involves only $1-\ez,1-\ehat$; $V$ is finite whenever
+$\E[\ez^2\sigma_0^2/(1-\ez)]<\infty$, for which $1-\ez\ge c$ plus
+A\ref{ass:moments} suffices; and the margin needs control mass
+$p_x\{1-\ez(x)\}\ge p_xc$. No lower bound on $\ez$ is used anywhere, and
+$\ez(x)=0$ exactly is harmless ($\wz=0$, $\ehat_\ell=0$ with zero variance, $\mz$
+well defined).
+
+Two refinements. The margin \emph{splits}: $\Delta_e$ needs \emph{no} positivity
+(its excess risk is $\Ltwo{\Pi_\tau\ez-\ez}^2>0$ once a leaf mixes two positive-
+probability cells with different $\ez$), while $\Delta_\mu$ needs $c$ because the
+$\mu$-risk is control-weighted. And the cross-entropy loss--norm link, the one
+place two-sidedness previously entered, has a constant diverging in the
+\emph{fitted} values, which are under our control --- clipping candidates
+two-sidedly removes any need to \emph{assume} $\ez\ge c$. Under squared-error
+fitting the issue does not arise (A\ref{ass:lossnorm}).
+\end{remark}
+
+\begin{assumption}[Second moments and non-degeneracy]\label{ass:moments}
+$\E[Y^2\mid A=a,X=x]\le C_Y<\infty$ for all $a,x$; and $V>0$.
+\end{assumption}
+
+\noindent Revision~1 conditioned on $X$ only, while the quantity used is
+conditional on $(A,X)$ (the bridge $\E[Y^2\mid A=0,X]\le C_Y/c$ is available, but
+stating it directly is cleaner); and $V>0$ was nowhere assumed although the Wald
+interval divides by $\sqrt{\Vhat}$.
+
+\begin{assumption}[Loss--norm link]\label{ass:lossnorm}
+Nuisances are fitted by squared error, for which the excess risk \emph{equals}
+$\Ltwo{f-\gamma_0}^2$, so $C_{\mathrm{ln}}=1$.
+\end{assumption}
+
+\noindent For binary $A$, $\E[(A-f)^2\mid X]=\ez(1-\ez)+(\ez-f)^2$, so the excess
+risk is $\Ltwo{f-\ez}^2$ exactly, for any $\ez\in[0,1]$, with no positivity.
+Earlier drafts said $C_{\mathrm{ln}}=\tfrac12$. Two scope notes: the within-leaf
+treated fraction minimises \emph{both} squared error and log-loss over constants,
+so the \textbf{leaf refit is loss-invariant} and the loss affects only the
+structure search \eqref{eq:select}; and under A\ref{ass:sparsity} the best tree
+has excess risk exactly zero, so \emph{no} norm-to-risk conversion is needed in
+Part~II at all --- it is live only in Part~III and Part~I's oracle inequality.
+
+\begin{assumption}[Global optimisation]\label{ass:global}
+$\that_j$ solves \eqref{eq:select} globally over $\cT_{\bar L}$, $\lambda_n\to0$.
+\end{assumption}
+
+\begin{assumption}[Clipping at the positivity constant]\label{ass:clip}
+Fitted propensities are clipped so $1-\ehat(x)\ge c$, with $c$ \textbf{the same
+constant as A\ref{ass:causal}}.
+\end{assumption}
+
+\begin{remark}[Why clip, why only above, why the level matters]\label{rem:clip}
+A leaf of only treated units gives $\ehat=1$ and a weight dividing by zero;
+probability at most $(1-c)^m$ for a leaf of size $m$ --- small but not zero, and
+it will occur across many replications. Clipping only from \emph{above} is
+strictly better than two-sided: since A\ref{ass:causal} puts $\ez\in[0,1-c]$,
+clipping is the Euclidean projection onto that interval, hence non-expansive,
+$\abs{\mathrm{clip}(\ehat)-\ez}\le\abs{\ehat-\ez}$, so every $L_2$ rate can only
+improve; a two-sided clip loses this wherever $\ez<c$.
+
+\textbf{The clip level must equal $c$.} If the software clips at $c'>c$ then on
+cells with $\ez>1-c'$ we get $\what\to w'\ne\wz$: $\thetahat$ stays consistent by
+double robustness, but the influence function changes, so $V$,
+Corollary~\ref{cor:variance} and every coverage claim break.
+
+Clipping does \emph{not} disturb Lemma~\ref{lem:cross}: that lemma rests on
+$\sum_{i\in\ell,A_i=0}(Y_i-\mhat_\ell)=0$, a property of the \emph{outcome} leaf
+means, which clipping never touches, and clipping is a deterministic map of
+$\ehat$ so the coefficients stay $\sigma(X_{1:n},A_{1:n})$-measurable. In
+particular $m_n\to\infty$ is \textbf{not} required for this purpose --- a claim
+revision~1's check initially made and which is withdrawn.
+\end{remark}
+
+\begin{assumption}[Minimum leaf mass, counted in the right arm]\label{ass:mass}
+Every leaf of $\that_e$ holds $\ge m_n$ observations; every leaf of $\that_\mu$
+holds $\ge m_n$ \textbf{control} observations; $\bar L\,m_n\lesssim n$. On the
+null event that a leaf of $\that_\mu$ has no controls, $\mhat$ takes the parent
+leaf's control mean.
+\end{assumption}
+
+\begin{remark}[Why controls, and why balance]\label{rem:mass}
+\textbf{Corrected from revision~1}, which counted observations: $\mhat_\ell$ is
+the \emph{control} mean, so an all-treated leaf makes it $0/0$, and clipping
+$\ehat$ does nothing for it. For balance, a control leaf mean has variance
+$\sigma^2_\ell/\{np_\ell(1-\bar e_\ell)\}$, so
+\[
+ \E\Lw{\mhat-\mz}^2\asymp\frac1n\sum_\ell
+   \frac{p_\ell(1-\bar e_\ell)\sigma^2_\ell}{p_\ell(1-\bar e_\ell)}
+  =\frac1n\sum_\ell\sigma^2_\ell\lesssim\frac{\bar L}n,
+\]
+the control factor \textbf{cancelling exactly in the weighted norm} --- an
+independent reason Definition~\ref{def:realised} uses $\Lw\cdot$; the unweighted
+version carries a $1/c$. Balanced leaves, $\min_\ell p_\ell\gtrsim1/\bar L$, are
+what make this $\bar L/n$; on a finite space with $p_{\min}>0$ this follows from
+A\ref{ass:causal} automatically.
+\end{remark}
+
+\begin{assumption}[Leaf budget: fixed]\label{ass:budget}
+$\bar L$ is a fixed constant, $\card{\that_j}\le\bar L$, and $\cT_{\bar L}$ is a
+fixed finite set.
+\end{assumption}
+
+\begin{remark}[Why fixed, and what it buys]\label{rem:fixed-tier}
+\textbf{Changed from revision~1}, which permitted a growing $L_n=o(\sqrt n)$
+alongside a fixed finite $\cX$ --- inconsistent, since $M$ fixed forces
+$\bar L\le M=O(1)$. With $\bar L,M,d,J$ fixed:
+$\log\card{\cT_{\bar L}}\asymp\bar L\log(dJ)=O(1)$, so the union bound costs a
+\emph{constant}; no exponential tail bound is used anywhere; A\ref{ass:moments}
+suffices with no sub-Gaussian condition; and $\bar L\log n=o(\sqrt n)$ is vacuous.
+\textbf{Part~II must therefore not be motivated as escaping an
+$\exp(C\bar L\log n)$ entropy cost} --- our own finite-space assumption forbids
+that cost from existing.
+
+The self-influence reading survives: one observation's influence on its own leaf
+mean is $O(1/n_{\mathrm{leaf}})=O(\bar L/n)$, which is $o(n^{-1/2})$ whenever
+$\bar L=o(\sqrt n)$ --- automatic here. This is \citet{chen2022}'s leave-one-out
+stability condition specialised to leaf means; ours is the verification, not the
+idea. The growing regime is scoped out (Section~\ref{sec:open}).
+\end{remark}
+
+\begin{definition}[Sufficient class, defined intrinsically]\label{def:sufficient}
+$\cS_j=\{\tau\in\cT_{\bar L}:\Pi_\tau\gamma_{0,j}=\gamma_{0,j}\ P\text{-a.s.}\}$,
+where $\Pi_\tau$ projects onto functions constant on $\tau$ (for $j=\mu$, in
+$\Lw\cdot$).
+\end{definition}
+
+\begin{remark}[The counterexample that forces the intrinsic definition]
+\label{rem:pinwheel}
+\textbf{This replaces revision~1's ``$\tau$ refines $\tau^*_j$'', a blocking
+error.} Revision~1 took $\tau^*_j$ minimal with $\gamma_{0,j}$ constant on it and
+asserted $\bar L\ge\card{\tau^*_j}$ is ``equivalently $\delta_j=0$''. False: a
+minimal \emph{box} partition need not be a \emph{tree} partition.
+
+Let $d=2$, $\cX=\{0,1,2\}^2$, all nine cells of positive probability, and let
+$\gamma_0$ be constant on and distinct across
+\[
+ A=\{x_1{=}0,x_2\in\{0,1\}\},\ B=\{x_1\in\{0,1\},x_2{=}2\},\
+ C=\{x_1{=}2,x_2\in\{1,2\}\},
+\]
+\[
+ D=\{x_1\in\{1,2\},x_2{=}0\},\ E=\{(1,1)\}.
+\]
+These five boxes partition $\cX$, so $\card{\tau^*}=5$; but no first split is
+clean ($x_1$ cut $\{0\}\mid\{1,2\}$ splits $B$, $\{0,1\}\mid\{2\}$ splits $D$,
+symmetrically on $x_2$), and the minimal \emph{tree} refinement needs six leaves.
+So at $\bar L=5=\card{\tau^*}$: $\delta_j>0$ strictly, $\cS_j=\emptyset$,
+Lemma~\ref{lem:selection}'s conclusion false (that probability is $0$), and
+Theorem~\ref{thm:main} with no valid route. Definition~\ref{def:sufficient}
+sidesteps box-versus-tree and the support qualifier at once.
+\end{remark}
+
+\begin{assumption}[Structural sparsity]\label{ass:sparsity}
+$\cS_e\ne\emptyset$ and $\cS_\mu\ne\emptyset$; equivalently
+$\delta_e=\delta_\mu=0$.
+\end{assumption}
+
+\begin{remark}[Sparsity, not correct specification]\label{rem:not-exact}
+On a finite space \emph{every} function is piecewise constant --- the singleton
+partition always works and \emph{is} tree-realisable, via $M-1$ splits. So
+A\ref{ass:sparsity} asserts nothing about functional form; its entire content is
+that a \emph{small} tree suffices, i.e.\ that the nuisances are structurally
+sparse and hence displayable. It must not be called exactness or correct
+specification, and it is not vulnerable to ``you assumed the truth is a step
+function''.
+\end{remark}
+
+\begin{remark}[Why trees rather than a sparse additive model]\label{rem:additive}
+The minimal tree size is at most $J^s$ for $s$ active coordinates (equal to $2^s$
+only when $J=2$; revision~1 wrote $2^s$ unconditionally), often far less:
+\emph{hierarchical} dependence, where the active set differs by region, costs as
+few as $s+1$ leaves. A\ref{ass:sparsity} is expensive precisely for
+\emph{additive} structure ($x_1+x_2+x_3$ needs a leaf per configuration, trees'
+worst case) and cheap precisely for region-varying active sets. That asymmetry,
+not flexibility, is the reason to use trees. A concrete example must accompany
+this remark.
+\end{remark}
+
+\begin{assumption}[Margin floor, for uniform statements only]\label{ass:margin-floor}
+$\min_j\Delta_j\ge\Delta_{\min}>0$.
+\end{assumption}
+
+\begin{remark}[Pointwise versus uniform coverage]\label{rem:uniformity}
+Lemma~\ref{lem:selection} gives
+$\PP(\that_j\notin\cS_j)\le\card{\cT_{\bar L}}e^{-c_1n\Delta_j^2}$, which is
+$o(1)$ for fixed $P$ but \textbf{not uniformly} over
+$\{P:\delta_e=\delta_\mu=0\}$, since $\Delta_j$ can be arbitrarily small there
+(two cells with nearly equal nuisance values). This is the Leeb--P\"otscher
+non-uniformity of post-selection intervals. Without A\ref{ass:margin-floor} all
+coverage claims below are \emph{pointwise in $P$}; with it they hold uniformly
+over $\cP(\Delta_{\min})=\{P:\delta_e=\delta_\mu=0,\min_j\Delta_j\ge\Delta_{\min}\}$,
+at the cost of one assumption and no new proof. Part~III does not repair this: it
+widens by a term that is exactly zero in this class.
+\end{remark}
+
+\section{Part I: cross-fitted inference with optimal-tree nuisances}
+
+\begin{assumption}[Rate condition, product form]\label{ass:rate}
+$\Ltwo{\ehat-\ez}\cdot\Lw{\mhat-\mz}=o_p(n^{-1/2})$; in the continuous tier,
+$\bar\alpha_e/(2\bar\alpha_e+s_e)+\bar\alpha_\mu/(2\bar\alpha_\mu+s_\mu)>1/2$.
+\end{assumption}
+
+\begin{remark}[Product form, and why the mixed pairing is right]\label{rem:product}
+The per-nuisance $o_p(n^{-1/4})$ requirement forces $\bar\alpha_j>s_j/2$; since
+$s$ is an integer supremum of active-set cardinalities with no fractional
+relaxation, and $\bar\alpha\le1$ for piecewise-constant trees, it forces
+$\boldsymbol{s=1}$ --- locally univariate, excluding every smooth two-way
+interaction. The product form needs only that the two ratios sum past $1/2$.
+
+The pairing is \emph{unweighted} for $e$, \emph{weighted} for $\mu$, exactly as
+\eqref{eq:convert} delivers. The reason is \emph{not} that the weight ``sits on
+the $\mu$ factor'' --- symmetric Cauchy--Schwarz weights both
+(Lemma~\ref{lem:biasbound}). It is that one full factor of $(1-\ez)$ is absorbed
+by $(1-\ez)\abs{\wz-w}=\abs{\ez-e}/(1-e)$, leaving $\mu$ to be converted by
+$c^{-1/2}$.
+\end{remark}
+
+\begin{theorem}[Cross-fitted ATT with optimal-tree nuisances]\label{thm:crossfit}
+Under A\ref{ass:causal}--A\ref{ass:lossnorm}, A\ref{ass:rate}, and $K$-fold
+cross-fitting with $K$ fixed,
+$\sqrt n(\thetahat_{\mathrm{cf}}-\theta_0)\rightsquigarrow N(0,V)$.
+\end{theorem}
+
+\noindent \emph{Rung two of the ladder.} No leaf budget, no sparsity assumption,
+and $K$ trees per nuisance rather than one --- individually readable and auditable
+fold by fold, already a gain over a black-box nuisance, but not a single displayed
+model. This is also the honest answer to ``how would you relax
+A\ref{ass:sparsity}''.
+
+\section{Part II: two trees, full sample, no splitting}
+
+Structure \emph{and} leaf values from all $n$: no folds, no splitting, no
+cross-fitting, no intersection, no averaging over fits.
+
+\begin{lemma}[Sufficiency and invariance of the estimand]\label{lem:invariance}
+Under A\ref{ass:sparsity}, for every $(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$ the
+population plug-in estimand equals $\theta_0$.
+\end{lemma}
+
+\noindent For $j=\mu$ the leaf value is the $p_x\{1-\ez(x)\}$-weighted average of
+$\mz$ over the leaf, so this needs positive control mass per leaf --- supplied by
+A\ref{ass:causal}. That is where one-sided positivity does work inside Part~II.
+
+\begin{lemma}[The margin is free under global optimisation]\label{lem:margin}
+Under A\ref{ass:causal}--A\ref{ass:sparsity},
+$\Delta_j:=\min_{\tau\in\cT_{\bar L}\setminus\cS_j}
+\{R^{(j)}(\tau)-\min_{\tau'}R^{(j)}(\tau')\}>0$.
+\end{lemma}
+
+\begin{remark}[Global optimisation supplies the margin; greedy does not]
+\label{rem:greedy}
+$\cT_{\bar L}$ is finite and any $\tau\notin\cS_j$ has a leaf containing two
+positive-probability cells with distinct $\gamma_{0,j}$, so its excess risk is
+strictly positive; a minimum of finitely many positives is positive. Under greedy
+recursive splitting no margin exists: if $\ez$ depends on $X$ only through
+$\mathbf1\{x_1=x_2\}$ the marginal risk reduction of \emph{either} correct first
+split is exactly zero, so $\Delta=0$. The result therefore genuinely requires an
+exact solver --- one place where optimal rather than CART-style trees do
+mathematical rather than rhetorical work.
+\end{remark}
+
+\begin{lemma}[Selection lands in the sufficient class]\label{lem:selection}
+Under A\ref{ass:causal}--A\ref{ass:global} and A\ref{ass:sparsity},
+$\PP(\that_j\in\cS_j)\to1$; if $Y$ is bounded,
+$\PP(\that_j\notin\cS_j)\le\card{\cT_{\bar L}}e^{-c_1n\Delta_j^2}$.
+\end{lemma}
+
+\noindent Only the \emph{exponential rate} needs a tail condition;
+$\PP(\that_j\in\cS_j)\to1$ holds under A\ref{ass:moments} alone, since for fixed
+$\tau$ the empirical risk converges by the law of large numbers and uniformity
+over a fixed finite candidate set is free.
+
+\subsection{The correct decomposition}
+
+With $\varepsilon_i=Y_i-\mz(X_i)$, $\Delta\mu=\mhat-\mz$, $\Delta w=\what-\wz$,
+and $\phi(O;\eta)=A\{Y-\mu(X)-\theta_0\}-(1-A)w(X)\{Y-\mu(X)\}$, we have
+\emph{exactly}, with no expansion,
+\begin{equation}\label{eq:skeleton}
+  \pihat\,(\thetahat-\theta_0)=\Pn\phi(\eta_0)+U-T,
+\end{equation}
+\[
+ U:=\Pn[h(O)\Delta\mu(X)],\quad h(O):=\wz(X)(1-A)-A,\qquad
+ T:=\Pn[(1-A)\Delta w(X)\{Y-\mhat(X)\}],
+\]
+with $\E[h\mid X]=\wz(1-\ez)-\ez=0$ pointwise.
+
+\begin{remark}[There is no separate remainder term that ``vanishes'']
+\label{rem:no-vanish}
+\textbf{Corrected from revision~1}, which said the bilinear remainder vanishes
+under A\ref{ass:sparsity}. A\ref{ass:sparsity} sets the \emph{approximation} error
+to zero; the second-order product is absorbed inside $T$, and what remains is
+driven by \emph{estimation} error of the leaf values. Concretely
+$\abs U=O_p(\bar L/n)$ --- negligible because A\ref{ass:budget} makes $\bar L$
+fixed (and in a growing regime because $\bar L=o(\sqrt n)$) --- and
+$\abs T=O_p(\sqrt{L_e}/n)$ by Lemma~\ref{lem:cross}. So A\ref{ass:sparsity} kills
+the \emph{bias} component while A\ref{ass:mass}--A\ref{ass:budget} kill the
+\emph{estimation} component. Note $U$, not $T$, is the binding constraint.
+\end{remark}
+
+\begin{lemma}[Cross term via leaf-wise conditional variance]\label{lem:cross}
+Under A\ref{ass:causal}--A\ref{ass:sparsity}, with $\that_e\ne\that_\mu$ carried
+separately, $\abs T=O_p(\sqrt{L_e}/n)=o_p(n^{-1/2})$.
+\end{lemma}
+
+\noindent \emph{Mechanism.} Since $\sum_{i\in\ell,A_i=0}(Y_i-\mhat_\ell)=0$,
+subtracting any leaf-constant from the coefficient is free; take
+$a_i:=\Delta w(X_i)-\overline{\Delta w}_{\ell(i)}$. On
+$\{\that_\mu\in\cS_\mu\}$, $\mz$ is leaf-constant, so
+$Y_i-\mhat_\ell=\varepsilon_i-(\mhat_\ell-\mu_{0,\ell})$ and the second piece is
+annihilated, giving \emph{exactly} $T=n^{-1}\sum_{i:A_i=0}a_i\varepsilon_i$. For
+fixed $\tau_\mu$ the $a_i$ are $\sigma(X_{1:n},A_{1:n})$-measurable, so
+$\E[T\mid X,A]=0$ and Chebyshev applies; centring is a projection, so
+$\sum a_i^2\le c^{-4}\sum_{\ell'}n_{0,\ell'}(\ehat_{\ell'}-\ez)^2=O_p(L_e)$ with
+\emph{no} leaf-mass assumption.
+
+\begin{remark}[No $\log n$; and Cauchy--Schwarz is fatal, not lossy]\label{rem:cs}
+\textbf{Corrected from revision~1}, whose $O_p(\sqrt{\bar L}\log n/n)$ carried a
+$\log n$ contradicting Remark~\ref{rem:fixed-tier}'s own $O(1)$ entropy. The
+$\log n$ arises only from a Bernstein-plus-union argument needed when
+$\cT_{\bar L}$ grows; with $M,d,J,\bar L$ fixed the maximum of finitely many
+$O_p(\sqrt{L_e}/n)$ variables is $O_p(\sqrt{L_e}/n)$.
+
+Cauchy--Schwarz instead gives a second factor converging to the control-arm
+residual standard deviation $\E[(1-\ez)\Var(Y\mid A=0,X)]^{1/2}=O_p(1)$, bounded
+\emph{away from zero} --- irreducible outcome noise, not $\delta_\mu$. The bound
+is then $O_p(\sqrt{L_e/n})\ge O_p(n^{-1/2})$ for every $L_e\ge1$, so no leaf
+budget rescues it: the failure is at the CLT scale. The structural reason is that
+$T$ is \emph{not} of product form --- it pairs the propensity error with outcome
+\emph{noise}, so the argument must exploit conditional mean-zero-ness and never
+smallness. Cross terms therefore do not vanish under A\ref{ass:sparsity} either;
+exactness only makes the $(Y-\mhat)\to\varepsilon$ substitution exact, which is
+A\ref{ass:sparsity}'s only role in this lemma.
+\end{remark}
+
+\begin{lemma}[Uniform asymptotic linearity on the sufficient class]
+\label{lem:uniform}
+Under A\ref{ass:causal}--A\ref{ass:sparsity}, with $\cT_{\bar L}$ fixed and
+finite,
+\[
+ \max_{(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu}
+ \Bigl\lvert\sqrt n\{\thetahat(\tau_e,\tau_\mu)-\theta_0\}
+  -\sqrt n\,\Pn\psi_0\Bigr\rvert=o_p(1),\qquad
+ \psi_0=\psi(\cdot;\theta_0,\eta_0).
+\]
+\end{lemma}
+
+\begin{remark}[This lemma closes the double use of $Y$; revision~1 lacked it]
+\label{rem:uniform-why}
+\textbf{This was the blocking gap in revision~1.} Lemmas
+\ref{lem:invariance}, \ref{lem:selection}, \ref{lem:findim} do not compose into
+Theorem~\ref{thm:main}: (i) Lemma~\ref{lem:invariance} is invariance of the
+\emph{estimand}, i.e.\ of first-order bias, whereas the CLT needs invariance of
+the \emph{influence function}; (ii) a finite mixture
+$\sum_\tau\mathbf1\{\that=\tau\}\sqrt n\{\thetahat(\tau)-\theta_0\}$ is
+\textbf{not} asymptotically normal merely because each component is, since the
+selection indicators correlate with the components --- \emph{finiteness alone is
+not enough}, what is needed is asymptotic equivalence to a \emph{fixed}
+statistic; (iii) conditioning on $\that_\mu$ is not a repair, because leaf
+membership is $X$-determined but \emph{which cells are merged} is $Y$-determined,
+so $\mhat_\ell$ is conditionally biased given the selection event even on
+$\{\that_\mu\in\cS_\mu\}$.
+
+Lemma~\ref{lem:uniform} never conditions on a data-dependent event: it bounds
+uniformly over a family not depending on the data, and a maximum of finitely many
+$o_p(n^{-1/2})$ terms is $o_p(n^{-1/2})$. In the fixed tier this is free.
+
+Worth stating alongside, because it is free and sharpens the novelty claim:
+\textbf{neither tree uses treated outcomes.} $\that_e,\ehat$ are
+$\sigma(X,A)$-measurable and $\that_\mu,\mhat$ are
+$\sigma(X,A,\{Y_i:A_i=0\})$-measurable, so the only genuine double use of $Y$ is
+of the \emph{control} arm; the double use of $A$ is harmless because the
+propensity error enters \eqref{eq:skeleton} only multiplied by a residual whose
+within-leaf control sum is exactly zero.
+\end{remark}
+
+\begin{lemma}[Conditional finite-dimensionality]\label{lem:findim}
+For fixed $\tau$, the refitted nuisance is determined by at most $\bar L$ numbers
+per nuisance, each a within-leaf mean converging at $O_p(n^{-1/2})$.
+\end{lemma}
+
+\begin{theorem}[Full-sample two-tree CLT]\label{thm:main}
+Under A\ref{ass:causal}--A\ref{ass:sparsity}, with $\that_e,\that_\mu$ selected by
+\eqref{eq:select} on all $n$ and leaf values refit on all $n$,
+$\sqrt n(\thetahat-\theta_0)\rightsquigarrow N(0,V)$ where
+\begin{equation}\label{eq:vdecomp}
+  V=\pi^{-2}\E\Bigl[\ez\sigma_1^2+\frac{\ez^2\sigma_0^2}{1-\ez}
+   +\ez(m_1-\mz-\theta_0)^2\Bigr]
+  =\pi^{-2}\E\bigl[\{A(Y-\mz-\theta_0)-(1-A)\wz(Y-\mz)\}^2\bigr].
+\end{equation}
+\end{theorem}
+
+\noindent \emph{Route:} \eqref{eq:skeleton} for each fixed pair, then
+Lemma~\ref{lem:uniform}, then Lemma~\ref{lem:selection} to discard
+$\{\that\notin\cS\}$, then $\pihat\to_p\pi$ and Remark~\ref{rem:sign}.
+
+\begin{corollary}[Variance estimation and confidence intervals]\label{cor:variance}
+With
+\begin{equation}\label{eq:vhat}
+ \Vhat=\frac1{n\pihat^2}\sum_{i=1}^n\Bigl[A_i\{Y_i-\mhat(X_i)-\thetahat\}
+  -(1-A_i)\what(X_i)\{Y_i-\mhat(X_i)\}\Bigr]^2,
+\end{equation}
+$\Vhat\to_pV$ and $\thetahat\pm z_{1-\alpha/2}\sqrt{\Vhat/n}$ has asymptotic
+coverage $1-\alpha$ --- pointwise in $P$, or uniformly over $\cP(\Delta_{\min})$
+under A\ref{ass:margin-floor}.
+\end{corollary}
+
+\begin{remark}[Why $\Vhat$ is consistent, and why the obvious argument is wrong]
+\label{rem:vhat}
+\textbf{Corrected from revision~1}, which argued ``conditional on a sufficient
+partition the problem is finite-dimensional''. Invalid twice: Lemma~\ref{lem:findim}
+is a fixed-$\tau$ statement saying nothing about $\that$; and conditioning on
+$\{\that=\tau\}$ conditions on a data-dependent event, under which the sample is
+not i.i.d.\ from $P$, so no fixed-$\tau$ limit theorem applies.
+
+The correct argument replaces conditioning by a \emph{union bound over the finite
+sufficient class} and needs three inputs: Lemma~\ref{lem:invariance}, so every
+$\tau\in\cS_j$ has the same limit (else $\operatorname{plim}\Vhat$ is a
+selection-weighted mixture of different numbers); Lemma~\ref{lem:selection}, to
+discard the non-sufficient event; and Lemma~\ref{lem:findim}, for fixed-$\tau$
+consistency. Then $\lVert\widehat\eta-\eta_0\rVert_\infty=o_p(1)$ and
+\eqref{eq:vhat} is a plug-in with $o_p(1)$ remainder by Cauchy--Schwarz.
+
+Two things to advertise. $\Vhat$'s consistency needs only
+$\lVert\widehat\eta-\eta_0\rVert_\infty=o_p(1)$ --- \emph{not} the rate condition
+and \emph{not} Lemma~\ref{lem:cross}; since that lemma is the harder argument,
+this isolates the risk. And there is no tension with invariance licensing only
+distributional claims: $V=\E[\psi_0^2]$ is a second moment of a \emph{fixed
+population} function, a functional of $P$ alone containing no selection, and
+consistency is a probability limit, not a statement about
+$\E\lVert\mhat-\mz\rVert^2$.
+
+Finite-sample notes. By construction the summands of \eqref{eq:vhat} have exactly
+zero sample mean, so it is simultaneously the uncentred second moment and the
+centred sample variance --- no centring ambiguity. But because structure
+\emph{and} leaf values are fit on all $n$, the summands are in-sample residuals,
+so \eqref{eq:vhat} is downward biased by a relative factor
+$\approx(2\bar L+1)/n$: asymptotically irrelevant, but exactly the mild
+under-coverage that will appear in a simulation table and be misattributed to the
+absence of splitting. A degrees-of-freedom divisor
+$n-(2\card{\that_e}+\card{\that_\mu})$ is a sensible finite-sample convention. All
+statements are on $\{\pihat>0\}$, whose probability tends to one.
+\end{remark}
+
+\begin{remark}[What $V$ is, and what efficiency may honestly be claimed]
+\label{rem:efficiency}
+\textbf{Substantially revised.} Revision~1 asserted that with $M$ fixed ``$P$ is
+determined by finitely many parameters'', hence that this is not a nonparametric
+efficiency result. \textbf{The premise is false}: with $M$ fixed, $P$ is
+determined by $\{p_x,\ez(x)\}$ \emph{together with the conditional laws of $Y$
+given $(A,X)$}, which A\ref{ass:moments} leaves unrestricted. The tangent space is
+infinite-dimensional and $V$ is a genuine semiparametric bound; revision~1
+conceded the paper's strongest interpretive claim on a false premise.
+
+What is true: the ATT is a smooth function of finitely many identified
+functionals of $P$ ($p_x,\ez,m_1,\mz$), and \emph{given a partition} the nuisance
+problem is finite-dimensional in at most $2\bar L+1$ parameters --- which is why
+no splitting is required --- while $P$ itself remains nonparametric. Attaining $V$
+is therefore attaining the nonparametric ATT efficiency bound of
+\citet{hahn1998}.
+
+Efficiency \emph{within} the sparsity-restricted model is a different question,
+and the answer is negative but interesting. Restricting $\ez$ to be constant on a
+partition removes tangent directions, giving
+\[
+ V_\tau=V-\pi^{-2}\E\bigl[\ez(1-\ez)\{\Delta m-\Pi^v_\tau\Delta m\}^2\bigr]
+  -(\text{an analogous }\mu\text{ term})\;\le\;V,
+\]
+with $\Delta m=m_1-\mz-\theta_0$ and $v_x=p_x\ez(x)\{1-\ez(x)\}$, strictly less
+than $V$ whenever the treated--control contrast varies within the leaves of the
+propensity partition. So efficiency \emph{is} left on the table --- Hahn's own
+asymmetry, that for the ATT knowledge of the propensity lowers the bound. But
+$V_{\mathrm{sparse}}=\max_\tau V_\tau$ depends \textbf{discontinuously} on which
+partition is minimal, so any estimator attaining it must be irregular over the
+union of sparse models (a Hodges/Leeb--P\"otscher construction: superefficient at
+$P_0$, badly behaved in a shrinking neighbourhood). Declining to chase it is
+therefore the right call, not a deficiency --- a far stronger statement than
+conceding finite-dimensionality. Local asymptotic efficiency additionally needs a
+regularity lemma along $\sqrt n$-local perturbations, which leave the sparse
+class; plausible, probably cheap, not yet proved, so not claimed
+(Section~\ref{sec:open}).
+\end{remark}
+
+\begin{remark}[Why two partitions, and why a shared one degenerates]
+\label{rem:shared}
+On $\that_e\wedge\that_\mu$ both $\what$ and $\mhat$ are leaf-constant, so
+$\sum_{i\in\ell,A_i=0}(Y_i-\mhat_\ell)=0$ makes the entire control-arm term of
+\eqref{eq:att-estimator} \emph{identically} zero and
+$\thetahat_{\mathrm{int}}=\sum_\ell(n_{1,\ell}/n_1)(\bar Y_{1,\ell}-\bar
+Y_{0,\ell})$, the treated-weighted stratified difference in means --- an exact
+finite-sample identity, unaffected by clipping.
+
+\textbf{But revision~1's gloss ``the propensity plays no role whatsoever''
+overstates it}, and contradicts its own next clause: the propensity's fitted
+\emph{values} are annihilated; its \emph{structure} still selects the
+stratification and so changes both the point estimate and the variance. Since
+$\thetahat_{\mathrm{int}}$ is consistent, asymptotically normal, and has $T=0$
+identically (a much easier proof), a referee will ask why it is not recommended.
+The defensible reasons are \emph{not} validity: (i) one displayed tree would carry
+no fitted values, defeating the paper's purpose; and (ii)
+$\card{\that_e\wedge\that_\mu}\le L_eL_\mu$, so the intersection can violate
+A\ref{ass:mass}--A\ref{ass:budget} even when each tree satisfies them, inflating
+$\sum_\ell\sigma^2_\ell/p_\ell$.
+\end{remark}
+
+\section{Part III: honest inference when sparsity fails}
+
+Drop A\ref{ass:sparsity}; then Lemma~\ref{lem:invariance} fails and
+Lemma~\ref{lem:biasbound} is the object to control.
+
+\begin{definition}[Realised errors]\label{def:realised}
+$\Dw=\Lw{\what-\wz}$ and $\Dm=\Lw{\mhat-\mz}$, at the fitted nuisances actually
+reported.
+\end{definition}
+
+\begin{definition}[Approximation error, for comparison only]\label{def:delta}
+$\delta_e=\min_{\tau\in\cT_{\bar L}}\Ltwo{\Pi_\tau\ez-\ez}$,
+$\delta_\mu=\min_{\tau\in\cT_{\bar L}}\Lw{\Pi_\tau\mz-\mz}$.
+\end{definition}
+
+\begin{remark}[Why Part~III is on realised errors: the repair was mandatory]
+\label{rem:whyD}
+\textbf{The largest change from revision~1}, which used an allowance
+$\delta_e\delta_\mu/(\pi c)$. Three defects, all fixed by
+Definition~\ref{def:realised}.
+
+\emph{(a) It was false.} \eqref{eq:bilinear} is exact in the \emph{fitted}
+nuisances and $D_j=\delta_j+O_p(\sqrt{\bar L/n})$, so
+\[
+ \abs R\lesssim\frac1{\pi c^{3/2}}
+  \Bigl[\delta_e\delta_\mu+(\delta_e+\delta_\mu)\sqrt{\bar L/n}+\bar L/n\Bigr],
+\]
+and revision~1 kept only the first term. With $\delta_e=n^{-0.05}$,
+$\delta_\mu=n^{-0.50}$, $\bar L=n^{0.40}$ the product condition holds
+($\delta_e\delta_\mu=n^{-0.55}$) while the omitted cross term is
+$n^{-0.35}\gg n^{-1/2}$: coverage tends to $0$.
+
+\emph{(b) The minimal patch reinstates what Part~I removes.} Repairing (a) by
+assuming $(\delta_e\vee\delta_\mu)=o(\bar L^{-1/2})$ becomes, at
+$\bar L\asymp\sqrt n$, exactly $\delta_j=o(n^{-1/4})$ \textbf{for each nuisance
+separately} --- the per-nuisance condition Remark~\ref{rem:product} calls
+unusable. Part~III would silently reinstate Part~I's headline correction.
+
+\emph{(c) It bounded the wrong tree.} Without A\ref{ass:sparsity} there is no
+margin (Lemmas \ref{lem:margin}, \ref{lem:selection} both assume it), so nothing
+guarantees $\that_j$ is near-optimal in $\cT_{\bar L}$, and the realised error of
+the \emph{reported} tree may exceed $\delta_j$ by a constant factor. Since
+\eqref{eq:bilinear} is driven by the reported tree, $\delta_j$ is not the right
+object.
+
+Working with $\Dw,\Dm$ resolves all three, makes the constant exactly $1/\pi$,
+removes $\bar L$ from the interval, and makes the allowance \emph{measurable}.
+\end{remark}
+
+\begin{remark}[Widen, do not subtract]\label{rem:no-subtract}
+Trivially $\thetahat-\delta_{\mathrm{fid}}=\thetahat_{\mathrm{cf}}$, so
+``debiasing'' by the fidelity diagnostic returns the cross-fitted estimator
+exactly and forfeits the displayed-tree estimate for nothing. (Revision~1 stated
+this as a numbered lemma; it is $a-(a-b)=b$, and is demoted here.) The substantive
+point is that $\delta_{\mathrm{fid}}$ cannot serve as the widening term either:
+under A\ref{ass:rate} and Theorem~\ref{thm:crossfit},
+$\delta_{\mathrm{fid}}=(\thetahat-\theta_0)-O_p(n^{-1/2})$, so it is
+$O_p(n^{-1/2})$ even when the bias is exactly zero and
+$\PP(\abs{\delta_{\mathrm{fid}}}\ge\abs{\text{bias}})\not\to1$: neither centred on
+nor dominating the bias.
+\end{remark}
+
+\begin{lemma}[The fidelity diagnostic is a specification test, not a correction]
+\label{lem:spectest}
+Under A\ref{ass:causal}--A\ref{ass:sparsity} and A\ref{ass:rate},
+$\sqrt n\,\delta_{\mathrm{fid}}\rightsquigarrow N(0,V_{\mathrm{fid}})$ with
+$V_{\mathrm{fid}}$ computable from the fold structure. Hence
+$\delta_{\mathrm{fid}}$, compared with its own standard error, is a valid test of
+A\ref{ass:sparsity}.
+\end{lemma}
+
+\begin{theorem}[Honest interval outside the class]\label{thm:honest}
+Let $U_w,U_\mu$ be one-sided upper confidence bounds for $\Dw,\Dm$, each at level
+$1-\alpha/4$, and let $\Vhat^{+}$ satisfy $\operatorname{plim}\Vhat^{+}\ge V$.
+Then
+\[
+ \thetahat\;\pm\;\Bigl(z_{1-\alpha/2}\sqrt{\Vhat^{+}/n}
+  +\frac{U_wU_\mu}{\pi}\Bigr)
+\]
+has asymptotic coverage at least $1-\alpha$ for $\theta_0$.
+\end{theorem}
+
+\begin{remark}[The plug-in $\Vhat$ may not be used here]\label{rem:vhat-anticons}
+Without A\ref{ass:sparsity}, $\ehat\not\to\ez$ and $\mhat\not\to\mz$, so
+\eqref{eq:vhat} converges elsewhere and $\operatorname{plim}\Vhat\ge V$ is
+\emph{not} generally true. With $a=\mu_*-\mz$, $b=w_*-\wz$,
+\[
+ \operatorname{plim}\Vhat=V+2\pi^{-2}
+  \bigl\{\E[(1-\ez)\wz b\sigma_0^2]-\E[\ez a\Delta m]\bigr\}
+  +O(\lVert a\rVert^2+\lVert b\rVert^2),
+\]
+not sign-definite: $b\equiv0$ with $a=\epsilon(1-\ez)\Delta m$ gives a negative
+first-order term against a second-order $O(\epsilon^2)$, so
+$\operatorname{plim}\Vhat<V$. Theorem~\ref{thm:honest} therefore requires a
+conservative $\Vhat^{+}$, whose construction is open (Section~\ref{sec:open}) ---
+\emph{not} something the bias allowance repairs, since it addresses a different
+term.
+\end{remark}
+
+\begin{proposition}[The realised errors are estimable when $M\ll n$]
+\label{prop:estimable}
+Suppose every cell is occupied in the relevant arm: $np_{\min}\gtrsim\log M$ for
+$e$, and $ncp_{\min}\gtrsim\log M$ for $\mu$. With $\mhat_{\mathrm{sat}}$,
+$\what_{\mathrm{sat}}$ the saturated cell-wise fits, the
+degrees-of-freedom-corrected statistic
+\[
+ \widehat D_\mu^2=\sum_x\widehat p_x\{1-\ehat(x)\}
+   \{\mhat(x)-\mhat_{\mathrm{sat}}(x)\}^2
+  -\sum_x\widehat p_x\{1-\ehat(x)\}\frac{\widehat\sigma^2(x)}{n_{0,x}},
+\]
+and its analogue $\widehat D_w^2$, satisfy
+$\widehat D_j^2-D_j^2=O_p(M/n+D_jn^{-1/2})$ up to logarithmic factors. Setting
+$U_j^2=(\widehat D_j^2)_{+}+\kappa_na_{n,j}$ with $\kappa_n\to\infty$ slowly gives
+valid one-sided bounds for Theorem~\ref{thm:honest}.
+\end{proposition}
+
+\begin{remark}[Three corrections that make Proposition~\ref{prop:estimable} honest]
+\label{rem:prop-fixes}
+\emph{(i) The plug-in is downward biased, so it cannot be used raw.} For squared
+loss with an independent hold-out,
+$\E[\widehat D^2_{j,\mathrm{plug}}]=D_j^2-(M-\bar L)\sigma^2/n+o(\cdot)$, negative
+because $M\gg\bar L$, plus a same-signed winner's-curse term from the
+minimisation. At $D_j^2=2M\sigma^2/n$ the plug-in returns about $0.71D_j$ --- a
+$29\%$ understatement per factor, roughly $50\%$ on the product. That is a
+coverage failure of the same character as Remark~\ref{rem:vhat-anticons}'s, and it
+compounds with it. Hence the explicit correction above.
+
+\emph{(ii) An upper bound must be substituted, not a point estimate.} Note the
+non-smoothness of $\sqrt\cdot$ at $0$ does \emph{not} threaten honesty, since
+$\sqrt\cdot$ is monotone and a bound on $D^2$ maps to one on $D$; it costs
+\emph{width} (Corollary~\ref{cor:width}).
+
+\emph{(iii) The two one-sided statements must be composed}, requiring
+$\PP(U_w\ge\Dw\text{ and }U_\mu\ge\Dm)\to1$: hence $\alpha/4$ per side.
+
+Two further notes. The rate $M/n+D_jn^{-1/2}$ is sharper than the naive
+$\sqrt{M/n}$, and the sharpening is load-bearing: with $\sqrt{M/n}$ the width
+exceeds $n^{-1/2}$ whenever $M\to\infty$ at \emph{any} rate. And the weighted norm
+pays off again --- the aggregate degrees-of-freedom term is governed by $n$ alone,
+since $\sum_xp_x(1-\ez)\sigma^2(x)/\{np_x(1-\ez)\}=n^{-1}\sum_x\sigma^2(x)$, with
+no $1/c$.
+\end{remark}
+
+\begin{corollary}[Width, and when the price is negligible]\label{cor:width}
+The half-width of Theorem~\ref{thm:honest} is
+\[
+ \asymp\max\bigl\{n^{-1/2},\ \Dw\Dm,\ (M/n)^{1/2}(\Dw\vee\Dm),\ M/n\bigr\},
+\]
+collapsing to $\max\{n^{-1/2},\Dw\Dm\}$ if and only if $M=o(\sqrt n)$ and
+$(\Dw\vee\Dm)=o(M^{-1/2})$.
+\end{corollary}
+
+\begin{remark}[Scope: two constraints, and revision~1 reported only the permissive
+one]\label{rem:scope}
+Estimating $D_j$ needs the saturated fit to \emph{exist} --- the occupancy
+condition, roughly $30$ observations per cell, i.e.\ $M\lesssim n/30$. Keeping the
+width at $\max\{n^{-1/2},\Dw\Dm\}$ needs $M=o(\sqrt n)$, i.e.\
+$d\lesssim\tfrac12\log_2n$ for binary coordinates. \textbf{These differ by a
+square root} and revision~1 tabulated only the first:
+
+\begin{center}\begin{tabular}{@{}rrrr@{}}
+\toprule
+$n$ & $M$ for existence & $M$ for cheap width & binary $d$ (cheap) \\ \midrule
+$1{,}000$ & $\lesssim33$ & $\lesssim31$ & $d\le4$ \\
+$10{,}000$ & $\lesssim333$ & $\lesssim100$ & $d\le6$ \\
+$100{,}000$ & $\lesssim3{,}333$ & $\lesssim316$ & $d\le8$ \\
+\bottomrule
+\end{tabular}\end{center}
+
+So the honest figures are $d\le6$ at $n=10^4$ and $d\le8$ at $n=10^5$, not $7$--$8$
+and $10$--$11$. The binding constraint is the \emph{smallest} cell, not the
+average; and the control share is $\E[1-\ez]\ge c$, which under one-sided
+positivity may be far below $1/2$, so revision~1's ``effective sample is about
+$n/2$'' is replaced by $n\min_xp_x\{1-\ez(x)\}$. This constrains
+Proposition~\ref{prop:estimable} only: Theorems \ref{thm:main} and
+\ref{thm:honest} leave $d$ unconstrained, where the binding constraint is
+interpretability itself.
+\end{remark}
+
+\begin{remark}[The assumed-decay alternative, and an honest comparison]
+\label{rem:assumed-decay}
+The alternative to measuring is assuming: $\delta_j(L)\le C_jL^{-q_j}$ with
+$q_e+q_\mu>1$ --- the discrete analogue of assuming a H\"older or Besov ball via
+Jackson-type theorems, and nobody objects to H\"older. Supply a sufficient
+condition as a lemma: weak-$\ell_r$ decay of tree/Haar coefficients gives
+$q=1/r-1/2$. No decay rate is implied by finiteness: parity on $d$ binary
+coordinates has $\delta(L)$ bounded away from zero for every axis-aligned tree
+with $L<2^{d-1}$ leaves and then drops to zero, so decay can be a step function of
+$L$. ANOVA or low-order-interaction decay must \textbf{not} be used --- such
+functions are well approximated by \emph{additive} models, trees' worst case
+(Remark~\ref{rem:additive}).
+
+Honest comparison, which revision~1 elided by claiming
+Proposition~\ref{prop:estimable} needs ``no assumed decay rate'': it needs
+occupancy, $M=o(\sqrt n)$, and $(\Dw\vee\Dm)=o(M^{-1/2})$, the last two no more
+checkable than the decay assumption. The defensible claim is narrower --- \emph{the
+allowance can be replaced by a data-driven upper bound, so the interval is honest
+without knowing $q_e,q_\mu$; the price is the extra
+$(M/n)^{1/2}(\Dw\vee\Dm)+M/n$ width}. The assumed-decay route yields the strictly
+narrower $\max\{n^{-1/2},\delta_e\delta_\mu\}$ and remains the main line.
+
+Finally, with $\bar L$ fixed the $D_j$ do not shrink, so the price does not
+vanish. That is Part~III's honest message: interpretability carries a cost that is
+measurable and, unless the truth is structurally sparse, does not disappear.
+Displaying the held-out $\widehat D_j(L)$ path along the optimal-tree
+$L$-sequence is the right way to show it.
+\end{remark}
+
+\section{Changes from revision 1}\label{sec:changes}
+
+Four blocking defects and their repairs:
+\begin{enumerate}[label=\textbf{B\arabic*.},leftmargin=*,nosep]
+  \item \textbf{The honest interval was false} --- it bounded approximation rather
+  than realised error, omitting a cross term that can dominate, and the minimal
+  patch would have reinstated Part~I's per-nuisance $n^{-1/4}$ condition. Repaired
+  by Def.~\ref{def:realised}, Lemma~\ref{lem:biasbound},
+  Theorem~\ref{thm:honest} (Remark~\ref{rem:whyD}).
+  \item \textbf{``Refines $\tau^*_j$'' broke Theorem~\ref{thm:main}} --- a minimal
+  box partition need not be tree-realisable; the pinwheel gives
+  $\cS_j=\emptyset$. Repaired by Def.~\ref{def:sufficient}
+  (Remark~\ref{rem:pinwheel}).
+  \item \textbf{Theorem~\ref{thm:main}'s proof did not compose} --- invariance of
+  the estimand is not invariance of the influence function, and a finite mixture
+  is not asymptotically normal componentwise. Repaired by
+  Lemma~\ref{lem:uniform}, which also repairs Remark~\ref{rem:vhat}.
+  \item \textbf{$\mhat$ could be undefined} --- A\ref{ass:mass} counted
+  observations, not controls. Repaired with a control count and a fallback
+  convention.
+\end{enumerate}
+
+Further corrections: positivity weakened to one-sided (A\ref{ass:causal}); the
+bias constant is exactly $1/\pi$, and the norm-equivalence constant for norms is
+$c^{-1/2}$ not $1/c$ --- the latter caused the former
+(Remark~\ref{rem:normconst}); $V>0$ added; the leaf budget pinned to fixed with
+the growing regime scoped out (Remark~\ref{rem:fixed-tier});
+Lemma~\ref{lem:cross}'s $\log n$ removed and the rate sharpened to
+$O_p(\sqrt{L_e}/n)$; the claim that clipping requires $m_n\to\infty$ withdrawn,
+and the clip level tied to $c$ (Remark~\ref{rem:clip}); the efficiency framing
+reversed to reclaim the nonparametric bound (Remark~\ref{rem:efficiency});
+coverage declared pointwise with an optional uniformity class
+(A\ref{ass:margin-floor}); the plug-in $\Vhat$ shown inadmissible in
+Theorem~\ref{thm:honest} (Remark~\ref{rem:vhat-anticons});
+Proposition~\ref{prop:estimable} given a degrees-of-freedom correction, one-sided
+bounds and $\alpha$-splitting; the width order corrected
+(Corollary~\ref{cor:width}) and the scope table recomputed
+(Remark~\ref{rem:scope}); the vacuous no-subtract lemma demoted and replaced by
+Lemma~\ref{lem:spectest}; $2^s$ corrected to $J^s$ (Remark~\ref{rem:additive});
+Remark~\ref{rem:shared}'s ``no role whatsoever'' withdrawn; the $\pihat$ display
+corrected (Remark~\ref{rem:sign}); the control-arm cancellation in the weighted
+norm made explicit (Remark~\ref{rem:mass}).
+
+\section{Open items}\label{sec:open}
+
+\begin{enumerate}[nosep,label=(\arabic*)]
+  \item \textbf{A conservative variance estimator for Part~III}: $\Vhat^{+}$ with
+  $\operatorname{plim}\Vhat^{+}\ge V$; the plug-in does not qualify.
+  \item \textbf{Proofs}: Lemma~\ref{lem:uniform} (assembly),
+  Lemma~\ref{lem:cross} in full, $V_{\mathrm{fid}}$ in
+  Lemma~\ref{lem:spectest}, Theorem~\ref{thm:honest}, and
+  Proposition~\ref{prop:estimable}'s rate.
+  \item \textbf{Local regularity} along $\sqrt n$-local perturbations, needed
+  before claiming local asymptotic efficiency.
+  \item \textbf{The growing regime} ($M_n\to\infty$ or $L_n\to\infty$): entropy
+  $\sqrt{L_n\log(dJ)}$, a bounded or sub-Gaussian outcome, possibly splitting for
+  structure selection. Deliberately untreated.
+  \item \textbf{Part~I's oracle inequality} bounds terms by
+  $O_p(\sqrt{L_n\log n/n})$ and then squares them inside an additive risk
+  decomposition, understating the rate by a square; it needs the localised
+  sub-root argument.
+\end{enumerate}
+
+\begin{thebibliography}{9}
+\bibitem[Chen et al.(2022)]{chen2022} Chen, Q., Syrgkanis, V., Austern, M.
+  (2022). Debiased machine learning without sample splitting. arXiv:2206.01825.
+\bibitem[Hahn(1998)]{hahn1998} Hahn, J. (1998). On the role of the propensity
+  score in efficient semiparametric estimation of average treatment effects.
+  \emph{Econometrica} 66, 315--331.
+\bibitem[Kennedy(2024)]{kennedy2024} Kennedy, E. H. (2024). Semiparametric
+  doubly robust targeted double machine learning: a review.
+\bibitem[Robins \& Rotnitzky(1995)]{robins1995} Robins, J. M., Rotnitzky, A.
+  (1995). Semiparametric efficiency in multivariate regression models with
+  missing data. \emph{JASA} 90, 122--129.
+\bibitem[van der Laan \& Robins(2003)]{vanderlaan2003} van der Laan, M. J.,
+  Robins, J. M. (2003). \emph{Unified Methods for Censored Longitudinal Data and
+  Causality}. Springer.
+\end{thebibliography}
+
+\end{document}

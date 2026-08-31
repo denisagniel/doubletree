@@ -1,0 +1,343 @@
+% =====================================================================
+% DRAFT REPLACEMENT for manuscript.tex Section 3 ("The doubletree algorithm")
+% Reframed onto the working-model ATT theta*_n + impossibility spine.
+%
+% STATUS: FOR REVIEW. Not yet merged into manuscript.tex.
+% Source of truth: notes/single-tree-inference.tex (theory) +
+%   quality_reports/specs/2026-08-04_estimand-decision-theta-star.md (decision).
+% Notation: uses manuscript macros (common-defs.tex). Drops in as-is.
+%
+% This block is written to REPLACE current manuscript.tex lines 135-165
+% (\section{The doubletree algorithm} ... end of the epsilon_n caveat remark).
+% It keeps \label{sec:rashomon} so existing \ref{sec:rashomon} cross-refs survive.
+% The old Rashomon-intersection material moves to the appendix (Appendix B already
+% exists); §3 now presents Rashomon as ONE way to satisfy the recovery event.
+%
+% Dependencies assumed present in the manuscript when merged:
+%   - Lemma 1 (working-model ATT bilinear/DR bias) -- import from
+%     notes/lemma1-bias-proof.tex, referenced here as \ref{lem:wm-bias}.
+%   - Prop 1 (tree nuisance rate, §2) -- referenced as \ref{prop:tree-rate}.
+%   - Cross-fit estimator thetahat_crossfit (§2) -- the delta-hat anchor.
+%   - CSA citation key: \citet{chen2022dml} (ADD to .bib -- see note at end).
+% =====================================================================
+
+\section{Single interpretable tree per nuisance}
+\label{sec:rashomon}
+
+The cross-fit estimator of Section~\ref{sec:methods} is valid but produces $K$
+distinct trees per nuisance---one per fold---which is precisely the interpretability
+cost we set out to remove: a stakeholder auditing the propensity model must reconcile
+$K$ different decision rules rather than inspect one. Our goal in this section is a
+\emph{single} interpretable tree per nuisance, with leaf values fit on \emph{all} $n$
+observations, together with valid $\sqrt{n}$ inference and \emph{no sample-splitting
+at the inference stage}.
+
+Achieving this forces a change in estimand, and that change is the intellectual core
+of the paper. We show (Theorem~\ref{thm:wm-clt}) that a fixed, bounded-complexity tree
+admits valid full-sample inference for the \emph{working-model ATT} $\thetastar$---the
+ATT of the displayed tree model---via leave-one-out (LOO) algorithmic stability
+\citep{chen2022dml} rather than cross-fitting. We then show
+(Proposition~\ref{prop:gap}, Corollary~\ref{cor:impossible}) that this same
+interpretability constraint makes the \emph{true} ATT $\theta_0$ generically
+\emph{unreachable} at the $\sqrt{n}$ rate: no fixed-complexity interpretable tree can
+deliver a $\sqrt{n}$-valid confidence interval for $\theta_0$ under H\"older smoothness.
+The gap $\thetastar - \theta_0$ is reported as an honest diagnostic $\deltahat$, never
+used to correct the estimate. A structural piecewise-constant assumption recovers
+$\theta_0$ as a special case (Corollary~\ref{cor:structural}). This is a sharp
+statement of the price of interpretability, and it is the paper's spine.
+
+\subsection{The working-model ATT}
+\label{sec:wm-estimand}
+
+For any candidate nuisances $(e, f) \in \Ltwo(\Prob)$ plugged into the score
+\eqref{eq:score}, the \emph{working-model ATT} $\theta(e, f)$ is the solution of the
+population moment condition $\E_\Prob[\psi(\bO; \theta, e, f)] = 0$; at the truth,
+$\theta(e_0, \mu_0) = \theta_0$. The following bias identity is the workhorse
+(proved as Lemma~\ref{lem:wm-bias}; the bilinear, doubly robust structure is what
+makes the tree-approximation error enter as a \emph{product}).
+
+\begin{lemma}[Working-model ATT bias]
+\label{lem:wm-bias}
+Under Assumption~\ref{assump:causal-inf-assumps} (strong positivity with constant
+$c$), for any $(e, f)$ with $e \in [c, 1-c]$ a.s.,
+\begin{equation}
+\label{eq:wm-bias}
+\theta(e, f) - \theta_0
+  = \frac{1}{\pi}\, \E_\Prob\!\left[ \frac{e_0 - e}{1 - e}\,(\mu_0 - f) \right],
+\qquad
+\abs{\theta(e, f) - \theta_0}
+  \le \frac{1}{\pi c}\, \twonorm{e - e_0}\, \twonorm{f - \mu_0}.
+\end{equation}
+\end{lemma}
+
+A partition $\tau$ of $\cX$ into $L = \abs{\tau}$ axis-aligned leaves induces
+piecewise-constant nuisances by cell-wise population means. On the adaptive
+discretization grid $G_n$ of Section~\ref{sec:discretization} (quantile bins
+$b_n \asymp \log n$ per feature), let $\tau_0 = \tau_0(G_n)$ denote the
+\emph{grid-optimal} partition of bounded complexity $L = o(\sqrt{n})$, with
+piecewise-constant nuisances $e_{\tau_0}, \mu_{\tau_0}$. We define the
+\textbf{interpretable working-model ATT}
+\begin{equation}
+\label{eq:thetastar}
+\thetastar \;:=\; \theta(e_{\tau_0}, \mu_{\tau_0}),
+\end{equation}
+the ATT functional evaluated at the grid-optimal tree model. This---not $\theta_0$---is
+the target of the inference below.
+
+\begin{remark}[Estimand legitimacy]
+\label{rem:estimand-legit}
+$\thetastar$ is a projection / working-model parameter in the established tradition of
+assumption-lean and structure-agnostic regression targets. It is the ATT a practitioner
+would report if they believed the displayed tree correctly described the nuisance
+functions. What is new here is that (i) the working model is a \emph{data-displayed
+interpretable tree}---the estimator is the deliverable---and (ii) inference is valid on
+all $n$ with no cross-fitting, via LOO stability. We are careful never to call
+$\thetastar$ ``the ATT'' without the working-model qualifier, and we never claim the
+interval covers $\theta_0$; the relationship between the two is characterized exactly
+in Section~\ref{sec:gap}.
+\end{remark}
+
+\subsection{The estimator}
+\label{sec:wm-estimator}
+
+Given a data-selected partition $\tauhat$ (from the cross-fit trees of
+Section~\ref{sec:methods} or a Rashomon/modal menu; see Section~\ref{sec:selection}),
+we \emph{fix} its structure and refit leaf values as within-leaf sample means on all
+$n$ observations:
+\[
+\ehat_{\tauhat}(\bx) = \Prob_n[A \mid \bX \in \ell(\bx)],
+\qquad
+\muhat_{\tauhat}(\bx) = \Prob_n[Y \mid \bX \in \ell(\bx),\, A = 0],
+\]
+where $\ell(\bx)$ is the leaf containing $\bx$ and $\Prob_n$ denotes the empirical
+mean. The full-sample plug-in $\thetahat$ solves
+$\Prob_n[\psi(\bO; \theta, \ehat_{\tauhat}, \muhat_{\tauhat})] = 0$. The displayed
+deliverable is exactly these two trees plus $\thetahat$ and its interval.
+
+We impose the following complexity-control condition on the selected partition, in
+addition to the causal assumptions of Section~\ref{sec:methods}.
+
+\begin{assumption}[Balanced bounded complexity]
+\label{assump:leaves}
+The selected partition $\tauhat$ has $L = \abs{\tauhat}$ leaves with
+$L = o(\sqrt{n})$, and each leaf count satisfies $n_\ell \ge \underline{c}\, n / L$
+for a constant $\underline{c} > 0$ (a minimum-leaf-size regularization). Consequently
+$\min_\ell n_\ell \gtrsim n / L \gg \sqrt{n}$.
+\end{assumption}
+
+\subsection{Full-sample inference for the working-model ATT}
+\label{sec:wm-clt}
+
+The score \eqref{eq:score} is linear in $\theta$: writing
+$m(\bO; \theta, g) = a(\bO; g)\,\theta + \nu(\bO; g)$ with nuisance $g = (e, f)$, we
+have $a(\bO; g) = -A/\pi$ (free of $g$) and all nuisance dependence confined to
+$\nu$. This places the estimator in the linear-moment framework of
+\citet{chen2022dml}, whose central insight is that an estimator built from an
+\emph{algorithmically stable} nuisance map is asymptotically equivalent to its
+cross-fit counterpart---so sample-splitting can be dropped at the inference stage.
+The next lemma establishes the required stability for a \emph{fixed} partition; its
+proof is in Appendix~\ref{app:single-tree}.
+
+\begin{lemma}[Leaf-refit LOO stability]
+\label{lem:leaf-stability}
+Fix a partition $\tauhat$. Under Assumptions~\ref{assump:causal-inf-assumps} and
+\ref{assump:leaves}, replacing a single observation changes each leaf mean by
+$O(L / n)$ uniformly, and the induced perturbation of $\nu$ satisfies the
+\citet{chen2022dml} stability conditions at rate $O(L / n) = o(n^{-1/2})$, together
+with a mean-squared-continuity condition. Hence the stochastic-equicontinuity
+condition of \citet{chen2022dml} holds for the moment \eqref{eq:score}.
+\end{lemma}
+
+Structure-selection instability is quarantined by a \emph{partition-fixing event}.
+
+\begin{assumption}[Partition-fixing event]
+\label{assump:En}
+Let $E_n = \{\tauhat = \tau_0\}$ be the event that the selector recovers the
+grid-optimal partition, and require the failure probability to vanish faster than the
+root-$n$ rate: $\Prob(E_n^c) = o(n^{-1/2})$. This is strictly stronger than
+$\Prob(E_n) \to 1$ (see Remark~\ref{rem:rate-necessity}) and is discharged by either
+mechanism of Section~\ref{sec:selection}.
+\end{assumption}
+
+\begin{theorem}[Working-model CLT]
+\label{thm:wm-clt}
+Suppose Assumptions~\ref{assump:causal-inf-assumps}, \ref{assump:regularity},
+\ref{assump:leaves}, and \ref{assump:En} hold, and the tree nuisance rates satisfy
+$\E_{\bX}\twonorm{\hat g(\bX) - g_0(\bX)}^2 = o_p(n^{-1/2})$ (equivalently each
+nuisance $o_p(n^{-1/4})$, delivered by Proposition~\ref{prop:tree-rate} when
+$\alphabar > s/2$). Then
+\begin{equation}
+\label{eq:wm-clt}
+\sqrt{n}\,\bigl(\thetahat - \thetastar\bigr) \leadsto N(0, V),
+\qquad
+V = \E\bigl[\psi(\bO; \thetastar, e_{\tau_0}, \mu_{\tau_0})^2\bigr],
+\end{equation}
+and a LOO-stability plug-in $\hat V \to_p V$. Hence
+$\thetahat \pm z_{1-\alpha/2}\sqrt{\hat V / n}$ is an asymptotically valid confidence
+interval for $\thetastar$.
+\end{theorem}
+
+The proof (Appendix~\ref{app:single-tree}) verifies the \citet{chen2022dml}
+conditions: Neyman orthogonality of \eqref{eq:score} and second-order smoothness are
+supplied by Lemma~\ref{lem:wm-bias} (the bilinear bias is the second-order remainder);
+stochastic equicontinuity is Lemma~\ref{lem:leaf-stability} on the fixed $\tau_0$; and
+the recovery event passes the conditional CLT to the unconditional law because
+$\sqrt{n}\,\Prob(E_n^c) = o(1)$ under Assumption~\ref{assump:En}.
+
+\begin{remark}[Why $o(n^{-1/2})$, not $o(1)$, is necessary]
+\label{rem:rate-necessity}
+If $\Prob(E_n^c)$ vanished only slower than $n^{-1/2}$ (e.g.\ $\asymp n^{-1/4}$), the
+recovery-failure term would contribute $\sqrt{n}\,\Prob(E_n^c) \to \infty$ to the
+centering, breaking the CLT even though structure recovery ``succeeds with probability
+tending to one.'' This is the post-selection subtlety: consistency of selection is
+insufficient; the failure \emph{rate} must beat the estimator's own $\sqrt{n}$ rate.
+It is also why selection cannot be certified by simulation alone---a $2$--$5\%$
+empirical misrecovery rate looks benign, but its rate in $n$ is what governs validity,
+and that rate is invisible at moderate $n$. We disclose this proactively as motivation
+for the held-out selection route below.
+\end{remark}
+
+\subsection{The gap to \texorpdfstring{$\theta_0$}{theta0} and an impossibility}
+\label{sec:gap}
+
+The working-model CLT is valid for $\thetastar$. How far is $\thetastar$ from the true
+ATT $\theta_0$? Under smoothness, the answer is: too far to close at the $\sqrt{n}$
+rate.
+
+\begin{proposition}[Discretization gap]
+\label{prop:gap}
+Under a H\"older-$\beta$ smoothness class for $(e_0, \mu_0)$ and the adaptive grid
+$G_n$ ($b_n \asymp \log n$ bins per feature),
+\[
+\thetastar - \theta_0 = O\!\bigl((\log n)^{-2\beta}\bigr),
+\qquad\text{hence}\qquad
+\sqrt{n}\,\bigl(\thetastar - \theta_0\bigr) \to \infty
+\ \text{ for every fixed } \beta > 0.
+\]
+\end{proposition}
+
+\begin{corollary}[Impossibility for $\theta_0$]
+\label{cor:impossible}
+No estimator built from a single \emph{fixed}, \emph{bounded-complexity}
+($L = o(\sqrt{n})$) interpretable tree per nuisance on the adaptive grid admits a
+$\sqrt{n}$-valid confidence interval for $\theta_0$ under H\"older-$\beta$ smoothness.
+Driving the gap to $o(n^{-1/2})$ requires polynomial grid refinement, which forces
+$L \ne o(\sqrt{n})$ (breaking Lemma~\ref{lem:leaf-stability}) or an off-tree debiasing
+term (breaking ``the tree is the estimator'').
+\end{corollary}
+
+Corollary~\ref{cor:impossible} is the paper's central negative result: among
+\{fixed tree\}, \{interpretable\}, \{$\sqrt{n}$-honest for $\theta_0$\}, one may have
+any two. It is sharper and more informative than any positive $\theta_0$ construction
+built on off-tree corrections, and it is why we target $\thetastar$.
+
+\begin{corollary}[Structural piecewise-constant special case]
+\label{cor:structural}
+If $(e_0, \mu_0)$ are \emph{exactly} piecewise-constant on some finite (unknown)
+partition $\tau^\ast$---a structural, not smoothness, assumption---then for $n$ large
+enough that $G_n$ resolves $\tau^\ast$ we have $e_{\tau_0} = e_0$,
+$\mu_{\tau_0} = \mu_0$, hence $\thetastar = \theta_0$, and Theorem~\ref{thm:wm-clt}
+delivers a $\sqrt{n}$-valid confidence interval for the \emph{true} ATT $\theta_0$.
+\end{corollary}
+
+This is the only coherent route to honest $\theta_0$ inference within the fixed-tree
+constraint, and it is exactly the regime our binary-covariate implementation targets
+(cf.\ the binary-rate remark of Section~\ref{sec:methods}), where a tree with enough
+leaves represents any function on the active subcube exactly.
+
+\begin{remark}[The diagnostic $\deltahat$ is not a correction]
+\label{rem:delta}
+Define $\deltahat = \thetahat - \thetahat_{\text{crossfit}}$, the difference between
+the displayed-tree estimate and the cross-fit anchor of Section~\ref{sec:methods}. By
+Lemma~\ref{lem:wm-bias}, $\deltahat$ is a plug-in estimate of the gap
+$\thetastar - \theta_0$ (up to $O_p(n^{-1/2})$ noise) and is reported as an
+\emph{honesty flag}. It is never subtracted from $\thetahat$: by
+Proposition~\ref{prop:gap} the gap is asymptotically non-negligible relative to the CI
+width, so a $\deltahat$-correction capable of recovering $\theta_0$ would already
+constitute a solution of the $\theta_0$ problem, contradicting
+Corollary~\ref{cor:impossible}. In practice we report $\deltahat$ and
+$\deltahat / \widehat{\mathrm{SE}}$ alongside every estimate: small values indicate the
+displayed tree is a faithful summary of the ATT; large values flag a meaningful gap
+between the working model and the truth.
+\end{remark}
+
+\subsection{Discharging the partition-fixing event: structure selection}
+\label{sec:selection}
+
+It remains to supply a selector satisfying Assumption~\ref{assump:En}. Two routes are
+available; the choice is orthogonal to the estimand (both target the same
+$\thetastar$) and is settled by the empirical recovery behavior of the selector.
+
+\paragraph{Route B (exact recovery).}
+If the grid-optimal $\tau_0$ has a risk margin $\Delta_n > 0$ over its competitors, a
+modal selector over $M_n$ splits obeys a union-bound tail
+$\Prob(E_n^c) \le S_n \exp(-M_n \Delta_n)$, and Assumption~\ref{assump:En} holds
+whenever $M_n \Delta_n - \log S_n \gg \tfrac12 \log n$. Under the log-$n$ grid this
+requires $M_n \gg (\log n)^{1 + \kappa}$. This route keeps the pure ``single tree, all
+$n$, no split anywhere'' story, but the margin $\Delta_n > 0$ is generic only in the
+structural piecewise-constant regime of Corollary~\ref{cor:structural}; when the signal
+is merely H\"older, the risk landscape is flat near the optimum and exact recovery can
+fail. The \emph{Rashomon-intersection} construction (Appendix~\ref{app:rashomon}) is
+one concrete mechanism that supplies such a margin, by selecting the structure common
+to near-optimal trees across folds.
+
+\paragraph{Route A (held-out selection).}
+Partition the sample into a selection fold $\cS_n$ of size $\lfloor \rho_n n \rfloor$
+and an inference fold $\cI_n$, with selection fraction $\rho_n \to 0$ and
+$\rho_n n \to \infty$. Select $\tauhat$ using $\cS_n$ only, then refit leaf values on
+$\cI_n$. Conditional on $\cS_n$ the partition is fixed, so
+$\Prob(E_n^c \mid \cS_n) = 0$ trivially and Lemma~\ref{lem:leaf-stability} applies to
+the fixed $\tauhat$ on $\cI_n$; since $\rho_n \to 0$, the asymptotic variance is
+unchanged and Theorem~\ref{thm:wm-clt} holds at the full $\sqrt{n}$ rate
+(Appendix~\ref{app:single-tree}). This route is robust to selection instability by
+construction and requires no margin.
+
+\begin{remark}[Honest scope of ``no sample-splitting'']
+\label{rem:route-a-scope}
+Route A reintroduces a split at the \emph{selection} stage---$\tauhat$ is chosen on
+$\cS_n$---but preserves the property CSA buys: \emph{no split at the inference stage}.
+Leaf values and the CLT use nearly the full sample $\cI_n$, with LOO stability standing
+in for cross-fitting. The displayed tree is still a single interpretable tree; only its
+\emph{structure} was chosen on a subsample, while its \emph{leaf values}---the numbers a
+reader acts on---use nearly all the data. This is strictly weaker than the Route B ideal
+but is the price of validity when the margin is flat and exact recovery fails.
+\end{remark}
+
+Which route to adopt is a direct read on the empirical structure-recovery frequency
+$\widehat{\Prob}(E_n)$, reported in Section~\ref{sec:results}: Route B where recovery
+$\to 1$ (the structural-PC regimes), Route A elsewhere. In either case the estimand and
+Theorem~\ref{thm:wm-clt} are unchanged.
+
+
+% =====================================================================
+% MERGE / TODO NOTES (delete before final):
+%
+% 1. BIB: add CSA key to the .bib file:
+%      @inproceedings{chen2022dml,
+%        author = {Chen, Qizhao and Syrgkanis, Vasilis and Austern, Morgane},
+%        title  = {Debiased Machine Learning without Sample-Splitting for
+%                  Stable Estimators},
+%        booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+%        year   = {2022}, note = {arXiv:2206.01825}}
+%
+% 2. APPENDIX: add \label{app:single-tree} (new appendix folding in
+%    notes/single-tree-inference.tex: Lemma leaf-stability proof, Thm 1 proof,
+%    Route A lemma proof). Re-label the existing Rashomon appendix
+%    \label{app:rashomon} and demote it to "one mechanism for Route B."
+%
+% 3. LEMMA 1: import notes/lemma1-bias-proof.tex as \ref{lem:wm-bias} (currently
+%    referenced but proof lives in the note). Reconcile the score convention
+%    (manuscript eq:score already matches the note's empirical-treated-mean form).
+%
+% 4. thetahat_crossfit: ensure §2 names the cross-fit estimator
+%    \thetahat_{\text{crossfit}} so \ref in rem:delta resolves (manuscript §2
+%    currently calls it \thetahat_{\text{crossfit}} at line 125 -- OK).
+%
+% 5. CROSS-REFS INTO §4/§6: the outline's §4 (simulation) speaks of "coverage of
+%    theta*" and "delta-hat/SE calibration" -- those align with this reframe.
+%    §6 limitations should cite Corollary impossible as the headline limitation.
+%
+% 6. REMOVED from old §3: the epsilon_n = o(n^{-1/2}) catch-22 discussion and the
+%    intersection-overhead corollary move wholesale to Appendix B (app:rashomon);
+%    they survive as Route B mechanics, not main-text theory.
+% =====================================================================

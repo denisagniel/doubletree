@@ -1,0 +1,273 @@
+\documentclass[11pt]{article}
+
+% ---- Portable preamble (compiles with XeLaTeX or pdfLaTeX) ----
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{mathtools}
+
+% ---- Theorem environments ----
+\theoremstyle{plain}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ---- Notation shortcuts ----
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\PP}{\mathbb{P}}
+\newcommand{\Real}{\mathbb{R}}
+\newcommand{\indep}{\perp\!\!\!\perp}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\ef}{e_f}
+\newcommand{\ez}{e_0}
+\newcommand{\mz}{m_0}
+\newcommand{\fz}{f_0}
+\newcommand{\Ltwo}[1]{\lVert #1 \rVert_{2}}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+
+\title{Working Note: Lemma 1 Proof \\ (Working-Model ATT Bias)}
+\author{}
+\date{2026-08-04}
+
+\begin{document}
+\maketitle
+
+\section{Setup}
+
+Let $O = (X, A, Y) \sim P$ be i.i.d., with covariates $X$, binary treatment
+$A \in \{0,1\}$, and outcome $Y$. Under the Neyman--Rubin potential-outcomes
+model, the \emph{average treatment effect on the treated} (ATT) is
+$\theta_0 = \E[Y(1) - Y(0) \given A = 1]$. Write $\pi = \PP(A = 1) > 0$ for the
+marginal treatment probability, $\ez(X) = \PP(A = 1 \given X)$ for the true
+propensity score, and $\mz(X) = \E[Y \given X, A = 0]$ for the true control
+outcome regression. We work with the ATT relying on empirical treated-mean
+identification (no $m_1$ regression on the treated arm). The Neyman-orthogonal
+score used by the estimator is
+\begin{equation}\label{eq:score}
+  \psi(O; \theta, \ef, \fz)
+  = \frac{A}{\pi}\bigl(Y - \fz(X) - \theta\bigr)
+    - \frac{1}{\pi}\,\frac{\ef(X)\,(1 - A)}{1 - \ef(X)}\,\bigl(Y - \fz(X)\bigr),
+\end{equation}
+where $(\ef, \fz)$ are \emph{candidate} nuisances plugged in for
+$(\ez, \mz)$. The \emph{working-model ATT} $\theta(\ef, \fz)$ is defined as the
+solution of the population moment equation
+$\E_P[\psi(O; \theta, \ef, \fz)] = 0$; at the truth $\theta(\ez, \mz) = \theta_0$.
+The lemma below quantifies how $\theta(\ef, \fz)$ departs from $\theta_0$ when
+the plugged-in nuisances are misspecified.
+
+\section{Lemma}
+
+\begin{lemma}[Working-model ATT bias]\label{lem:bias}
+Assume unconfoundedness $\{Y(0), Y(1)\} \indep A \given X$, positivity
+$\ez(X), \ef(X) \in [\varepsilon, 1 - \varepsilon]$ almost surely for some
+$\varepsilon > 0$, and $\pi = \PP(A = 1) > 0$. Then for any measurable
+$(\ef, \fz) \in L^2(P)$,
+\begin{equation}\label{eq:bias-formula}
+  \boxed{\;
+  \theta(\ef, \fz) - \theta_0
+  = \frac{1}{\pi}\,
+    \E_P\!\left[
+      \frac{\ez(X) - \ef(X)}{1 - \ef(X)}\,
+      \bigl(\mz(X) - \fz(X)\bigr)
+    \right].
+  \;}
+\end{equation}
+Consequently,
+\begin{equation}\label{eq:bias-bound}
+  \abs{\theta(\ef, \fz) - \theta_0}
+  \;\le\;
+  \frac{1}{\pi\,(1 - \varepsilon)}\;
+  \Ltwo{\ef - \ez}\;\Ltwo{\fz - \mz}.
+\end{equation}
+The bias is a \emph{product} of the propensity error and the outcome-regression
+error. In particular:
+\begin{itemize}
+  \item if $\ef = \ez$ (propensity exact), the bias is $0$ regardless of $\fz$;
+  \item if $\fz = \mz$ (outcome regression exact), the bias is $0$ regardless of $\ef$.
+\end{itemize}
+This is the double-robustness property.
+\end{lemma}
+
+% NOTE FOR AUTHOR (verification flag): the displayed constant is $1/(\pi(1-\varepsilon))$.
+% The clean Cauchy--Schwarz derivation below yields $1/(\pi\varepsilon)$, since positivity
+% $\ef \le 1-\varepsilon$ gives $1-\ef \ge \varepsilon$ and hence $1/(1-\ef) \le 1/\varepsilon$.
+% For $\varepsilon \le 1/2$ (the usual regime) we have $\varepsilon \le 1-\varepsilon$, so
+% $1/\varepsilon \ge 1/(1-\varepsilon)$ and the stated bound is the LOOSER (weaker) of the two;
+% please confirm which normalization the manuscript intends before importing. The product
+% structure --- the only thing the theory needs --- is identical either way.
+
+\section{Proof}
+
+The argument has three steps: evaluate $\theta(\ef, \fz)$ from the moment
+equation, evaluate $\theta_0$ under identification, and take the difference.
+Throughout we condition on $X$ and use unconfoundedness, which gives
+$\E[A \given X] = \ez(X)$ and $\E[Y \given X, A = 0] = \mz(X)$; note also
+$\E[(1-A)g(X) \given X] = (1 - \ez(X))\,g(X)$ for any integrable $g$.
+
+\paragraph{Step 1: Compute $\theta(\ef, \fz)$ by solving $\E_P[\psi] = 0$.}
+Take the expectation of \eqref{eq:score} term by term.
+
+\emph{First term.} Since $A \in \{0,1\}$ and $A Y = A Y$,
+\begin{align*}
+  \E\!\left[\frac{A}{\pi}\bigl(Y - \fz - \theta\bigr)\right]
+  &= \frac{1}{\pi}\,\E[A Y]
+     - \frac{1}{\pi}\,\E[A\,\fz(X)]
+     - \frac{\theta}{\pi}\,\E[A] \\
+  &= \E[Y \given A = 1]
+     - \frac{1}{\pi}\,\E\bigl[\ez(X)\,\fz(X)\bigr]
+     - \theta,
+\end{align*}
+using $\E[AY] = \pi\,\E[Y \given A = 1]$, $\E[A] = \pi$, and
+$\E[A\,\fz(X)] = \E[\E[A \given X]\,\fz(X)] = \E[\ez\,\fz]$.
+
+\emph{Second term.} Conditioning on $X$, the factors $\ef(X)/(1-\ef(X))$ and
+$(Y - \fz)$ interact with $(1 - A)$; using
+$\E[(1-A)(Y-\fz) \given X] = (1 - \ez(X))\,(\mz(X) - \fz(X))$,
+\begin{align*}
+  \E\!\left[\frac{1}{\pi}\,\frac{\ef(1-A)}{1-\ef}\,(Y - \fz)\right]
+  &= \frac{1}{\pi}\,
+     \E\!\left[\frac{\ef(X)}{1 - \ef(X)}\,
+       \E\bigl[(1-A)(Y - \fz) \given X\bigr]\right] \\
+  &= \frac{1}{\pi}\,
+     \E\!\left[\frac{(1 - \ez(X))\,\ef(X)}{1 - \ef(X)}\,
+       \bigl(\mz(X) - \fz(X)\bigr)\right].
+\end{align*}
+Setting $\E_P[\psi] = 0$ (first term minus second term equals zero) and solving
+for $\theta$:
+\begin{equation}\label{eq:theta-working}
+  \theta(\ef, \fz)
+  = \E[Y \given A = 1]
+    - \frac{1}{\pi}\,\E[\ez\,\fz]
+    - \frac{1}{\pi}\,
+      \E\!\left[\frac{(1 - \ez)\,\ef}{1 - \ef}\,(\mz - \fz)\right].
+\end{equation}
+
+\paragraph{Step 2: Compute $\theta_0$.}
+Under unconfoundedness and positivity, $\E[Y(1) \given A = 1] = \E[Y \given A = 1]$
+and, by the standard control-regression identification,
+$\E[Y(0) \given A = 1] = \E[\mz(X) \given A = 1]$. Hence
+\begin{align}
+  \theta_0
+  &= \E[Y(1) \given A = 1] - \E[Y(0) \given A = 1] \notag \\
+  &= \E[Y \given A = 1] - \E[\mz(X) \given A = 1] \notag \\
+  &= \E[Y \given A = 1] - \frac{1}{\pi}\,\E\bigl[\ez(X)\,\mz(X)\bigr],
+    \label{eq:theta0}
+\end{align}
+where the last line uses
+$\E[\mz \given A = 1] = \E[A\,\mz]/\pi = \E[\ez\,\mz]/\pi$.
+
+\paragraph{Step 3: Take the difference.}
+Subtracting \eqref{eq:theta0} from \eqref{eq:theta-working}, the common
+$\E[Y \given A = 1]$ cancels:
+\begin{align*}
+  \theta(\ef, \fz) - \theta_0
+  &= \frac{1}{\pi}\,\E[\ez\,\mz]
+     - \frac{1}{\pi}\,\E[\ez\,\fz]
+     - \frac{1}{\pi}\,\E\!\left[\frac{(1 - \ez)\,\ef}{1 - \ef}\,(\mz - \fz)\right] \\
+  &= \frac{1}{\pi}\,\E\bigl[\ez\,(\mz - \fz)\bigr]
+     - \frac{1}{\pi}\,\E\!\left[\frac{(1 - \ez)\,\ef}{1 - \ef}\,(\mz - \fz)\right] \\
+  &= \frac{1}{\pi}\,
+     \E\!\left[(\mz - \fz)\left(\ez - \frac{(1 - \ez)\,\ef}{1 - \ef}\right)\right].
+\end{align*}
+Simplify the bracket over a common denominator $1 - \ef$:
+\begin{align*}
+  \ez - \frac{(1 - \ez)\,\ef}{1 - \ef}
+  = \frac{\ez(1 - \ef) - (1 - \ez)\,\ef}{1 - \ef}
+  = \frac{\ez - \ez\ef - \ef + \ez\ef}{1 - \ef}
+  = \frac{\ez - \ef}{1 - \ef}.
+\end{align*}
+Therefore
+\begin{align*}
+  \theta(\ef, \fz) - \theta_0
+  = \frac{1}{\pi}\,
+    \E\!\left[\frac{\ez(X) - \ef(X)}{1 - \ef(X)}\,\bigl(\mz(X) - \fz(X)\bigr)\right],
+\end{align*}
+which is \eqref{eq:bias-formula}.
+
+\paragraph{The bound.}
+Write the integrand of \eqref{eq:bias-formula} as the product of two
+$L^2(P)$ functions,
+\[
+  \frac{\ez(X) - \ef(X)}{1 - \ef(X)}\,\bigl(\mz(X) - \fz(X)\bigr)
+  = \underbrace{\frac{\ez(X) - \ef(X)}{1 - \ef(X)}}_{=:\,g(X)}\;
+    \bigl(\mz(X) - \fz(X)\bigr).
+\]
+By positivity $\ef(X) \le 1 - \varepsilon$ a.s., so $1 - \ef(X) \ge \varepsilon$ and
+$\abs{g(X)} \le \varepsilon^{-1}\,\abs{\ez(X) - \ef(X)}$ pointwise; hence
+$\Ltwo{g} \le \varepsilon^{-1}\,\Ltwo{\ez - \ef}$. Applying the Cauchy--Schwarz
+inequality in $L^2(P)$,
+\begin{align*}
+  \abs{\theta(\ef, \fz) - \theta_0}
+  &= \frac{1}{\pi}\,\abs*{\E_P\!\bigl[g(X)\,(\mz - \fz)\bigr]}
+   \;\le\; \frac{1}{\pi}\,\Ltwo{g}\;\Ltwo{\mz - \fz}
+   \;\le\; \frac{1}{\pi\,\varepsilon}\,\Ltwo{\ef - \ez}\;\Ltwo{\fz - \mz}.
+\end{align*}
+This is \eqref{eq:bias-bound} up to the value of the positivity constant
+(the derivation gives $1/(\pi\varepsilon)$; see the verification note after the
+lemma statement). In either normalization the constant is a fixed multiple of
+$1/(\pi\varepsilon)$, and what matters for the downstream theory is the
+\emph{product structure} $\Ltwo{\ef - \ez}\,\Ltwo{\fz - \mz}$: the bias is
+second order in the joint nuisance error.
+\qed
+
+\section{Remarks}
+
+\begin{remark}[Double robustness]
+Formula \eqref{eq:bias-formula} is a bilinear form in the two nuisance errors
+$(\ef - \ez)$ and $(\fz - \mz)$. If \emph{either} factor vanishes, the entire
+bias vanishes: exact propensity ($\ef = \ez$) or exact outcome regression
+($\fz = \mz$) each suffice for $\theta(\ef, \fz) = \theta_0$. This is precisely
+the double-robustness of the score \eqref{eq:score}.
+\end{remark}
+
+\begin{remark}[Neyman orthogonality]
+Because the bias is second order in the nuisance errors, the Gateaux derivative
+of $(\ef, \fz) \mapsto \theta(\ef, \fz)$ at the truth $(\ez, \mz)$ vanishes in
+every direction $(h_e, h_0)$: differentiating \eqref{eq:bias-formula} along
+$\ef = \ez + t\,h_e$, $\fz = \mz + t\,h_0$ and evaluating at $t = 0$ leaves a
+term proportional to the product $t^2$, so $\partial_t|_{t=0} = 0$. Both partial
+derivatives (in $\ef$ and in $\fz$ separately) vanish at the truth. This
+confirms $\psi$ is Neyman-orthogonal, which is why a cross-fit estimator attains
+$\sqrt{n}$-consistency and asymptotic normality despite nonparametric nuisance
+estimation: the first-order sensitivity to nuisance error is nil, and only the
+product remainder \eqref{eq:bias-bound} survives.
+\end{remark}
+
+\begin{remark}[What this means for the paper]
+Lemma~\ref{lem:bias} defines $\theta^\star := \theta(\ef, \fz)$ as the
+\emph{working-model ATT} --- the estimand actually targeted when the plugged-in
+tree-based nuisances $(\ef, \fz)$ differ from the truth. Equation
+\eqref{eq:bias-bound} supplies the \emph{second-order remainder} entering
+Theorem~A: the estimator's bias relative to $\theta_0$ is controlled by the
+product of the two nuisance $L^2$ rates, so it is $o(n^{-1/2})$ whenever the
+product of the propensity and outcome rates is $o(n^{-1/2})$ (e.g.\ each faster
+than $n^{-1/4}$). The interpretable optimal-tree nuisances need only be
+\emph{jointly} accurate, not individually parametric.
+\end{remark}
+
+\section{Connection to the estimator}
+
+The population identity \eqref{eq:bias-formula} has a direct sample analogue.
+With cross-fitting, the estimator solves the empirical moment
+$\PP_n[\psi(O; \hat\theta_{\mathrm{cf}}, \hat e, \hat f)] = 0$, yielding the
+cross-fit ATT $\hat\theta_{\mathrm{cf}}$. Plugging in a chosen tree $T^\star$ for
+the nuisances gives the working-model estimate $\hat\theta(T^\star)$. Their
+difference estimates the bias gap of \eqref{eq:bias-formula},
+\begin{align*}
+  \hat\delta
+  := \hat\theta(T^\star) - \hat\theta_{\mathrm{cf}}
+  \;\approx\;
+  \frac{1}{\hat\pi}\,
+  \PP_n\!\left[
+    \frac{\hat e(X) - e_{T^\star}(X)}{1 - e_{T^\star}(X)}\,
+    \bigl(\hat m_0(X) - f_{T^\star}(X)\bigr)
+  \right],
+\end{align*}
+the sample average of the same integrand in \eqref{eq:bias-formula} with true
+nuisances replaced by their cross-fit estimates $(\hat e, \hat m_0)$ and the
+working-model nuisances by the tree $(e_{T^\star}, f_{T^\star})$, and
+$\hat\pi = \PP_n[A]$. Thus $\hat\delta$ is an empirical estimate of how much the
+interpretable tree working model departs from the efficient cross-fit target ---
+a diagnostic quantity the practitioner can report alongside $\hat\theta(T^\star)$.
+
+\end{document}

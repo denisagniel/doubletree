@@ -1,0 +1,517 @@
+\documentclass[11pt]{article}
+
+% ---- Portable preamble (compiles with XeLaTeX or pdfLaTeX) ----
+% Notation is kept deliberately consistent with lemma1-bias-proof.tex so this
+% note can be imported into the manuscript alongside Lemma 1 without renaming.
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{mathtools}
+\usepackage[numbers,round]{natbib}
+
+% ---- Theorem environments ----
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ---- Notation shortcuts (match lemma1-bias-proof.tex) ----
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\PP}{\mathbb{P}}
+\newcommand{\Real}{\mathbb{R}}
+\newcommand{\indep}{\perp\!\!\!\perp}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\ef}{e_f}
+\newcommand{\ez}{e_0}
+\newcommand{\mz}{m_0}
+\newcommand{\fz}{f_0}
+\newcommand{\Ltwo}[1]{\lVert #1 \rVert_{2}}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+\newcommand{\Pn}{\mathbb{P}_n}
+\newcommand{\eT}{e_{\hat\tau}}
+\newcommand{\mT}{m_{\hat\tau}}
+\newcommand{\etau}{e_{\tau_0}}
+\newcommand{\mtau}{m_{\tau_0}}
+\newcommand{\thstar}{\theta^{\star}_n}
+\newcommand{\htheta}{\hat\theta}
+\newcommand{\psiscore}{\psi}
+\newcommand{\Ghat}{\hat g}
+\newcommand{\gz}{g_0}
+\newcommand{\odiff}{o}
+
+\title{Working Note: Single Interpretable Tree per Nuisance \\
+  Valid Full-Sample Inference for the Working-Model ATT via LOO Stability}
+\author{}
+\date{2026-08-04}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We prove that a \emph{single} interpretable decision tree per nuisance, with a
+\emph{fixed} bounded-complexity partition and leaf values refit on \emph{all} $n$
+observations, yields valid $\sqrt{n}$ inference for the ATT of the displayed tree
+model---using leave-one-out (LOO) algorithmic stability
+\citep{ChenSyrgkanisAustern2022} rather than sample-splitting or cross-fitting.
+The target is the \emph{working-model ATT} $\thstar$ (Lemma~1); the true ATT
+$\theta_0$ is generically \emph{not} targetable at $\sqrt{n}$ by any
+fixed-complexity interpretable tree (Corollary~\ref{cor:impossible}), and the
+gap $\thstar-\theta_0$ is reported as an honest diagnostic $\hat\delta$, never
+used to correct the estimate. A structural piecewise-constant assumption
+recovers $\theta_0$ as a special case (Corollary~\ref{cor:structural}).
+\end{abstract}
+
+\section{Setup and notation}\label{sec:setup}
+
+Let $O=(X,A,Y)\sim P$ be i.i.d.\ with covariates $X\in[0,1]^d$, binary
+treatment $A\in\{0,1\}$, and outcome $Y$. Write $\pi=\PP(A=1)>0$,
+$\ez(X)=\PP(A=1\given X)$ (propensity), and $\mz(X)=\E[Y\given X,A=0]$ (control
+outcome regression). The estimand is the average treatment effect on the treated
+$\theta_0=\E[Y(1)-Y(0)\given A=1]$, identified under unconfoundedness
+$\{Y(0),Y(1)\}\indep A\given X$ and positivity (Assumption~\ref{ass:positivity}).
+
+The Neyman-orthogonal ATT score, in the empirical treated-mean identification
+(no $m_1$ regression), is (matching eq.~(score) of the Lemma~1 note)
+\begin{equation}\label{eq:score}
+  \psiscore(O;\theta,e,f)
+  = \frac{A}{\pi}\bigl(Y-f(X)-\theta\bigr)
+    - \frac{1}{\pi}\,\frac{e(X)\,(1-A)}{1-e(X)}\,\bigl(Y-f(X)\bigr),
+\end{equation}
+where $(e,f)$ are candidate nuisances plugged in for $(\ez,\mz)$. For any
+$(e,f)\in L^2(P)$ the \emph{working-model ATT} $\theta(e,f)$ solves
+$\E_P[\psiscore(O;\theta,e,f)]=0$; at the truth $\theta(\ez,\mz)=\theta_0$.
+Lemma~1 (imported) gives the bilinear, doubly robust bias
+\begin{equation}\label{eq:lemma1}
+  \theta(e,f)-\theta_0
+  = \frac{1}{\pi}\,\E_P\!\left[\frac{\ez-e}{1-e}\,(\mz-f)\right],
+  \qquad
+  \abs{\theta(e,f)-\theta_0}\le \frac{1}{\pi c}\,\Ltwo{e-\ez}\,\Ltwo{f-\mz},
+\end{equation}
+under Assumption~\ref{ass:positivity} (the constant is $1/(\pi c)$; see the
+Lemma~1 note's verification remark).
+
+\paragraph{Trees and the working-model estimand.}
+A partition $\tau$ of $[0,1]^d$ into $L=\abs{\tau}$ axis-aligned cells (leaves)
+induces piecewise-constant nuisances by cell-wise population means. On the
+project's adaptive grid $G_n$ (quantile bins $b_n\asymp\log n$ per feature; see
+the discretization note), let $\tau_0=\tau_0(G_n)$ be the \emph{grid-optimal}
+partition of bounded complexity $L=\odiff(\sqrt n)$, with piecewise-constant
+nuisances $\etau,\mtau$. Define the \textbf{interpretable working-model ATT}
+\begin{equation}\label{eq:thetastar}
+  \thstar \;:=\; \theta(\etau,\mtau),
+\end{equation}
+the ATT functional \eqref{eq:score} evaluated at the grid-optimal tree model.
+This---not $\theta_0$---is the target of the inference below.
+
+\paragraph{The estimator.}
+Given a data-selected partition $\hat\tau$ (from cross-fit trees or a
+Rashomon/modal menu), fix it and refit leaf values as within-leaf sample means
+on all $n$: $\eT(x)=\Pn[A\mid X\in\ell(x)]$,
+$\mT(x)=\Pn[Y\mid X\in\ell(x),A=0]$, where $\ell(x)$ is the leaf containing $x$.
+The full-sample plug-in $\htheta$ solves $\Pn[\psiscore(O;\theta,\eT,\mT)]=0$.
+
+\paragraph{CSA linear-moment form.}
+Write the moment in the linear form of \citet{ChenSyrgkanisAustern2022},
+$m(O;\theta,g)=a(O;g)\,\theta+\nu(O;g)$ with nuisance $g=(e,f)$. From
+\eqref{eq:score},
+\begin{equation}\label{eq:anu}
+  a(O;g)=-\frac{A}{\pi},\qquad
+  \nu(O;g)=\frac{A}{\pi}\bigl(Y-f(X)\bigr)
+    -\frac{1}{\pi}\frac{e(X)(1-A)}{1-e(X)}\bigl(Y-f(X)\bigr),
+\end{equation}
+so $a$ does not depend on $g$ (hence $A(g)\equiv-1/\pi\cdot\pi=-1$ after taking
+expectations, giving $A(g_0)^{-1}=-1$) and all nuisance dependence sits in
+$\nu$. This simplifies the CSA conditions: only the $\nu$-stability
+conditions (S3)--(S4) are nonvacuous.
+
+\begin{assumption}[Positivity]\label{ass:positivity}
+There is $c\in(0,\tfrac12]$ with $\ez(X)\in[c,1-c]$ a.s., and every candidate
+tree propensity satisfies $\eT(X),\etau(X)\in[c,1-c]$ (enforced by leaf-level
+clipping / a minimum leaf treated-fraction).
+\end{assumption}
+
+\begin{assumption}[Bounded outcome moments]\label{ass:moments}
+$\E[Y^2\mid X]\le C_Y<\infty$ a.s.
+\end{assumption}
+
+\begin{assumption}[Balanced bounded complexity]\label{ass:leaves}
+$\hat\tau$ has $L=\abs{\hat\tau}$ leaves with $L=\odiff(\sqrt n)$ and each leaf
+count $n_\ell\ge \underline{c}\,n/L$ for a constant $\underline{c}>0$
+(min-leaf-size regularization). Hence $\min_\ell n_\ell\gtrsim n/L\gg\sqrt n$.
+\end{assumption}
+
+\section{Leaf-refit LOO stability}\label{sec:leaf}
+
+We first show the leaf-refit map is LOO-stable at the CSA rate for a
+\emph{fixed} partition. Let $\Ghat=(\eT,\mT)$ and let $\Ghat^{(-l)}$ be the same
+map with observation $O_l$ replaced by an independent copy $\tilde O_l$ (the
+partition $\hat\tau$ held fixed). Recall the CSA stability quantities for the
+$\nu$-component: with $Z=O$ a fresh point,
+\begin{align}
+  \text{(S3)}\quad & \max_{l\le n}\bigl\lVert \nu(O_l;\Ghat)-\nu(O_l;\Ghat^{(-l)})\bigr\rVert_1=\odiff(n^{-1/2}),\label{eq:S3}\\
+  \text{(S4)}\quad & \max_{l\le n}\bigl\lVert \nu(O;\Ghat)-\nu(O;\Ghat^{(-l)})\bigr\rVert_2=\odiff(n^{-1/2}),\label{eq:S4}
+\end{align}
+and the mean-squared-continuity (MSC) condition: for some $q<\infty$, $L_{\mathrm{MSC}}>0$,
+$\E[(\nu(O;g)-\nu(O;g'))^2]\le L_{\mathrm{MSC}}\Ltwo{g-g'}^{q}$ for all $g,g'$.
+
+\begin{lemma}[Leaf-refit LOO stability]\label{lem:leafstab}
+Under Assumptions~\ref{ass:positivity}--\ref{ass:leaves} and a \emph{fixed}
+partition $\hat\tau$, the leaf-mean map $\Ghat=(\eT,\mT)$ satisfies the CSA
+$\nu$-stability conditions \eqref{eq:S3}--\eqref{eq:S4} and the MSC condition with
+$q=2$. Consequently the CSA stochastic-equicontinuity condition holds for the
+moment \eqref{eq:anu}.
+\end{lemma}
+
+\begin{proof}
+\emph{Step 1: MSC with $q=2$.} On the positivity set $e\in[c,1-c]$, the map
+$e\mapsto e/(1-e)$ is Lipschitz with constant $\le 1/c^2$ (its derivative is
+$1/(1-e)^2\le 1/c^2$). Hence, writing $g=(e,f)$, $g'=(e',f')$, from
+\eqref{eq:anu} and $\abs{Y-f}\le\abs{Y}+\abs{f}$ with
+Assumption~\ref{ass:moments},
+\[
+  \abs{\nu(O;g)-\nu(O;g')}
+  \le \frac{1}{\pi}\abs{f-f'}
+    +\frac{1}{\pi}\Bigl(\tfrac{1}{c^2}\abs{e-e'}\abs{Y-f}
+      +\tfrac{1-c}{c}\abs{f-f'}\Bigr),
+\]
+so squaring, taking expectations, and using boundedness gives
+$\E[(\nu(O;g)-\nu(O;g'))^2]\le L_{\mathrm{MSC}}\bigl(\Ltwo{e-e'}^2+\Ltwo{f-f'}^2\bigr)
+=L_{\mathrm{MSC}}\Ltwo{g-g'}^2$, i.e.\ $q=2$.
+
+\emph{Step 2: LOO perturbation of a leaf mean is $O(1/n_\ell)$.} Fix a leaf
+$\ell$ with count $n_\ell$ and control-arm count $n_\ell^0$. Replacing one
+observation $O_l$ changes the within-leaf mean by at most
+\[
+  \abs{\mT^{(-l)}(x)-\mT(x)}
+  \le \frac{\abs{Y_l}+\abs{\tilde Y_l}}{n_\ell^0}
+  \quad\text{if }X_l\in\ell,\ A_l=0,\qquad 0\text{ otherwise,}
+\]
+and analogously $\abs{\eT^{(-l)}(x)-\eT(x)}\le 1/n_\ell$. By
+Assumption~\ref{ass:leaves}, $n_\ell,n_\ell^0\gtrsim n/L$, so under
+Assumption~\ref{ass:moments},
+$\Ltwo{\Ghat-\Ghat^{(-l)}}=O(L/n)$ uniformly in $l$.
+
+\emph{Step 3: (S3)--(S4).} By the MSC bound (Step 1, $q=2$) and Step 2, for a
+fresh $O$,
+\[
+  \bigl\lVert \nu(O;\Ghat)-\nu(O;\Ghat^{(-l)})\bigr\rVert_2
+  \le L_{\mathrm{MSC}}^{1/2}\,\Ltwo{\Ghat-\Ghat^{(-l)}}
+  = O(L/n).
+\]
+The $\lVert\cdot\rVert_1$ version at the training point $O_l$ is bounded the
+same way (a single point contributes $O(1/n_\ell)=O(L/n)$ to the mean, and
+$\lVert\cdot\rVert_1\le\lVert\cdot\rVert_2$). Since $L=\odiff(\sqrt n)$,
+$O(L/n)=\odiff(n^{-1/2})$, giving \eqref{eq:S3}--\eqref{eq:S4}.
+
+\emph{Step 4.} By \citet[Lemma~2]{ChenSyrgkanisAustern2022}, (S3)--(S4)+MSC imply
+the stochastic-equicontinuity condition for \eqref{eq:anu} (the $a$-component is
+$g$-free, so (S1)--(S2) are vacuous).
+\end{proof}
+
+\section{Main result: full-sample CLT for the working-model ATT}\label{sec:main}
+
+Selection instability is quarantined by a \emph{partition-fixing event} $E_n$,
+under either of two mechanisms.
+
+\begin{assumption}[Partition-fixing event]\label{ass:En}
+Let $E_n=\{\hat\tau=\tau_0\}$ be the event that the selector recovers the
+grid-optimal partition. We require the failure probability to vanish
+\emph{faster than the root-$n$ rate},
+\begin{equation}\label{eq:En-rate}
+  \PP(E_n^c)\;=\;\odiff\!\bigl(n^{-1/2}\bigr).
+\end{equation}
+This is strictly stronger than $\PP(E_n)\to1$ and is the operative requirement:
+$\odiff(1)$ does \emph{not} suffice (see the proof of Theorem~\ref{thm:clt}, final
+step, and Remark~\ref{rem:rate-necessity}). Condition \eqref{eq:En-rate} holds
+under either mechanism:
+\begin{itemize}
+  \item[(B)] \emph{Margin / exact recovery.} On the grid $G_n$ the grid-optimal
+  $\tau_0$ has a risk margin $\Delta_n>0$ over its competitors, and a modal
+  selector over $M_n$ independent splits obeys a union-bound tail
+  $\PP(E_n^c)\le S_n\exp(-M_n\Delta_n)$, where $S_n=\lvert\mathcal{T}(G_n)\rvert$
+  is the number of candidate partitions on $G_n$
+  \citep[cf.][]{ChenSyrgkanisAustern2022}. Then \eqref{eq:En-rate} holds iff
+  \begin{equation}\label{eq:recovery-rate}
+    M_n\Delta_n-\log S_n\;\gg\;\tfrac12\log n.
+  \end{equation}
+  Under the adaptive log-$n$ grid, $\log S_n\asymp\log n$ (the grid has
+  $\asymp(\log n)^{d}$ cells, so polynomially many candidate partitions) and
+  $\Delta_n\asymp(\log n)^{-\kappa}$; hence \eqref{eq:recovery-rate} requires
+  $M_n\gg(\log n)^{1+\kappa}$. \emph{Caveat (open):} the union bound assumes
+  \emph{independent} split statistics over a \emph{fixed} candidate set $S_n$;
+  the sequential/greedy optimal-tree search induces dependence and a data-grown
+  $S_n$, so \eqref{eq:recovery-rate} is a sufficient condition for an idealized
+  modal selector, not yet a theorem for the deployed selector
+  (see \S\ref{sec:En-open}).
+  \item[(A)] \emph{Held-out selection.} $\hat\tau$ is measurable with respect to
+  auxiliary folds independent of the leaf-refit sample; then $\hat\tau$ is fixed
+  conditional on that sample and no recovery event is needed
+  ($E_n$ is the full space, $\PP(E_n^c)=0$, trivially \eqref{eq:En-rate}). The
+  cost is that selection uses a separate fold, reintroducing splitting at the
+  selection stage (not at inference).
+\end{itemize}
+\end{assumption}
+
+\begin{theorem}[Working-model CLT]\label{thm:clt}
+Suppose Assumptions~\ref{ass:positivity}--\ref{ass:En} hold and the tree nuisance
+rates satisfy the CSA consistency condition
+$\E_X\Ltwo{\Ghat(X)-\gz(X)}^2=\odiff_p(n^{-1/2})$
+(equivalently each nuisance $\odiff_p(n^{-1/4})$; delivered by the tree oracle
+rate when $\beta>d/2$). Then, on $E_n$,
+\begin{equation}\label{eq:clt}
+  \sqrt n\,\bigl(\htheta-\thstar\bigr)\;\xrightarrow{d}\;N\!\bigl(0,\,V\bigr),
+  \qquad
+  V=\E\bigl[\psiscore(O;\thstar,\etau,\mtau)^2\bigr],
+\end{equation}
+and a LOO-stability plug-in $\hat V\xrightarrow{p}V$; hence
+$\htheta\pm z_{1-\alpha/2}\sqrt{\hat V/n}$ is an asymptotically valid CI for
+$\thstar$. Because $\PP(E_n)\to1$, \eqref{eq:clt} holds unconditionally.
+\end{theorem}
+
+\begin{proof}
+Neyman orthogonality of \eqref{eq:score} holds (Lemma~1, Remark on
+orthogonality: both Gateaux partials at the truth vanish), and the second-order
+smoothness $D_{gg}M=O(\Ltwo{g-\gz}^2)$ is the bilinear form \eqref{eq:lemma1}.
+On $E_n$ the partition equals the fixed $\tau_0$, so
+Lemma~\ref{lem:leafstab} supplies CSA (S3)--(S4)+MSC, hence stochastic
+equicontinuity. The remaining CSA regularity holds: $A(\gz)=-1$ is invertible;
+$A$ is $g$-free (trivially Lipschitz); $\mathrm{Var}(a(O;\gz))=\mathrm{Var}(A/\pi)<\infty$.
+Then \citet[Theorem~1]{ChenSyrgkanisAustern2022} gives
+$\sqrt n(\htheta-\theta(\etau,\mtau))\xrightarrow{d}N(0,A(\gz)^{-1}\Sigma_0 A(\gz)^{-1})$
+with $A(\gz)^{-1}=-1$ and $\Sigma_0=\E[\psiscore^2]$, i.e.\ \eqref{eq:clt} with
+target $\theta(\etau,\mtau)=\thstar$. Consistency of $\hat V$ follows from the
+same stability (LOO variance estimator). Finally, we pass from the conditional
+to the unconditional law. Decompose
+$\sqrt n(\htheta-\thstar)=\sqrt n(\htheta-\thstar)\mathbf{1}_{E_n}
++\sqrt n(\htheta-\thstar)\mathbf{1}_{E_n^c}$. Under positivity the ATT is
+bounded, so on $E_n^c$ the selected tree targets a different bounded working
+model and $\htheta-\thstar=O_p(1)$; hence the second term has
+$\E\bigl[\sqrt n\,\lvert\htheta-\thstar\rvert\mathbf{1}_{E_n^c}\bigr]
+\lesssim \sqrt n\,\PP(E_n^c)=\odiff(1)$ by \eqref{eq:En-rate}, and it is
+$\odiff_p(1)$. Equivalently, the total-variation distance between the conditional
+law $\mathcal L(\sqrt n(\htheta-\thstar)\mid E_n)$ and the unconditional law is
+$O(\PP(E_n^c))=\odiff(1)$, so the two limits coincide and \eqref{eq:clt} holds
+unconditionally.
+\end{proof}
+
+\begin{remark}[Why $\odiff(n^{-1/2})$, not $\odiff(1)$, is necessary]\label{rem:rate-necessity}
+The strengthening \eqref{eq:En-rate} over the naive $\PP(E_n)\to1$ is not
+cosmetic. If $\PP(E_n^c)$ vanished only at rate $\odiff(1)$ but slower than
+$n^{-1/2}$ (e.g.\ $\PP(E_n^c)\asymp n^{-1/4}$), the recovery-failure term would
+contribute $\sqrt n\,\PP(E_n^c)\to\infty$ to the bias, breaking the CLT centering
+even though structure recovery ``succeeds with probability tending to one.''
+This is the post-selection subtlety: consistency of selection is insufficient;
+the failure probability must beat the estimator's own $\sqrt n$ rate. It is also
+why selection cannot be certified by simulation alone at moderate $n$---a $2$--$5\%$
+empirical misrecovery rate looks benign but its \emph{rate in $n$} is what governs
+validity.
+\end{remark}
+
+\section{The gap to \texorpdfstring{$\theta_0$}{theta0} and an impossibility}\label{sec:gap}
+
+\begin{proposition}[Discretization gap]\label{prop:gap}
+Under a H\"older-$\beta$ smoothness class for $(\ez,\mz)$ and the adaptive grid
+$G_n$ ($b_n\asymp\log n$ bins per feature),
+\[
+  \thstar-\theta_0 = O\!\bigl((\log n)^{-2\beta}\bigr),
+  \qquad\text{hence}\qquad
+  \sqrt n\,\bigl(\thstar-\theta_0\bigr)\longrightarrow\infty
+  \ \text{ for every fixed }\beta>0.
+\]
+\end{proposition}
+
+\begin{proof}
+By \eqref{eq:lemma1}, $\abs{\thstar-\theta_0}\le(\pi c)^{-1}
+\Ltwo{\etau-\ez}\,\Ltwo{\mtau-\mz}$. On $G_n$ each grid-optimal
+piecewise-constant nuisance has approximation error
+$\Ltwo{\etau-\ez},\Ltwo{\mtau-\mz}=O(b_n^{-\beta})=O((\log n)^{-\beta})$ for a
+H\"older-$\beta$ function on axis-aligned cells of width $1/b_n$ (discretization
+note). The product is $O((\log n)^{-2\beta})$. Finally
+$\sqrt n\,(\log n)^{-2\beta}\to\infty$ since any positive power of $n$ dominates
+any power of $\log n$.
+\end{proof}
+
+\begin{corollary}[Impossibility for $\theta_0$]\label{cor:impossible}
+No estimator built from a single \emph{fixed}, \emph{bounded-complexity}
+($L=\odiff(\sqrt n)$) interpretable tree per nuisance on the adaptive grid admits
+a $\sqrt n$-valid CI for $\theta_0$ under H\"older-$\beta$ smoothness. Driving the
+gap to $\odiff(n^{-1/2})$ requires polynomial grid refinement, which forces
+$L\not=\odiff(\sqrt n)$ (breaking Lemma~\ref{lem:leafstab}) or an off-tree
+debiasing term (breaking ``the tree is the estimator'').
+\end{corollary}
+
+\begin{proof}
+Immediate from Proposition~\ref{prop:gap}: the $\sqrt n$-scaled bias diverges, so
+any CI of width $\Theta(n^{-1/2})$ centered at $\htheta$ (Theorem~\ref{thm:clt})
+has $\theta_0$-coverage $\to0$. To make $\thstar-\theta_0=\odiff(n^{-1/2})$ one
+needs $b_n^{-2\beta}=\odiff(n^{-1/2})$, i.e.\ $b_n\gtrsim n^{1/(4\beta)}$, giving
+$L$ up to $b_n^{d}\gtrsim n^{d/(4\beta)}$; for this to also satisfy
+$L=\odiff(\sqrt n)$ one needs $d/(4\beta)<1/2$, and even then the \emph{achieved}
+complexity balancing estimation error is $s_n\asymp n^{d/(2\beta+d)}$, whose
+approximation error $s_n^{-2\beta/d}\asymp n^{-2\beta/(2\beta+d)}$ is
+$\odiff(n^{-1/2})$ only if $\beta>d/2$---but that regime is the cross-fit DML
+result, not a fixed interpretable tree. The fixed-tree, log-grid object cannot
+occupy it without a correction term absent from the displayed tree.
+\end{proof}
+
+\begin{corollary}[Structural PC special case: $\thstar=\theta_0$]\label{cor:structural}
+If $(\ez,\mz)$ are \emph{exactly} piecewise-constant on some finite (unknown)
+partition $\tau^\ast$ (a structural, not smoothness, assumption), then for $n$
+large enough that $G_n$ resolves $\tau^\ast$ we have $\etau=\ez$, $\mtau=\mz$,
+hence $\thstar=\theta_0$, and Theorem~\ref{thm:clt} delivers a $\sqrt n$-valid CI
+for the \emph{true} ATT $\theta_0$.
+\end{corollary}
+
+\begin{proof}
+Under exact representability the approximation errors in
+Proposition~\ref{prop:gap} vanish once $\tau^\ast\subseteq G_n$; then
+\eqref{eq:lemma1} gives $\thstar-\theta_0=0$ and Theorem~\ref{thm:clt} applies
+verbatim with $\thstar=\theta_0$.
+\end{proof}
+
+\begin{remark}[The diagnostic $\hat\delta$ is not a correction]
+Define $\hat\delta=\htheta-\htheta_{\mathrm{cf}}$, the difference between the
+displayed-tree estimate and a cross-fit anchor. By \eqref{eq:lemma1} $\hat\delta$
+is a plug-in estimate of the gap and is \emph{reported as an honesty flag}: it is
+never subtracted from $\htheta$. Indeed, by Proposition~\ref{prop:gap} the gap is
+asymptotically non-negligible relative to the CI width, so a $\hat\delta$-correction
+capable of recovering $\theta_0$ would already constitute a solution of the
+$\theta_0$ problem, contradicting Corollary~\ref{cor:impossible}.
+\end{remark}
+
+\section{Discharging the partition-fixing event \texorpdfstring{$E_n$}{En}: open problem}\label{sec:En-open}
+
+Theorem~\ref{thm:clt} is stated \emph{conditional} on Assumption~\ref{ass:En},
+i.e.\ on a selector delivering $\PP(E_n^c)=\odiff(n^{-1/2})$. Discharging that
+assumption for the \emph{deployed} optimal-tree-over-grid selector is the one
+remaining proof obligation. We record precisely what each route requires and
+where it breaks, so the choice can be made once the empirical recovery rate is in
+hand (the structure-recovery frequency $\widehat{\PP}(E_n)$ from the companion
+simulation is a direct read on which route is viable).
+
+\paragraph{Route B (exact recovery) --- what must be proved.}
+Establish \eqref{eq:recovery-rate}, $M_n\Delta_n-\log S_n\gg\tfrac12\log n$, for
+the actual selector. Two hazards, both flagged and neither yet closed:
+\begin{enumerate}
+  \item \emph{Dependence / data-grown candidate set.} The union bound
+  $\PP(E_n^c)\le S_n\exp(-M_n\Delta_n)$ assumes independent split statistics over
+  a fixed $S_n$. The greedy/optimal search is sequential (nested splits,
+  discontinuous jumps) and $S_n=S_n(G_n)$ grows with the grid. A correct proof
+  needs either (i) a concentration inequality for the modal winner under
+  dependence (e.g.\ a bounded-differences / stability argument on the selection
+  statistic), or (ii) a covering/peeling bound that controls the growing $S_n$
+  without a naive union.
+  \item \emph{Margin positivity under approximate PC.} $\Delta_n>0$ is generic
+  only in the structural-PC regime (Corollary~\ref{cor:structural}); when the
+  signal is merely H\"older, the risk landscape is flat ($O(h^2)$) near the
+  optimum and $\Delta_n\downarrow0$ as the grid refines. Under the log-$n$ grid
+  this is only $\Delta_n\asymp(\log n)^{-\kappa}$, which \eqref{eq:recovery-rate}
+  can still tolerate---but the constant and the exponent $\kappa$ must be pinned,
+  and the flat-landscape case is exactly where the empirical recovery rate is
+  expected to degrade.
+\end{enumerate}
+\emph{Verdict:} viable iff the empirical recovery rate stays high as $n$ grows on
+the target regimes; if it plateaus below one (as a flat margin predicts), Route B
+cannot deliver $\odiff(n^{-1/2})$ and Route A is forced.
+
+\paragraph{Route A (held-out selection) --- what must be proved.}
+Trivially $\PP(E_n^c)=0$ (no recovery needed), so \eqref{eq:En-rate} is immediate
+and the two hazards of Route B vanish. The obligations shift: (i) show the
+held-out selection fold is asymptotically negligible for efficiency (the leaf
+refit still uses the full inference sample, so the only cost is the selection
+fold's information, $\odiff(1)$ of the total under a vanishing selection
+fraction); (ii) state honestly that splitting re-enters at \emph{selection} (not
+at inference), which weakens---but does not void---the ``no sample-splitting''
+headline. This route is robust to selection instability by construction and does
+\emph{not} require a margin.
+
+\paragraph{Decision rule (keyed to the simulation).}
+Let $r_n=\widehat{\PP}(E_n)$ be the measured recovery rate.
+\begin{itemize}
+  \item If $r_n\to1$ fast on the structural-PC (binary) regimes and stays high on
+  approximate-PC as $n$ grows: pursue Route B; prove \eqref{eq:recovery-rate} via
+  a dependence-robust concentration bound.
+  \item If $r_n$ plateaus $<1$ (the flat-margin signature; the pilot's
+  $\approx0.5$--$0.6$ on the complex DGP is a warning): adopt Route A as the
+  primary discharge, cite Route B only under the structural-PC assumption where
+  the margin is $O(1)$.
+\end{itemize}
+Either way the estimand and the CLT (Theorem~\ref{thm:clt}) are unchanged---only
+the mechanism that supplies $E_n$ differs. The estimand fork ($\thstar$ vs
+$\theta_0$) is orthogonal to the A-vs-B choice.
+
+\paragraph{The empirical verdict (companion simulation).}
+The structure-recovery frequency is stable across runs: $r_n=1.0$ on the
+structural-PC (\texttt{simple}, \texttt{moderate}) regimes but $r_n\approx0.5$--$0.6$
+on the \texttt{complex} regime, with no trend toward $1$ as $n$ grows over
+$n\in\{500,\dots,10000\}$. This is the flat-margin signature: on the hard regime
+$\PP(E_n^c)\approx0.4$ does not vanish, let alone at $\odiff(n^{-1/2})$. By the
+decision rule, \textbf{Route~A is the primary discharge for the general case};
+Route~B applies only under the structural-PC assumption
+(Corollary~\ref{cor:structural}), where $r_n\to1$ is both predicted and observed.
+We now make Route~A a theorem.
+
+\begin{lemma}[Held-out selection discharges $E_n$]\label{lem:routeA}
+Partition the sample into a selection fold $\mathcal S_n$ of size $\lfloor\rho_n
+n\rfloor$ and an inference fold $\mathcal I_n$ of size $n-\lfloor\rho_n n\rfloor$,
+with selection fraction $\rho_n\to0$ and $\rho_n n\to\infty$. Let $\hat\tau$ be
+\emph{any} partition selector measurable with respect to $\mathcal S_n$ only, and
+refit leaf values on $\mathcal I_n$. Then:
+\begin{enumerate}
+  \item[(i)] Conditional on $\mathcal S_n$, the partition $\hat\tau$ is fixed, so
+  $E_n$ holds with $\PP(E_n^c\mid\mathcal S_n)=0$; \eqref{eq:En-rate} is satisfied
+  trivially and Lemma~\ref{lem:leafstab} applies to the fixed $\hat\tau$ on
+  $\mathcal I_n$.
+  \item[(ii)] The estimator on $\mathcal I_n$ obeys
+  $\sqrt{n-\lfloor\rho_n n\rfloor}\,(\htheta-\thstar)\xrightarrow{d}N(0,V)$, and
+  since $\rho_n\to0$ the efficiency loss relative to the full sample is
+  $\sqrt{n/(n-\lfloor\rho_n n\rfloor)}=1+\odiff(1)$; i.e.\ the asymptotic
+  variance is unchanged and the CI attains nominal coverage for $\thstar$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(i) $\hat\tau$ is $\sigma(\mathcal S_n)$-measurable and $\mathcal S_n\indep
+\mathcal I_n$, so conditional on $\mathcal S_n$ the partition is a deterministic
+constant and the LOO perturbations of the $\mathcal I_n$ leaf means leave it
+unchanged---exactly the fixed-partition hypothesis of Lemma~\ref{lem:leafstab},
+whose $\nu$-stability rate $O(L/|\mathcal I_n|)=\odiff(|\mathcal I_n|^{-1/2})$
+holds since $L=\odiff(\sqrt n)$ and $|\mathcal I_n|=n(1+\odiff(1))$.
+(ii) Apply Theorem~\ref{thm:clt} on $\mathcal I_n$ (all its hypotheses hold there,
+$\hat\tau$ now genuinely fixed), giving the CLT at rate
+$\sqrt{|\mathcal I_n|}$. Because $|\mathcal I_n|=n-\lfloor\rho_n n\rfloor
+=n(1-\rho_n)$ with $\rho_n\to0$, $\sqrt{n/|\mathcal I_n|}=(1-\rho_n)^{-1/2}\to1$,
+so rescaling to the $\sqrt n$ rate leaves $V$ unchanged. Marginalizing over
+$\mathcal S_n$ preserves the conclusion since it holds for every realization.
+\end{proof}
+
+\begin{remark}[Honest scope of ``no sample-splitting'']
+Route~A reintroduces a split at the \emph{selection} stage---$\hat\tau$ is chosen
+on $\mathcal S_n$, not on all $n$. What Route~A preserves is the property CSA
+buys: \emph{no split at the inference stage}, i.e.\ leaf values and the CLT use
+the full inference fold $\mathcal I_n$ with LOO stability standing in for
+cross-fitting. This is strictly weaker than the ideal ``single tree, all $n$,
+no split anywhere'' that Route~B targets under structural PC, but it is the price
+of validity when the margin is flat and exact recovery fails---as the simulation
+shows it does on non-tree signal. The displayed tree is still a single
+interpretable tree; only its \emph{structure} was chosen on a subsample, while its
+\emph{leaf values}---the numbers a reader acts on---use nearly all the data.
+\end{remark}
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{1}
+\bibitem[Chen et al.(2022)]{ChenSyrgkanisAustern2022}
+Q.~Chen, V.~Syrgkanis, and M.~Austern.
+\newblock Debiased machine learning without sample-splitting for stable
+  estimators.
+\newblock \emph{NeurIPS}, 2022. arXiv:2206.01825.
+\end{thebibliography}
+
+\end{document}
