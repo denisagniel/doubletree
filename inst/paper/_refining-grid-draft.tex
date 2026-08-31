@@ -1,0 +1,337 @@
+%% ============================================================
+%% Robustness to grid alignment
+%% Standalone pre-integration draft
+%% Intended location: after the discussion of Assumption
+%% \ref{ass:sparsity} (theory.tex lines ~520-537), within the
+%% Standing Assumptions material of Sec.~\ref{sec:setup}.
+%% Reuses (all pre-existing in theory.tex): ass:causal (for the overlap
+%%   constant c), \Ltwo, \Lw, \Pi_\tau, \Pi^\nu_\tau (norm/projection
+%%   macros). See plan:
+%%   quality_reports/plans/2026-08-28_fixed-Lbar-refining-grid-theory-update.md
+%%
+%% SCOPE NOTE (2026-08-28, post proof-audit): this fragment originally
+%% also contained a "finite-class oracle inequality" lemma and an
+%% "efficiency corollary" building on thm:anchor/cor:width, replacing
+%% exact selection consistency (lem:margin/lem:selection) in this
+%% regime. proof-auditor found four blocking defects in that material
+%% (ass:mesh's M_n -> infinity silently contradicts theory.tex's
+%% ass:finite, which cor:width's own proof uses; union bounds taken
+%% over partitions but applied at continuum-valued fitted leaf values;
+%% an infeasible oracle comparator; a missing m_n floor) and judged the
+%% "corollary" to in fact be an independent re-derivation of thm:main
+%% under different hypotheses, not a corollary of thm:anchor/cor:width
+%% at all. That material has been REMOVED pending a decision on
+%% whether to revise and re-attempt it (see the plan file's log). What
+%% remains below -- Assumption ass:mesh + Lemma lem:mesh-approx -- was
+%% audited and found correct with only minor fixes (applied here), and
+%% needs none of the machinery that failed: it is a population-level
+%% approximation-theoretic statement, not an inferential one.
+%% ============================================================
+
+%% Local macros for this subsection: \ez, \mz, and \wz already expand to e_0,
+%% mu_0, and w_0 (defined in theory.tex's preamble), so appending a second
+%% subscript directly (\ez_n) produces a double-subscript TeX error. \ezn,
+%% \mzn, and \wzn denote the row-n DISCRETIZED nuisances e_{0,n}, mu_{0,n},
+%% w_{0,n} of eq:mesh-en/eq:mesh-mun -- distinct objects from \ez/\mz/\wz
+%% (the continuum truth), not merely re-subscripted notation for the same
+%% symbol.
+\newcommand{\ezn}{e_{0,n}}
+\newcommand{\mzn}{\mu_{0,n}}
+
+\subsection{Robustness to grid alignment}
+\label{sec:grid-alignment}
+
+The forward-compatibility observation in the ``Covariate space and tree
+partitions'' subsection allows $\cX$ to arise by discretising an underlying
+continuum covariate at mesh $h$.  We now make that interpretation quantitative
+for a refining sequence.  The question answered here is whether the sufficient
+class depends on where the analyst happened to put the grid, not whether the
+fixed-budget approximation bias can always be made to vanish.  The latter
+statement is false.  The leaf budget $\bar L$ remains fixed throughout this
+subsection; only the covariate space refines.
+
+\begin{assumption}[Continuum-anchored mesh refinement]\label{ass:mesh}
+Let $Z$ take values in a compact rectangle
+$\cX^\circ=\prod_{r=1}^{d}[a_r,b_r]\subset\R^d$, where the dimension $d$ is
+fixed.  For each $n$, let $Q_n$ be a rectangular discretisation map with
+\[
+  X_n=Q_n(Z)\in\cX_n=\prod_{r=1}^{d}\cX_{n,r},
+  \qquad
+  J_{n,\max}=\max_{r\le d}\card{\cX_{n,r}},
+\]
+such that the largest coordinate-wise diameter of any discretisation cell is
+at most $h_n$, where $h_n\longrightarrow0$.  The grids are nested and generate
+the Borel $\sigma$-field of $\cX^\circ$.  Write
+\[
+  \cT_{\bar L,n}
+  :=\{\text{grid-restricted tree partitions of $\cX_n$ with at most
+  $\bar L$ leaves}\}
+\]
+for the row-$n$ candidate class, with $\bar L$ fixed throughout.
+
+There is a constant $C_X<\infty$ such that, for every coordinate $r$, every
+$t\in[a_r,b_r]$, and all sufficiently small $u>0$,
+\begin{equation}\label{eq:mesh-slab}
+  \PP\{\abs{Z_r-t}\le u\}\le C_Xu .
+\end{equation}
+The continuum nuisance functions
+\[
+  \ez^\circ(z)=\PP(A=1\mid Z=z),
+  \qquad
+  \mz^\circ(z)=\E[Y\mid A=0,Z=z]
+\]
+are measurable and bounded, $\abs{Y}\le B_Y<\infty$ almost surely, and
+$1-\ez^\circ(z)\ge c$ for $P_Z$-almost every $z$, with the same $c$ as in
+Assumption~\ref{ass:causal}.  Their discretised versions are
+\begin{align}
+  \ezn(x)
+  &=\E\{\ez^\circ(Z)\mid X_n=x\},
+  \label{eq:mesh-en}\\
+  \mzn(x)
+  &=\frac{\E[\{1-\ez^\circ(Z)\}\mz^\circ(Z)\mid X_n=x]}
+          {\E[1-\ez^\circ(Z)\mid X_n=x]} .
+  \label{eq:mesh-mun}
+\end{align}
+These are the row-$n$ discretised versions of the continuum nuisances; no
+claim is made here that they are the correct nuisances for causal
+identification at row $n$ (that is a separate, inferential question, not
+addressed by the approximation result below, which concerns only how well a
+fixed-budget tree can track $\ez^\circ,\mz^\circ$ as the grid refines).
+
+For each $j\in\{e,\mu\}$ there is a continuum axis-aligned tree
+$\tau_j^\circ$ with at most $\bar L$ leaves such that
+$\ez^\circ$ is constant on every leaf of $\tau_e^\circ$ and
+$\mz^\circ$ is constant on every leaf of $\tau_\mu^\circ$.
+
+The regime $d=d_n\to\infty$ is explicitly excluded: neither the overlap bound
+nor the existence of a stable continuum limit for $\cX_n$ is guaranteed to
+survive that regime; only mesh refinement at fixed $d$ is considered.
+\end{assumption}
+
+The overlap bound is inherited automatically under refinement.  Indeed,
+\[
+  1-\ezn(x)
+  =\E\{1-\ez^\circ(Z)\mid X_n=x\}
+  \ge c.
+\]
+Thus cell averaging can only move the conditional propensity into the convex
+hull of its within-cell values and cannot weaken their common upper bound
+$1-c$.
+
+For $j=e$, let $\|\cdot\|_e=\Ltwo{\cdot}$; for $j=\mu$, let
+$\|\cdot\|_\mu=\Lw{\cdot}$, with the latter norm formed using $\ezn$.  Define
+the grid-alignment errors
+\begin{equation}\label{eq:mesh-delta}
+  \delta^*_{e,n}
+  :=\min_{\tau\in\cT_{\bar L,n}}
+       \Ltwo{\Pi_\tau\ezn-\ezn},
+  \qquad
+  \delta^*_{\mu,n}
+  :=\min_{\tau\in\cT_{\bar L,n}}
+       \Lw{\Pi^\nu_\tau\mzn-\mzn}.
+\end{equation}
+
+\begin{lemma}[Approximation under grid misalignment]\label{lem:mesh-approx}
+Under Assumption~\ref{ass:mesh}, for $j\in\{e,\mu\}$,
+\[
+  \delta^*_{j,n}=O(\sqrt{h_n}).
+\]
+This rate concerns only the error caused by moving the finitely many continuum
+split points of $\tau_j^\circ$ to the analyst's grid.  It does not assert that
+the best continuum approximation error at fixed $\bar L$ vanishes for a
+continuum nuisance that is not itself a tree step function with at most
+$\bar L$ leaves.
+\end{lemma}
+
+\begin{proof}
+\emph{Proof strategy.}
+Round each continuum split to a neighbouring grid boundary without changing
+the tree topology or increasing its leaf count.  The rounded and continuum
+trees disagree only in finitely many slabs of thickness at most $h_n$.
+Condition~\eqref{eq:mesh-slab} bounds their total probability by $O(h_n)$;
+boundedness of the nuisances then gives squared error $O(h_n)$ and norm error
+$O(\sqrt{h_n})$.
+
+Fix $j\in\{e,\mu\}$ and write $\tau^\circ=\tau_j^\circ$.  A binary tree with
+at most $\bar L$ leaves has at most $\bar L-1$ internal splits.  If its $s$th
+split is at $z_{r_s}=t_s$, choose a grid boundary $t_{s,n}$ satisfying
+$\abs{t_{s,n}-t_s}\le h_n$.  Replacing every $t_s$ by $t_{s,n}$ yields a
+grid-restricted tree $\tau_n^\circ\in\cT_{\bar L,n}$ with the same topology
+after deletion of any empty leaves.
+
+Let $B_n$ be the set on which $\tau^\circ$ and $\tau_n^\circ$ assign different
+leaves.  A change of assignment can occur only if at least one rounded split
+is crossed, and hence
+\[
+  B_n
+  \subseteq
+  \bigcup_{s=1}^{\card{\tau^\circ}-1}
+  \{z:\abs{z_{r_s}-t_s}\le h_n\}.
+\]
+The union bound and~\eqref{eq:mesh-slab} give
+\begin{align}
+  \PP(Z\in B_n)
+  &\le
+  \sum_{s=1}^{\card{\tau^\circ}-1}
+  \PP\{\abs{Z_{r_s}-t_s}\le h_n\}  \\
+  &\le (\bar L-1)C_Xh_n
+  =O(h_n).
+  \label{eq:mesh-boundary-mass}
+\end{align}
+
+For the propensity, define $g^\circ_e$ by assigning to each leaf of
+$\tau_n^\circ$ the value carried by the corresponding leaf of
+$\tau_e^\circ$.  Away from $B_n$, the value of $g^\circ_e$ agrees with
+$\ez^\circ$.  Because $0\le\ez^\circ\le1$,
+\[
+  \{g^\circ_e(Z)-\ez^\circ(Z)\}^2
+  \le \mathbf1\{Z\in B_n\}.
+\]
+Conditional expectation is an $L_2$ contraction.  Therefore the induced
+grid-level tree function $g_{e,n}(X_n)
+=\E\{g^\circ_e(Z)\mid X_n\}$ satisfies
+\begin{align}
+  \Ltwo{g_{e,n}-\ezn}^{\,2}
+  &=
+  \E\!\left[
+    \left\{
+      \E[g^\circ_e(Z)-\ez^\circ(Z)\mid X_n]
+    \right\}^{2}
+  \right] \\
+  &\le
+  \E\!\left[
+    \E\{\{g^\circ_e(Z)-\ez^\circ(Z)\}^{2}\mid X_n\}
+  \right] \\
+  &=
+  \E\{g^\circ_e(Z)-\ez^\circ(Z)\}^{2}
+  \le \PP(Z\in B_n)
+  =O(h_n),
+\end{align}
+where the inequality is conditional Jensen.  Since the population projection
+onto $\tau_n^\circ$ cannot have larger error than the displayed leaf-constant
+candidate,
+\[
+  (\delta^*_{e,n})^2
+  \le \Ltwo{\Pi_{\tau_n^\circ}\ezn-\ezn}^{\,2}
+  \le O(h_n).
+\]
+
+For the outcome nuisance, $\abs{\mz^\circ}\le B_Y$.  The same construction
+gives a candidate $g^\circ_\mu$ satisfying
+\[
+  \{g^\circ_\mu(Z)-\mz^\circ(Z)\}^2
+  \le 4B_Y^2\mathbf1\{Z\in B_n\}.
+\]
+Using the definition~\eqref{eq:mesh-mun}, conditional Jensen under the
+control-weighted measure, and $1-\ez^\circ\le1$,
+\begin{align}
+  \Lw{g_{\mu,n}-\mzn}^{\,2}
+  &\le
+  \E\!\left[
+    \{1-\ez^\circ(Z)\}
+    \{g^\circ_\mu(Z)-\mz^\circ(Z)\}^{2}
+  \right] \\
+  &\le 4B_Y^2\PP(Z\in B_n)
+  =O(h_n).
+\end{align}
+Projection optimality again gives
+$(\delta^*_{\mu,n})^2=O(h_n)$.  Taking square roots proves both claims.
+
+The rounding construction is the step-function specialization of classical
+free-knot approximation arguments
+\citep{deboor1973,barrowsmith1978}; its use for histogram and
+data-dependent-partition approximations follows the same geometric principle
+as \citet{nobel1996} and \citet{lugosinobel1996}.  The only imported idea is
+the replacement of free split points by nearby admissible knots.  The
+probability and norm bounds above are derived directly under
+Assumption~\ref{ass:mesh}.
+\end{proof}
+
+\begin{remark}[Post-proof audit of Lemma~\ref{lem:mesh-approx}]
+\emph{Assumption check.}
+Fixed $\bar L$ bounds the number of slabs; \eqref{eq:mesh-slab} controls their
+mass; bounded nuisances control the error inside them.
+\emph{Dependency check.}
+Only the union bound, conditional Jensen, and projection optimality are used
+in-line; the cited approximation literature supplies context rather than an
+unproved logical step.
+\emph{Rate verification.}
+Boundary mass is $O(h_n)$, hence squared error is $O(h_n)$ and norm error is
+$O(\sqrt{h_n})$.
+\emph{Edge-case scan.}
+The rate can fail for atoms on true split boundaries or distributions violating
+\eqref{eq:mesh-slab}.
+\emph{Tightness.}
+For a non-zero jump and a bounded density positive near the split,
+$O(\sqrt{h_n})$ is generally sharp in $L_2$.
+\emph{Failure localization.}
+The vulnerable step is~\eqref{eq:mesh-boundary-mass}; a weaker boundary-mass
+modulus would yield the corresponding weaker norm rate.
+\end{remark}
+
+
+\begin{remark}[Scope of the refinement result]
+The displayed model never exceeds $\bar L$ leaves, and exact sufficiency is
+required only of the continuum-level nuisances: true split points may lie
+anywhere, not on the analyst's discretisation grid, and Lemma~\ref{lem:mesh-approx}
+shows the resulting grid-alignment error vanishes at rate $O(\sqrt{h_n})$ as the
+grid refines, using only a boundary-mass union bound --- no free-knot rate,
+no VC dimension, no chaining, no localisation.
+
+This result does not claim that the fixed-budget continuum approximation bias
+$\delta^*(\bar L)$ vanishes: it does not vanish, in general, when the continuum
+truth is not itself a step function represented by a tree with at most
+$\bar L$ leaves.  It claims only that the specific bias induced by grid
+misalignment can be driven to zero by refining the grid, without ever
+increasing $\bar L$.  It is a population-level, approximation-theoretic
+statement: no claim is made here about inference (selection consistency,
+oracle inequalities, or the resulting estimator's rate or efficiency), which
+is a separate question left open pending further work --- see the scope note
+at the top of this file.
+\end{remark}
+
+
+% CROSSWALK ROW:
+% Insert as one row in Appendix~\ref{app:crosswalk}.
+% Ass.~\ref{ass:mesh}, Lemma~\ref{lem:mesh-approx}
+%   & Fixed-$\bar L$ robustness to grid alignment: the sufficient class is not
+%     an artifact of the analyst's discretisation, at rate $O(\sqrt{h_n})$
+%   & Sec.~3.2, after structural sparsity & 1--1.5 pp
+
+
+% BOUNDARIES SENTENCE:
+% The fixed-$\bar L$, fixed-$d$ approximation result of
+% Section~\ref{sec:grid-alignment} survives inside this boundary because only
+% the analyst's grid refines and the claim is population-level, not
+% inferential; growing leaf budgets $\bar L_n\to\infty$, growing dimension
+% $d_n\to\infty$, and inference under grid refinement all remain excluded and
+% are deferred to future work / the companion paper.
+
+
+% BIBLIOGRAPHY ADDITIONS (verify against theory.tex's existing
+% thebibliography before insertion -- author/year given at the confidence
+% level actually held; volume/page not fabricated):
+%
+% \bibitem[de Boor(1973)]{deboor1973}
+% de Boor, C. (1973).
+% Good approximation by splines with variable knots.
+% In A. Meir and A. Sharma (eds.),
+% \emph{Spline Functions and Approximation Theory}.
+% Birkh\"auser.
+%
+% \bibitem[Barrow \& Smith(1978)]{barrowsmith1978}
+% Barrow, D. L. and Smith, P. W. (1978).
+% Asymptotic properties of best $L_2[0,1]$ approximation by splines with
+% variable knots.
+% \emph{Quarterly of Applied Mathematics}.
+%
+% \bibitem[Nobel(1996)]{nobel1996}
+% Nobel, A. B. (1996).
+% Histogram regression estimation using data-dependent partitions.
+% \emph{The Annals of Statistics}.
+%
+% \bibitem[Lugosi \& Nobel(1996)]{lugosinobel1996}
+% Lugosi, G. and Nobel, A. B. (1996).
+% Consistency of data-driven histogram methods for density estimation and
+% classification.
+% \emph{The Annals of Statistics}.

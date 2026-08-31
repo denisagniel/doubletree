@@ -1,0 +1,164 @@
+%% ============================================================
+%% Fixed-budget PSHAB approximation (population-level bias ceiling)
+%% Standalone pre-integration draft
+%% Intended location: theory.tex, Discussion/Boundaries section, as an
+%% honest sense-of-scale remark for the fully continuous regime that
+%% the paper otherwise excludes. Does NOT un-defer inference for that
+%% regime -- see the BOUNDARIES SENTENCE block at the end.
+%%
+%% NOTE ON DEPENDENCIES (added on integration-check, 2026-08-28):
+%% the original draft referenced \ref{lem:approx}/\eqref{eq:approx},
+%% labels defined only in doubletree/inst/paper/_pshab_appendix_draft.tex
+%% -- which is NOT currently \input into theory.tex (verified: no such
+%% \input/\include directive exists). Referencing those labels from
+%% theory.tex would produce undefined-reference errors regardless of
+%% any bibliography fix. Rewritten below to state the Xu, Ghosh & Tan
+%% (2026) approximation fact self-contained, citing the external paper
+%% directly rather than via an unintegrated internal lemma. If/when
+%% _pshab_appendix_draft.tex is integrated as a supplement (per the
+%% 2026-08-06 manuscript outline's "Keep as Supplement A"), this remark
+%% can be tightened to cite lem:approx internally instead.
+%%
+%% Reuses (all pre-existing in theory.tex): \Ltwo, \Lw, \ez, \mz,
+%% \bar L, \that (this fragment is written in THEORY.TEX's notation,
+%% not manuscript.tex's, since it is intended for theory.tex).
+%% Requires ONE new \bibitem (xu2026, added below) since theory.tex's
+%% own inline thebibliography does not yet cite Xu, Ghosh & Tan (2026)
+%% under any key.
+%% Drafted by proof-writer subagent, 2026-08-28; self-checked against
+%% the same anti-overclaiming constraints that the earlier
+%% _refining-grid-draft.tex needed a second pass to enforce -- this one
+%% was given those constraints up front.
+%% ============================================================
+
+The following observation upgrades an assumed approximation-decay condition to
+a consequence of a named smoothness class, while remaining purely
+approximation-theoretic.
+
+\begin{remark}[Fixed-budget PSHAB approximation]\label{rem:pshab-fixed-budget}
+Let $\cT_{\bar L}^{\circ}$ denote the class of axis-aligned, leaf-constant tree
+functions on $[0,1]^d$ with at most $\bar L$ leaves -- the continuum analogue
+of the finite-grid class $\cT_{\bar L}$ used above. Define the population
+oracle errors
+\[
+  \delta_e^*(\bar L)
+  :=\inf_{f\in\cT_{\bar L}^{\circ}}\Ltwo{f-\ez},
+  \qquad
+  \delta_\mu^*(\bar L)
+  :=\inf_{f\in\cT_{\bar L}^{\circ}}\Lw{f-\mz}.
+\]
+
+For each $j\in\{e,\mu\}$, suppose $\gamma_{0,j}$ (where $\gamma_{0,e}=\ez$ and
+$\gamma_{0,\mu}=\mz$) belongs to the piecewise sparse anisotropic Besov
+class of \citet[Definition~4.5]{xu2026}, with sparsity $s_j$, anisotropic
+smoothness indices at most one, and harmonic-mean active-coordinate smoothness
+$\bar\alpha_j$. \citet[Theorems~5.5 and~6.1]{xu2026} give an explicit
+anisotropic dyadic-grid tree construction achieving, for squared-error loss
+and \emph{every} integer $L\ge1$ (their achievability bound is uniform in $L$;
+the constant depends on the smoothness-class parameters but not on $L$ or
+$n$), squared population approximation error of order $L^{-2\bar\alpha_j/s_j}$
+over the active coordinates. Evaluating this achievability bound at the fixed
+budget $\bar L$ gives, for every integer $\bar L\ge1$,
+\[
+  \delta_j^*(\bar L)
+  =O\!\left(\bar L^{-\bar\alpha_j/s_j}\right),
+  \qquad j\in\{e,\mu\},
+\]
+and consequently
+\[
+  \delta_e^*(\bar L)\,\delta_\mu^*(\bar L)
+  \;\lesssim\;
+  \bar L^{-\bar\alpha_e/s_e-\bar\alpha_\mu/s_\mu}.
+\]
+Here the constants are independent of $\bar L$ and $n$.  In particular, these
+inequalities may be evaluated at the paper's \emph{fixed} budget $\bar L$;
+the order notation records the deterministic envelope across possible budgets
+and does not introduce a sequence $\bar L_n\to\infty$.
+
+\textbf{Oracle scope.}
+This statement bounds only the best possible population approximation error:
+it describes what is attainable \emph{if one could choose the best
+$\bar L$-leaf tree}.  It makes no claim that the finite-sample penalized-ERM
+tree $\that_j$ attains, or nearly attains, this bound.  Relating this population
+ceiling to the realized bias of the fitted nuisance is a separate
+estimation-and-inference problem not addressed here.
+
+\begin{proof}
+\emph{Proof strategy.}
+Apply the squared-error achievability bound of \citet[Thms.~5.5,
+6.1]{xu2026} separately to the two nuisances, evaluate it at $L=\bar L$, pass
+from squared error to norm error by taking square roots, and multiply the
+resulting bounds.
+
+By the cited achievability result, for each $j\in\{e,\mu\}$ there is a
+constant $C_j<\infty$, depending on the PSHAB-class parameters but
+\emph{not on $L$ or $n$}, such that
+\[
+  \inf_{f\in\cT_L^\circ}
+  \Ltwo{f-\gamma_{0,j}}^2
+  \le C_jL^{-2\bar\alpha_j/s_j}.
+\]
+This is precisely the clause permitting evaluation at a fixed leaf budget.
+Setting $L=\bar L$ gives
+\[
+  \bigl\{\delta_e^*(\bar L)\bigr\}^2
+  \le C_e\bar L^{-2\bar\alpha_e/s_e},
+  \qquad
+  \delta_e^*(\bar L)
+  \le C_e^{1/2}\bar L^{-\bar\alpha_e/s_e}.
+\]
+For the outcome nuisance, $0\le1-\ez(X)\le1$ implies, for every
+$f\in\cT_{\bar L}^{\circ}$,
+\[
+  \Lw{f-\mz}^2
+  =\E\!\left[\{1-\ez(X)\}\{f(X)-\mz(X)\}^2\right]
+  \le\E\!\left[\{f(X)-\mz(X)\}^2\right]
+  =\Ltwo{f-\mz}^2.
+\]
+Taking infima and applying the achievability bound to the right-hand side
+therefore yields
+\[
+  \bigl\{\delta_\mu^*(\bar L)\bigr\}^2
+  \le C_\mu\bar L^{-2\bar\alpha_\mu/s_\mu},
+  \qquad
+  \delta_\mu^*(\bar L)
+  \le C_\mu^{1/2}\bar L^{-\bar\alpha_\mu/s_\mu}.
+\]
+Multiplication gives
+\[
+  \delta_e^*(\bar L)\delta_\mu^*(\bar L)
+  \le (C_eC_\mu)^{1/2}
+     \bar L^{-\bar\alpha_e/s_e-\bar\alpha_\mu/s_\mu},
+\]
+which is the claimed product bound.
+\end{proof}
+
+\paragraph{Proof audit.}
+\emph{Assumptions:} the PSHAB hypotheses are stated separately for both
+nuisances.  \emph{Dependency:} only the cited external achievability result
+and the elementary inequality $\Lw{\cdot}\le\Ltwo{\cdot}$ are used.
+\emph{Rates:} taking square roots halves each squared-error exponent, and
+multiplication adds the resulting exponents.
+\emph{Edge cases:} weak overlap and outcome tails do not affect this
+population upper bound; failure occurs if either nuisance is outside the stated
+PSHAB class or if the admissible continuum tree class does not contain the
+approximants certified by the cited construction.
+\emph{Tightness:} the approximation order is inherited from that external
+achievability result; no matching lower bound is asserted here.
+\emph{Failure localization:} the unproved bridge is deliberately excluded:
+nothing above transfers the oracle bound to the fitted tree $\that_j$.
+\end{remark}
+
+
+% CROSSWALK / BIBLIOGRAPHY ADDITION (verify against theory.tex's existing
+% thebibliography before insertion; add if `xu2026` is not already a key):
+%
+% \bibitem[Xu et al.(2026)]{xu2026} Xu, Z., Ghosh, S., and Tan, Y. S. (2026).
+% On the statistical optimality of optimal decision trees. arXiv:2603.05340.
+
+
+% BOUNDARIES SENTENCE:
+% Remark~\ref{rem:pshab-fixed-budget} gives an honest population-level sense of
+% scale for best fixed-budget approximation in the fully continuous regime, but
+% inference for fitted trees in that regime remains excluded here and deferred
+% to the companion paper.
