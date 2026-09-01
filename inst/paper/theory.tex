@@ -1589,6 +1589,13 @@ hold.
     \qquad\text{for every }x\in R_N^+,
   \]
   where \(f_{\min}\) and \(f_{\max}\) are fixed uniformly over true nodes.
+  (Every cross-sectional-measure argument below, in particular the
+  definition of \(c_{\mathrm{box}}\) preceding Lemma~\ref{lem:topol-margin},
+  is written for the Lebesgue case; a discrete or mixed splitting
+  coordinate would in any case violate the \(\omega_{N,r}(c)=\Theta(\abs{c-c_0})\)
+  prism scaling of Lemma~\ref{lem:prism-profile}(iii) on which the
+  \(n^{-1}\) rate below depends, so this is a scoping remark, not an
+  additional restriction.)
   The sets \(R_N^+\) are fixed compact rectangles whose coordinate diameters
   are bounded uniformly over true nodes by a fixed constant
   \(D_{\max}<\infty\).  In particular, the density lower bound implies
@@ -1759,7 +1766,7 @@ Choose the fixed constant \(C\) sufficiently large that
 \begin{equation}\label{eq:C-margin-choice}
   c_{\mathrm{topol}}\kappa_{\min}^2 f_{\min}q_{\min}C
   >
-  2(\bar L-1)\kappa_{\max}^2f_{\max}.
+  4(\bar L-1)\kappa_{\max}^2f_{\max}.
 \end{equation}
 
 \begin{lemma}[A refining-grid margin for omitted true boundaries]
@@ -1866,9 +1873,11 @@ Grid cells that meet the boundary of the fixed face patch can be discarded.
 Their partial-overlap volume is \(o(r^{-1})\), because the face patch has
 fixed positive \((d-1)\)-dimensional measure and the grid mesh tends to zero.
 After increasing \(r_0\), the displayed bound holds with \(c_{\mathrm{box}}\)
-replaced by \(c_{\mathrm{box}}/2\); both the definition of \(c_{\mathrm{topol}}\) above and
-the choice of \(C\) in~\eqref{eq:C-margin-choice} are made with this halved
-constant, so no circularity arises from fixing \(c_{\mathrm{box}}\) net of
+replaced by \(c_{\mathrm{box}}/2\), i.e.\ with \(c_{\mathrm{topol}}\) above
+replaced by \(c_{\mathrm{topol}}/2\) in the final display, since
+\(c_{\mathrm{topol}}:=c_{\mathrm{box}}/8\) is linear in \(c_{\mathrm{box}}\);
+\eqref{eq:C-margin-choice}'s choice of \(C\) is made to accommodate this
+factor of \(2\) loss, so no circularity arises from fixing \(c_{\mathrm{box}}\) net of
 this discard loss before choosing \(C\).
 
 It remains to compare this loss with the best grid tree.  Snap every true
@@ -1887,12 +1896,13 @@ at most \(\bar L-1\) boundaries,
   \le
   \frac{(\bar L-1)\kappa_{\max}^2f_{\max}}{r}.
 \]
-Subtracting this upper bound from the omitted-boundary lower bound yields
+Subtracting this upper bound from the omitted-boundary lower bound (using
+the halved \(c_{\mathrm{topol}}/2\) from the discard adjustment above) yields
 \[
   S_r(\tau)
   \ge
   \frac{
-    c_{\mathrm{topol}}\kappa_{\min}^2f_{\min}q_{\min}C
+    \frac12 c_{\mathrm{topol}}\kappa_{\min}^2f_{\min}q_{\min}C
     -
     (\bar L-1)\kappa_{\max}^2f_{\max}
   }{r}
@@ -1903,7 +1913,7 @@ Condition~\eqref{eq:C-margin-choice} implies not only \(c_\Delta>0\), but
 \[
   c_\Delta
   >
-  \frac12c_{\mathrm{topol}}\kappa_{\min}^2f_{\min}q_{\min}C.
+  \frac14c_{\mathrm{topol}}\kappa_{\min}^2f_{\min}q_{\min}C.
 \]
 This completes the proof.
 \end{proof}
@@ -2145,7 +2155,7 @@ For example, after increasing \(r_0\), one may take
 \[
   c_\Delta'
   =
-  \frac12c_{\mathrm{topol}}\kappa_{\min}^2f_{\min}q_{\min}C.
+  \frac14c_{\mathrm{topol}}\kappa_{\min}^2f_{\min}q_{\min}C.
 \]
 
 We now exclude the two possible topology errors.
@@ -2446,10 +2456,15 @@ constant below by the fixed positive factor \(c_{\mathrm{box}}q_{\min}\),
 and changes nothing else: no condition in this document requires
 \(p_{\min}\) to exceed a specified threshold.
 % [Editorial note, 2026-09-01: the p_min derivation above (in particular the
-% identification c_box = 1/(f_max D_max)) is an Oracle-assisted reconstruction
-% consistent with the only pre-existing use of c_box (Lemma~\ref{lem:topol-margin}),
-% not verified against original drafting intent. Recommend an independent
-% proof-audit pass before this is cited as settled in a submission.]
+% identification c_box = 1/(f_max D_max)) was Oracle-assisted, and has since
+% been independently proof-audited (proof-auditor subagent): the core
+% derivation, including the p_min dimensional fix itself, was confirmed
+% correct via unit analysis and a direct box/Fubini check. The audit did
+% catch one real defect nearby -- a factor-of-2 inconsistency in how the
+% discard-loss adjustment (a few lines above lem:topol-margin's proof)
+% interacted with c_Delta/c_Delta' -- which has been fixed in place
+% (eq:C-margin-choice's constant, and the two downstream c_Delta/c_Delta'
+% displays). No further action recommended on this specific derivation.]
 
 \subsubsection{Consistency and reduction to a fixed bracket}
 
@@ -3245,58 +3260,129 @@ discrepancy outside the $U/n$-window used in Step~3; write
   -
   \{S^{\mathrm{or}}_{n,\ell}(c_{0,\ell}+u/n)-S^{\mathrm{or}}_{n,\ell}(c_{0,\ell})\}
 \]
-for $\abs u\le\varsigma n/4$. As in Step~3, only two mechanisms contribute:
-observations whose $q_\ell$-side membership changes between $c_{0,\ell}$
-and $c_{0,\ell}+u/n$, and the indirect effect through the profiled leaf
-means. The indirect effect is $O_p(n^{-1})$ uniformly in $u$ by Step~3's own
-argument, which uses only the $O_p(1)$ collar count and the $\Theta_p(n)$
-leaf denominators of Assumption~\ref{ass:solver-twostage}(g); neither
-depends on $\abs u$. For the direct effect, the contributing observations
-lie in $\mathcal C_{n,M}$ and, writing $p_n(u)$ for the probability that a
-single observation lies in $\mathcal C_{n,M}$ and has $q_\ell$-side
-membership differing between $c_{0,\ell}$ and $c_{0,\ell}+u/n$, the same
-bound used in Step~2 gives $p_n(u)\le4\bar f_2M\abs u/n$ when $q_a\ne
-q_\ell$ for the relevant ancestor, and the corresponding contribution
-vanishes identically when $q_a=q_\ell$ and $n$ is large, by (Sep). Each
-contributing observation perturbs $\Xi_n(u)$ by a bounded amount (the
-profiled leaf means are $O_p(1)$ by Assumption~\ref{ass:construct}(c) and
-Assumption~\ref{ass:causal}), so a first-moment bound gives
-$\E\abs{\Xi_n(u)}=O(n\,p_n(u))=O(\abs u)$ pointwise, and a standard dyadic
-argument over blocks $2^k\le\abs u<2^{k+1}$ --- legitimate because the
-collar-overlap event of Step~2 is monotone in $\abs u$, so each block
-admits a single maximal bound at its right endpoint --- upgrades this to
+for $\abs u\le\varsigma n/4$.
+
+\emph{Step 4a: the discrepancy is uniformly $O_p(1)$, with no $u$-dependence.}
+As in Step~3, only two mechanisms contribute: observations whose
+$q_\ell$-side membership changes between $c_{0,\ell}$ and $c_{0,\ell}+u/n$,
+and the indirect effect through the profiled leaf means; the indirect
+effect is $O_p(n^{-1})$ uniformly in $u$ by Step~3's own argument (the
+$O_p(1)$ collar count and the $\Theta_p(n)$ leaf denominators of
+Assumption~\ref{ass:solver-twostage}(g) do not depend on $u$), hence
+$o_p(1)$ uniformly and negligible below. For the direct effect, every
+contributing observation lies in $\mathcal C_{n,M}$ \emph{regardless of
+$u$} --- the collar is defined by the ancestor coordinate alone, and only
+an observation's \emph{side} assignment, never its collar membership,
+depends on $u$. Write
 \[
-  \sup_{U\le\abs u\le\varsigma n/4}
-  \frac{\abs{\Xi_n(u)}}{\abs u}
-  =
-  O_p(1)
+  K_n
+  :=
+  \sum_{i:X_i\in\mathcal C_{n,M}}
+  \{Z_i-\gamma_0(X_i)\}^2
 \]
-for every fixed $U$, with a constant not depending on $U$. By
-Lemma~\ref{lem:bracket-reduction}(a) (global separation, in the strengthened
-form of \S\ref{sec:twostage} above) and the local bound~\eqref{eq:prism-drift},
-the oracle increment satisfies
-$S^{\mathrm{or}}_{n,\ell}(c_{0,\ell}+u/n)-S^{\mathrm{or}}_{n,\ell}(c_{0,\ell})
-\ge c_\star\abs u\{1-o_p(1)\}$ uniformly on $\abs u\ge U$, for a fixed
-$c_\star>0$ depending on $\kappa_{\min}$, $p_{\min}$, and $\delta_N(\cdot)$.
-Combining the two displays, the actual increment is strictly positive
-throughout $U\le\abs u\le\varsigma n/4$ with probability at least
-$1-\epsilon/3$ once $U$ is fixed large enough (depending on the constant in
-the $\Xi_n$ bound and on $c_\star$), and the true minimiser cannot lie in
-$\{c:\varsigma n/4\le n\abs{c-c_{0,\ell}}\}$ either, since $B^-$ already
-excludes it by construction. Together with Step~3's control on
-$\abs u\le U$, this gives $\PP(n\abs{\widehat c_\ell-c_{0,\ell}}>U)<\epsilon$
-for $n$ large, completing the third $\epsilon/3$ budgeted in Step~1. Hence
+for the aggregate squared residual over the collar. By the standing
+conditional second-moment bound and $\PP(X\in\mathcal C_{n,M})=O(M/n)$
+(Step~1),
+\[
+  \E[K_n]
+  =
+  n\,\PP(X\in\mathcal C_{n,M})\,
+  \sup_x\E\bigl[\{Z-\gamma_0(X)\}^2\mid X=x\bigr]
+  =
+  O(M)=O(1),
+\]
+so $K_n=O_p(1)$ by Markov's inequality. The direct effect on $\Xi_n(u)$, at
+any $u$, is a difference of squared-residual sums restricted to these same
+collar observations, and is therefore bounded by a fixed multiple of $K_n$
+\emph{uniformly in $u$}: no observation outside $\mathcal C_{n,M}$
+contributes at any $u$, so there is nothing left to grow as $\abs u$ grows.
+Hence
+\[
+  \sup_{\abs u\le\varsigma n/4}\abs{\Xi_n(u)}=O_p(1).
+\]
+This uniform bound needs no peeling and no $u$-indexed probability
+calculation: once every contributing observation is confined, independently
+of $u$, to the $O(1/n)$-mass collar $\mathcal C_{n,M}$, the range over which
+$u$ varies cannot affect the bound.
+
+\emph{Step 4b: the oracle criterion excludes escape.} The argmax-consistency
+argument that establishes tightness for a profiled change-point criterion of
+exactly this form --- via \citet{chan1993,seijosen2011} for Tier~1's
+leaf-parent stump criterion, or via \citet{seootsu2018} for the profiled
+criterion of part~(v) above --- proceeds by first showing that outside any
+fixed neighbourhood of the true threshold, the criterion exceeds its
+minimising value by an amount tending to infinity with the neighbourhood's
+radius, uniformly, and only then concluding that the argmin is tight; the
+tightness conclusion is a corollary of this escape-exclusion step, not an
+independent fact. Lemma~\ref{lem:ancestor-localisation}'s own hypothesis
+grants exactly this apparatus for $S^{\mathrm{or}}_{n,\ell}$: the
+conclusions of Lemma~\ref{lem:prism-profile} (or its Tier-1 analogue) are
+assumed to hold at level $\ell$ under true ancestor conditioning, which is
+precisely $S^{\mathrm{or}}_{n,\ell}$. Applying the same escape-exclusion
+step to $S^{\mathrm{or}}_{n,\ell}$ therefore gives: for every $K<\infty$,
+there exists $U_K<\infty$ such that
+\[
+  \PP\!\left(
+    \inf_{U_K\le\abs u\le\varsigma n/4}
+    \bigl\{S^{\mathrm{or}}_{n,\ell}(c_{0,\ell}+u/n)
+      -S^{\mathrm{or}}_{n,\ell}(c_{0,\ell})\bigr\}
+    >K
+  \right)
+  \longrightarrow1.
+\]
+
+\emph{Step 4c: combine.} By Step~4a, choose $K_0<\infty$ with
+$\PP\bigl(\sup_{\abs u\le\varsigma n/4}\abs{\Xi_n(u)}>K_0\bigr)<\epsilon/3$
+for $n$ large. By Step~4b with $K=K_0$, choose $U\ge U_{K_0}$ with
+\[
+  \PP\!\left(
+    \inf_{U\le\abs u\le\varsigma n/4}
+    \bigl\{S^{\mathrm{or}}_{n,\ell}(c_{0,\ell}+u/n)
+      -S^{\mathrm{or}}_{n,\ell}(c_{0,\ell})\bigr\}
+    \le K_0
+  \right)
+  <\epsilon/3
+\]
+for $n$ large. On the intersection of these two probability-tending-to-one
+events, for every $u$ with $U\le\abs u\le\varsigma n/4$,
+\[
+  S^{\mathrm{act}}_{n,\ell}(c_{0,\ell}+u/n)-S^{\mathrm{act}}_{n,\ell}(c_{0,\ell})
+  \ \ge\
+  \bigl\{S^{\mathrm{or}}_{n,\ell}(c_{0,\ell}+u/n)
+    -S^{\mathrm{or}}_{n,\ell}(c_{0,\ell})\bigr\}
+  -\abs{\Xi_n(u)}
+  \ >\ K_0-K_0\ =\ 0,
+\]
+so the actual criterion strictly exceeds its value at $c_{0,\ell}$
+throughout this range; since $\widehat c_\ell$ globally minimises
+$S^{\mathrm{act}}_{n,\ell}$ over $B^-$ and $c_{0,\ell}\in B^-$ is a
+competitor achieving increment exactly zero, $\widehat c_\ell$ cannot lie at
+any such $u$, on an event of probability at least $1-2\epsilon/3$. The true
+minimiser also cannot lie in $\{c:\varsigma n/4\le n\abs{c-c_{0,\ell}}\}$,
+since $B^-$ already excludes it by construction. Together with Step~3's
+control on $\abs u\le U$, this gives
+$\PP(n\abs{\widehat c_\ell-c_{0,\ell}}>U)<\epsilon$ for $n$ large, completing
+the third $\epsilon/3$ budgeted in Step~1. Hence
 \[
   n(\widehat c_\ell-c_{0,\ell})=O_p(1).
 \]
 \end{proof}
-% [Editorial note, 2026-09-01: this Step 4 is new, added to close what an
-% earlier session's audit flagged as GAP-1 in the escape/tail argument (the
-% previous text asserted tightness transfer without proof). The
-% proportionality mechanism (O_p(sqrt|u|)-or-better contamination against
-% Theta(|u|) oracle drift) is standard, but the dyadic-peeling step here is a
-% skeleton, not a fully verified uniform bound; recommend a dedicated
-% proof-audit pass before citing this as settled.]
+% [Editorial note, 2026-09-01: this Step 4 was rewritten after an
+% independent proof-audit (proof-auditor subagent) found the previous
+% version had two definite errors -- p_n(u) was off by a factor of n, and
+% "once U is fixed large enough" did not follow from an O_p(1) *ratio*
+% bound with a U-independent constant -- plus a real gap in Step 4b, which
+% asserts an escape-exclusion property of the already-cited argmax-theorem
+% technique (chan1993/seijosen2011/seootsu2018) rather than re-deriving it
+% from the population-level lem:bracket-reduction(a)/eq:prism-drift (which
+% the audit confirmed do NOT by themselves supply a uniform empirical bound
+% over a growing range). Step 4a (the O_p(1) uniform discrepancy bound) is
+% independently verified correct by the audit. Step 4b's citation-based
+% move is standard for argmax-theorem proofs of this type but is not
+% re-derived within this document; an independent check of that specific
+% claim (that the cited technique's proof does produce this intermediate
+% escape-exclusion statement, not just the final tightness conclusion)
+% would still raise confidence further.]
 
 \paragraph{Proof audit.}
 The induction hypothesis is used only to construct the deterministic
