@@ -186,6 +186,28 @@ obtained from \eqref{eq:risk-emp} by replacing the empirical measure with the po
 Note that we are using a flexible tree learner to estimate both nuisance functions, but we do not require sample-splitting/cross-fitting as most approaches that use data-adaptive nuisance learners do \citep{chernozhukov2018}. This means that doubletree will make more efficient use of potentially limited data. It also means that doubletree is fully explained by exactly two trees. Under $K$-fold cross-fitting, users would need to interpret 2$K$ trees, as opposed to doubletree's two.
 \end{remark}
 
+% POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
+% Oracle session ses_f9c40eec7ffewOo1sAWZkvcglK, for full derivation]:
+% The interpretability rationale above ("we call our estimation approach
+% doubletree") is necessary but INCOMPLETE as a justification for two
+% nuisances -- it does not say why efficiency/validity needs both. Add a
+% remark here (or just before \S\ref{sec:instantiation1}) making two points
+% precisely:
+%   (1) The propensity TREE is an interpretability choice, not a validity
+%       requirement -- any \hat w with \|\hat w-w_0\|\|\hat\mu-\mu_0\|=
+%       o_p(n^{-1/2}) would do (Prop.~\ref{prop:bilinear}'s bilinear
+%       structure only needs the PRODUCT to vanish fast, not a tree
+%       specifically).
+%   (2) The propensity NUISANCE itself, unlike in ATE, is genuinely
+%       informative for the ATT: Hahn (1998, Sec.~4) shows knowledge of
+%       e_0 does NOT lower the semiparametric efficiency bound for ATE but
+%       DOES lower it for ATT -- so dropping the propensity is not a free
+%       simplification for this estimand.
+% See the positive/negative corollary pointers near
+% Prop.~\ref{prop:P-instantiation1} and Remark~\ref{rem:apology-retired}
+% below for the concrete single-outcome-tree special case that makes (1)-(2)
+% precise.
+
 Additionally, we assume that the fitted propensities agree with the positivity assumption in \ref{ass:causal}:
 \begin{assumption}[Clipping]\label{ass:construct}
 Fitted propensities are clipped so that $1-\hat e(\bx)\ge c$ for every $\bx$, with $c$ the constant of Assumption~\ref{ass:causal}.
@@ -422,6 +444,41 @@ routed through Proposition~\ref{lem:uniform}'s uniformity over $\cS_j$
 rather than a single-topology anchor.
 \end{proposition}
 
+% POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
+% Oracle session ses_f9c40eec7ffewOo1sAWZkvcglK]: insert a named Corollary
+% here, "Single-outcome-tree plug-in as a special case of doubletree."
+% Identity (Oracle-verified): the plug-in \thetahat=n_1^{-1}\sum_{A_i=1}
+% (Y_i-\hat\mu_0(X_i)) (no propensity tree at all) has influence function
+% \psi_\cP equal to doubletree's \psi_0 (eq.~\ref{eq:score}) with the
+% propensity w tied to the outcome tree's OWN leaf-wise empirical odds
+% n_{1,\ell}/n_{0,\ell} -- i.e. it is not an alternative to doubletree, it IS
+% doubletree with the two trees forced equal.
+% Corollaries to state:
+%   (i) Saturated leaves (finite/discrete $\cX$): $\psi_\cP=\psi_0$
+%       IDENTICALLY -- the plug-in is exactly Hahn-efficient, no propensity
+%       tree needed.
+%   (ii) Correct coarsening ($\mu_0$ leaf-measurable but leaves not
+%       singletons): plug-in is unbiased AND
+%       $\Var(\psi_\cP)\le\Var(\psi_0)$ -- i.e. STRICTLY more efficient than
+%       the untied two-tree estimator -- under within-leaf homoskedasticity
+%       (Cauchy--Schwarz on $e_0^2/(1-e_0)$); flag explicitly that
+%       heteroskedasticity breaks this ordering (the unweighted leaf mean is
+%       then not the optimal leaf estimator).
+%   (iii) MUST flag as a warning, not omit: the naive SE that treats
+%       $\hat\mu_0$ as fixed UNDER-COVERS. The correct SE uses the
+%       $\psi_\cP$ form (leaf-wise empirical odds) -- i.e. you never actually
+%       escape the propensity, only the separate TREE for it.
+% Distinguish explicitly from the pre-existing, DIFFERENT idea in
+% \texttt{notes/finite-regime-single-tree.tex} and
+% \texttt{quality\_reports/specs/2026-08-04\_single-tree-stability-inference.md}
+% (a single SHARED-structure tree serving both nuisances, via LOO stability
+% / Chen-Syrgkanis-Austern 2022 -- a different mechanism and a different
+% question than "no propensity tree at all"). Reconcile before drafting;
+% do not present as the same result. Note also that spec's estimand
+% (working-model $\theta^*_n$) was itself superseded in favor of the true
+% $\theta_0$ used here -- re-check applicability before reusing any of that
+% file's machinery.
+
 \subsection{Instantiation 2: continuum sparsity and off-grid threshold refinement}
 \label{sec:instantiation2}
 
@@ -531,6 +588,27 @@ Refining the analyst's search grid relaxes the first cost (grid alignment)
 but not the second (exact tree-shaped structure); \S\ref{sec:instantiation3}
 addresses that second cost directly.
 \end{remark}
+
+% POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
+% Oracle session ses_f9c40eec7ffewOo1sAWZkvcglK]: add the NEGATIVE half of
+% the single-outcome-tree corollary here (positive half pointer is above,
+% near Prop.~\ref{prop:P-instantiation1}). Once $\mu_0$ is NOT exactly
+% leaf-measurable (this instantiation, or genuinely misspecified sparsity),
+% tying the propensity to the outcome tree's own partition makes the bias
+% FIRST-ORDER, not bilinear: $\psi_\cP$'s bias is
+% $\pi^{-1}\E[e_0(\mu_0-\mu_\cP)]$ (Cauchy--Schwarz cross term with
+% $\mu_\cP$'s own $(1-e_0)$-weighted leaf mean vanishes identically), which
+% is linear in the outcome tree's approximation error -- it does not benefit
+% from Prop.~\ref{prop:bilinear}'s product-of-two-INDEPENDENT-errors
+% structure, because tying the trees couples those two errors perfectly.
+% This is the precise, currently-missing reason two INDEPENDENT trees (not
+% one tree, not one shared-structure tree) are required outside grid-exact
+% sparsity -- state explicitly; confirmed absent from the manuscript by
+% direct search, 2026-09-02. Narrow rescue subcase exists (tree-representable
+% $\mu_0$ at continuum thresholds, with threshold recovery fast enough that
+% the bias is $o_p(n^{-1/2})$) but rests on non-standard change-point
+% asymptotics -- flag as fragile, do not use it to justify dropping the
+% propensity tree in this section.
 
 \subsection{When partition recovery fails: the anchor interval}
 \label{sec:honest-manuscript}

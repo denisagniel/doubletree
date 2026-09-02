@@ -710,6 +710,18 @@ Lemma~\ref{lem:biasbound} and Corollary~\ref{cor:convert}, which differ, and
 because Section~\ref{sec:honest} requires it at the fitted rather than the
 population nuisances.
 
+% POINTER [2026-09-02, not yet drafted -- full derivation in
+% session_notes/2026-09-02.md, Oracle session
+% ses_f9c40eec7ffewOo1sAWZkvcglK]: a single-outcome-tree-plug-in corollary of
+% THIS proposition (tie $w$ to the outcome tree's own leaf-wise empirical
+% odds) belongs here too -- see the three fuller pointers in
+% \texttt{manuscript.tex} (near its own \texttt{prop:P-instantiation1},
+% \texttt{rem:apology-retired}, and the doubletree-algorithm remark) for the
+% full positive/negative corollary statements and the required efficiency/
+% coverage caveats. If this file's formal-proof appendix is drafted
+% independently of manuscript.tex, port those three pointers' content here
+% too, not just the informal remark.
+
 \begin{lemma}[Bias bound in the control-weighted norm]\label{lem:biasbound}
 Write $P\psi(\cdot;\theta_0,\eta)=\E[\psi(O;\theta_0,\eta)]$ for the population
 expectation at a \emph{fixed} $\eta$, and evaluate it at $\eta=\widehat\eta$; both
