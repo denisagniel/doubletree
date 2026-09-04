@@ -1,6 +1,6 @@
 # doubletree: Causal Estimation with Interpretable Trees
 
-Implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with cross-fitting and interpretable optimal decision trees. Doubly robust, semiparametric estimator with optional Rashomon set integration for interpretable, stable tree selection.
+Implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with interpretable optimal decision trees. The flagship estimator, `estimate_att()`, fits both nuisance trees on the full sample -- no sample splitting, no cross-fitting -- so the entire estimate is exactly two trees a user can read end to end. A cross-fitting fallback (`estimate_att_crossfit()`) is available when structural sparsity does not plausibly hold.
 
 **Current version:** 0.0.0.9000 (development)
 **Repository:** [github.com/denisagniel/doubletree](https://github.com/denisagniel/doubletree)
@@ -8,11 +8,12 @@ Implements causal inference for the **Average Treatment Effect on the Treated (A
 
 ## Features
 
-- **DML-ATT estimation** with tree-based nuisance functions (propensity and outcome models)
-- **Rashomon-DML integration** for interpretable tree selection via cross-validated structure intersection
-- **Binary and continuous outcomes** (via `outcome_type`)
-- **Parallel execution** on O2 cluster for large-scale simulations
+- **`estimate_att()`** -- the paper's primary estimator: both nuisance trees fit on all *n* observations, no cross-fitting, no sample splitting. Valid under structural sparsity (a tree of the chosen leaf budget represents both nuisances exactly).
+- **`estimate_att_crossfit()`** -- *K*-fold cross-fitting fallback with tree-based nuisance functions, for when structural sparsity does not plausibly hold; does not require it.
+- **Binary and continuous outcomes** (via `outcome_type`) on both estimators
+- **Rashomon-set integration** (`estimate_att_rashomon()`) for interpretable, stable tree selection across folds -- a superseded variant, excluded from the current theory; see "Methods" below
 - **Theory-aligned implementation** with comprehensive simulation infrastructure
+
 
 ## Recent Updates (March 2026)
 
@@ -92,17 +93,41 @@ For O2 cluster simulations, also install:
 
 ## Methods
 
-### Tree-DML (Standard)
+### `estimate_att()` (flagship, no sample splitting)
 
-Fits one optimal tree per fold for each nuisance function (propensity and outcome models):
+The paper's primary estimator (theory.tex Part II, `sec:main`). Both nuisance
+partitions **and** both sets of leaf values are computed from all *n*
+observations -- no sample splitting, no cross-fitting, no averaging over
+fits. The result is exactly two trees, fully auditable end to end:
+
+```r
+fit <- estimate_att(X, A, Y, leaf_budget = 4L)
+```
+
+Valid under **structural sparsity**: a tree of at most `leaf_budget` leaves
+represents both true nuisances exactly. `leaf_budget` is required (no
+default) since it is a fixed, analyst-chosen structural parameter. Covariates
+must be binary (0/1); see `?estimate_att` for why, and use
+`estimate_att_crossfit()` for continuous or high-cardinality covariates.
+
+### `estimate_att_crossfit()` (cross-fitting fallback)
+
+Fits one optimal tree per fold for each nuisance function (propensity and
+outcome models), via *K*-fold cross-fitting. Does **not** require structural
+sparsity -- use this when a tree of a reasonable leaf budget plausibly cannot
+represent both nuisances exactly:
 
 ```r
 fit <- estimate_att_crossfit(X, A, Y, K = 5)
 ```
 
-### Rashomon-DML (Interpretable)
+### `estimate_att_rashomon()` (superseded)
 
-Selects a **single interpretable tree per nuisance** via the intersection of Rashomon sets across cross-fitting folds, then refits that structure per fold for valid cross-fitted estimation:
+Selects a single interpretable tree per nuisance via the intersection of
+Rashomon sets across cross-fitting folds, then refits that structure per fold
+for valid cross-fitted estimation. **This variant is superseded and excluded
+from the current theory** (see `?estimate_att_rashomon`); it is retained for
+backward compatibility and comparison, not as a recommended default.
 
 ```r
 fit <- estimate_att_rashomon(
@@ -118,8 +143,6 @@ fit <- estimate_att_rashomon(
 3. Refit the intersecting structure per fold for valid cross-fitting
 4. Use fold-specific predictions for DML estimation
 
-**Benefits:** Interpretable trees (single structure for each nuisance) with valid statistical inference.
-
 ### Baseline Methods
 
 For comparison:
@@ -128,11 +151,27 @@ For comparison:
 
 ## Minimal example
 
-**Binary outcome (default):**
+**Flagship estimator, no sample splitting (binary outcome, default):**
 
 ```r
 devtools::load_all()
 # X: data.frame of binary (0/1) covariates; A, Y: binary (0/1) treatment and outcome
+set.seed(42)
+n <- 400
+# Hierarchically sparse nuisances: e depends on X1 only, m0 on X2 only, so a
+# 4-leaf budget represents both exactly.
+X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5), X3 = rbinom(n, 1, 0.5))
+A <- rbinom(n, 1, ifelse(X$X1 == 1, 0.65, 0.35))
+Y <- rbinom(n, 1, 0.25 + 0.30 * X$X2 + 0.15 * A)
+fit <- estimate_att(X, A, Y, leaf_budget = 4L)
+fit$theta   # point estimate
+fit$ci_95   # 95% Wald CI
+```
+
+**Cross-fitting fallback (binary outcome):**
+
+```r
+devtools::load_all()
 set.seed(42)
 n <- 300
 X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
@@ -143,7 +182,7 @@ fit$theta   # point estimate
 fit$ci_95   # 95% Wald CI
 ```
 
-**Continuous outcome:** Use `outcome_type = "continuous"` and numeric Y. Requires optimaltrees to support `squared_error` loss for the outcome trees.
+**Continuous outcome:** Use `outcome_type = "continuous"` and numeric Y on either estimator. Requires optimaltrees to support `squared_error` loss for the outcome trees.
 
 ## Running Simulations
 
