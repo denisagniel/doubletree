@@ -114,12 +114,14 @@ Since the cutpoints and grid atoms are fixed and finite, $\cT_{\bar L}$ is also 
 
 Finally, we define for any function $\gamma$ a \emph{sufficient class}, or a class of trees that are sufficient to describe the function comprehensively:
  \begin{definition}[Sufficient class]\label{def:sufficient}
-For a given $\nu$ and any function $\gamma$, \[
-  \cS_j=\bigl\{\tau\in\cT_{\bar L}:
-  \Pi^\nu_\tau\gamma_{0,j}=\gamma\ \ P\text{-a.s.}\bigr\},
+For $j\in\{e,\mu\}$,
+\[
+  \cS_j=\bigl\{\tau\in\cT_{\Lbar}:
+  \Pi^\nu_\tau\gamma_{0,j}=\gamma_{0,j}\ \ \Prob\text{-a.s.}\bigr\},
 \]
-equivalently the set of $\tau\in\cT_{\bar L}$ on whose leaves $\gamma$ is
-$P$-a.s.\ constant.
+equivalently the set of $\tau\in\cT_{\Lbar}$ on whose leaves $\gamma_{0,j}$ is
+$\Prob$-a.s.\ constant. The characterisation is independent of the strictly
+positive weight $\nu$.
 \end{definition}
  
  \subsection{Identification and influence function}
@@ -230,33 +232,33 @@ confined to that grid (\S\ref{sec:instantiation2}).
 
 \begin{definition}[Partition recovery -- Condition~(P)]
 \label{cond:P}
-For a nuisance $j\in\{e,\mu\}$, write $\tauhat_j=(\hat T_j,\hat c_j)$ for its
-topology and threshold vector. Condition~(P) holds for $j$ if:
+For $j\in\{e,\mu\}$, let $\tauhat_j$ denote the fitted partition (topology
+and threshold vector), let $\nu_e=\Prob_X$, and let
+$d\nu_\mu=(1-e_0)\,d\Prob_X$. Condition~(P) holds for nuisance $j$ if:
 \begin{enumerate}[label=(P\arabic*),leftmargin=*]
-\item[(P0)] There exists a fixed reference partition
-$\tau_{0,j}=(T_{0,j},c_{0,j})\in\cT_{\Lbar}$ on which $\gamma_{0,j}$ is
-$\Prob$-a.s.\ constant, with every leaf of $\tau_{0,j}$ of positive
-$\nu$-mass;
-\item[(P1)] $\Prob\bigl(\hat T_j=T_{0,j}\bigr)\longrightarrow1$;
-\item[(P2)] on the event in (P1), the set $S_{j,n}$ of observations whose
-leaf assignment under $\hat c_j$ differs from their assignment under
-$c_{0,j}$ satisfies $\card{S_{j,n}}=O_p(1)$.
+\item[(P0)] There is a fixed reference partition $\tau_{0,j}$ with at most
+$\Lbar$ leaves on which $\gamma_{0,j}$ is $\Prob$-a.s.\ constant, with every
+leaf of positive $\nu_j$-mass;
+\item[(P1)] with probability tending to one, $\tauhat_j$ and $\tau_{0,j}$
+have the same tree topology and the same split coordinate at each matched
+internal node, so their leaves admit a canonical bijection preserving
+matched split boundaries and left--right incidence. Threshold values may
+differ under this correspondence, and equality of the induced leaf sets is
+\emph{not} asserted -- only the existence of the bijection. Literal rooted-
+or ordered-tree equality is not required;
+\item[(P2)] under the leaf correspondence of (P1), let $S_{j,n}$ be the set
+of observations whose leaf assignment under $\tauhat_j$ differs from their
+assignment under $\tau_{0,j}$ (nonempty in general, since the matched
+leaves need not coincide as sets when thresholds differ). On the event in
+(P1),
+$\card{S_{j,n}}=O_p(1)$.
 \end{enumerate}
 \end{definition}
 
 Because the leaf values \eqref{eq:refit} are, by construction, leaf-wise
 empirical means, pinning down the partition pins down the fitted nuisance:
 Condition~(P) is a condition on partitions, not directly on the fitted
-functions. When $\cS_j$ (Definition~\ref{def:sufficient}) contains more than
-one sufficient partition -- as can happen on a fixed grid with redundant
-cutpoints -- clause (P1) should be read as convergence to \emph{a} partition
-inducing the same leaf-wise expansion as $\tau_{0,j}$, not necessarily a
-literal unique limit: Instantiation~1 below in fact verifies Condition~(P)
-by a uniformity argument over the whole of $\cS_j$, precisely because a
-grid-exact sufficient class need not be a singleton. Instantiation~2 has a
-topologically unique target by construction (the genuine-jump and
-separation clauses of the sparsity assumption used there rule out ties), so
-no such qualification is needed.
+functions.
 
 \begin{remark}[Why (P2) is a bounded count, not merely a vanishing rate]
 \label{rem:P2-mechanism}
@@ -282,13 +284,14 @@ is assumed here, since doubletree uses neither.
 \label{thm:main}
 Suppose the observations are \iid; Assumptions~\ref{ass:causal} and
 \ref{ass:construct} hold; the conditional second moments of $Y$ are
-uniformly bounded; $\Lbar$ is fixed; and Condition~(P) holds for both
-$j=e,\mu$. Then, with both tree structures and leaf values fitted using all
-$n$ observations,
+uniformly bounded; $\Lbar$ is fixed;
 \[
-  \sqrt n(\thetahat-\theta_0)\rightsquigarrow N(0,V),
-  \qquad
-  V=\E[\psi_0(\bO)^2]>0 .
+  V:=\E[\psi_0(\bO)^2]>0;
+\]
+and Condition~(P) holds for both $j=e,\mu$. Then, with both tree structures
+and leaf values fitted using all $n$ observations,
+\[
+  \sqrt n(\thetahat-\theta_0)\rightsquigarrow N(0,V).
 \]
 \end{theorem}
 
@@ -319,18 +322,22 @@ has pointwise asymptotic coverage $1-\alpha$ for $\theta_0$.
 These results justify using the typical variance and confidence interval
 approaches used throughout EIF-based causal inference.
 
-Both instantiations below prove Theorem~\ref{thm:main} by the same strategy,
-even though the technical work verifying Condition~(P) differs: anchor the
-estimator at the fixed reference partition $\tau_{0,j}$, where the usual
-fixed-partition expansion for a sufficient nuisance applies directly, and
-then show that the perturbation from $\tau_{0,j}$ to $\tauhat_j$ reassigns
-only $O_p(1)$ observations, which is enough (given only a finite second
-moment on $Y$, per Remark~\ref{rem:P2-mechanism}) for the resulting
-disturbance to $\sqrt n(\thetahat-\theta_0)$ to vanish. In both instantiations $V$ is exactly
-$\E[\psi_0^2]$, the \emph{same} variance as if the true partition were known
-in advance: learning the thresholds, whether confined to a fixed grid or
-continuum-valued, costs nothing asymptotically. Full proofs are in the
-companion theory document.
+The two instantiations below reach Theorem~\ref{thm:main}'s conclusion by
+different arguments. Instantiation~2 verifies Condition~(P) directly: it
+anchors the estimator at the fixed reference partition $\tau_{0,j}$, where
+the usual fixed-partition expansion for a sufficient nuisance applies
+directly, and shows that the perturbation from $\tau_{0,j}$ to $\tauhat_j$
+reassigns only $O_p(1)$ observations, which is enough (given only a finite
+second moment on $Y$, per Remark~\ref{rem:P2-mechanism}) for the resulting
+disturbance to $\sqrt n(\thetahat-\theta_0)$ to vanish. Instantiation~1
+instead uses uniform asymptotic linearity over the entire fixed-grid
+sufficient class: that independent argument does not select a unique anchor
+and requires no analogue of (P2), because the grid-exact sufficient class
+$\cS_j$ need not be a singleton. In both cases the limiting influence
+function is $\psi_0$, so the variance is $V=\E[\psi_0^2]$, the \emph{same}
+variance as if a sufficient partition were known in advance: learning the
+thresholds, whether confined to a fixed grid or continuum-valued, costs
+nothing asymptotically. Full proofs are in the companion theory document.
 
 \subsection{Instantiation 1: fixed grid, exact sparsity}
 \label{sec:instantiation1}
@@ -340,9 +347,11 @@ $\cS_\mu\ne\emptyset$, $\cS_e\ne\emptyset$. Sparsity implies that both
 nuisances are representable by trees that observe the leaf budget $\Lbar$ on
 the analyst's own pre-specified grid. This is the expository case: the grid
 is finite by construction (\S\ref{sec:trees}), so once selection lands in
-the sufficient class, topology recovery is exact and there are no
-continuum-valued thresholds left to estimate -- Condition~(P) holds with (P2)
-satisfied trivially.
+the sufficient class, topology recovery is exact. The resulting central
+limit theorem is proved by uniform asymptotic linearity over the whole
+sufficient class, not by verifying Condition~(P) or comparing the selected
+partition with a single reference partition -- see the discussion following
+Proposition~\ref{lem:uniform} below.
 
 First, note that the doubletree nuisance functions will land in the
 sufficient class with probability tending to 1:
@@ -400,7 +409,8 @@ Under the conditions of Proposition~\ref{lem:selection},
 \]
 \medskip
 
-We now verify Condition~(P), by an argument that differs from the
+We now establish Theorem~\ref{thm:main}'s conclusion by an argument that
+bypasses Condition~(P) rather than verifying it, unlike the
 anchor-and-perturbation strategy sketched in \S\ref{sec:partition-recovery}:
 because the grid-exact sufficient class $\cS_j$ need not be a singleton, we
 establish uniform asymptotic linearity over the \emph{whole} class, rather
@@ -426,23 +436,32 @@ this uniform statement.
 
 This proposition establishes an asymptotic equivalence between the normalized empirical mean of the influence function and the normalized error for \emph{every} estimator based on nuisances drawn from the sufficient classes. This result is a statement not yet about the particular doubletree estimator but about any estimator using sufficient nuisances.
 
-\begin{proposition}[Condition~(P) holds under grid-exact sparsity]
+\begin{proposition}[Fixed-grid central limit theorem by uniform linearity]
 \label{prop:P-instantiation1}
 Suppose the conditions of Proposition~\ref{lem:uniform} hold and
-$\cS_e\ne\emptyset$, $\cS_\mu\ne\emptyset$. Then Condition~(P) holds for both
-$j=e,\mu$: (P0) holds by hypothesis, since a nonempty $\cS_j$ contains a
-grid partition on which $\gamma_{0,j}$ is exactly constant, with every leaf
-of positive mass by construction of the grid atoms
-(\S\ref{sec:trees}); (P1) is the conclusion of
-Proposition~\ref{lem:selection} applied at the level of leaf-wise
-expansions (see the remark following Definition~\ref{cond:P}); and (P2)
-holds trivially, because a grid-restricted partition's thresholds are
-exactly its cutpoints: once $\tauhat_j\in\cS_j$, no observation is ever
-reassigned between $\tauhat_j$ and $\tau_{0,j}$, so $S_{j,n}=\emptyset$ and
-$\card{S_{j,n}}=0=O_p(1)$ identically. Theorem~\ref{thm:main} therefore applies, its proof
-routed through Proposition~\ref{lem:uniform}'s uniformity over $\cS_j$
-rather than a single-topology anchor.
+$\cS_e\ne\emptyset$, $\cS_\mu\ne\emptyset$. Then
+\[
+  \sqrt n(\thetahat-\theta_0)\rightsquigarrow N(0,V).
+\]
+This conclusion follows independently of Condition~(P): no (P1) or (P2)
+verification is asserted, and in particular the argument needs no unique
+reference partition, only that selection lands in the (possibly
+non-singleton) sufficient class.
 \end{proposition}
+
+\begin{proof}
+By Proposition~\ref{lem:selection}, $\tauhat_j\in\cS_j$ for both $j=e,\mu$
+with probability tending to one. On that event, Proposition~\ref{lem:uniform}
+gives
+\[
+  \sqrt n(\thetahat-\theta_0)
+  =
+  \sqrt n\,\Prob_n\psi_0+o_p(1).
+\]
+The classical i.i.d.\ central limit theorem and Slutsky's theorem -- the same
+concluding step used for Theorem~\ref{thm:main} in the companion theory
+document -- give the stated conclusion, with $V=\E[\psi_0^2]>0$ as assumed.
+\end{proof}
 
 % POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
 % Oracle session ses_f9c40eec7ffewOo1sAWZkvcglK]: insert a named Corollary
