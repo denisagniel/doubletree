@@ -1,105 +1,23 @@
-# ATT estimation and score tests
+# estimate_att() -- the paper's flagship, full-sample, no-cross-fitting
+# estimator (theory.tex Part II, sec:main). Both nuisance partitions AND leaf
+# values are fit on all n observations; see estimate_att_crossfit() for the
+# K-fold fallback and estimate_att_rashomon() for the superseded variant.
 # Requires optimaltrees to be installed (doubletree Imports optimaltrees).
 
-test_that("psi_att returns vector of length n and is linear in theta", {
-  n <- 5
-  Y <- c(1, 0, 1, 0, 1)
-  A <- c(1, 0, 1, 0, 1)
-  eta <- list(e = rep(0.5, n), m0 = rep(0.4, n))
-  pi_hat <- 0.6
-  s0 <- psi_att(Y, A, theta = 0, eta, pi_hat)
-  s1 <- psi_att(Y, A, theta = 1, eta, pi_hat)
-  expect_length(s0, n)
-  expect_length(s1, n)
-  # psi(theta) = psi(0) - theta * (A/pi)
-  expect_equal(s1, s0 - 1 * (A / pi_hat), tolerance = 1e-10)
-})
-
-test_that("estimate_att_crossfit returns list with theta, sigma, ci_95 and runs with binary data", {
+test_that("estimate_att returns the documented list structure and runs on binary data", {
   skip_if_not_installed("optimaltrees")
   set.seed(42)
-  n <- 120
-  X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
-  A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
-  Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-  fit <- estimate_att_crossfit(X, A, Y, K = 3)
-  expect_type(fit$theta, "double")
-  expect_length(fit$theta, 1)
-  expect_type(fit$sigma, "double")
-  expect_length(fit$ci_95, 2)
-  expect_true(fit$ci_95[1] < fit$theta)
-  expect_true(fit$ci_95[2] > fit$theta)
-  expect_equal(fit$n, n)
-  expect_equal(fit$K, 3)
-})
-
-test_that("create_folds returns integer vector 1..K", {
-  f <- create_folds(100, K = 5)
-  expect_length(f, 100)
-  expect_true(all(f >= 1 & f <= 5))
-  expect_type(f, "integer")
-})
-
-test_that("estimate_att_rashomon runs and returns same structure", {
-  skip_if_not_installed("optimaltrees")
-  set.seed(42)
-  n <- 150
-  X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
-  A <- rbinom(n, 1, plogis(0.5 * X$X1 - 0.2))
-  Y <- rbinom(n, 1, 0.3 + 0.2 * X$X1 + 0.15 * A)
-  fit <- estimate_att_rashomon(X, A, Y, K = 3, verbose = FALSE)
-  expect_type(fit$theta, "double")
-  expect_length(fit$theta, 1)
-  expect_type(fit$sigma, "double")
-  expect_length(fit$ci_95, 2)
-  expect_true(fit$ci_95[1] < fit$theta)
-  expect_true(fit$ci_95[2] > fit$theta)
-  expect_equal(fit$n, n)
-  expect_equal(fit$K, 3)
-  expect_true(is.list(fit$nuisance_fits))
-  expect_true(length(fit$fold_indices) == n)
-})
-
-test_that("att_se and att_ci work", {
-  scores <- rnorm(100, 0, 1)
-  se <- att_se(scores)
-  expect_true(se > 0)
-  ci <- att_ci(0.5, se, level = 0.95)
-  expect_length(ci, 2)
-  expect_true(ci[1] < 0.5)
-  expect_true(ci[2] > 0.5)
-})
-
-# Continuous outcome tests (Sprint 2, MAJOR-5)
-test_that("estimate_att_crossfit works with continuous outcomes", {
-  skip_if_not_installed("optimaltrees")
-
-  set.seed(123)
-  n <- 150
+  n <- 400
+  # Hierarchically sparse nuisances: e depends on X1 only, m0 on X2 only, so
+  # a 4-leaf budget represents both exactly (matches the roxygen example).
   X <- data.frame(
-    X1 = rbinom(n, 1, 0.5),
-    X2 = rbinom(n, 1, 0.5),
-    X3 = rbinom(n, 1, 0.5)
+    X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5), X3 = rbinom(n, 1, 0.5)
   )
+  A <- rbinom(n, 1, ifelse(X$X1 == 1, 0.65, 0.35))
+  Y <- rbinom(n, 1, 0.25 + 0.30 * X$X2 + 0.15 * A)
 
-  # DGP with continuous outcome
-  e <- plogis(-0.5 + 0.8 * X$X1 - 0.3 * X$X2)
-  A <- rbinom(n, 1, e)
+  fit <- estimate_att(X, A, Y, leaf_budget = 4L)
 
-  # Continuous Y with treatment effect
-  tau <- 0.5
-  Y <- rnorm(n, mean = 1 + 0.6 * X$X1 + 0.4 * X$X2 + tau * A, sd = 0.8)
-
-  # Fit with continuous outcome
-  fit <- estimate_att_crossfit(
-    X, A, Y,
-    K = 3,
-    outcome_type = "continuous",
-    regularization = 0.1,
-    seed = 42
-  )
-
-  # Basic checks
   expect_type(fit$theta, "double")
   expect_length(fit$theta, 1)
   expect_true(is.finite(fit$theta))
@@ -110,171 +28,152 @@ test_that("estimate_att_crossfit works with continuous outcomes", {
   expect_length(fit$ci_95, 2)
   expect_true(fit$ci_95[1] < fit$theta)
   expect_true(fit$ci_95[2] > fit$theta)
+  # Documented to be identical, for cross-estimator API parity.
+  expect_equal(fit$ci_95, fit$ci_95_wald)
 
-  # Check estimate is reasonable (should be near tau = 0.5)
-  expect_true(abs(fit$theta - tau) < 1.0)  # Loose bound for small sample
+  expect_length(fit$score_values, n)
+  expect_equal(fit$n, n)
+  expect_equal(fit$leaf_budget, 4L)
+  expect_equal(fit$m_n, 1L)
+  # Default lambda_n resolves to log(n)/n (prop:parsimony-compatible rate).
+  expect_equal(fit$lambda_n, log(n) / n)
+
+  # Sparsity-proxy diagnostics are present but never auto-acted on.
+  expect_type(fit$certified_e, "logical")
+  expect_type(fit$certified_m0, "logical")
+  expect_type(fit$used_search_e, "logical")
+  expect_type(fit$used_search_m0, "logical")
+  expect_true(fit$n_leaves_e >= 1 && fit$n_leaves_e <= 4L)
+  expect_true(fit$n_leaves_m0 >= 1 && fit$n_leaves_m0 <= 4L)
+
+  expect_true(is.list(fit$nuisance_fits))
+  expect_true(all(c("e_model", "m0_model", "propensity", "outcome_control") %in%
+    names(fit$nuisance_fits)))
+  expect_length(fit$nuisance_fits$propensity, n)
+  expect_length(fit$nuisance_fits$outcome_control, n)
 })
 
-test_that("continuous outcome uses squared_error loss", {
+test_that("estimate_att fits both trees on all n observations (no sample splitting)", {
   skip_if_not_installed("optimaltrees")
+  set.seed(7)
+  n <- 200
+  X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
+  A <- rbinom(n, 1, 0.5)
+  Y <- rbinom(n, 1, 0.3 + 0.2 * A)
 
-  set.seed(456)
+  fit <- estimate_att(X, A, Y, leaf_budget = 3L)
+
+  # In-sample predictions are returned for every one of the n rows -- there is
+  # no held-out/held-in distinction on this path (sec:main).
+  expect_length(fit$nuisance_fits$propensity, n)
+  expect_length(fit$nuisance_fits$outcome_control, n)
+  # Propensity predictions are clamped into the shared bounds.
+  expect_true(all(fit$nuisance_fits$propensity >= 0 &
+    fit$nuisance_fits$propensity <= 1))
+})
+
+test_that("estimate_att works with continuous outcomes (squared_error loss)", {
+  skip_if_not_installed("optimaltrees")
+  set.seed(99)
+  n <- 200
+  X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
+  A <- rbinom(n, 1, 0.5)
+  tau <- 0.5
+  Y <- rnorm(n, mean = 1 + 0.6 * X$X1 + tau * A, sd = 0.8)
+
+  fit <- estimate_att(X, A, Y, leaf_budget = 3L, outcome_type = "continuous")
+
+  expect_true(is.finite(fit$theta))
+  expect_true(fit$sigma > 0)
+  expect_length(fit$ci_95, 2)
+  expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
+})
+
+test_that("estimate_att requires leaf_budget with no default", {
+  skip_if_not_installed("optimaltrees")
   n <- 100
   X <- data.frame(X1 = rbinom(n, 1, 0.5))
   A <- rbinom(n, 1, 0.5)
-  Y <- rnorm(n, mean = 2 + 0.5 * A)
+  Y <- rbinom(n, 1, 0.5)
 
-  # Fit with continuous outcome
-  fit <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "continuous")
-
-  # Verify structure
-  expect_true("nuisance_fits" %in% names(fit))
-  expect_type(fit$theta, "double")
-  expect_true(is.finite(fit$theta))
+  expect_error(estimate_att(X, A, Y), "required")
+  expect_error(estimate_att(X, A, Y, leaf_budget = NULL), "required")
 })
 
-test_that("estimate_att_crossfit handles small K with continuous outcomes", {
+test_that("estimate_att validates leaf_budget, m_n, and lambda_n", {
   skip_if_not_installed("optimaltrees")
-
-  set.seed(789)
-  n <- 60
+  n <- 100
   X <- data.frame(X1 = rbinom(n, 1, 0.5))
-  A <- rbinom(n, 1, 0.4)
-  Y <- rnorm(n, mean = 1 + 0.3 * A, sd = 0.5)
-
-  # K=2 should work (may produce warnings from diagnostics - that's expected)
-  fit <- estimate_att_crossfit(X, A, Y, K = 2, outcome_type = "continuous")
-  expect_true(is.finite(fit$theta))
-})
-
-test_that("continuous outcome validates input appropriately", {
-  skip_if_not_installed("optimaltrees")
-
-  set.seed(101)
-  n <- 50
-  X <- data.frame(X1 = rbinom(n, 1, 0.5))
-  A <- rbinom(n, 1, 0.5)
-
-  # Continuous outcome should work (may produce warnings from diagnostics - that's expected)
-  Y_continuous <- rnorm(n, mean = 1 + 0.5 * A)
-  fit <- estimate_att_crossfit(X, A, Y_continuous, K = 3, outcome_type = "continuous")
-  expect_true(is.finite(fit$theta))
-})
-
-# ============================================================================
-# Tests for CV regularization as default (Phase 1)
-# ============================================================================
-
-test_that("estimate_att_crossfit uses CV by default and completes successfully", {
-  skip_if_not_installed("optimaltrees")
-  skip_on_cran()  # CV adds computation time
-
-  set.seed(123)
-  n <- 200
-  X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5))
   A <- rbinom(n, 1, 0.5)
   Y <- rbinom(n, 1, 0.5)
 
-  # Default call (cv_regularization should be TRUE)
-  result <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "binary", verbose = FALSE)
-
-  expect_false(is.na(result$theta))
-  expect_false(is.na(result$sigma))
-  expect_true(result$sigma > 0)
-
-  # Should have selected lambda via CV (not default 0.1)
-  # This is implicit - if it worked, CV was used
+  expect_error(estimate_att(X, A, Y, leaf_budget = 2.5), "positive integer")
+  expect_error(estimate_att(X, A, Y, leaf_budget = -1L), "positive integer")
+  expect_error(estimate_att(X, A, Y, leaf_budget = 2L, m_n = 0L), "positive integer")
+  expect_error(estimate_att(X, A, Y, leaf_budget = 2L, lambda_n = -0.1),
+    "positive")
+  expect_error(estimate_att(X, A, Y, leaf_budget = 2L, lambda_n = c(0.1, 0.2)),
+    "single")
 })
 
-test_that("estimate_att_crossfit with cv_regularization = FALSE uses fixed lambda", {
+test_that("estimate_att rejects non-binary covariates and points to the cross-fit fallback", {
   skip_if_not_installed("optimaltrees")
-
-  set.seed(456)
-  n <- 150
-  X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5))
+  n <- 100
+  X <- data.frame(X1 = rnorm(n), X2 = rbinom(n, 1, 0.5))
   A <- rbinom(n, 1, 0.5)
   Y <- rbinom(n, 1, 0.5)
 
-  # Explicit cv_regularization = FALSE should use fixed regularization
-  result <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "binary",
-                         cv_regularization = FALSE, regularization = 0.05,
-                         verbose = FALSE)
-
-  expect_false(is.na(result$theta))
-  expect_false(is.na(result$sigma))
-  expect_true(result$sigma > 0)
-})
-
-# ============================================================================
-# Tests for continuous covariate support
-# ============================================================================
-
-test_that("estimate_att_crossfit works with continuous covariates (binary outcome)", {
-  skip_if_not_installed("optimaltrees")
-
-  set.seed(42)
-  n <- 150
-  X <- data.frame(
-    x_cont1 = rnorm(n),
-    x_cont2 = runif(n),
-    x_bin   = rbinom(n, 1, 0.5)
+  expect_error(
+    estimate_att(X, A, Y, leaf_budget = 2L),
+    "binary.*estimate_att_crossfit|estimate_att_crossfit"
   )
-  A <- rbinom(n, 1, plogis(0.5 * X$x_cont1 - 0.3 * X$x_bin))
-  Y <- rbinom(n, 1, 0.3 + 0.2 * (X$x_cont1 > 0) + 0.15 * A)
-
-  fit <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "binary",
-                      cv_regularization = FALSE, regularization = 0.1)
-
-  expect_type(fit$theta, "double")
-  expect_true(is.finite(fit$theta))
-  expect_true(fit$sigma > 0)
-  expect_length(fit$ci_95, 2)
-  expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
 })
 
-test_that("estimate_att_crossfit works with continuous covariates and continuous outcome", {
+test_that("estimate_att errors informatively on degenerate treatment/control samples", {
   skip_if_not_installed("optimaltrees")
+  n <- 100
+  X <- data.frame(X1 = rbinom(n, 1, 0.5))
+  Y <- rbinom(n, 1, 0.5)
 
-  set.seed(99)
-  n <- 150
-  X <- data.frame(
-    x_cont = rnorm(n),
-    x_bin  = rbinom(n, 1, 0.5)
+  expect_error(
+    estimate_att(X, A = rep(0L, n), Y, leaf_budget = 2L),
+    "[Nn]o treated"
   )
-  A <- rbinom(n, 1, plogis(0.3 * X$x_cont))
-  Y <- rnorm(n, mean = 1 + 0.5 * X$x_cont + 0.4 * A, sd = 0.8)
-
-  fit <- estimate_att_crossfit(X, A, Y, K = 3, outcome_type = "continuous",
-                      cv_regularization = FALSE, regularization = 0.1)
-
-  expect_type(fit$theta, "double")
-  expect_true(is.finite(fit$theta))
-  expect_true(fit$sigma > 0)
-  expect_length(fit$ci_95, 2)
-  expect_true(fit$ci_95[1] < fit$theta && fit$theta < fit$ci_95[2])
+  expect_error(
+    estimate_att(X, A = rep(1L, n), Y, leaf_budget = 2L),
+    "[Nn]o control"
+  )
 })
 
-test_that("estimate_att_crossfit max_depth: default caps depth, validates, and 0L allows unlimited", {
+test_that("estimate_att errors when there are too few control units for leaf_budget * m_n", {
   skip_if_not_installed("optimaltrees")
-  skip_on_cran()
+  set.seed(11)
+  n <- 20
+  X <- data.frame(X1 = rbinom(n, 1, 0.5))
+  A <- rbinom(n, 1, 0.9) # very few controls expected
+  Y <- rbinom(n, 1, 0.5)
+  # Force a small control count deterministically for a reproducible message.
+  A[1:18] <- 1L
+  A[19:20] <- 0L
 
-  set.seed(414)
-  n <- 200
-  X <- data.frame(x1 = rbinom(n, 1, 0.5), x2 = rbinom(n, 1, 0.5),
-                  x3 = rbinom(n, 1, 0.5))
-  A <- rbinom(n, 1, plogis(-0.3 + 0.6 * X$x1))
-  Y <- rbinom(n, 1, 0.3 + 0.2 * A + 0.1 * X$x1)
+  expect_error(
+    estimate_att(X, A, Y, leaf_budget = 10L, m_n = 5L),
+    "[Ii]nsufficient control"
+  )
+})
 
-  # Default (max_depth = 4L) runs on the plain cross-fit path.
-  fit_default <- estimate_att_crossfit(X, A, Y, K = 3, verbose = FALSE)
-  expect_true(is.finite(fit_default$theta))
+test_that("estimate_att's certified/used_search/n_leaves diagnostics are internally consistent", {
+  skip_if_not_installed("optimaltrees")
+  set.seed(2024)
+  n <- 300
+  X <- data.frame(X1 = rbinom(n, 1, 0.5), X2 = rbinom(n, 1, 0.5))
+  A <- rbinom(n, 1, ifelse(X$X1 == 1, 0.6, 0.4))
+  Y <- rbinom(n, 1, 0.2 + 0.3 * X$X2 + 0.1 * A)
 
-  # Explicit 0L (unlimited) still runs on binary covariates.
-  fit_unlim <- estimate_att_crossfit(X, A, Y, K = 3,
-                            max_depth = 0L, verbose = FALSE)
-  expect_true(is.finite(fit_unlim$theta))
+  fit <- estimate_att(X, A, Y, leaf_budget = 4L)
 
-  # Validation: negative and non-scalar are rejected before any fitting.
-  expect_error(estimate_att_crossfit(X, A, Y, K = 3, max_depth = -1), "non-negative")
-  expect_error(estimate_att_crossfit(X, A, Y, K = 3, max_depth = c(1, 2)), "single")
+  # certified == TRUE implies gap == 0 (proven exact, no slack to report);
+  # certified == FALSE with a feasible fit gives a non-negative gap or NA.
+  if (isTRUE(fit$certified_e)) expect_equal(fit$gap_e, 0)
+  if (isTRUE(fit$certified_m0)) expect_equal(fit$gap_m0, 0)
 })
