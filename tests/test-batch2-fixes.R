@@ -1,8 +1,14 @@
 # Quick integration test for Batch 2 fixes (dmltree)
 # Run with: Rscript tests/test-batch2-fixes.R
 
-# Load development versions (optimaltrees first, then dmltree)
-devtools::load_all("../optimaltrees")
+# Load development versions (optimaltrees first, then dmltree).
+# Only load the sibling optimaltrees checkout if present (local dev
+# convenience); under R CMD check / covr::package_coverage() this
+# directory does not exist and optimaltrees is already available via
+# the package's declared Imports.
+if (dir.exists("../optimaltrees")) {
+  devtools::load_all("../optimaltrees")
+}
 devtools::load_all()
 
 cat("=== Testing Batch 2 Fixes (dmltree) ===\n\n")
