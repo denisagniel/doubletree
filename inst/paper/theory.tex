@@ -2143,6 +2143,11 @@ for each $j$. Lemma~\ref{lem:skeleton}, applied to the full-sample refits on
 $c_0$, together with the generalised Lemmas~\ref{lem:U} and \ref{lem:cross}
 (which apply directly at $c_0$, their hypotheses being exactly the leaf-count,
 leaf-mass, and leaf-constancy properties (P0) supplies), give
+$\pihat\{\thetahat(c_0)-\theta_0\}=\Pn\phi(\cdot;\eta_0)+o_p(n^{-1/2})$ with
+$\phi(\cdot;\eta_0)=\pi\psi_0$. Since $\pihat\to_p\pi>0$ gives
+$\pi/\pihat-1=O_p(n^{-1/2})$ and $\sqrt n\,\Pn\psi_0=O_p(1)$, dividing through
+by $\pihat$ and absorbing the resulting $O_p(n^{-1/2})\cdot O_p(1)=o_p(1)$
+term gives
 \begin{equation}\label{eq:anchor-fixed-expansion}
   \sqrt n\bigl\{\thetahat(c_0)-\theta_0\bigr\}
   =
@@ -2208,7 +2213,8 @@ whose membership is unchanged away from $S_n$,
   \abs{\widehat\mu_\ell(\hat c)-\widehat\mu_\ell(c_0)}
   &\le C\,\frac{s_n(1+B_n)}{n}, \label{eq:anchor-leaf-mu}
 \end{align}
-for a constant $C<\infty$ depending only on $\rho$. The anchor outcome-leaf
+for an $O_p(1)$ random variable $C$ (depending on $\rho$ and on the anchor
+outcome-leaf means entering the identity above). The anchor outcome-leaf
 means are $O_p(1)$ because there are finitely many positive-control-mass
 leaves and $\E Y^2<\infty$; this accounts for the additive $1$ in
 \eqref{eq:anchor-leaf-mu}. Equations
@@ -2345,7 +2351,7 @@ Work on the event $E_n$ of Theorem~\ref{thm:main-P}'s proof, which has
 $\PP(E_n)\to1$. Because $\mhat$ and $\what$ are bounded --- the anchor
 outcome-leaf means are $O_p(1)$ and the clipped propensity fits lie in
 $[0,1-c]$ by Assumptions~\ref{ass:causal} and~\ref{ass:construct}(c) --- there
-is a constant $C<\infty$ with
+is an $O_p(1)$ random variable $C$ with
 \[
   \abs{\widehat g_i-g_{0,i}}
   \le
@@ -2444,10 +2450,15 @@ both nuisances. Then Condition~(P) holds for both $j\in\{e,\mu\}$.
 \begin{proof}
 Clause (P0) follows from Definition~\ref{def:true-trees} and
 Assumption~\ref{ass:sparsity-jump}(S), with positive leaf mass supplied by
-(Node). Clause (P1) is Proposition~\ref{prop:boundary-recovery}(i)--(ii): the
-Stage-A partition structurally matches the true partition in the
-partition-level sense, and Assumption~\ref{ass:solver-twostage}(d) preserves
-that leaf collection through Stage~B.
+(Node); these give $\nu_j$-a.s.\ leaf-constancy and positive $\nu_j$-mass,
+which is exactly what (P0) requires. (For $j=\mu$ this differs formally
+from $P$-a.s.\ constancy, but $\nu_\mu\sim P_X$ by
+Assumption~\ref{ass:causal}'s $1-e_0\ge c>0$, so the two are equivalent; for
+$j=e$, $\nu_e=P_X$ and no conversion is needed.) Clause (P1) is
+Proposition~\ref{prop:boundary-recovery}(i)--(ii): the Stage-A partition
+structurally matches the true partition in the partition-level sense, and
+Assumption~\ref{ass:solver-twostage}(d) preserves that leaf collection
+through Stage~B.
 
 For (P2), Proposition~\ref{prop:twostage-superconsistency} gives
 \[
@@ -2456,11 +2467,19 @@ For (P2), Proposition~\ref{prop:twostage-superconsistency} gives
 For fixed $M>0$, the number of observations lying in the union of the
 width-$M/n$ slabs around the finitely many true boundaries has expectation
 bounded by a constant, by the local upper density bound of
-Assumption~\ref{ass:sparsity-jump}(Dens); Markov's inequality makes that
-count $O_p(1)$. Since $R_n=O_p(1)$, $M$ can be chosen so that all fitted
-boundaries lie in those slabs with arbitrarily high probability. Every
-reassigned observation lies in their union, so $\card{S_{j,n}}=O_p(1)$ for
-each $j$.
+Assumption~\ref{ass:sparsity-jump}(Dens) (a bound on $\nu_j$-density, which
+converts to a bound on the count of \emph{observations}, a $P_X$-mass
+quantity, via the same $\nu_j\sim P_X$ equivalence noted above); Markov's
+inequality makes that count $O_p(1)$. Since $R_n=O_p(1)$, $M$ can be chosen
+so that all fitted boundaries lie in those slabs with arbitrarily high
+probability. On that event, every observation whose leaf assignment
+changes between the true and fitted partitions must lie within one of
+these slabs: by the matched-node correspondence of (P1), an observation
+outside every slab is on the same side of every true (equivalently,
+matched fitted) boundary it could cross, hence follows the same root-to-leaf
+path under both partitions and is not reassigned; taking the contrapositive,
+every reassigned observation lies in their union, so $\card{S_{j,n}}=O_p(1)$
+for each $j$.
 \end{proof}
 
 \paragraph{Proof audit.}
@@ -4929,6 +4948,7 @@ Lem.~\ref{lem:selection} & Selection consistency & §3.4 & 0.3 \\
 Prop.~\ref{prop:parsimony} & Budget binds asymptotically & §3.4 remark & 0.4 \\
 Lem.~\ref{lem:lambda-exact} & Computing the selector & §3.4 remark & 0.3 \\
 Lem.~\ref{lem:skeleton} & Skeleton identity & §4.1, displayed & 0.4 \\
+Lem.~\ref{lem:U} & Leaf-value term & §4.2, statement only & 0.4 \\
 Lem.~\ref{lem:cross} & Cross term & §4.2, statement only & 0.4 \\
 Lem.~\ref{lem:uniform} & Uniform asymptotic linearity & §4.2, statement only & 0.4 \\
 Thm.~\ref{thm:main} & Main central limit theorem & §4.3 & 0.5 \\

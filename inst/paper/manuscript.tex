@@ -438,8 +438,8 @@ This proposition establishes an asymptotic equivalence between the normalized em
 
 \begin{proposition}[Fixed-grid central limit theorem by uniform linearity]
 \label{prop:P-instantiation1}
-Suppose the conditions of Proposition~\ref{lem:uniform} hold and
-$\cS_e\ne\emptyset$, $\cS_\mu\ne\emptyset$. Then
+Suppose the conditions of Proposition~\ref{lem:uniform} hold,
+$\cS_e\ne\emptyset$, $\cS_\mu\ne\emptyset$, and $V:=\E[\psi_0^2]>0$. Then
 \[
   \sqrt n(\thetahat-\theta_0)\rightsquigarrow N(0,V).
 \]
@@ -460,7 +460,7 @@ gives
 \]
 The classical i.i.d.\ central limit theorem and Slutsky's theorem -- the same
 concluding step used for Theorem~\ref{thm:main} in the companion theory
-document -- give the stated conclusion, with $V=\E[\psi_0^2]>0$ as assumed.
+document -- give the stated conclusion, with $V>0$ by hypothesis.
 \end{proof}
 
 % POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
@@ -515,82 +515,130 @@ continuum-threshold recovery for optimal trees; we restate here, in full,
 exactly what that paper's guarantees require and deliver, since Doubletree's
 own efficiency claim depends on them.
 
-\begin{assumption}[Continuum tree sparsity and jump regularity]
+\begin{assumption}[Continuum tree sparsity, jump regularity, and local design]
 \label{ass:sparsity-jump}
-For each nuisance $\gamma_{0,j}$, $j\in\{e,\mu\}$: (S) \emph{Tree
+For each nuisance $\gamma_{0,j}$, $j\in\{e,\mu\}$, with all constants fixed
+uniformly over the true internal nodes and in $n$: (S) \emph{Tree
 realisability} -- $\gamma_{0,j}$ is piecewise constant on a continuum
 partition realised by an axis-aligned tree with at most $\Lbar$ leaves and
-fixed depth $d$; (J) \emph{Genuine jumps} -- every true split separates
-regions whose population values differ by an amount between fixed constants
-$0<\kappa_{\min}\le\kappa_{\max}<\infty$; (Dens) \emph{Local connected
-density} -- the covariate law has a density bounded between fixed positive
-constants on a fixed neighborhood of every true splitting boundary, on
-supports whose relevant boxes have bounded diameter; (Sep) \emph{Separation
-and interiority} -- distinct true boundaries on the same coordinate are
-separated by a fixed $\varsigma>0$, and every true boundary is at least
-$\varsigma$ from the support boundary; (Node) \emph{Positive node mass} --
-every true node and leaf has $\nu$-mass at least a fixed $q_{\min}>0$;
-(Local-Jump) \emph{Jumps across every active face cell} -- every pair of
-leaves adjacent across a true boundary differs in population value by
-between $\kappa_{\min}$ and $\kappa_{\max}$; (Joint) \emph{Ancestor--
-descendant joint density} -- covariates on distinct splitting coordinates
-have a jointly bounded density near any ancestor--descendant pair of true
-boundaries.
+fixed depth $\bar D$, with $\lceil\log_2\Lbar\rceil\le\bar D$; (J)
+\emph{Genuine jumps, pooled across each split} -- every true split separates
+regions whose \emph{pooled} population values differ by an amount between
+fixed constants $0<\kappa_{\min}\le\kappa_{\max}<\infty$; (Local-Jump)
+\emph{Jumps across every adjacent leaf pair belonging to a true split} --
+every pair of leaves adjacent across a true boundary differs in population
+value by between $\kappa_{\min}$ and $\kappa_{\max}$; (Reduced)
+\emph{Reducedness of the true partition} -- (Local-Jump) holds for
+\emph{every} geometrically adjacent pair of true leaves, whether or not the
+shared face is the face of one true split -- equivalently, no two
+geometrically adjacent true leaves carry the same value; this is
+\emph{not} implied by minimality of the true partition (Paper A exhibits an
+L-shaped counterexample) and is an independent hypothesis; (Dens)
+\emph{Local connected density} -- the covariate law has a density bounded
+between fixed positive constants on a fixed neighborhood of every true
+splitting boundary, on supports whose relevant boxes have bounded diameter;
+(Sep) \emph{Separation and interiority} -- distinct true boundaries on the
+same coordinate are separated by a fixed $\varsigma>0$, and every true
+boundary is at least $\varsigma$ from the support boundary; (Node)
+\emph{Positive node mass} -- every true node and leaf has $\nu_j$-mass at
+least a fixed $q_{\min}>0$; (Joint) \emph{Ancestor--descendant joint
+density} -- covariates on distinct splitting coordinates have a jointly
+bounded density near any ancestor--descendant pair of true boundaries.
 \end{assumption}
 
-Assumption~\ref{ass:sparsity-jump}'s jump and separation clauses (J) and
-(Sep) are what rule out topological ties and give continuum sparsity a
-\emph{unique} true partition, unlike the grid-exact case of
+Assumption~\ref{ass:sparsity-jump}'s jump and separation clauses (J), (Sep),
+and (Reduced) are what rule out topological ties and give continuum
+sparsity a \emph{unique} true partition, unlike the grid-exact case of
 \S\ref{sec:instantiation1}.
 
 \begin{assumption}[Two-stage solver fidelity]
 \label{ass:solver-twostage}
-The two-stage fitting procedure -- Stage~A, an exact global minimizer of the
-penalized empirical risk over an inflated-budget tree class built on a
-search grid of resolution $r_n\to\infty$, followed by Stage~B, a sequence of
-exact one-threshold scans, root-first, over the observed covariate values
-in each recovered node's own bracket -- satisfies: Stage~A and Stage~B both
-use all $n$ observations, with no sample splitting; Stage~B refines
-threshold locations only, adding, deleting, or recoordinating no split;
-every recovered bracket contains the corresponding true threshold with
-probability tending to one; both stages use deterministic, measurable
+Stage~A is an exact global minimizer of the penalized empirical risk over
+the grid-restricted tree class \emph{at the true budgets} $(\Lbar,\bar D)$
+-- no inflated budget or collapsed topology is used -- built on a search
+grid of resolution $r_n\to\infty$ satisfying the joint rate conditions
+\eqref{eq:stage-a-rates-manuscript} below. Stage~B then
+performs a sequence of exact one-threshold scans, root-first, each over the
+observed covariate values in a \emph{shrinking} search interval around the
+corresponding Stage-A threshold, of half-width $M_n/r_n$ with $M_n\to\infty$
+and $M_n/r_n\to0$; every such interval contains the corresponding true
+threshold, and no other true threshold on the same coordinate, with
+probability tending to one. Only Stage~B may evaluate continuous or
+observed-value thresholds -- relaxing precisely this restriction, without
+paying for it in the combinatorial search, is the purpose of the two-stage
+procedure. Both stages use all $n$ observations, with no sample splitting;
+Stage~B moves thresholds only, adding, deleting, reordering, or
+re-coordinating no split; both stages use deterministic, measurable
 tie-breaking; and every leaf of the refined partition contains, with
 probability tending to one, at least a fixed positive fraction of $n$
 observations (respectively, control observations).
 \end{assumption}
 
+For a search-grid resolution $r_n$, a penalty $\lambda_n$, and a minimum-leaf
+floor $m_n$, the rate conditions this section's results require, restated
+verbatim from the companion paper, are
+\begin{equation}\label{eq:stage-a-rates-manuscript}
+\begin{aligned}
+  &\text{(R1)}&&r_n\to\infty,
+    \qquad r_n=o\bigl(\sqrt{n/\log r_n}\bigr);\\
+  &\text{(R2)}&&\lambda_n\to0;\\
+  &\text{(R3)}&&
+    \max\Bigl(\frac1{r_n},\sqrt{\frac{\log r_n}{n}}\Bigr)
+    \ll\lambda_n\ll1;\\
+  &\text{(R4)}&&m_n\to\infty,
+    \qquad\frac{m_nr_n}{n}\to0,
+    \qquad m_n\lambda_n\to\infty;\\
+  &\text{(R5)}&&\frac{m_n}{\sqrt n}\to\infty.
+\end{aligned}
+\end{equation}
+Condition (R3) requires $\lambda_n\gg1/r_n$, since the penalty must
+dominate the Stage-A grid-approximation error -- the reverse of the
+fixed-grid regime's $\lambda_n\Lbar<\Delta_j/2$ of
+\S\ref{sec:partition-recovery}; the two statements concern different
+regimes and no equivalence between their proof mechanisms is asserted.
+
 \begin{proposition}[Topology recovery, restated from the companion paper]
 \label{prop:boundary-recovery}
-Under Assumptions~\ref{ass:causal}, \ref{ass:construct}, and
-\ref{ass:sparsity-jump}, and a search-grid resolution $r_n\to\infty$ growing
-slowly enough relative to $n$ (with the minimum-leaf floor $m_n=o(n/r_n)$),
-the collapsed Stage-A topology is, with probability tending to one, in
-bijection with the true boundaries of $\gamma_{0,j}$, each recovered
-boundary within $O(r_n^{-1})$ of its true match, for each $j\in\{e,\mu\}$.
+Under Assumptions~\ref{ass:causal}, \ref{ass:construct},
+\ref{ass:sparsity-jump}, and~\ref{ass:solver-twostage}'s Stage-A clause, and
+a search-grid resolution $r_n$ satisfying the joint rate conditions
+\eqref{eq:stage-a-rates-manuscript}, every Stage-A penalised global
+minimiser satisfies, with probability tending to one: its number of splits
+equals the true partition's; it structurally matches the true partition,
+node for node, in the sense that every Stage-A node corresponds to a true
+node at the same relative position with the same splitting coordinate; and,
+under that correspondence, every Stage-A threshold is within $O(r_n^{-1})$
+of its matched true threshold. The result uses the actual budgets
+$(\Lbar,\bar D)$; no inflated budget or collapse map appears.
 \end{proposition}
 
 \begin{proposition}[Threshold superconsistency, restated from the companion paper]
 \label{prop:twostage-superconsistency}
-Under Assumption~\ref{ass:sparsity-jump} and~\ref{ass:solver-twostage}, and
-on the topology-recovery event of Proposition~\ref{prop:boundary-recovery},
-every Stage-B-refined threshold satisfies $\hat c_{j,k}-c_{0,j,k}=O_p(n^{-1})$,
-simultaneously over $k=1,\ldots,K_j\le\Lbar-1$, for each $j\in\{e,\mu\}$.
+Under the full hypotheses of Proposition~\ref{prop:boundary-recovery} for
+both nuisances, Assumption~\ref{ass:sparsity-jump}(Joint), all clauses of
+Assumption~\ref{ass:solver-twostage}, and the Stage-B interval scale
+conditions $M_n\to\infty$, $M_n/r_n\to0$, every Stage-B-refined threshold
+satisfies $\hat c_{j,k}-c_{0,j,k}=O_p(n^{-1})$, simultaneously over
+$k=1,\ldots,K_j\le\Lbar-1$, for each $j\in\{e,\mu\}$.
 \end{proposition}
 
 \begin{proposition}[Condition~(P) holds under continuum sparsity]
 \label{prop:P-instantiation2}
-Under Assumptions~\ref{ass:causal}, \ref{ass:construct},
-\ref{ass:sparsity-jump}, and~\ref{ass:solver-twostage}, Condition~(P) holds
+Under the full hypotheses of Propositions~\ref{prop:boundary-recovery} and
+\ref{prop:twostage-superconsistency} for both nuisances, Condition~(P) holds
 for both $j=e,\mu$: (P0) is Assumption~\ref{ass:sparsity-jump}(S), with
 positive leaf mass from (Node); (P1) is
-Proposition~\ref{prop:boundary-recovery}'s topology-recovery conclusion; and
-(P2) follows from Proposition~\ref{prop:twostage-superconsistency}'s
-$O_p(n^{-1})$ rate: by the same order-statistic argument underlying
-Remark~\ref{rem:P2-mechanism}, this threshold rate, together with the local
-density bounds of Assumption~\ref{ass:sparsity-jump}(Dens), implies
-$\card{S_{j,n}}=O_p(1)$. Theorem~\ref{thm:main} therefore applies with the
-\emph{same} variance $V=\E[\psi_0^2]$ as Instantiation~1, via the
-anchor-and-perturbation argument of \S\ref{sec:partition-recovery}.
+Proposition~\ref{prop:boundary-recovery}'s structural-matching conclusion,
+read at the level of the induced leaf correspondence (topology and matched
+split coordinates; threshold values may differ, and equality of the induced
+leaf sets is not asserted); and (P2) follows from
+Proposition~\ref{prop:twostage-superconsistency}'s $O_p(n^{-1})$ rate: by
+the same order-statistic argument underlying Remark~\ref{rem:P2-mechanism},
+this threshold rate, together with the local density bounds of
+Assumption~\ref{ass:sparsity-jump}(Dens), implies $\card{S_{j,n}}=O_p(1)$.
+Theorem~\ref{thm:main} therefore applies with the \emph{same} variance
+$V=\E[\psi_0^2]$ as Instantiation~1, via the anchor-and-perturbation
+argument of \S\ref{sec:partition-recovery}.
 \end{proposition}
 
 \begin{remark}[The grid-exactness cost is retired]
