@@ -1,0 +1,6 @@
+"dgp","eps","leaf_budget_used","min_leaves_exact_e","min_leaves_exact_mu","n_distinct_e","n_distinct_mu"
+"eps0",0,2,2,2,2,2
+"eps_small",0.03,2,4,4,4,4
+"eps_mod",0.09,2,4,4,4,4
+"eps_sev",0.15,2,4,4,4,4
+"orth_blind",0.15,2,4,4,4,4
