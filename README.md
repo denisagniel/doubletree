@@ -1,16 +1,17 @@
 # doubletree: Causal Estimation with Interpretable Trees
 
-Implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with interpretable optimal decision trees. The flagship estimator, `estimate_att()`, fits both nuisance trees on the full sample -- no sample splitting, no cross-fitting -- so the entire estimate is exactly two trees a user can read end to end. A cross-fitting fallback (`estimate_att_crossfit()`) is available when structural sparsity does not plausibly hold.
+Implements causal inference for the **Average Treatment Effect on the Treated (ATT)** using efficient influence function-based estimation with interpretable optimal decision trees. Two flagship, no-sample-splitting estimators cover the two forms of tree-shaped sparsity the theory analyzes -- `estimate_att()` for grid-exact sparsity, `estimate_att_twostage()` for continuum sparsity at off-grid thresholds -- plus a cross-fitting fallback (`estimate_att_crossfit()`) for when neither plausibly holds.
 
 **Current version:** 0.0.0.9000 (development)
 **Repository:** [github.com/denisagniel/doubletree](https://github.com/denisagniel/doubletree)
-**Depends on:** [optimaltrees](https://github.com/denisagniel/treefarmr) v0.4.0+
+**Depends on:** [optimaltrees](https://github.com/denisagniel/treefarmr) v0.4.1+
 
 ## Features
 
-- **`estimate_att()`** -- the paper's primary estimator: both nuisance trees fit on all *n* observations, no cross-fitting, no sample splitting. Valid under structural sparsity (a tree of the chosen leaf budget represents both nuisances exactly).
-- **`estimate_att_crossfit()`** -- *K*-fold cross-fitting fallback with tree-based nuisance functions, for when structural sparsity does not plausibly hold; does not require it.
-- **Binary and continuous outcomes** (via `outcome_type`) on both estimators
+- **`estimate_att()`** -- the paper's primary estimator for grid-exact sparsity: both nuisance trees fit on all *n* observations, no cross-fitting, no sample splitting. Valid when a tree of the chosen leaf budget represents both nuisances exactly on the analyst's pre-specified grid.
+- **`estimate_att_twostage()`** -- also no sample splitting, for **continuum sparsity**: both nuisance trees fit via an exact grid search (topology) followed by an exact off-grid scan (thresholds), for true nuisances that are tree-shaped at threshold values not confined to any pre-specified grid.
+- **`estimate_att_crossfit()`** -- *K*-fold cross-fitting fallback with tree-based nuisance functions, for when neither form of sparsity plausibly holds; does not require either.
+- **Binary and continuous outcomes** (via `outcome_type`) on `estimate_att()`/`estimate_att_crossfit()`; `estimate_att_twostage()` always uses squared-error loss (a genuine theory requirement, not a limitation -- see "Methods")
 - **Rashomon-set integration** (`estimate_att_rashomon()`) for interpretable, stable tree selection across folds -- a superseded variant, excluded from the current theory; see "Methods" below
 - **Theory-aligned implementation** with comprehensive simulation infrastructure
 
@@ -108,7 +109,28 @@ Valid under **structural sparsity**: a tree of at most `leaf_budget` leaves
 represents both true nuisances exactly. `leaf_budget` is required (no
 default) since it is a fixed, analyst-chosen structural parameter. Covariates
 must be binary (0/1); see `?estimate_att` for why, and use
-`estimate_att_crossfit()` for continuous or high-cardinality covariates.
+`estimate_att_crossfit()` for continuous or high-cardinality covariates, or
+`estimate_att_twostage()` below if the nuisances are tree-shaped at
+*continuum* thresholds rather than grid-exact ones.
+
+### `estimate_att_twostage()` (flagship, continuum sparsity)
+
+Also no sample splitting, but for **continuum sparsity** rather than
+grid-exact sparsity: the true nuisances are exactly representable by *some*
+tree of the declared leaf budget, at threshold values that need not lie on
+any pre-specified grid. Both trees are fit by an exact grid search that
+recovers each tree's topology, followed by an exact off-grid scan that
+refines each threshold within a shrinking search interval:
+
+```r
+fit <- estimate_att_twostage(X, A, Y, leaf_budget = 2L)
+```
+
+Requires at least one continuous covariate (use `estimate_att()` for purely
+binary `X`); always fits both nuisances by squared-error loss, since that is
+what the underlying theory requires (see `?estimate_att_twostage` for why
+this genuinely differs from `estimate_att()`'s loss default, not merely a
+current implementation limitation).
 
 ### `estimate_att_crossfit()` (cross-fitting fallback)
 
