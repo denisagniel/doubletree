@@ -1,3 +1,20 @@
+# ============================================================================
+# DEPRECATED: This file is deprecated as of doubletree 0.0.0.9000
+#
+# REASON: the manuscript no longer scopes doubletree's validity claims to the
+# off-grid, continuum-threshold-recovery setting (formerly "Instantiation 2").
+# The companion two-stage tree-fitting algorithm this estimator depends on
+# (optimaltrees::fit_twostage()) has an unresolved correctness issue in its
+# off-grid search-radius scaling and an unaudited core theorem, and is not
+# validated at production leaf budgets.
+#
+# REPLACEMENT: estimate_att() for grid-exact sparsity, or
+# estimate_att_crossfit() when structural sparsity does not plausibly hold.
+#
+# STATUS: Kept for reference only. Not exported, not tested, not documented
+# in the manuscript. Do not use in new code.
+# ============================================================================
+
 #' Default minimum leaf mass for the two-stage estimator (internal)
 #'
 #' @description
@@ -375,7 +392,7 @@
 #' c(fit$certified_e, fit$certified_m0)
 #' c(fit$stop_reason_e, fit$stop_reason_m0)
 #' }
-#' @export
+#' @noRd
 estimate_att_twostage <- function(X, A, Y, leaf_budget, depth_budget = NULL,
                                    m_ladder = c(16, 32, 64, 128),
                                    lambda_n = NULL, M_n = NULL, m_n = NULL,
