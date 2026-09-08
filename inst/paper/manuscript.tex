@@ -30,29 +30,18 @@
 
 \maketitle
 \begin{abstract}
-
+Modern causal inference relies on flexible, black-box nuisance estimation together with sample splitting to obtain valid, efficient inference for treatment effects. In high-stakes settings -- health care payment, treatment triage, sentencing -- that estimation step is itself the object stakeholders need to audit, and a black-box nuisance model, however well it performs, does not offer an auditable trail. We propose \emph{doubletree}, an estimator of the average treatment effect on the treated (ATT) that replaces the propensity and outcome nuisances with two globally optimal, size-budgeted decision trees, each small enough to display and each fit on every observation, with no sample splitting or cross-fitting. When the two nuisances are exactly representable by trees within the analyst's budget -- a condition we make precise and verifiable (Condition~(P)) -- doubletree attains the classical semiparametric efficiency bound for the ATT at the parametric $\sqrt n$ rate, and its influence-function variance estimator is the ordinary plug-in, with no jackknife or debiasing correction required. When the budget-constrained class does not contain the truth, we do not assume the approximation error away: an anchor-interval construction absorbs the resulting bias into an honest, approximation-aware confidence interval, so that a defensible inferential statement remains available even outside the class. We are explicit about what this buys and does not: the oracle property that drives our results is pointwise, not uniform, in the underlying data-generating process, and we make no claim of matching the flexibility of an unrestricted machine-learning ensemble. The comparison we defend is against a generalized linear working model: doubletree admits richer, non-additive structure than a GLM while remaining exactly as auditable, and it delivers sharper, full-sample inference than generic double machine learning whenever its structural class holds.
 \end{abstract}
 
 \section{Introduction}
 
-\begin{itemize}
-\item Modern causal inference has focused productively on estimation methods that work in general.
-\item AIPW, double machine learning, TMLE have been shown to work when essentially any machine learning method is used for estimation of propensity scores/outcome functions, as long as they meet standard rate conditions.
-\item It is typical to prefer black-box algorithms like random forest or gradient boosting, as they can plausibly be assumed to converge to the true functions under minimal assumptions.
-\item This estimation step is specifically treated as a /textit{nuisance} and not required to be intepreted/understood.
-\item However, in some cases, the high stakes of the application require interpretability.
-\item If the causal estimation is being done in service of health care payment or treatment sentencing, for example, then stakeholders may prefer/demand that estimation is auditable. It may be beneficial/necessary for others to be able to trace the calculation of causal effect step by step. 
-\item Current approaches to causal effect estimation don't allow for all of flexible estimation of nuisance functions, asymptotic guarantees, and interpretability of the entire process.
-\item Linear models provide one interpretable approach, while trees encode different kinds of structure. Section~\ref{sec:lasso-comparison} compares the assumptions under which penalized linear and tree-based nuisance estimators support valid and efficient inference. 
-\item Tree-based methods may be incorporated into causal	 estimation, but they must be used with sample-splitting (which makes them difficult to audit) and either lack interpretability or asymptotic guarantees.
-\item We propose a novel approach to interpretable treatment effect estimation that offers flexible ML estimation of nuisances, intepretability of all steps, and asymptotic guarantees. We call this approach doubletree, since it relies on two trees, one for the propensity score and one for the outcome function.
-\item Based on optimal decision trees, each tree is easily auditable -- can be constructed to ``fit on an index card."
-\item How interpretable the tree is (its size) is governed by a user-specified parameter.
-\item Under mild regularity conditions, doubletree estimates converge to the true treatment effect if the true nuisances truly fall in the interpretable class. If the true nuisances do not fall in the interpretable class, we get convergence to the best interpretable approximation.
-\item Further, we provide adjusted confidence intervals that account for the approximation bias due to requiring interpretability.
-\item None of the above require sample splitting. All nuisances are fit on all available data.
-\item The rest of the paper is organized as follows...
-\end{itemize}
+Modern causal inference has focused productively on estimators that remain valid under essentially arbitrary nuisance estimation. Augmented inverse-probability weighting, double machine learning, and targeted maximum likelihood estimation are all known to deliver $\sqrt n$-consistent, asymptotically normal estimates of a treatment effect when the propensity score and outcome regression are estimated by almost any sufficiently accurate method, provided the resulting nuisance estimates satisfy standard product-rate conditions. This robustness to the nuisance-estimation method is what licenses the now-standard practice of pairing these estimators with black-box learners such as random forests or gradient boosting, chosen because they can plausibly be assumed to approximate the true nuisance functions under only mild smoothness conditions. In this division of labor the nuisance model is a means to an end -- a \emph{nuisance} in the technical as well as the colloquial sense -- and is neither expected nor required to be interpreted on its own terms.
+
+That division of labor is unworkable in settings where the stakes of the decision demand that the estimation itself be auditable. If a causal effect estimate is used to set a health care payment adjustment or to inform a sentencing or triage decision, stakeholders may reasonably require that the calculation be traceable step by step, not merely validated by its asymptotic properties. Existing approaches to flexible causal effect estimation do not offer this: they can deliver flexible nuisance estimation with asymptotic guarantees, or they can deliver an interpretable nuisance model, but not both together with full-sample inference. Linear working models are one interpretable option, and decision trees are another, encoding a different and often more natural kind of structure -- non-additive, region-varying dependence -- than a linear model can. Section~\ref{sec:lasso-comparison} compares the assumptions under which penalized linear and tree-based nuisance estimators support valid and efficient inference. Tree-based nuisance estimators have been incorporated into causal effect estimation before, but existing constructions require sample splitting to obtain valid inference -- which makes the displayed tree an incomplete audit trail, since part of the estimate comes from a fold the reader cannot inspect against the tree -- or they sacrifice either interpretability or an asymptotic guarantee to avoid it.
+
+We propose \emph{doubletree}, an approach to interpretable treatment effect estimation for the average treatment effect on the treated that offers flexible, data-adaptive nuisance estimation, full interpretability of every step, and asymptotic guarantees together, with no sample splitting anywhere. The name reflects the estimator's structure: one globally optimal decision tree for the propensity score and one for the outcome function, each built to a leaf budget the analyst sets in advance and each small enough, in the intended regime, to fit on an index card. The budget is a single, user-specified interpretability knob: a smaller budget gives a more displayable tree, at a cost we quantify precisely rather than leave implicit. Under conditions that make the resulting tree partitions exactly recover the population structure of the two nuisances -- Condition~(P), stated formally in \S\ref{sec:partition-recovery} -- doubletree's estimate converges to the true treatment effect at the parametric rate, with no correction needed for having chosen the tree structure adaptively from the same data used for inference. When the true nuisances are not exactly representable within the leaf budget, doubletree does not silently degrade: \S\ref{sec:honest-manuscript} constructs an anchor-interval confidence set that remains valid by absorbing the unavoidable approximation bias into its width rather than assuming it away. None of this requires reserving any observations for a separate selection or evaluation step; every nuisance is fit, and every inferential guarantee holds, using the entire sample.
+
+The remainder of the paper proceeds as follows. Section~\ref{sec:setup} sets up notation, the tree partition class, and the doubletree algorithm itself. Section~\ref{sec:instantiation1} (fixed grid, exact sparsity) and \S\ref{sec:instantiation2} (continuum sparsity with off-grid threshold refinement) each instantiate Condition~(P) under progressively weaker restrictions on where the analyst's candidate splits may fall. Section~\ref{sec:honest-manuscript} addresses what happens, and what can still be claimed, when Condition~(P) fails. Section~\ref{sec:lasso-comparison} situates doubletree against penalized linear methods, and closes by stating plainly what doubletree does not claim: the recovery guarantee underlying our results holds pointwise in the data-generating process, not uniformly as the signal defining the true tree structure shrinks, and we do not claim to match the flexibility of an unrestricted machine-learning ensemble -- only that of a generalized linear working model, with interpretability and full-sample inference held fixed.
 
 
 \section{Setup, identification, and algorithm}
@@ -136,7 +125,7 @@ $\{Y(0),Y(1)\}\perp A\mid X$; $\pi>0$; and there exists $c\in(0,1)$ with
 \]
 \end{assumption}
 
-Versions of this set of assumptions are standard in the causal inference literature, though we require a stronger form of positivity than is required in some other cases because XXX. Under Assumption \ref{ass:causal}, we may identify the ATT by the following observed data quantity:
+Versions of this set of assumptions are standard in the causal inference literature, though we require a \emph{uniform} lower bound $1-e_0(x)\ge c$ for every $x\in\cX$, rather than the weaker pointwise condition $e_0(x)<1$ that suffices in some other treatments. On a finite covariate space the two are essentially interchangeable, since a maximum over finitely many finite values is automatically finite. On a general (e.g.\ continuous) $\cX$ they are not: the semiparametric efficiency bound's variance decomposition (the companion theory document's Eq.~(vdecomp)) contains a term $\E[e_0(X)^2\sigma_0^2(X)/\{1-e_0(X)\}]$, which can diverge under only pointwise positivity if $P_X$ places mass where $1-e_0(x)\to0$ without a compensating decay in the control-outcome variance $\sigma_0^2(x)$. The uniform bound $c$ is what keeps this term finite, not merely a convenience. Under Assumption \ref{ass:causal}, we may identify the ATT by the following observed data quantity:
 \begin{align}
 	\theta_0 = \E\left\{Y - \E\left(Y | \bX, A = 0\right) | A = 1\right\}.
 \end{align}
@@ -176,7 +165,15 @@ squared error for both the propensity tree and the outcome tree, with $n_0=\sum_
 \qquad
 \hat\mu_\tau(\bx)=\frac{1}{|\ell_\tau(\bx)|_0}\sum_{i:\bX_i\in\ell_\tau(\bx),\,A_i=0}Y_i ,
 \end{equation}
-i.e.\ the empirical proportion treated and the empirical control-outcome mean within the leaf containing $\bx$. The quantity $R^{(j)}(\tau)$ is the population counterpart of $R^{(j)}_n(\tau)$,
+i.e.\ the empirical proportion treated and the empirical control-outcome mean within the leaf containing $\bx$. Given leaf-refit nuisances $(\hat e_{\hat\tau_e},\hat\mu_{\hat\tau_\mu})$ for the selected partitions $\hat\tau_e,\hat\tau_\mu$, the doubletree estimate $\thetahat=\thetahat(\hat\tau_e,\hat\tau_\mu)$ is the solution of the empirical estimating equation $\Prob_n[\psi(\bO;\theta,\hat e_{\hat\tau_e},\hat\mu_{\hat\tau_\mu})]=0$ for $\psi$ as in \eqref{eq:score}, i.e.\
+\[
+  \thetahat
+  =
+  \frac{1}{n\hat\pi}\sum_{i=1}^n
+  \Bigl[A_i\{Y_i-\hat\mu_{\hat\tau_\mu}(\bX_i)\}
+    -\{1-A_i\}\hat w_{\hat\tau_e}(\bX_i)\{Y_i-\hat\mu_{\hat\tau_\mu}(\bX_i)\}\Bigr],
+\]
+with $\hat\pi=\Prob_n A$ and $\hat w_{\hat\tau_e}=\hat e_{\hat\tau_e}/(1-\hat e_{\hat\tau_e})$; the root is unique whenever $\hat\pi>0$, since $\psi$ is affine and strictly monotone in $\theta$. The quantity $R^{(j)}(\tau)$ is the population counterpart of $R^{(j)}_n(\tau)$,
 \begin{equation}\label{eq:risk-pop}
 R^{(e)}(\tau)=\E\bigl[\{A-\Pi_\tau e_0(\bX)\}^2\bigr],
 \qquad
@@ -188,27 +185,10 @@ obtained from \eqref{eq:risk-emp} by replacing the empirical measure with the po
 Note that we are using a flexible tree learner to estimate both nuisance functions, but we do not require sample-splitting/cross-fitting as most approaches that use data-adaptive nuisance learners do \citep{chernozhukov2018}. This means that doubletree will make more efficient use of potentially limited data. It also means that doubletree is fully explained by exactly two trees. Under $K$-fold cross-fitting, users would need to interpret 2$K$ trees, as opposed to doubletree's two.
 \end{remark}
 
-% POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
-% Oracle session ses_f9c40eec7ffewOo1sAWZkvcglK, for full derivation]:
-% The interpretability rationale above ("we call our estimation approach
-% doubletree") is necessary but INCOMPLETE as a justification for two
-% nuisances -- it does not say why efficiency/validity needs both. Add a
-% remark here (or just before \S\ref{sec:instantiation1}) making two points
-% precisely:
-%   (1) The propensity TREE is an interpretability choice, not a validity
-%       requirement -- any \hat w with \|\hat w-w_0\|\|\hat\mu-\mu_0\|=
-%       o_p(n^{-1/2}) would do (Prop.~\ref{prop:bilinear}'s bilinear
-%       structure only needs the PRODUCT to vanish fast, not a tree
-%       specifically).
-%   (2) The propensity NUISANCE itself, unlike in ATE, is genuinely
-%       informative for the ATT: Hahn (1998, Sec.~4) shows knowledge of
-%       e_0 does NOT lower the semiparametric efficiency bound for ATE but
-%       DOES lower it for ATT -- so dropping the propensity is not a free
-%       simplification for this estimand.
-% See the positive/negative corollary pointers near
-% Prop.~\ref{prop:P-instantiation1} and Remark~\ref{rem:apology-retired}
-% below for the concrete single-outcome-tree special case that makes (1)-(2)
-% precise.
+\begin{remark}[Why two trees: interpretability and identification are separate questions]
+\label{rem:two-trees-why}
+The account above motivates two trees on interpretability grounds -- doubletree is exactly displayable as two objects -- but interpretability alone does not explain why \emph{efficiency} or \emph{validity} requires both nuisances to be estimated by a tree. Two points are worth separating precisely. First, the propensity \emph{tree} specifically is an interpretability choice, not by itself a validity requirement: Proposition~\ref{prop:bilinear}'s bilinear structure only requires the \emph{product} of the two realized nuisance errors, $D_wD_\mu$ in the notation of Lemma~\ref{lem:biasbound}, to vanish fast enough, and that product-rate condition is indifferent to whether $\hat w$ is itself piecewise constant on a tree. This is necessary but not sufficient on its own: because doubletree performs no sample splitting or cross-fitting, asymptotic linearity of $\thetahat$ also requires the own-observation empirical-process term $(\Prob_n-\Prob)\{\psi(\cdot;\theta_0,\hat\eta)-\psi_0\}$ to be $o_p(n^{-1/2})$, and it is exactly to control \emph{that} term without splitting that Condition~(P) and the fixed, finite candidate class $\cT_{\Lbar}$ are needed (\S\ref{sec:partition-recovery}). An arbitrary non-tree $\hat w$ fit on the same $n$ observations and satisfying only the product-rate condition is not in general covered by this argument. Second, the propensity \emph{nuisance} itself is genuinely informative for the ATT, unlike for the ATE: \citet{hahn1998} shows that knowledge of $e_0$ does not lower the semiparametric efficiency bound for the average treatment effect, but it does lower it for the average treatment effect on the treated -- so dropping the propensity is not a free simplification for the estimand considered here. Corollary~\ref{cor:single-tree} and its consequences below make both points precise in the concrete special case of a single outcome tree fit with no propensity tree at all.
+\end{remark}
 
 Additionally, we assume that the fitted propensities agree with the positivity assumption in \ref{ass:causal}:
 \begin{assumption}[Clipping]\label{ass:construct}
@@ -463,40 +443,64 @@ concluding step used for Theorem~\ref{thm:main} in the companion theory
 document -- give the stated conclusion, with $V>0$ by hypothesis.
 \end{proof}
 
-% POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
-% Oracle session ses_f9c40eec7ffewOo1sAWZkvcglK]: insert a named Corollary
-% here, "Single-outcome-tree plug-in as a special case of doubletree."
-% Identity (Oracle-verified): the plug-in \thetahat=n_1^{-1}\sum_{A_i=1}
-% (Y_i-\hat\mu_0(X_i)) (no propensity tree at all) has influence function
-% \psi_\cP equal to doubletree's \psi_0 (eq.~\ref{eq:score}) with the
-% propensity w tied to the outcome tree's OWN leaf-wise empirical odds
-% n_{1,\ell}/n_{0,\ell} -- i.e. it is not an alternative to doubletree, it IS
-% doubletree with the two trees forced equal.
-% Corollaries to state:
-%   (i) Saturated leaves (finite/discrete $\cX$): $\psi_\cP=\psi_0$
-%       IDENTICALLY -- the plug-in is exactly Hahn-efficient, no propensity
-%       tree needed.
-%   (ii) Correct coarsening ($\mu_0$ leaf-measurable but leaves not
-%       singletons): plug-in is unbiased AND
-%       $\Var(\psi_\cP)\le\Var(\psi_0)$ -- i.e. STRICTLY more efficient than
-%       the untied two-tree estimator -- under within-leaf homoskedasticity
-%       (Cauchy--Schwarz on $e_0^2/(1-e_0)$); flag explicitly that
-%       heteroskedasticity breaks this ordering (the unweighted leaf mean is
-%       then not the optimal leaf estimator).
-%   (iii) MUST flag as a warning, not omit: the naive SE that treats
-%       $\hat\mu_0$ as fixed UNDER-COVERS. The correct SE uses the
-%       $\psi_\cP$ form (leaf-wise empirical odds) -- i.e. you never actually
-%       escape the propensity, only the separate TREE for it.
-% Distinguish explicitly from the pre-existing, DIFFERENT idea in
-% \texttt{notes/finite-regime-single-tree.tex} and
-% \texttt{quality\_reports/specs/2026-08-04\_single-tree-stability-inference.md}
-% (a single SHARED-structure tree serving both nuisances, via LOO stability
-% / Chen-Syrgkanis-Austern 2022 -- a different mechanism and a different
-% question than "no propensity tree at all"). Reconcile before drafting;
-% do not present as the same result. Note also that spec's estimand
-% (working-model $\theta^*_n$) was itself superseded in favor of the true
-% $\theta_0$ used here -- re-check applicability before reusing any of that
-% file's machinery.
+\begin{corollary}[Single-outcome-tree plug-in as a special case of doubletree]
+\label{cor:single-tree}
+Fix the outcome tree's leaf-refit $\hat\mu=\hat\mu_{\tauhat_\mu}$ as in \S\ref{sec:trees}, fit with no propensity tree at all, and consider the treated-mean plug-in
+\[
+  \thetahat_{\mathrm{tie}}
+  \;=\;
+  \frac{1}{n_1}\sum_{i:A_i=1}\bigl\{Y_i-\hat\mu(\bX_i)\bigr\},
+  \qquad
+  n_1=\sum_{i=1}^n A_i.
+\]
+For a leaf $\ell$ of $\tauhat_\mu$ write $|\ell|_1=|\ell|-|\ell|_0$ for its treated count, and let $\hat w_{\mathrm{tie}}(\bx)=|\ell_{\tauhat_\mu}(\bx)|_1/|\ell_{\tauhat_\mu}(\bx)|_0$ be the empirical treated-to-control odds within the leaf containing $\bx$. Then $\thetahat_{\mathrm{tie}}$ solves the doubletree estimating equation $\Prob_n[\psi(\bO;\theta,\hat e,\hat\mu)]=0$ for $\hat e=\hat w_{\mathrm{tie}}/(1+\hat w_{\mathrm{tie}})$, and in fact for \emph{any} leaf-wise-constant-on-$\tauhat_\mu$ choice of $\hat e$: it \emph{is} doubletree's own two-tree estimator with the propensity tree forced equal to the outcome tree, not an alternative estimator that avoids a propensity altogether. Because the point estimate is invariant to which leaf-wise-constant $\hat e$ is used, this identity alone does not yet pin down $\thetahat_{\mathrm{tie}}$'s asymptotic variance -- that requires the specific choice $\hat e=\hat w_{\mathrm{tie}}/(1+\hat w_{\mathrm{tie}})$ and the separate argument of Lemma~\ref{lem:single-tree-linear} below.
+\end{corollary}
+
+\begin{proof}
+Within any leaf $\ell$ of $\tauhat_\mu$, $\hat\mu(\bx)=\hat\mu(\ell)$ is by construction the control-arm sample mean, so $\sum_{i\in\ell}(1-A_i)\{Y_i-\hat\mu(\ell)\}=0$ identically -- for \emph{any} constant multiplying it. Hence $\Prob_n[(1-A)\hat e/(1-\hat e)\{Y-\hat\mu(\bX)\}]=\sum_\ell \hat w(\ell)\cdot n^{-1}\sum_{i\in\ell}(1-A_i)\{Y_i-\hat\mu(\ell)\}=0$ for any leaf-wise-constant $\hat e$ on $\tauhat_\mu$, with $\hat w=\hat e/(1-\hat e)$; this includes $\hat e=\hat w_{\mathrm{tie}}/(1+\hat w_{\mathrm{tie}})$ as one case among many. The doubletree estimating equation therefore reduces exactly to $\Prob_n[A\{Y-\hat\mu(\bX)-\theta\}]=0$, whose solution is $\thetahat_{\mathrm{tie}}$ by definition.
+\end{proof}
+
+Write $e_{\mathrm{tie}}(\bx)=\Prob(A=1\mid \bX\in\ell_{\tauhat_\mu}(\bx))$ for the population-level leaf-average propensity implicit in the tied construction, $w_{\mathrm{tie}}=e_{\mathrm{tie}}/(1-e_{\mathrm{tie}})$, and $\mu_{\mathrm{tie}}=\Pi^\nu_{\tauhat_\mu}\mu_0$ for the control-weighted leaf projection of $\mu_0$ defined in \S\ref{sec:trees}; write $\eta_{\mathrm{tie}}=(e_{\mathrm{tie}},\mu_{\mathrm{tie}})$, matching the $\eta=(e,\mu)$ convention of \S\ref{sec:setup}. Note $1-e_{\mathrm{tie}}(\bx)=1-\E[e_0(\bX)\mid\bX\in\ell]\ge c$ by Assumption~\ref{ass:causal}, so $\eta_{\mathrm{tie}}$ satisfies Proposition~\ref{prop:bilinear}'s hypothesis. Let $\psi_{\mathrm{tie}}=\psi(\bO;\theta_{\mathrm{tie}},\eta_{\mathrm{tie}})$ denote doubletree's score \eqref{eq:score} evaluated at these tied nuisances, where $\theta_{\mathrm{tie}}$ solves $\E[\psi_{\mathrm{tie}}]=0$.
+
+\begin{lemma}[Asymptotic linearity of the tied estimator]
+\label{lem:single-tree-linear}
+Suppose $\cS_\mu\ne\emptyset$. On the event $\tauhat_\mu\in\cS_\mu$, which has probability tending to one by Proposition~\ref{lem:selection}, $\thetahat_{\mathrm{tie}}$ is asymptotically linear with influence function $\psi_{\mathrm{tie}}$:
+\[
+  \sqrt n(\thetahat_{\mathrm{tie}}-\theta_{\mathrm{tie}})=\sqrt n\,\Prob_n\psi_{\mathrm{tie}}+o_p(1).
+\]
+\end{lemma}
+
+\begin{proof}
+Since $\cS_\mu\subseteq\cT_{\Lbar}$ is a fixed, finite set, it suffices to establish the expansion for each fixed $\tau\in\cS_\mu$ and take a maximum over finitely many such expansions -- the same device used for Term~(II) in the proof of Theorem~\ref{thm:main}. At fixed $\tau$, $\thetahat_{\mathrm{tie}}=\sum_{\ell\in\tau}(|\ell|_1/n_1)\{\bar Y_1(\ell)-\hat\mu(\ell)\}$ is a smooth (ratio-of-sums) function of the finitely many leaf-wise treated counts, treated-arm means, and control-arm means, each an ordinary sample average converging at rate $n^{-1/2}$ to its population counterpart. A first-order Taylor expansion of this finite-dimensional smooth function gives asymptotic linearity at fixed $\tau$, with influence function equal to the efficient influence function of the ATT in the model that coarsens $\bX$ to its leaf $\ell_\tau(\bX)$ -- namely $\psi(\cdot;\theta_{\mathrm{tie}},e_\tau,\mu_\tau)$ for $e_\tau(\ell)=\Prob(A=1\mid\bX\in\ell)$ and $\mu_\tau(\ell)=\Pi^\nu_\tau\mu_0(\ell)$, which are exactly $e_{\mathrm{tie}}$ and $\mu_{\mathrm{tie}}$ restricted to $\tau$. Taking the maximum over the finitely many $\tau\in\cS_\mu$ preserves the $o_p(n^{-1/2})$ remainder.
+\end{proof}
+
+\begin{corollary}[Exact efficiency under saturated leaves]
+\label{cor:single-tree-saturated}
+If $e_0$, and not only $\mu_0$, is $\Prob$-a.s.\ constant on every leaf of $\tauhat_\mu$ -- a partition sufficient for \emph{both} nuisances simultaneously, i.e.\ $\tauhat_\mu\in\cS_e\cap\cS_\mu$ -- then $e_{\mathrm{tie}}=e_0$ and $\mu_{\mathrm{tie}}=\mu_0$ $\Prob$-a.s., so $\psi_{\mathrm{tie}}=\psi_0$ identically. Since $(\tauhat_\mu,\tauhat_\mu)\in\cS_e\times\cS_\mu$ in this case, Proposition~\ref{lem:uniform} applies directly to $\thetahat(\tauhat_\mu,\tauhat_\mu)=\thetahat_{\mathrm{tie}}$ (Corollary~\ref{cor:single-tree}), so $\sqrt n(\thetahat_{\mathrm{tie}}-\theta_0)\rightsquigarrow N(0,V)$ for $V=\E[\psi_0^2]$, the same semiparametric efficiency bound attained by doubletree's own two-tree estimator (Theorem~\ref{thm:main}), with no propensity tree required.
+\end{corollary}
+
+\begin{corollary}[A super-efficient submodel estimator under coarsening and homoskedasticity]
+\label{cor:single-tree-coarsening}
+Suppose only $\mu_0$ is $\Prob$-a.s.\ constant on every leaf of $\tauhat_\mu$, i.e.\ $\tauhat_\mu\in\cS_\mu$ but not necessarily $\cS_e$, so $\mu_{\mathrm{tie}}=\mu_0$ but $e_{\mathrm{tie}}$ need not equal $e_0$. Suppose in addition that Condition~(P) holds for the propensity as well (equivalently $\cS_e\ne\emptyset$ under Instantiation~1), so that the untied two-tree estimator attains $V=\E[\psi_0^2]$ by Theorem~\ref{thm:main}; the two hypotheses are compatible, and their compatibility is the point. Then $\theta_{\mathrm{tie}}=\theta_0$ \emph{exactly}, since the bilinear remainder of Proposition~\ref{prop:bilinear} vanishes when its $(\mu_0-\mu_{\mathrm{tie}})$ factor is identically zero, and by Lemma~\ref{lem:single-tree-linear}, $\thetahat_{\mathrm{tie}}$ is $\sqrt n$-consistent and asymptotically normal with variance $\Var(\psi_{\mathrm{tie}})$.
+
+If, further, $\sigma_0^2(\bx)$ is constant on every leaf of $\tauhat_\mu$ (within-leaf homoskedasticity of the control outcome), then
+\[
+  \Var(\psi_{\mathrm{tie}})\ \le\ \Var(\psi_0)=V,
+\]
+strictly whenever $e_0$ is not $\Prob$-a.s.\ constant on some leaf with $\sigma_{0,\ell}^2>0$. The treated-arm terms of $\psi_{\mathrm{tie}}$ and $\psi_0$ coincide exactly, since $\mu_{\mathrm{tie}}=\mu_0$ and $\theta_{\mathrm{tie}}=\theta_0$; the two variances therefore differ only through the control-arm term. Doubletree's own control-arm term is $\pi^{-2}\E[e_0^2\sigma_0^2/(1-e_0)]=\pi^{-2}\E[f(e_0(\bX))\sigma_0^2(\bX)]$ for the strictly convex function $f(e)=e^2/(1-e)$ ($f''(e)=2/(1-e)^3>0$); under homoskedasticity, the tied estimator's corresponding term is $\pi^{-2}\sum_{\ell\in\tauhat_\mu}\Prob(\ell)\,\sigma_{0,\ell}^2\,f(\bar e_\ell)$ for the leaf average $\bar e_\ell=\E[e_0(\bX)\mid \bX\in\ell]$, while doubletree's own term is $\pi^{-2}\sum_\ell\Prob(\ell)\,\sigma_{0,\ell}^2\,\E[f(e_0)\mid\ell]$; Jensen's inequality applied to $f$ within each leaf gives $\E[f(e_0)\mid\ell]\ge f(\bar e_\ell)$, with strict inequality whenever $e_0$ is not $\Prob$-a.s.\ constant on $\ell$. \textbf{Heteroskedasticity breaks this ordering}: if $\sigma_0^2(\bx)$ varies within a leaf and correlates with $e_0(\bx)$ there, the per-leaf comparison is no longer a within-leaf Jensen step, and $\thetahat_{\mathrm{tie}}$ can be less efficient than the untied estimator -- indeed substantially so (a two-point leaf with $e_0\in\{0.1,0.8\}$ equally likely and $\sigma_0^2\in\{1,0\}$ respectively already gives the untied term $\approx0.006$ against the tied term $\approx0.30$, roughly a fiftyfold reversal).
+
+This ordering does not contradict Theorem~\ref{thm:regular}: $\thetahat_{\mathrm{tie}}$ is \emph{not} a regular estimator of $\theta_0$ in the full (unrestricted) model. Under within-leaf homoskedasticity, $\psi_{\mathrm{tie}}$ is exactly the projection of $\psi_0$ onto the tangent space of the strictly smaller submodel in which $\mu_0$ is constant on the leaves of $\tauhat_\mu$, so $\Var(\psi_{\mathrm{tie}})$ is the semiparametric efficiency bound \emph{for that submodel}, not for the unrestricted model that Theorem~\ref{thm:regular} bounds; $\thetahat_{\mathrm{tie}}$ attains the submodel's (smaller) bound precisely by exploiting the restriction, which is exactly the local-alternative sensitivity that Remark~\ref{rem:single-tree-negative} shows below: moving $\mu_0$ off the submodel introduces a first-order bias, the hallmark of an estimator that is efficient within a submodel but irregular outside it. The same mechanism explains why homoskedasticity matters: it is precisely the condition under which the unweighted within-leaf mean is the efficient estimator of the leaf's control mean, so that $\mu_{\mathrm{tie}}$'s implicit weighting is optimal for the submodel; under heteroskedasticity it is not, and the projection argument no longer guarantees an improvement.
+\end{corollary}
+
+\begin{remark}[The naive standard error under-covers]
+\label{rem:single-tree-se}
+Because $\hat\mu$ is itself estimated from the full sample, treating it as fixed when computing $\Var(\thetahat_{\mathrm{tie}})$ omits the nonnegative control-arm variance contribution $\pi^{-2}\E[\{1-e_0(\bX)\}\hat w_{\mathrm{tie}}(\bX)^2\sigma_0^2(\bX)]$ entirely -- the naive variance is the treated-arm term alone -- and so generically under-covers. Under the hypotheses of Corollary~\ref{cor:single-tree-coarsening}, the correct asymptotic variance is $\Var(\psi_{\mathrm{tie}})$; in general it is whatever variance Lemma~\ref{lem:single-tree-linear} supplies. Either way, one never actually escapes the propensity by omitting its tree: the correct standard error recovers a propensity-like term as a byproduct of the outcome tree's own leaf structure.
+\end{remark}
+
+\begin{remark}[Distinct from a single shared-structure tree]
+\label{rem:single-tree-distinct}
+Corollary~\ref{cor:single-tree} and its consequences answer a different question from a single \emph{shared-structure} tree explored in earlier working notes (one tree serving both nuisances via leave-one-out algorithmic stability, following \citet{ChenSyrgkanisAustern2022}): there both nuisances are refit on the \emph{same} partition and the target is a working-model estimand, not necessarily $\theta_0$ itself. Here only the outcome is fit by a tree at all -- the propensity is never estimated as an independent object -- and the target throughout remains the true ATT $\theta_0$. These are different mechanisms answering different questions and should not be conflated.
+\end{remark}
 
 \subsection{Instantiation 2: continuum sparsity and off-grid threshold refinement}
 \label{sec:instantiation2}
@@ -656,26 +660,30 @@ but not the second (exact tree-shaped structure); \S\ref{sec:instantiation3}
 addresses that second cost directly.
 \end{remark}
 
-% POINTER [2026-09-02, not yet drafted -- see session_notes/2026-09-02.md,
-% Oracle session ses_f9c40eec7ffewOo1sAWZkvcglK]: add the NEGATIVE half of
-% the single-outcome-tree corollary here (positive half pointer is above,
-% near Prop.~\ref{prop:P-instantiation1}). Once $\mu_0$ is NOT exactly
-% leaf-measurable (this instantiation, or genuinely misspecified sparsity),
-% tying the propensity to the outcome tree's own partition makes the bias
-% FIRST-ORDER, not bilinear: $\psi_\cP$'s bias is
-% $\pi^{-1}\E[e_0(\mu_0-\mu_\cP)]$ (Cauchy--Schwarz cross term with
-% $\mu_\cP$'s own $(1-e_0)$-weighted leaf mean vanishes identically), which
-% is linear in the outcome tree's approximation error -- it does not benefit
-% from Prop.~\ref{prop:bilinear}'s product-of-two-INDEPENDENT-errors
-% structure, because tying the trees couples those two errors perfectly.
-% This is the precise, currently-missing reason two INDEPENDENT trees (not
-% one tree, not one shared-structure tree) are required outside grid-exact
-% sparsity -- state explicitly; confirmed absent from the manuscript by
-% direct search, 2026-09-02. Narrow rescue subcase exists (tree-representable
-% $\mu_0$ at continuum thresholds, with threshold recovery fast enough that
-% the bias is $o_p(n^{-1/2})$) but rests on non-standard change-point
-% asymptotics -- flag as fragile, do not use it to justify dropping the
-% propensity tree in this section.
+\begin{remark}[Outside exact leaf-measurability, the second factor is no longer independently controllable]
+\label{rem:single-tree-negative}
+Corollary~\ref{cor:single-tree-coarsening}'s exactness $\theta_{\mathrm{tie}}=\theta_0$ required $\mu_0$ to be exactly $\Prob$-a.s.\ constant on every leaf of $\tauhat_\mu$, i.e.\ $\tauhat_\mu\in\cS_\mu$. In this instantiation, or under genuinely misspecified sparsity, that generically fails, and tying the propensity to the outcome tree's own partition does not lose the bilinear (product) structure of Proposition~\ref{prop:bilinear} -- but it does force the second factor to track the \emph{same} partition as the first, removing the analyst's ability to control it independently. Applying Proposition~\ref{prop:bilinear} at $\eta_{\mathrm{tie}}=(e_{\mathrm{tie}},\mu_{\mathrm{tie}})$ and using $\{1-e_0(\bX)\}w_0(\bX)=e_0(\bX)$,
+\[
+  \theta(\eta_{\mathrm{tie}})-\theta_0
+  \;=\;
+  \frac1\pi\,\E\bigl[\{1-e_0(\bX)\}\{w_0(\bX)-w_{\mathrm{tie}}(\bX)\}\{\mu_0(\bX)-\mu_{\mathrm{tie}}(\bX)\}\bigr]
+  \;=\;
+  \frac1\pi\,\E\bigl[e_0(\bX)\{\mu_0(\bX)-\mu_{\mathrm{tie}}(\bX)\}\bigr],
+\]
+since $\E[\{1-e_0(\bX)\}w_{\mathrm{tie}}(\bX)\{\mu_0(\bX)-\mu_{\mathrm{tie}}(\bX)\}\mid \bX\in\ell]=w_{\mathrm{tie}}(\ell)\,\E[\{1-e_0(\bX)\}\{\mu_0(\bX)-\mu_{\mathrm{tie}}(\ell)\}\mid \bX\in\ell]=0$ leaf by leaf, $\mu_{\mathrm{tie}}(\ell)$ being exactly the $\{1-e_0\}$-weighted leaf mean of $\mu_0$. Writing $m_\ell=\E[\mu_0(\bX)\mid\bX\in\ell]=\Pi_\tau\mu_0(\ell)$ for the \emph{unweighted} leaf mean and $\bar e_\ell=e_{\mathrm{tie}}(\ell)$, the identity $\E[e_0(\mu_0-\mu_{\mathrm{tie}})\mid\ell]=m_\ell-\mu_{\mathrm{tie}}(\ell)=\Cov(e_0,\mu_0\mid\ell)/(1-\bar e_\ell)$ recasts the bias as a sum of within-leaf covariances,
+\[
+  \theta(\eta_{\mathrm{tie}})-\theta_0
+  \;=\;
+  \frac1\pi\sum_{\ell\in\tauhat_\mu}\Prob(\ell)\,\frac{\Cov(e_0,\mu_0\mid\ell)}{1-\bar e_\ell},
+\]
+and Cauchy--Schwarz within each leaf, followed by Cauchy--Schwarz across leaves and $1-\bar e_\ell\ge c$ (Assumption~\ref{ass:causal}), gives the explicit bound
+\[
+  \bigl|\theta(\eta_{\mathrm{tie}})-\theta_0\bigr|
+  \;\le\;
+  \frac{1}{\pi c}\,\|e_0-\Pi_\tau e_0\|_2\,\|\mu_0-\Pi_\tau\mu_0\|_2 .
+\]
+The product-of-two-errors structure is therefore \emph{not} lost -- it is Lemma~\ref{lem:biasbound}'s bound, restated with both factors evaluated at the \emph{same} partition $\tauhat_\mu$ rather than at two independently chosen ones. That loss of independent control, not a loss of bilinearity, is the precise reason two \emph{independent} trees -- not one tree, not one shared-structure tree -- are needed outside grid-exact sparsity: with two trees, one nuisance's leaf-measurability alone already annihilates the bias (Proposition~\ref{prop:bilinear}); with one tree serving both roles, the bias survives whenever \emph{either} nuisance has residual within-leaf heterogeneity on that shared partition, and vanishes only if the product $\|e_0-\Pi_\tau e_0\|_2\|\mu_0-\Pi_\tau\mu_0\|_2$ itself is $o(n^{-1/2})$ -- a condition attainable with both factors merely $O_p(n^{-1/4})$, not requiring the change-point-style single-factor rate that a narrower reading of the bound might suggest.
+\end{remark}
 
 \subsection{When partition recovery fails: the anchor interval}
 \label{sec:honest-manuscript}
