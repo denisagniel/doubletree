@@ -86,16 +86,22 @@
 #' \code{sigma * sqrt(n / (n - (n_leaves_e + n_leaves_m0 + 1)))}, using the
 #' returned \code{n}, \code{n_leaves_e} and \code{n_leaves_m0}.
 #'
-#' \strong{Covariates must be binary.} \code{theory.tex}
-#' Assumption~\code{ass:finite} takes \eqn{\mathcal{X}} to be finite, and
-#' continuous-covariate approximation theory is explicitly excluded from the
-#' current paper. Operationally the restriction is also load-bearing:
+#' \strong{Covariates must be binary (an implementation limitation, not a
+#' theoretical one).} \code{inst/paper/manuscript.tex} \S\code{sec:trees} and
+#' \code{theory.tex} Assumption~\code{ass:finite} both allow \eqn{\mathcal{X}}
+#' to be a general (e.g.\ continuous) covariate space, discretised only via a
+#' finite set of analyst-chosen cutpoints fixed before seeing the data;
+#' \code{ass:finite} itself is explicit that \eqn{\mathcal{X}} is
+#' \emph{not} required to be finite. This function does not yet perform that
+#' cutpoint-based discretisation internally, and the restriction to already-
+#' binary columns is a consequence of that gap, not of the theory:
 #' \code{optimaltrees::bisect_lambda_to_budget()} verifies the \eqn{m_n} floor
 #' by mapping rows of the \emph{supplied} \code{X} to leaves, while a tree fit
 #' on discretised continuous covariates splits on \emph{threshold-indicator}
-#' features, so the two disagree. Non-binary \code{X} is therefore rejected up
-#' front with a pointer to \code{\link{estimate_att_crossfit}} (which has no
-#' leaf-feasibility step and does accept continuous covariates) rather than
+#' features, so the two disagree unless \code{X} is supplied already binarised
+#' to the analyst's own grid atoms. Non-binary \code{X} is therefore rejected
+#' up front with a pointer to \code{\link{estimate_att_crossfit}} (which has
+#' no leaf-feasibility step and does accept continuous covariates) rather than
 #' allowed to fail obscurely or, worse, silently mis-check feasibility.
 #'
 #' @param X Data.frame or matrix of covariates. Must be binary (0/1); see
@@ -314,13 +320,15 @@ estimate_att <- function(X, A, Y, leaf_budget,
   if (any(non_binary)) {
     stop("estimate_att() requires binary (0/1) covariates; column(s) ",
          paste(names(X)[non_binary], collapse = ", "), " are not. ",
-         "theory.tex Assumption ass:finite takes the covariate space to be ",
-         "finite, and continuous-covariate approximation theory is excluded ",
-         "from the current paper. Operationally, the leaf-mass check inside ",
-         "optimaltrees::bisect_lambda_to_budget() maps rows of the supplied X ",
-         "to leaves, which is incompatible with a tree fit on discretised ",
-         "threshold indicators. Either discretise X to 0/1 indicators ",
-         "yourself, or use estimate_att_crossfit(), which has no ",
+         "This is a current implementation limitation, not a requirement of ",
+         "the theory: theory.tex Assumption ass:finite explicitly allows the ",
+         "covariate space to be general (e.g. continuous), discretised via a ",
+         "finite set of analyst-chosen cutpoints; this function does not yet ",
+         "perform that discretisation internally. Operationally, the leaf-mass ",
+         "check inside optimaltrees::bisect_lambda_to_budget() maps rows of ",
+         "the supplied X to leaves, which is incompatible with a tree fit on ",
+         "discretised threshold indicators. Either discretise X to 0/1 ",
+         "indicators yourself, or use estimate_att_crossfit(), which has no ",
          "leaf-feasibility step and accepts continuous covariates.",
          call. = FALSE)
   }

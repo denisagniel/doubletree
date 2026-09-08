@@ -229,16 +229,22 @@ directly comparable. Callers wanting the convention can rescale:
 \code{sigma * sqrt(n / (n - (n_leaves_e + n_leaves_m0 + 1)))}, using the
 returned \code{n}, \code{n_leaves_e} and \code{n_leaves_m0}.
 
-\strong{Covariates must be binary.} \code{theory.tex}
-Assumption~\code{ass:finite} takes \eqn{\mathcal{X}} to be finite, and
-continuous-covariate approximation theory is explicitly excluded from the
-current paper. Operationally the restriction is also load-bearing:
+\strong{Covariates must be binary (an implementation limitation, not a
+theoretical one).} \code{inst/paper/manuscript.tex} \S\code{sec:trees} and
+\code{theory.tex} Assumption~\code{ass:finite} both allow \eqn{\mathcal{X}}
+to be a general (e.g.\ continuous) covariate space, discretised only via a
+finite set of analyst-chosen cutpoints fixed before seeing the data;
+\code{ass:finite} itself is explicit that \eqn{\mathcal{X}} is
+\emph{not} required to be finite. This function does not yet perform that
+cutpoint-based discretisation internally, and the restriction to already-
+binary columns is a consequence of that gap, not of the theory:
 \code{optimaltrees::bisect_lambda_to_budget()} verifies the \eqn{m_n} floor
 by mapping rows of the \emph{supplied} \code{X} to leaves, while a tree fit
 on discretised continuous covariates splits on \emph{threshold-indicator}
-features, so the two disagree. Non-binary \code{X} is therefore rejected up
-front with a pointer to \code{\link{estimate_att_crossfit}} (which has no
-leaf-feasibility step and does accept continuous covariates) rather than
+features, so the two disagree unless \code{X} is supplied already binarised
+to the analyst's own grid atoms. Non-binary \code{X} is therefore rejected
+up front with a pointer to \code{\link{estimate_att_crossfit}} (which has
+no leaf-feasibility step and does accept continuous covariates) rather than
 allowed to fail obscurely or, worse, silently mis-check feasibility.
 }
 \examples{

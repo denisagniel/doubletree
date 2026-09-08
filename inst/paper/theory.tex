@@ -776,31 +776,64 @@ without vanishing, as in Section~\ref{sec:realised}.
 \subsection{The efficiency bound}
 
 \begin{lemma}[Local saturation and the variance bound]\label{lem:tangent}
-Let $\cP_{c,C_Y}$ be the set of observed-data laws of $(X,A,Y)$ on
-$\cX\times\{0,1\}\times\R$, where $\cX$ is an arbitrary measurable space
-(finite or not), satisfying $\pi>0$, $1-\ez\ge c$ $P$-a.s.,
-$\E[Y^2\mid A=a,X=x]\le C_Y$ for $P_X$-a.e.\ $x$ and both $a$, and $V>0$, on
-which $\theta$ is defined as the identified functional
-$\theta(P)=\pi^{-1}\E[\ez(m_1-\mz)]$. Let $P_0$ be \emph{interior} to
-$\cP_{c,C_Y}$, in the sense that
-\begin{equation}\label{eq:interior}
-  \ez>0\quad P_0\text{-a.s.},\qquad
-  \operatorname*{ess\,inf}_{P_0}\,(1-\ez)>c .
-\end{equation}
-When $\cX$ is finite with $p_x>0$ for every $x$, the essential infimum in
-\eqref{eq:interior} is a minimum over finitely many cells, so
-\eqref{eq:interior} reduces to the pointwise requirement $\ez(x)>0$ and
-$1-\ez(x)>c$ for every $x$, matching earlier drafts of this document. Then
-the tangent space
-of $\cP_{c,C_Y}$ at $P_0$ is the \emph{entire} nonparametric tangent space
-$\{h\in L^2(P_0):\E h=0\}$ --- the model is locally saturated at $P_0$ --- and
-$\theta$ is pathwise differentiable at $P_0$ with canonical gradient $\psi_0$, so
-that the semiparametric efficiency bound is $V=\E[\psi_0^2]$, given explicitly by
+For $c\in(0,1)$ and $C<\infty$, let $\cP_{c,C}$ denote the set of
+observed-data laws $P$ of $(X,A,Y)$ on
+$\cX\times\{0,1\}\times\R$, where $\cX$ is an arbitrary measurable space,
+such that
+\[
+  \pi_P:=P(A=1)>0,\qquad
+  1-e_P(X)\ge c\quad P_X\text{-a.s.},
+  \qquad
+  \E_P[Y^2\mid A,X]\le C\quad P_{A,X}\text{-a.s.}
+\]
+Define the law-specific nonparametric model
+\[
+  \cP_{\mathrm{np}}
+  :=\bigcup_{c\in(0,1),\,C<\infty}\cP_{c,C}.
+\]
+An \emph{admissible} one-dimensional path through $P_0\in\cP_{\mathrm{np}}$
+is a path $\{P_t:\abs t<\epsilon\}$ that is differentiable in quadratic
+mean at $t=0$ and is contained, for some $\epsilon>0$, in one common
+$\cP_{c_*,C_*}$. In particular, every bounded likelihood tilt through
+$P_0$ is admissible after possibly reducing $\epsilon$.
+
+For $P\in\cP_{\mathrm{np}}$, define
+\[
+  m_{0,P}(x):=\E_P[Y\mid A=0,X=x],\qquad
+  \theta(P):=\frac{\E_P[A\{Y-m_{0,P}(X)\}]}{\pi_P}.
+\]
+At the true law write $e_{P_0}=\ez$, $m_{0,P_0}=\mz$,
+$\theta(P_0)=\theta_0$, and $\wz=\ez/(1-\ez)$; suppose $V>0$.
+
+Then the tangent space of $\cP_{\mathrm{np}}$ at $P_0$ is
+\[
+  \Lambda
+  =\Lambda_1\oplus\Lambda_2\oplus\Lambda_3
+  =\{h\in L^2(P_0):\E h=0\},
+\]
+where
+\begin{align*}
+  \Lambda_1=\Lambda_X
+  &:=\{h_1(X)\in L^2(P_0):\E h_1=0\},\\
+  \Lambda_2=\Lambda_{A\mid X}
+  &:=\{h_2(A,X)\in L^2(P_0):\E[h_2\mid X]=0\}
+  =\bigl\{a(X)\{A-\ez(X)\}:\E[\ez(1-\ez)a^2]<\infty\bigr\},\\
+  \Lambda_3=\Lambda_{Y\mid A,X}
+  &:=\{h_3\in L^2(P_0):\E[h_3\mid A,X]=0\},
+\end{align*}
+mutually orthogonal in $L^2(P_0)$ --- the model is locally saturated at
+$P_0$ --- and $\theta$ is pathwise differentiable at $P_0$ with canonical
+gradient $\psi_0$, so that the semiparametric efficiency bound is
+$V=\E[\psi_0^2]$, given explicitly by
 \begin{equation}\label{eq:vdecomp}
   V=\pi^{-2}\,\E\Bigl[\ez\sigma_1^2
    +\frac{\ez^2\sigma_0^2}{1-\ez}
    +\ez\,(m_1-\mz-\theta_0)^2\Bigr].
 \end{equation}
+Here $m_1$ and $\sigma_1^2$ may be defined arbitrarily on $\{\ez=0\}$,
+since every term involving them in $\theta_0$ and~\eqref{eq:vdecomp}
+carries weight $\ez$. No lower bound on $\ez$ is used anywhere.
+
 The tangent space is infinite-dimensional if and only if $P_0$ is not
 concentrated on finitely many points of $\cX\times\{0,1\}\times\R$; this
 happens, in particular, whenever $X$ has a nondegenerate continuous
@@ -808,30 +841,33 @@ component, and, when $\cX$ is finite, exactly when some conditional law
 $P_{Y\mid A=a,X=x}$ has infinite support.
 \end{lemma}
 
-\noindent The model imposes no local restriction at an interior $P_0$: it is
-cut out by the inequalities $\pi>0$, $1-\ez\ge c$, $\E[Y^2\mid A=a,X=x]\le C_Y$
-and $V>0$, each of which holds with slack at $P_0$ under \eqref{eq:interior},
-while the moment condition leaves the conditional laws of $Y$ given $(A,X)$
-and the marginal law of $X$ otherwise unrestricted. Hence $V$ is a genuine
-semiparametric bound rather than a parametric information bound, and this is
-so whether or not $\cX$ is finite. It would be an error to argue instead
-that the tangent space is infinite-dimensional. When $\cX$ \emph{is} finite,
-with $M=\card\cX$, and $Y$ is binary --- a case the accompanying software
-supports --- the whole space $L^2(P_0)$ has dimension at most $4M$, so every
-tangent space is finite-dimensional, while $V=\E[\psi_0^2]$ remains the
-bound. Dimension is a property of $P_0$; saturation is the property that
-matters.
+\noindent The model imposes no local restriction at $P_0$: $\cP_{\mathrm{np}}$
+is cut out only by the inequalities $\pi_P>0$, $1-e_P\ge c$ for some $c$,
+and $\E_P[Y^2\mid A,X]\le C$ for some $C$, each of which holds with slack
+at $P_0$ by definition of $\cP_{\mathrm{np}}$, while the moment condition
+leaves the conditional laws of $Y$ given $(A,X)$ and the marginal law of $X$
+otherwise unrestricted. Hence $V$ is a genuine semiparametric bound rather
+than a parametric information bound, and this is so whether or not $\cX$ is
+finite. It would be an error to argue instead that the tangent space is
+infinite-dimensional. When $\cX$ \emph{is} finite, with $M=\card\cX$, and
+$Y$ is binary --- a case the accompanying software supports --- the whole
+space $L^2(P_0)$ has dimension at most $4M$, so every tangent space is
+finite-dimensional, while $V=\E[\psi_0^2]$ remains the bound. Dimension is a
+property of $P_0$; saturation is the property that matters.
 
-The interiority requirement is not cosmetic. At a law with $\ez(x_0)=0$ the
-event $\{(A,X)=(1,x_0)\}$ is null (or, on a continuum, $\{A=1\}$ is null on
-the set where $\ez=0$), so $m_1$ and $\sigma_1^2$ are undefined there and the
-propensity admits perturbation in one direction only; the set of admissible
-perturbations is then a cone rather than a subspace and the canonical-gradient
-apparatus does not apply as stated. Such laws remain harmless for identification,
-for estimation, and for the value of $V$, since the affected terms
-of~\eqref{eq:vdecomp} carry weight $\ez(x_0)=0$; they are excluded here only for
-the efficiency statement. Throughout, $m_1$ and $\sigma_1^2$ are defined
-arbitrarily on $\{\ez=0\}$, where the products in~\eqref{eq:vdecomp} vanish.
+The absence of a lower bound on $\ez$ causes no difficulty here. On
+$\{\ez=0\}$, treated observations have zero probability, so the values
+assigned to $m_1$ and $\sigma_1^2$ there are immaterial: every occurrence of
+these quantities in $\theta_0$ and~\eqref{eq:vdecomp} is multiplied by
+$\ez$. Likewise, every observed-data score for the conditional law of $A$
+given $X$ vanishes there, since $\E[h_2\mid X]=0$ forces $h_2(0,\cdot)=0$
+wherever $\ez=0$ and $A=0$ $P_0$-a.s.\ on that set: no perturbation of a
+null event defines a distinct direction in $L^2(P_0)$. Most importantly,
+pathwise differentiation uses the observed-data representation
+$\theta(P)=\E_P[A\{Y-m_{0,P}(X)\}]/\pi_P$ and therefore differentiates only
+the control regression $m_{0,P}$, which remains well defined because
+$1-\ez\ge c_0>0$ for some $c_0$ -- never $\E[Y\mid A=1,X=x]$, which would be
+undefined wherever $\ez(x)=0$.
 
 % ===========================================================================
 \section{Structure of the tree class}\label{sec:structure}
@@ -1475,17 +1511,16 @@ Corollary~\ref{cor:variance} need none of this.
 \subsection{Regularity and efficiency}\label{sec:regularity}
 
 \begin{theorem}[Regularity and local asymptotic efficiency]\label{thm:regular}
-Suppose the conditions of Theorem~\ref{thm:main} hold and, in addition, that
-$P_0$ satisfies the interiority condition~\eqref{eq:interior} of
-Lemma~\ref{lem:tangent}. Then $\thetahat$ is regular at $P_0$
-relative to $\cP_{c,C_Y}$: for every path $\{P_{n,h}\}$ in $\cP_{c,C_Y}$ that is differentiable
-in quadratic mean at $P_0$ with score $h$,
+Suppose the conditions of Theorem~\ref{thm:main} hold. Then $\thetahat$ is
+regular at $P_0$ relative to $\cP_{\mathrm{np}}$: for every admissible
+one-dimensional path $\{P_{t,h}\}$ through $P_0$ that is differentiable in
+quadratic mean with score $h$, with $P_{n,h}=P_{1/\sqrt n,h}$,
 \[
   \sqrt n\bigl\{\thetahat-\theta(P_{n,h})\bigr\}\rightsquigarrow N(0,V)
   \qquad\text{under }P_{n,h}^n,
 \]
 with the limit free of $h$. Consequently, by the convolution theorem,
-$\thetahat$ is locally asymptotically efficient in $\cP_{c,C_Y}$.
+$\thetahat$ is locally asymptotically efficient in $\cP_{\mathrm{np}}$.
 \end{theorem}
 
 The efficiency claim is asserted in $\cP$ and must not be asserted in the
@@ -2754,167 +2789,186 @@ $c^{-1/2}$. The two powers of $c$ have distinct origins: $c^{-1}$ from clipping,
 $c^{-1/2}$ from norm conversion.
 
 \begin{proof}[Proof of Lemma~\ref{lem:tangent}]
-Throughout, $P_0$ satisfies interiority~\eqref{eq:interior}, and
-$\E_0[Y^2\mid A=a,X=x]\le C_Y$ for $P_X$-a.e.\ $x$ and both $a$. Write
+\emph{Proof strategy.} We first construct bounded multiplicative paths that
+perturb separately the marginal law of $X$, the conditional law of $A$
+given $X$, and the conditional law of $Y$ given $(A,X)$. We then use
+conditional expectations to decompose every mean-zero $L^2(P_0)$ function
+orthogonally into the corresponding three score components. Finally, we
+differentiate the observed-data representation
+$\theta(P)=\E_P[A\{Y-m_{0,P}(X)\}]/\pi_P$, which requires only the control
+regression and therefore remains valid when $\ez=0$ on a set of positive
+$P_X$-probability.
+
+Because $P_0\in\cP_{\mathrm{np}}$, there exist constants $c_0\in(0,1)$ and
+$C_0<\infty$ such that $1-\ez\ge c_0$ $P_X$-a.s.\ and
+$\E_0[Y^2\mid A,X]\le C_0$ $P_{A,X}$-a.s.
+
+\emph{(a) The three score spaces.} Factor the law as
 \[
-  \Lambda_1=\{h_1(X):\E h_1=0\},\quad
-  \Lambda_2=\{h_2(A,X):\E[h_2\mid X]=0\},\quad
-  \Lambda_3=\{h_3\in L^2(P_0):\E[h_3\mid A,X]=0\}.
+  dP(x,a,y)=dP_X(x)\,P(A=a\mid X=x)\,dP_{Y\mid A=a,X=x}(y).
 \]
 
-\emph{(a) Local saturation.} Factor the law as
+For $\Lambda_3$, fix bounded $b$ with $\E_0[b\mid A,X]=0$ and set
+$dP_t=(1+tb)\,dP_0$ for $\abs t<1/\Linf b$, so $1+tb\ge0$ and
+$\int dP_t=1+t\E_0b=1$. Since $\E_0[1+tb\mid A,X]=1$, the law of $(A,X)$ is
+unchanged along the path, so $\pi_t=\pi$ and $e_t=\ez$; the conditional
+second moment satisfies
+$\E_t[Y^2\mid A,X]=\E_0[Y^2(1+tb)\mid A,X]\le(1+\abs t\Linf b)C_0$, so the
+path is locally contained in $\cP_{c_0,C_*}$ for a finite $C_*$, hence
+admissible. Its score at $t=0$ is $\partial_t\log(1+tb)\vert_{t=0}=b$.
+Bounded elements are dense in $\Lambda_3$: for $h_3\in\Lambda_3$, put
+$b_K=h_3\mathbf1\{\abs{h_3}\le K\}-\E_0[h_3\mathbf1\{\abs{h_3}\le K\}\mid A,X]$,
+which is bounded, lies in $\Lambda_3$, and converges to $h_3$ in $L^2(P_0)$
+by $L^2$ truncation and the contraction property of conditional
+expectation. Hence $\Lambda_3\subseteq\Lambda$.
+
+For $\Lambda_1$, fix bounded $h_1$ with $\E_0h_1=0$ and set
+$dP_{X,t}=\{1+th_1\}\,dP_X$ for $\abs t<1/\Linf{h_1}$, leaving the
+conditional laws of $A\mid X$ and $Y\mid A,X$ unchanged; $\int dP_{X,t}=1$
+automatically, the overlap and conditional-moment bounds are untouched, and
+$\pi_t=\E_0[\{1+th_1(X)\}\ez(X)]\to\pi>0$, so $\pi_t>0$ for sufficiently
+small $\abs t$ and the path is admissible with score $h_1$ at $t=0$. The
+same truncation argument gives density of bounded elements in $\Lambda_1$,
+so $\Lambda_1\subseteq\Lambda$.
+
+For $\Lambda_2$, fix bounded $h_2$ with $\E_0[h_2\mid X]=0$ and set
+$P_t(A=a\mid X=x)=\{1+th_2(a,x)\}P_0(A=a\mid X=x)$ for $a\in\{0,1\}$,
+leaving $P_X$ and $P_{Y\mid A,X}$ unchanged. Conditional normalization holds
+automatically since $\sum_aP_t(A=a\mid X=x)=1+t\E_0[h_2\mid X=x]=1$, and
+both conditional probabilities are nonnegative for $\abs t<1/\Linf{h_2}$.
+Writing $e_t(x)=\ez(x)\{1+th_2(1,x)\}$ (with $h_2(1,x)$ set to zero, say,
+on $\{\ez=0\}$),
 \[
-  dP(x,a,y)=dP_X(x)\cdot\ez(x)^a\{1-\ez(x)\}^{1-a}
-   \cdot dP_{Y\mid A=a,X=x}(y),
+  1-e_t(x)=1-\ez(x)-t\ez(x)h_2(1,x)\ge c_0-\abs t\Linf{h_2},
 \]
-so that $P$ is determined by the marginal law $P_X$, the propensity $\ez$,
-and the conditional laws of
-$Y$ given $(A,X)$, the last constrained only by a finite second moment.
-
-We first show each $\Lambda_i$ consists of scores. For $\Lambda_3$, fix bounded
-$b$ with $\E[b\mid A,X]=0$ and set $dP_t=\{1+tb\}\,dP_0$ for $\abs t<1/\Linf b$,
-so $1+tb\ge0$. Because $\int b\,dP_{0,Y\mid A=a,X=x}=0$ for each $(a,x)$,
-integrating over $y$ leaves the law of $(X,A)$ exactly unchanged, so $P_X$ and
-$\ez$ are fixed along the path and $\int dP_t=1$. Interiority is what makes
-the path admissible: since $\E_0[Y^2\mid A=a,X=x]\le C_Y$ and $b$ is bounded,
-$\E_t[Y^2\mid A=a,X=x]=\E_0[Y^2(1+tb)\mid A=a,X=x]$ remains at most $C_Y$ for
-all sufficiently small
-$\abs t$, and $V_t>0$ for small $\abs t$ by continuity. Its score at $t=0$ is
-$\partial_t\log dP_t\vert_{t=0}=b$. Only bounded $b$ have been exhibited, but the
-tangent space is closed and such $b$ are dense in $\Lambda_3$: for $h_3\in\Lambda_3$
-put $b_K=h_3\mathbf1\{\abs{h_3}\le K\}-\E[h_3\mathbf1\{\abs{h_3}\le K\}\mid A,X]$,
-which is bounded, lies in $\Lambda_3$, and converges to $h_3$ in $L^2(P_0)$.
-Hence $\Lambda_3$ is contained in the tangent space.
-
-For $\Lambda_1$, fix bounded $h_1$ with $\E h_1=0$ and set
-$dP_{X,t}=\{1+th_1\}\,dP_X$ for $\abs t<1/\Linf{h_1}$, leaving the conditional
-laws of $A\mid X$ and $Y\mid A,X$ unchanged; $\int dP_{X,t}=1$ automatically
-since $\E h_1=0$, the path remains in $\cP_{c,C_Y}$ because $\ez$, $1-\ez$,
-and the conditional second moment of $Y$ are untouched by it, and its score
-at $t=0$ is $h_1$. As for $\Lambda_3$, bounded $h_1$ are dense in $\Lambda_1$
-by the same truncation argument, so $\Lambda_1$ is contained in the tangent
-space.
-
-For $\Lambda_2$, fix bounded $h_2$ with $\E[h_2\mid X]=0$ and perturb only the
-conditional law of $A\mid X$, multiplicatively:
-$P_t(A=a\mid X=x)=\{1+th_2(a,x)\}P_0(A=a\mid X=x)$ for $a\in\{0,1\}$. Since
-$\E[h_2\mid X]=0$, $\sum_aP_t(A=a\mid X=x)=1+t\,\E[h_2\mid X=x]=1$
-automatically, and $P_t(A=a\mid X=x)\ge0$ for $\abs t<1/\Linf{h_2}$. This is
-exactly where the \emph{uniform} form of~\eqref{eq:interior} is needed:
-writing $e_t(x)=\ez(x)\{1+th_2(1,x)\}$,
-\[
-  1-e_t(x)\ \ge\ 1-\ez(x)-\abs t\Linf{h_2}
-  \ \ge\ \operatorname*{ess\,inf}\nolimits_{P_0}(1-\ez)-\abs t\Linf{h_2}\ ,
-\]
-so $1-e_t\ge c$ for every
-$\abs t<\{\operatorname*{ess\,inf}_{P_0}(1-\ez)-c\}/\Linf{h_2}$, an interval
-of positive length precisely because of the uniform gap
-in~\eqref{eq:interior}; a merely pointwise gap $1-\ez(x)>c$ at every $x$,
-without a common margin, need not bound $\abs t$ away from zero once $\cX$
-is not finite, since $\operatorname*{ess\,inf}_{P_0}(1-\ez)$ could then equal
-$c$. The conditional laws of $X$ and of $Y\mid A,X$ are untouched, so
-$\E[Y^2\mid A,X]\le C_Y$ is preserved and $P_t\in\cP_{c,C_Y}$ for $\abs t$ in
-that interval. The score at $t=0$ is
-$\partial_t\log P_t(A=a\mid X=x)\vert_{t=0}=h_2(a,x)$, i.e.\ $h_2$ itself. As
-with $\Lambda_1$ and $\Lambda_3$, bounded $h_2$ are dense in $\Lambda_2$ by
-the same truncation argument, so $\Lambda_2$ is contained in the tangent
-space.
-
-At a boundary law this construction fails: at $\ez(x_0)=0$ the propensity
-admits upward perturbation only, and $m_1$ is undefined on the null set
-$\{\ez=0,A=1\}$ --- which is precisely why the lemma is stated at interior
-laws, and why interiority must supply a uniform margin rather than a merely
-pointwise one once $\cX$ need not be finite.
+so $1-e_t\ge c_0/2$ whenever $\abs t\le c_0/(2\Linf{h_2})$: an interval of
+positive length. The conditional law of $Y$ given $(A,X)$ is unchanged, so
+its second-moment bound remains $C_0$, and $\pi_t=\E_0[e_t]\to\pi>0$; hence
+this is an admissible path with score $h_2$ at $t=0$. This construction
+remains valid on $\{\ez=0\}$: there $A=0$ $P_0$-a.s., and
+$\E_0[h_2\mid X]=0$ forces $h_2(0,X)=0$ a.s., so every observable element
+of $\Lambda_2$ vanishes there -- a dominated path cannot create treated
+mass on this set, but this removes no $L^2(P_0)$ direction, since values on
+the null event $\{\ez=0,A=1\}$ do not define distinct elements of
+$L^2(P_0)$. For binary $A$, every $h_2\in\Lambda_2$ has the representation
+$h_2(A,X)=a(X)\{A-\ez(X)\}$ $P_0$-a.s.\ (where $0<\ez<1$, set
+$a(X)=h_2(1,X)-h_2(0,X)$; the identity
+$\ez h_2(1,X)+(1-\ez)h_2(0,X)=0$ then gives
+$h_2(1,X)=a(X)(1-\ez)$ and $h_2(0,X)=-a(X)\ez$; where $\ez=0$ both sides
+vanish after defining $a$ arbitrarily), and $\E_0[h_2^2]=\E_0[\ez(1-\ez)a^2]$,
+matching the stated integrability condition exactly. The same truncation
+argument gives density of bounded elements in $\Lambda_2$, so
+$\Lambda_2\subseteq\Lambda$.
 
 Conversely, every mean-zero $h\in L^2(P_0)$ decomposes as
 \[
-  h=\underbrace{\E[h\mid X]}_{\in\Lambda_1}
-   +\underbrace{\bigl\{\E[h\mid A,X]-\E[h\mid X]\bigr\}}_{\in\Lambda_2}
-   +\underbrace{\bigl\{h-\E[h\mid A,X]\bigr\}}_{\in\Lambda_3},
+  h=\underbrace{\E_0[h\mid X]}_{=:h_1\in\Lambda_1}
+   +\underbrace{\bigl\{\E_0[h\mid A,X]-\E_0[h\mid X]\bigr\}}_{=:h_2\in\Lambda_2}
+   +\underbrace{\bigl\{h-\E_0[h\mid A,X]\bigr\}}_{=:h_3\in\Lambda_3},
 \]
-the memberships being immediate from the definitions and $\E h=0$. The three
-subspaces are mutually orthogonal in $L^2(P_0)$, so the tangent space is exactly
-$\Lambda_1\oplus\Lambda_2\oplus\Lambda_3=\{h\in L^2(P_0):\E h=0\}$: the model is
-locally saturated at $P_0$, imposing no local restriction whatever.
+the memberships being immediate from the definitions and $\E_0h=0$. The
+three subspaces are mutually orthogonal in $L^2(P_0)$ (e.g.\
+$\E_0[h_1h_2]=\E_0[h_1\E_0[h_2\mid X]]=0$, and $h_1,h_2$ are
+$\sigma(A,X)$-measurable so $\E_0[h_jh_3]=\E_0[h_j\E_0[h_3\mid A,X]]=0$ for
+$j=1,2$), so the tangent space is exactly
+$\Lambda=\Lambda_1\oplus\Lambda_2\oplus\Lambda_3=\{h\in L^2(P_0):\E_0h=0\}$:
+the model is locally saturated at $P_0$, imposing no local restriction
+whatever.
 
-Whether this space is infinite-dimensional is a property of $P_0$, not of the
-model: it is infinite-dimensional unless $P_0$ is concentrated on finitely
-many points of $\cX\times\{0,1\}\times\R$. When $\cX$ is finite this reduces
-to: some $P_{Y\mid A=a,X=x}$ has infinite support; if in addition every
-conditional law of $Y$ is finitely supported --- for instance if $Y$ is
-binary --- then $L^2(P_0)$ itself is finite-dimensional and so is the
-tangent space. Saturation, not dimension, is what makes $V$ a
-semiparametric rather than a parametric bound.
+Whether this space is infinite-dimensional is a property of $P_0$, not of
+the model: it is infinite-dimensional unless $P_0$ is concentrated on
+finitely many points of $\cX\times\{0,1\}\times\R$. When $\cX$ is finite
+this reduces to: some $P_{Y\mid A=a,X=x}$ has infinite support on a
+positive-probability cell; if in addition every conditional law of $Y$ is
+finitely supported --- for instance if $Y$ is binary --- then $L^2(P_0)$
+itself is finite-dimensional and so is the tangent space. Saturation, not
+dimension, is what makes $V$ a semiparametric rather than a parametric
+bound.
 
-\emph{(b) Pathwise differentiability.} Let $P_t$ be a regular one-dimensional
-submodel through $P_0$ with score $h=h_1+h_2+h_3$ decomposed as above. The
-functional is $\theta(P)=\pi^{-1}\E[\ez(m_1-\mz)]$ with $\pi=\E[\ez]$. Along
-the $\Lambda_1$ path constructed in part~(a), $\ez$, $m_1$, and $\mz$ are
-themselves unperturbed (only $P_X$ moves, multiplicatively by $h_1$), so for
-any fixed, $t$-free function $f$, $\partial_t\E_t[f]\vert_{t=0}=\E[fh_1]$ by
-the same calculation as for $\Lambda_3$ in part~(a). The remaining two
-ingredients are
+\emph{(b) Pathwise differentiability.} Let $\{P_t\}$ be an admissible path
+through $P_0$, differentiable in quadratic mean with score
+$h=h_1+h_2+h_3$ decomposed as in part~(a). Write
+$m_t(x)=\E_t[Y\mid A=0,X=x]$, $N_t=\E_t[A\{Y-m_t(X)\}]$, $\pi_t=\E_tA$, so
+$\theta(P_t)=N_t/\pi_t$. The standard differentiability-in-quadratic-mean
+identity gives, for every fixed $Z\in L^2(P_0)$,
+$\partial_t\E_t[Z]\vert_{t=0}=\E_0[Zh]$; its conditions hold here because the
+path is locally contained in one common $\cP_{c_*,C_*}$, which supplies the
+local second-moment control the terms involving $Y$ need. Applying the
+conditional version of the same identity to the control regression gives
 \[
-  \partial_t\ez(x)=\E\bigl[\{A-\ez(X)\}h_2\bigm|X=x\bigr],\quad
-  \partial_tm_1(x)=\E[Yh_3\mid A=1,X=x],
+  \dot m_0(X):=\partial_tm_t(X)\vert_{t=0}=\E_0[\{Y-\mz(X)\}h\mid A=0,X],
 \]
-with the analogous expression for $\partial_t\mz(x)$; each follows by
-differentiating a ratio of integrals and using $\E[h_2\mid X]=0$ and
-$\E[h_3\mid A,X]=0$. Each is well defined for $P_X$-a.e.\ $x$ because
-interiority gives $0<\ez(x)<1$ there, so both arms have positive mass.
-
-Write $g=\ez\,(m_1-\mz)$, so $\pi\theta=\E[g]$ and
-$\partial_t(\pi\theta)=\E[gh_1]+\E[\partial_t\ez\cdot(m_1-\mz)]
-+\E[\ez\{\partial_tm_1-\partial_t\mz\}]$, while
-$\partial_t\pi=\E[\ez h_1]+\E[\partial_t\ez]$. Since
-$\theta=\pi^{-1}\E[g]$, we have
-$\partial_t\theta=\pi^{-1}\{\partial_t(\pi\theta)-\theta_0\,\partial_t\pi\}$.
-Collecting the three score blocks:
-\begin{itemize}[nosep,leftmargin=*]
-  \item the $h_1$ block contributes
-  $\pi^{-1}\E[h_1\{g-\theta_0\ez\}]
-  =\pi^{-1}\E[h_1\,\ez(m_1-\mz-\theta_0)]=\E[\psi_0h_1]$, using
-  $\E[\psi_0\mid X]=\pi^{-1}\ez(m_1-\mz-\theta_0)$;
-  \item the $h_2$ block contributes
-  $\pi^{-1}\E[\partial_t\ez\cdot(m_1-\mz-\theta_0)]
-  =\pi^{-1}\E\bigl[\{A-\ez(X)\}h_2\,\Delta m(X)\bigr]=\E[\psi_0h_2]$, since the
-  $\Lambda_2$ component of $\psi_0$ is $\pi^{-1}\{A-\ez\}\Delta m$;
-  \item the $h_3$ block contributes
-  $\pi^{-1}\E[\ez\{\partial_tm_1-\partial_t\mz\}]
-  =\pi^{-1}\E\bigl[\{A-(1-A)\wz\}(Y-\mu_A)h_3\bigr]=\E[\psi_0h_3]$, where
-  $\mu_A=Am_1+(1-A)\mz$, using $\ez=(1-\ez)\wz$ to convert the control-arm
-  derivative into the ATT weight.
-\end{itemize}
-Summing, $\partial_t\theta(P_t)\vert_{t=0}=\E[\psi_0h]$, so $\psi_0$ is a
-gradient. By part~(a) the tangent space is the whole mean-zero space, and
-$\psi_0$ lies in it since $\E[\psi_0]=0$ (shown in part~(c)); a gradient lying in
-the tangent space is unique there, hence $\psi_0$ is the canonical gradient. This
-agrees with \citet{hahn1998}.
-
-\emph{(c) The variance.} Conditioning on $X$,
+well defined $P_X$-a.s.\ because $P_0(A=0\mid X)=1-\ez(X)\ge c_0>0$: no
+treated regression is differentiated. Differentiating $N_t$,
 \[
-  \pi\,\E[\psi_0]
-  =\E\bigl[\ez(m_1-\mz-\theta_0)\bigr]-\E\bigl[\{1-\ez\}\wz(\mz-\mz)\bigr]
-  =\E[\ez(m_1-\mz)]-\pi\theta_0=0
+  \dot N_0
+  =\E_0[A\{Y-\mz(X)\}h]-\E_0[\ez(X)\dot m_0(X)],
 \]
-by the identification identity, so $V=\E[\psi_0^2]$. Expanding, and using
-$A^2=A$, $(1-A)^2=1-A$ and $A(1-A)=0$ identically, the cross term vanishes
-exactly and
+and, conditioning on $X$,
+\[
+  \E_0[\ez\dot m_0]
+  =\E_0\bigl[\ez\,\E_0[\{Y-\mz\}h\mid A=0,X]\bigr]
+  =\E_0\bigl[(1-A)\wz(X)\{Y-\mz(X)\}h\bigr],
+\]
+using $\E_0[(1-A)\wz\{Y-\mz\}h\mid X]=(1-\ez)\{\ez/(1-\ez)\}
+\E_0[\{Y-\mz\}h\mid A=0,X]$. Hence
+\[
+  \dot N_0=\E_0\bigl[\{A-(1-A)\wz(X)\}\{Y-\mz(X)\}h\bigr],
+  \qquad
+  \dot\pi_0=\E_0[Ah],
+\]
+and the quotient rule gives
+\[
+  \partial_t\theta(P_t)\vert_{t=0}
+  =\frac{\dot N_0-\theta_0\dot\pi_0}{\pi}
+  =\E_0\left[\frac1\pi\Bigl\{A(Y-\mz-\theta_0)-(1-A)\wz(Y-\mz)\Bigr\}h\right]
+  =\E_0[\psi_0h].
+\]
+Thus $\psi_0$ is a gradient for every admissible path. Its mean is zero,
+since $\E_0[(1-A)\wz(Y-\mz)\mid X]=0$ and
+$\E_0[A(Y-\mz-\theta_0)]=\E_0[A(Y-\mz)]-\pi\theta_0=0$ by the definition of
+$\theta_0$; and it is square-integrable, since the treated term is bounded
+by the conditional second-moment bound and $\pi>0$, while the control term
+satisfies $\E_0[(1-A)\wz^2(Y-\mz)^2]=\E_0[\ez^2\sigma_0^2/(1-\ez)]\le
+C_0/c_0<\infty$. Hence $\psi_0\in L_0^2(P_0)=\Lambda$, and because the
+tangent space is all of $L_0^2(P_0)$, this gradient is the unique canonical
+gradient. This agrees with \citet{hahn1998}.
+
+\emph{(c) The variance.} Since $A(1-A)=0$,
 \[
   \pi^2\psi_0^2=A\{Y-\mz-\theta_0\}^2+(1-A)\wz^2\{Y-\mz\}^2 .
 \]
-Taking conditional expectations,
-$\E[A\{Y-\mz-\theta_0\}^2\mid X]=\ez\{\sigma_1^2+(m_1-\mz-\theta_0)^2\}$ and
-$\E[(1-A)\wz^2\{Y-\mz\}^2\mid X]=\{1-\ez\}\wz^2\sigma_0^2$. Since
-$\{1-\ez\}\wz^2=\ez^2/(1-\ez)$,
+Conditioning on $X$,
+$\E_0[A\{Y-\mz-\theta_0\}^2\mid X]=\ez\{\sigma_1^2+(m_1-\mz-\theta_0)^2\}$ and
+$\E_0[(1-A)\wz^2\{Y-\mz\}^2\mid X]=(1-\ez)\{\ez/(1-\ez)\}^2\sigma_0^2
+=\ez^2\sigma_0^2/(1-\ez)$. Taking expectations and dividing by $\pi^2$,
 \[
-  \pi^2V=\E[\ez\sigma_1^2]+\E\bigl[\ez(m_1-\mz-\theta_0)^2\bigr]
-   +\E\Bigl[\frac{\ez^2\sigma_0^2}{1-\ez}\Bigr],
+  \E_0[\psi_0^2]
+  =\pi^{-2}\E_0\Bigl[\ez\sigma_1^2+\frac{\ez^2\sigma_0^2}{1-\ez}
+   +\ez(m_1-\mz-\theta_0)^2\Bigr],
 \]
-which is~\eqref{eq:vdecomp}. All three terms are finite: the first two by the
-second-moment condition, the second also using $\abs{\theta_0}\le2\sqrt{C_Y}/\pi$
-which needs $\pi>0$; the third because $1-\ez\ge c$ bounds $1/(1-\ez)$.
+which is~\eqref{eq:vdecomp}. All three terms are finite: the first two by
+the second-moment condition, the second also using
+$\abs{\theta_0}\le2\sqrt{C_0}/\pi$; the third because $1-\ez\ge c_0$ bounds
+$1/(1-\ez)$.
 \end{proof}
+
+\noindent\emph{Post-proof audit.} All overlap and moment assumptions are
+stated in the lemma, and no lower bound on $\ez$ is used anywhere. The
+tangent-space argument explicitly constructs and identifies the three
+orthogonal components $\Lambda_X,\Lambda_{A\mid X},\Lambda_{Y\mid A,X}$
+that Proposition~\ref{prop:sparse-bound} later requires. The only external
+ingredients are the standard differentiability-in-quadratic-mean identity,
+the $L^2$-contraction property of conditional expectation, and the
+characterization of finite-dimensional $L^2$ spaces. Boundary regions
+$\{\ez=0\}$ are harmless because they carry neither treated observations
+nor nonzero propensity-score directions. The one-sided overlap bound
+$1-\ez\ge c_0$ remains essential, both for differentiating the control
+regression and for finiteness of the control contribution
+to~\eqref{eq:vdecomp}; local containment of each path in one common
+$\cP_{c_*,C_*}$ is likewise essential, since without local uniform moment
+control an escaping-tail path that is differentiable in quadratic mean
+could still invalidate differentiation of the unbounded expectations above.
 
 \noindent The last bound is not the only use of positivity in the document ---
 the outcome margin of Lemma~\ref{lem:margin}, the clipping step of
@@ -2927,7 +2981,10 @@ finite $\cX$. On a general $\cX$, pointwise $\ez<1$ is not enough:
 $\E[\ez^2\sigma_0^2/(1-\ez)]$ can diverge even though $\ez(x)<1$ at every $x$,
 if $P_X$ concentrates mass where $1-\ez(x)\to0$ without $\sigma_0^2(x)$
 compensating. There the uniform bound $1-\ez\ge c$ is what makes the third
-term finite, not merely a convenience.
+term finite, not merely a convenience; moving from one globally fixed $c$
+to a law-specific $c_{P_0}$ changes only whether this bound is uniform over
+the whole model, not whether it holds -- and hence not whether the third
+term is finite -- at $P_0$ itself.
 
 \section{Proofs for Section~\ref{sec:structure}}\label{app:structure}
 
@@ -3359,8 +3416,8 @@ $\PP(\text{left side}>\epsilon)\le\PP(E_n^c)+\PP(\text{right side}>\epsilon)\to0
 and $\sqrt n(\thetahat-\theta_0)=\sqrt n\Pn\psi_0+o_p(1)$.
 
 The summands of $\Pn\psi_0$ are i.i.d.\ by Assumption~\ref{ass:iid}, have mean
-zero by Assumption~\ref{ass:causal} directly --- the two-line computation in
-part~(c) of the proof of Lemma~\ref{lem:tangent}, which uses only the
+zero by Assumption~\ref{ass:causal} directly --- the computation in
+part~(b) of the proof of Lemma~\ref{lem:tangent}, which uses only the
 identification identity and needs no interiority, so that cells with $\ez(x)=0$
 remain harmless here --- and have
 variance $V\in(0,\infty)$ by Assumption~\ref{ass:moments}. The classical central
