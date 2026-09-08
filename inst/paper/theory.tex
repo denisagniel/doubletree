@@ -61,10 +61,7 @@
 \DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
 \DeclarePairedDelimiter{\card}{\lvert}{\rvert}
 
-% --- Two-stage (Section~\ref{sec:twostage}) additions, 2026-09-01 ---
-\newcommand{\topol}{\operatorname{top}}
 \newcommand{\cTcont}{\cT^{\mathrm{cont}}_{\bar L}}
-\newcommand{\gbar}{\bar\gamma}
 
 \title{Interpretable Causal Inference with Optimal Decision Trees\\[2pt]
 \large Theory}
@@ -89,13 +86,12 @@ structural facts drive the argument: the induced estimand is invariant across
 every partition rich enough to represent the truth, so data-adaptive selection
 of the tree structure cannot move the target; and a positive population risk
 margin is a derived consequence of exact global optimisation over a finite
-class, rather than an assumption. We further show that the fixed-grid
-requirement can be relaxed: a two-stage estimator that recovers the tree
-topology on a refining grid and then refines each threshold off-grid attains
-threshold accuracy $O_p(n^{-1})$ and inherits the same limit distribution and
-variance estimator. We further give a cross-fitted estimator that
-dispenses with the structural sparsity condition, and confidence intervals that
-remain valid, at a stated and estimable price in width, when sparsity fails.
+class, rather than an assumption. The same conclusion holds under a more
+general, abstract recovery condition that does not require the fitted
+partition to align with any particular pre-specified grid. We further give a
+cross-fitted estimator that dispenses with the structural sparsity condition,
+and confidence intervals that remain valid, at a stated and estimable price in
+width, when sparsity fails.
 \end{abstract}
 
 \tableofcontents
@@ -110,11 +106,11 @@ label throughout. Section~\ref{sec:eif} records the efficient influence function
 and the exact second-order remainder. Section~\ref{sec:structure} develops the
 structure of the tree class: sufficiency, invariance, the margin, selection
 consistency, and how the selection rule is computed. Section~\ref{sec:main} contains the principal result, full-sample
-inference with two optimal trees. Section~\ref{sec:twostage} relaxes the
-requirement that the truth align with a fixed grid: a coarse-grid search
-recovers the tree topology, an off-grid scan refines each threshold at rate
-$n^{-1}$, and the same central limit theorem and variance estimator survive.
-Section~\ref{sec:crossfit} treats the
+inference with two optimal trees, when the truth is exactly representable on
+the analyst's pre-specified grid. Section~\ref{sec:condP} states the same
+central limit theorem and variance estimator under a more general, abstract
+partition-recovery condition that does not require alignment with any
+particular grid. Section~\ref{sec:crossfit} treats the
 cross-fitted estimator, which requires no sparsity condition and serves as the
 anchor for Section~\ref{sec:honest}, where inference remains valid but
 inefficient when sparsity fails. Section~\ref{sec:discussion} discusses the
@@ -124,9 +120,9 @@ Proofs are collected in Appendices~\ref{app:eif}--\ref{app:honest}, keyed to
 result numbers; auxiliary lemmas are in Appendix~\ref{app:aux} and the
 counterexamples are worked in full in Appendix~\ref{app:counterex}. A proof is
 given inline only where the proof is the substance of the result and occupies a
-few lines, with one deliberate exception: Section~\ref{sec:twostage}'s proofs
-are inline in full, because the section is added self-containedly and its
-results are not yet keyed into the appendix numbering. Every numbered
+few lines, with one deliberate exception: Section~\ref{sec:condP}'s proofs
+are inline in full, because its results are not yet keyed into the appendix
+numbering. Every numbered
 statement in this document has a proof. Claims that
 are not proved appear as unnumbered prose in Section~\ref{sec:discussion}.
 
@@ -285,17 +281,15 @@ Results stated on one do not transfer to the other.
 \subsection{Standing assumptions}
 
 Assumption~\ref{ass:solver} is in force throughout the document and is never
-restated as a hypothesis below, with one explicit exception: every search
-space appearing in any result outside Section~\ref{sec:twostage}, capped
+restated as a hypothesis below, with one exception: every search
+space appearing in any result outside Section~\ref{sec:condP}, capped
 ($\cT_{\bar L}$) or uncapped ($\cT_\cA$ of
 Section~\ref{sec:compute}), is by definition built from the pre-specified
-cutpoints it fixes, so no theorem outside Section~\ref{sec:twostage} needs to
-cite it separately. Section~\ref{sec:twostage} is the stated exception:
-relaxing precisely this pre-specified-cutpoint restriction --- without
-paying for it in the combinatorial search --- is the purpose of its
-two-stage procedure, so Assumption~\ref{ass:solver} is restated there as
-Assumption~\ref{ass:solver-twostage}(a) for Stage~A only, and Stage~B is
-explicitly licensed to evaluate observed-value thresholds. Of
+cutpoints it fixes, so no theorem outside Section~\ref{sec:condP} needs to
+cite it separately. Condition~(P) (Section~\ref{sec:condP}) does not require
+Assumption~\ref{ass:solver}: it is stated directly in terms of the fitted and
+reference partitions, independent of how the underlying search space was
+constructed. Of
 Assumptions~\ref{ass:iid}--\ref{ass:finite}, only \ref{ass:iid},
 \ref{ass:causal}, \ref{ass:moments}, and the positive-atom-mass clause of
 \ref{ass:finite} are restrictions on the sampling model $P$; the remaining
@@ -1524,534 +1518,7 @@ is regular, is uniformly valid over the class of
 Definition~\ref{def:uniformity}, and attains $V$.
 
 % ===========================================================================
-\section{A two-stage estimator with off-grid threshold refinement}\label{sec:twostage}
-
-
-The two-stage algorithm used here is the current un-inflated architecture of
-the companion paper. Stage~A searches at the true leaf and depth budgets
-$(\bar L,\bar D)$ -- $\bar D$ denotes the depth budget throughout this
-section, distinct from the ambient covariate dimension $d$ used elsewhere in
-this document -- retains its recovered topology and grid thresholds without
-any collapse operation, and Stage~B refines each threshold over a shrinking
-interval centred at its Stage-A value. The companion results concern one
-regression function. We restate their complete hypotheses separately for the
-propensity and control-outcome nuisances.
-
-For $j\in\{e,\mu\}$, define the nuisance-specific design measures
-\[
-  d\nu_e:=dP_X,
-  \qquad
-  d\nu_\mu:=\{1-\ez(x)\}\,dP_X,
-\]
-and write $\gamma_{0,e}:=\ez$ and $\gamma_{0,\mu}:=\mz$.
-
-\begin{assumption}[Two-stage design measures and boundedness]
-\label{ass:design-twostage}
-For each $j\in\{e,\mu\}$, $\nu_j$ is fixed in $n$ and there are constants
-$0<\underline W_j\le\overline W_j<\infty$, also fixed in $n$, such that
-\[
-  \underline W_j\,dP_X
-  \ \le\
-  d\nu_j
-  \ \le\
-  \overline W_j\,dP_X.
-\]
-Moreover, $\gamma_{0,j}$ is bounded:
-\[
-  \sup_{x\in\cX}\abs{\gamma_{0,j}(x)}
-  \le C_{\gamma,j}<\infty.
-\]
-\end{assumption}
-
-\begin{remark}[Verification for the two nuisance measures]
-\label{rem:design-twostage-verify}
-For the propensity nuisance,
-$d\nu_e=dP_X$, so one may take
-$\underline W_e=\overline W_e=1$, while
-$0\le\gamma_{0,e}=\ez\le1$.
-For the outcome nuisance, Assumption~\ref{ass:causal} gives
-\[
-  c\,dP_X
-  \ \le\
-  d\nu_\mu
-  =
-  (1-\ez)\,dP_X
-  \ \le\
-  dP_X,
-\]
-so one may take $\underline W_\mu=c$ and $\overline W_\mu=1$.
-Jensen's inequality and Assumption~\ref{ass:moments} give
-\[
-  \abs{\mz(x)}^2
-  =
-  \abs{\E[Y\mid A=0,X=x]}^2
-  \le
-  \E[Y^2\mid A=0,X=x]
-  \le C_Y.
-\]
-Thus Assumption~\ref{ass:design-twostage} follows from the existing causal and
-moment assumptions, but it is stated explicitly because it is a named
-hypothesis of Paper A's \texttt{ass:design}.
-\end{remark}
-
-\begin{remark}[Range restriction for the outcome nuisance]
-\label{rem:construct-c-verify}
-Proposition~\ref{prop:boundary-recovery} below cites
-Assumption~\ref{ass:construct} in full, matching Paper A's
-\texttt{thm:stagea-topology}, whose hypothesis list likewise includes its own
-\texttt{ass:construct} in full. That assumption's clause (c) confines the
-\emph{reported} fit to a fixed compact interval containing the range of the
-target, with structure selection using the unrestricted leaf refit; the
-restriction is applied only to the reported fit, and Paper A's own remark
-notes it is not load-bearing for the selection-consistency argument itself.
-Assumption~\ref{ass:construct}(c) as written here confines only the reported
-propensity, via clipping to $[0,1-c]$. For the outcome nuisance, the bound
-$\abs{\mz(x)}^2\le C_Y$ just established gives $\gamma_{0,\mu}$ range
-contained in the fixed compact interval $[-\sqrt{C_Y},\sqrt{C_Y}]$; confining
-the reported $\mhat$ to this interval, exactly as for the propensity and on
-the same terms (reported fit only, selection unrestricted), supplies the
-outcome-side instance of clause (c) that citation fidelity to
-\texttt{thm:stagea-topology} requires. No result below depends on which of
-the two equivalent readings --- an added clause, or this remark discharging
-the existing one --- is adopted.
-\end{remark}
-
-\begin{assumption}[Global design densities for both nuisances]
-\label{ass:global-density-twostage}
-The support of $P_X$ is a fixed compact axis-aligned box
-\[
-  \cX=\prod_{q=1}^d[a_q,b_q].
-\]
-For each $j\in\{e,\mu\}$, $\nu_j$ admits a density $f_j$ with respect to
-Lebesgue measure on all of $\cX$, and there are common constants
-$0<f_{\min}\le f_{\max}<\infty$, fixed in $n$, such that
-\[
-  f_{\min}
-  \le
-  f_j(x)
-  \le
-  f_{\max}
-  \qquad
-  \text{for Lebesgue-a.e.\ }x\in\cX.
-\]
-\end{assumption}
-
-\begin{remark}[Global density is an additional condition]
-\label{rem:global-density-twostage}
-Assumption~\ref{ass:global-density-twostage} is not implied by density bounds
-restricted to collars of the true splitting faces. Paper A's
-\texttt{thm:gtm-b} requires a global density floor and ceiling to exclude
-candidate trees that split on wrong coordinates and whose cells need not meet
-any true-boundary collar. If $P_X$ itself has density
-$f_P$ satisfying $\underline f\le f_P\le\overline f$, then
-\[
-  f_e=f_P,
-  \qquad
-  f_\mu=(1-\ez)f_P,
-  \qquad
-  c\underline f\le f_\mu\le\overline f,
-\]
-which verifies the condition simultaneously for both nuisances.
-\end{remark}
-
-For each $j\in\{e,\mu\}$, let $\cTcont$ denote the class of axis-aligned
-continuum-threshold tree partitions with at most $\bar L$ leaves and depth at
-most $\bar D$, and define
-\[
-  \cS_j^{\mathrm{cont}}
-  :=
-  \left\{
-    \tau\in\cTcont:
-    \gamma_{0,j}\text{ is }\nu_j\text{-a.s.\ constant on every leaf of }\tau
-  \right\}.
-\]
-
-\begin{definition}[True nuisance trees]
-\label{def:true-trees}
-A tree $\tau\in\cS_j^{\mathrm{cont}}$ is minimal if its leaf count is no larger
-than that of every other element of $\cS_j^{\mathrm{cont}}$. Two minimal trees
-are equivalent if they induce the same leaf partition of $\cX$, modulo
-$\nu_j$-null sets, irrespective of the ordering of commuting split tests.
-For each $j$, assume all minimal elements of $\cS_j^{\mathrm{cont}}$ are
-equivalent and fix one canonical realisation $\tau_{0,j}$ of this equivalence
-class. Write $s_{0,j}$ for its number of internal splits, so its leaf count is
-$s_{0,j}+1\le\bar L$, and write $(q_{j,N},c_{0,j,N})$ for the coordinate and
-threshold of its internal node $N$.
-\end{definition}
-
-\begin{assumption}[Continuum sparsity, jump regularity, and local design]
-\label{ass:sparsity-jump}
-For each $j\in\{e,\mu\}$, the following conditions hold, with all constants
-fixed uniformly over the internal nodes of $\tau_{0,j}$ and in $n$.
-\begin{enumerate}[leftmargin=*]
-  \item[(S)] \emph{Tree realisability.}
-  The class $\cS_j^{\mathrm{cont}}$ is nonempty. Its leaf and depth budgets are
-  fixed and compatible:
-  \[
-    \lceil\log_2\bar L\rceil\le\bar D,
-    \qquad\text{equivalently}\qquad
-    \bar L\le2^{\bar D}.
-  \]
-
-  \item[(J)] \emph{Genuine jumps, pooled across each split.}
-  For an internal node $N$, let
-  \[
-    H^-_{j,N}
-    :=
-    \{x\in R_{j,N}:x_{q_{j,N}}\le c_{0,j,N}\},
-    \qquad
-    H^+_{j,N}:=R_{j,N}\setminus H^-_{j,N},
-  \]
-  and define
-  \[
-    \gamma^{\mathrm{pool}}_{j,N,\pm}
-    :=
-    \frac{1}{\nu_j(H^\pm_{j,N})}
-    \int_{H^\pm_{j,N}}\gamma_{0,j}\,d\nu_j.
-  \]
-  Then
-  \[
-    \kappa_{\min}
-    \le
-    \abs{
-      \gamma^{\mathrm{pool}}_{j,N,+}
-      -
-      \gamma^{\mathrm{pool}}_{j,N,-}
-    }
-    \le
-    \kappa_{\max}.
-  \]
-
-  \item[(Local-Jump)] \emph{Jumps across every adjacent leaf pair belonging
-  to a true split.}
-  For every pair of leaves adjacent across the boundary generated by $N$,
-  their population values $\gamma^-_{j,N,r}$ and $\gamma^+_{j,N,r}$ satisfy
-  \[
-    \kappa_{\min}
-    \le
-    \abs{\gamma^+_{j,N,r}-\gamma^-_{j,N,r}}
-    \le
-    \kappa_{\max}.
-  \]
-
-  \item[(Reduced)] \emph{Reducedness of the true partition.}
-  Clause (Local-Jump) holds for every geometrically adjacent pair of true
-  leaves: whenever two leaves of the true partition share a relatively open
-  codimension-one face, their population values differ by an amount in
-  $[\kappa_{\min},\kappa_{\max}]$, whether or not that face is the face of one
-  true split. Equivalently, no two geometrically adjacent true leaves carry
-  the same value.
-
-  \item[(Sep)] \emph{Separation and interiority.}
-  Distinct true boundaries on the same coordinate are separated by at least
-  $\varsigma>0$, and every true boundary is at least $\varsigma$ from the
-  relevant support boundary.
-
-  \item[(Dens)] \emph{Local connected density.}
-  For
-  \[
-    R^+_{j,N}
-    :=
-    \{x\in\cX:
-      \operatorname{dist}_\infty(x,R_{j,N})\le\varsigma/2\},
-  \]
-  the restriction of $\nu_j$ to $R^+_{j,N}$ has density bounded between
-  $f_{\min}$ and $f_{\max}$. The collars $R^+_{j,N}$ are fixed compact
-  rectangles with coordinate diameters bounded by a fixed
-  $D_{\max}<\infty$.
-
-  \item[(Node)] \emph{Positive node mass.}
-  Every true node and leaf has $\nu_j$-mass at least $q_{\min}>0$.
-
-  \item[(Joint)] \emph{Ancestor--descendant joint density.}
-  If an ancestor split uses coordinate $q_a$, a descendant uses $q_\ell$, and
-  $q_a\ne q_\ell$, then under $\nu_j$ the pair
-  $(X_{q_a},X_{q_\ell})$ has a joint density bounded above by a fixed
-  $\bar f_2<\infty$ near the corresponding pair of true thresholds.
-\end{enumerate}
-\end{assumption}
-
-\begin{remark}[Reducedness is independent of minimality]
-\label{rem:reduced-independent-twostage}
-Clause (Reduced) is not implied by the minimality in
-Definition~\ref{def:true-trees}. For example, split $[0,1]^2$ at $x_1=1/2$
-and split only the left child at $x_2=1/2$, producing
-\[
-  UL=[0,\tfrac12]\times[\tfrac12,1],
-  \quad
-  LL=[0,\tfrac12]\times[0,\tfrac12],
-  \quad
-  R=[\tfrac12,1]\times[0,1].
-\]
-Give $UL$ and $R$ the same value and $LL$ a different value. Then $UL$ and
-$R$ are geometrically adjacent and equal-valued, but $UL\cup R$ is L-shaped
-and cannot be represented as one axis-aligned tree leaf. The three-leaf tree
-can therefore be minimal while failing (Reduced). Paper A uses (Reduced) in
-\texttt{thm:gtm-b}; it is an independent required hypothesis here.
-\end{remark}
-
-For resolution $r$, let $\cA_r$ be the full product grid generated by $r$
-cutpoints per coordinate, with mesh $O(r^{-1})$ and
-\[
-  N_r:=\card{\cA_r}\asymp r^d.
-\]
-Stage~A globally minimises the penalised empirical risk over trees built from
-$\cA_r$ at the actual budgets $(\bar L,\bar D)$. It retains the topology and every
-Stage-A grid threshold; no split is collapsed, merged, or discarded.
-
-\begin{definition}[Stage-B search intervals]
-\label{def:stageb-interval}
-Let
-\[
-  M_n\to\infty,
-  \qquad
-  \frac{M_n}{r_n}\to0,
-  \qquad
-  \rho_n:=\frac{M_n}{r_n}.
-\]
-For nuisance $j$ and a node $N$ of the Stage-A topology with Stage-A threshold
-$\hat t^A_{j,N}$, define
-\[
-  I_{j,n}(N)
-  :=
-  [\hat t^A_{j,N}-\rho_n,\,
-   \hat t^A_{j,N}+\rho_n].
-\]
-The endpoints depend only on Stage~A. During the root-first Stage-B sweep, the
-observations scanned at $N$ are those in the cell determined by already-refined
-ancestors, but $I_{j,n}(N)$ itself does not move.
-\end{definition}
-
-\begin{assumption}[Two-stage solver fidelity]
-\label{ass:solver-twostage}
-For each $j\in\{e,\mu\}$:
-\begin{enumerate}[label=(\alph*),nosep]
-  \item \emph{Stage-A exactness.}
-  Stage~A attains the global penalised empirical-risk minimum over the
-  grid-restricted class at budgets $(\bar L,\bar D)$. Every Stage-A split lies
-  at a cutpoint of $\cA_{r_n}$, so Assumption~\ref{ass:solver} remains in
-  force for Stage~A itself.
-
-  \item \emph{Stage-B exactness and scope.}
-  In fixed root-first order, Stage~B attains the global minimum over the
-  observed values in $I_{j,n}(N)$ while holding all other thresholds fixed:
-  ancestors at their refined values and descendants or other unvisited nodes
-  at their Stage-A values. It is a sequence of exact one-threshold scans, not
-  a joint minimisation over all thresholds. Only Stage~B may evaluate
-  continuous or observed-value thresholds; relaxing precisely this
-  restriction, without paying for it in the combinatorial search, is the
-  purpose of this two-stage procedure.
-
-  \item \emph{Full-sample construction.}
-  Both stages use all $n$ observations.
-
-  \item \emph{Topology preservation.}
-  Stage~B moves thresholds only: it adds, deletes, reorders, and
-  re-coordinates no split.
-
-  \item \emph{Certified search intervals.}
-  The intervals are exactly those of Definition~\ref{def:stageb-interval}.
-  Their simultaneous containment, separation, and collar properties are the
-  conclusions of Proposition~\ref{prop:search-interval}, rather than an
-  independent solver assumption.
-
-  \item \emph{Measurability.}
-  Both stages use deterministic measurable tie-breaking rules.
-
-  \item \emph{Refined leaf mass.}
-  There is $\rho>0$, fixed in $n$, such that, with probability tending to one,
-  every refined propensity leaf contains at least $\rho n$ observations and
-  every refined outcome leaf contains at least $\rho n$ controls. The
-  corresponding true-partition leaf-mass floors follow from
-  Assumptions~\ref{ass:design-twostage} and
-  \ref{ass:sparsity-jump}(Node) and the law of large numbers.
-\end{enumerate}
-\end{assumption}
-
-Every Stage-A result below is stated along a joint sequence
-$(n,r_n,\lambda_n,m_n)$ satisfying Paper A's current conditions
-\texttt{eq:stage-a-rates}:
-\begin{equation}\label{eq:stage-a-rates}
-\begin{aligned}
-  &\text{(R1)}&&r_n\to\infty,
-    \qquad r_n=o\bigl(\sqrt{n/\log r_n}\bigr);\\
-  &\text{(R2)}&&\lambda_n\to0;\\
-  &\text{(R3)}&&
-    \max\Bigl(\frac1{r_n},\sqrt{\frac{\log r_n}{n}}\Bigr)
-    \ll\lambda_n\ll1;\\
-  &\text{(R4)}&&m_n\to\infty,
-    \qquad\frac{m_nr_n}{n}\to0,
-    \qquad m_n\lambda_n\to\infty;\\
-  &\text{(R5)}&&\frac{m_n}{\sqrt n}\to\infty.
-\end{aligned}
-\end{equation}
-
-\begin{remark}[Compatibility of the leaf-count rates]
-\label{rem:stage-a-rate-compatibility}
-Conditions (R1), (R4), and (R5) are compatible with
-Assumption~\ref{ass:construct}(d). Indeed, (R1) implies
-\[
-  \frac{\sqrt n}{n/r_n}
-  =
-  \frac{r_n}{\sqrt n}
-  \longrightarrow0,
-\]
-so there exist sequences satisfying
-\[
-  \sqrt n\ll m_n\ll n/r_n.
-\]
-Because $\bar L$ is fixed, $m_n=o(n/r_n)$ and $r_n\to\infty$ imply
-$\bar Lm_n/n\to0$, which is stronger than
-$\bar Lm_n\lesssim n$. Thus (R5)'s lower bound does not conflict with
-Assumption~\ref{ass:construct}(d)'s upper bound.
-\end{remark}
-
-\begin{remark}[Penalty direction versus the fixed-grid regime]
-\label{rem:penalty-regime-tension}
-Condition (R3) requires
-\[
-  \lambda_n\gg1/r_n,
-\]
-because the penalty must dominate the Stage-A grid-approximation error. This is
-the reverse of the mechanism used in Section~\ref{sec:structure}, where the
-fixed-grid argument invokes
-$\lambda_n\bar L<\Delta_j/2$. The two statements concern different regimes,
-and no equivalence between their proof mechanisms is asserted here. Their
-joint compatibility, including the risk-normalisation used to define
-$\Delta_j$, should be checked explicitly in the next audit pass rather than
-silently inferred.
-\end{remark}
-
-\begin{proposition}[Stage-A topology recovery --- restated from Paper A's
-\texttt{thm:stagea-topology}]
-\label{prop:boundary-recovery}
-Suppose Assumptions~\ref{ass:iid}, \ref{ass:causal},
-\ref{ass:moments}, \ref{ass:construct}, \ref{ass:budget},
-\ref{ass:global}, \ref{ass:design-twostage},
-\ref{ass:global-density-twostage}, \ref{ass:sparsity-jump}, and
-\ref{ass:solver-twostage}(a) hold for nuisance $j$
-(Remark~\ref{rem:construct-c-verify} verifies Assumption~\ref{ass:construct}(c)
-for $j=\mu$). Let $r_n\ge r_0$ and
-suppose \eqref{eq:stage-a-rates} holds. Then every Stage-A penalised global
-minimiser $\hat\tau^A_{j,n}$ satisfies, with probability tending to one:
-\begin{enumerate}[label=(\roman*),nosep]
-  \item
-  \[
-    s(\hat\tau^A_{j,n})=s_{0,j};
-  \]
-  \item $\hat\tau^A_{j,n}$ structurally matches $\tau_{0,j}$ in the
-  partition-level sense of Paper A's
-  \texttt{def:structural-matching}, inducing a canonical matching
-  $N\mapsto N_0$ of Stage-A and true nodes;
-  \item under that matching,
-  \[
-    \max_N
-    \abs{\hat t^A_{j,N}-c_{0,j,N_0}}
-    =
-    O_p(1/r_n).
-  \]
-\end{enumerate}
-The result uses the actual budgets $(\bar L,\bar D)$; no inflated budget or collapse
-map appears.
-\end{proposition}
-
-\begin{proposition}[Search-interval validity --- restated from Paper A's
-\texttt{prop:search-interval}]
-\label{prop:search-interval}
-Under the hypotheses of Proposition~\ref{prop:boundary-recovery} and the
-conditions on $M_n$ in Definition~\ref{def:stageb-interval}, the following
-hold simultaneously over all Stage-A nodes and both nuisances, with probability
-tending to one:
-\begin{enumerate}[label=(\arabic*),nosep]
-  \item the matched true threshold belongs to $I_{j,n}(N)$;
-  \item $I_{j,n}(N)$ contains no other true threshold on the same coordinate;
-  \item $I_{j,n}(N)$ is contained in the fixed density collar
-  $R^+_{j,N_0}$.
-\end{enumerate}
-\end{proposition}
-
-Let $E_{j,n}$ denote the event on which
-Proposition~\ref{prop:boundary-recovery}(i)--(iii) and
-Proposition~\ref{prop:search-interval}(1)--(3) hold for nuisance $j$, and set
-\[
-  E_n:=E_{e,n}\cap E_{\mu,n}.
-\]
-Because there are only two nuisances and at most $\bar L-1$ boundaries per
-nuisance,
-\[
-  \PP(E_n)\longrightarrow1.
-\]
-
-\begin{proposition}[Simultaneous superconsistency of all refined boundaries
---- restated from Paper A's \texttt{prop:twostage-superconsistency}]
-\label{prop:twostage-superconsistency}
-Suppose the full hypothesis set of
-Proposition~\ref{prop:boundary-recovery} holds for both nuisances, including
-the complete rate conditions \eqref{eq:stage-a-rates}. Suppose additionally
-that Assumption~\ref{ass:sparsity-jump}(Joint) and all clauses of
-Assumption~\ref{ass:solver-twostage} hold, and that
-\[
-  M_n\to\infty,
-  \qquad
-  M_n/r_n\to0.
-\]
-Then every Stage-B-refined boundary satisfies
-\[
-  \hat c_{j,k}-c_{0,j,k}
-  =
-  O_p(n^{-1}),
-  \qquad
-  j\in\{e,\mu\},
-  \qquad
-  1\le k\le K_j,
-  \qquad
-  K_j=s_{0,j}\le\bar L-1.
-\]
-Equivalently, the conclusion holds jointly:
-\[
-  \max_{j\in\{e,\mu\}}
-  \max_{1\le k\le K_j}
-  n\abs{\hat c_{j,k}-c_{0,j,k}}
-  =
-  O_p(1).
-\]
-This is Paper A's current result, whose proof invokes
-\texttt{lem:interval-reduction}; it does not rely on a fixed-width bracket.
-\end{proposition}
-
-\begin{remark}[Role and scale of the Stage-B interval]
-\label{rem:stage-b-interval-scale}
-Clause~(e) of Assumption~\ref{ass:solver-twostage} is certified by
-Proposition~\ref{prop:search-interval}, not assumed independently.
-Both scale conditions are load-bearing:
-\[
-  M_n\to\infty
-  \quad\text{makes}\quad
-  \rho_n=M_n/r_n
-  \ \text{larger than the }O_p(r_n^{-1})\text{ Stage-A error},
-\]
-whereas
-\[
-  M_n/r_n\to0
-  \quad\text{makes}\quad
-  I_{j,n}(N)\text{ shrink and eventually exclude other boundaries}.
-\]
-No additional requirement such as $r_n\asymp n^{1/2}$ or $r_n\asymp n$ is
-imposed, but it would be incorrect to omit the interval-scale conditions
-altogether.
-
-% [Editorial note, 2026-09-04: the non-causal topology and threshold
-% machinery is proved in optimaltrees/inst/paper/main.tex. The current
-% dependency chain is:
-% lem:grid-optimal; lem:topol-margin; thm:gtm-b;
-% lem:snapped-oracle; thm:stagea-topology; prop:search-interval;
-% lem:interval-reduction; prop:twostage-superconsistency.
-% The former prop:parsimony-grid, lem:bracket-reduction, transition-leaf
-% proposition, inflated budgets, and collapse map are not part of Paper A's
-% current architecture.]
-\end{remark}
-
-\subsection{Full-sample inference after topology recovery}
+\section{General efficiency under partition recovery}\label{sec:condP}
 
 \begin{definition}[Partition recovery -- Condition~(P)]
 \label{cond:P}
@@ -2092,10 +1559,7 @@ $2\rho_\mu n$ control observations with probability tending to one. By (P2),
 moving from the reference to the fitted partition changes each relevant
 count by at most $O_p(1)$, so for some fixed $\rho>0$ (depending on $j$) both
 the reference and fitted denominators are at least $\rho n$ with probability
-tending to one. The anchor-side content of
-Assumption~\ref{ass:solver-twostage}(g) is therefore not a separate
-hypothesis of Theorem~\ref{thm:main-P} below; clause (g) is retained because
-its fitted-partition content is still used elsewhere.
+tending to one.
 \end{remark}
 
 \begin{theorem}[Central limit theorem under Condition~(P)]
@@ -2318,11 +1782,7 @@ practice, since it is the one a weaker abstraction could plausibly invite --
 stated. Under a merely vanishing-rate count, $\card{S_n}$ need not stay
 bounded, and the product $\card{S_n}B_n/n$ can then exceed $o_p(n^{-1/2})$: a
 bounded outcome or a cross-fitted selection step would each independently
-repair this, but neither is assumed, and neither is needed here. The
-two-stage machinery of Proposition~\ref{prop:P-twostage} below in fact
-delivers the bounded count directly via
-Proposition~\ref{prop:twostage-superconsistency}'s sharp $O_p(n^{-1})$
-threshold rate -- strictly more than (P2) requires.
+repair this, but neither is assumed, and neither is needed here.
 \end{remark}
 
 \begin{corollary}[Variance estimation under Condition~(P)]
@@ -2423,9 +1883,8 @@ The proof uses only empirical-$L_2$ convergence of the fitted
 influence-function summand, not sup-norm convergence of the fitted
 nuisances -- the latter need not hold once (P1) permits leaf reassignment at
 a fixed reference. Its essential inputs are the fixed-anchor leaf-refit rate
-(Lemma~\ref{lem:findim}) and Condition~(P2)'s bounded reassignment set; no
-clause of Assumption~\ref{ass:sparsity-jump} is used, since that assumption
-is specific to the two-stage instantiation below. Two further points from
+(Lemma~\ref{lem:findim}) and Condition~(P2)'s bounded reassignment set. Two
+further points from
 Corollary~\ref{cor:variance}'s proof are also unnecessary here:
 Lemma~\ref{lem:invariance}, because the expansion is anchored at a single
 fixed partition rather than made uniform over a class; and
@@ -2433,170 +1892,9 @@ Lemma~\ref{lem:selection}, replaced by $\PP(E_n)\to1$.
 % [Editorial note, 2026-09-04: this empirical-L2 proof route (rather than
 % Corollary~\ref{cor:variance}'s sup-norm route, which provably does not
 % apply here) was independently proof-audited during the C8/C9 remediation
-% pass and found sound: it uses no clause of Assumption~\ref{ass:sparsity-jump}
-% (grep-verified), correctly avoids Lemma~\ref{lem:invariance} and
-% Lemma~\ref{lem:selection}, and its empirical-L2 arithmetic checks out. It is
-% load-bearing for Theorem~\ref{thm:main-P}'s variance corollary and, through
-% Proposition~\ref{prop:P-twostage} below, for the manuscript's
-% Instantiation~2 as well.]
+% pass and found sound: it correctly avoids Lemma~\ref{lem:invariance} and
+% Lemma~\ref{lem:selection}, and its empirical-L2 arithmetic checks out.]
 
-\begin{proposition}[The two-stage guarantees imply Condition~(P)]
-\label{prop:P-twostage}
-Suppose the full hypotheses of Propositions~\ref{prop:boundary-recovery},
-\ref{prop:search-interval}, and \ref{prop:twostage-superconsistency} hold for
-both nuisances. Then Condition~(P) holds for both $j\in\{e,\mu\}$.
-\end{proposition}
-
-\begin{proof}
-Clause (P0) follows from Definition~\ref{def:true-trees} and
-Assumption~\ref{ass:sparsity-jump}(S), with positive leaf mass supplied by
-(Node); these give $\nu_j$-a.s.\ leaf-constancy and positive $\nu_j$-mass,
-which is exactly what (P0) requires. (For $j=\mu$ this differs formally
-from $P$-a.s.\ constancy, but $\nu_\mu\sim P_X$ by
-Assumption~\ref{ass:causal}'s $1-e_0\ge c>0$, so the two are equivalent; for
-$j=e$, $\nu_e=P_X$ and no conversion is needed.) Clause (P1) is
-Proposition~\ref{prop:boundary-recovery}(i)--(ii): the Stage-A partition
-structurally matches the true partition in the partition-level sense, and
-Assumption~\ref{ass:solver-twostage}(d) preserves that leaf collection
-through Stage~B.
-
-For (P2), Proposition~\ref{prop:twostage-superconsistency} gives
-\[
-  R_n:=n\max_{j,k}\abs{\hat c_{j,k}-c_{0,j,k}}=O_p(1).
-\]
-For fixed $M>0$, the number of observations lying in the union of the
-width-$M/n$ slabs around the finitely many true boundaries has expectation
-bounded by a constant, by the local upper density bound of
-Assumption~\ref{ass:sparsity-jump}(Dens) (a bound on $\nu_j$-density, which
-converts to a bound on the count of \emph{observations}, a $P_X$-mass
-quantity, via the same $\nu_j\sim P_X$ equivalence noted above); Markov's
-inequality makes that count $O_p(1)$. Since $R_n=O_p(1)$, $M$ can be chosen
-so that all fitted boundaries lie in those slabs with arbitrarily high
-probability. On that event, every observation whose leaf assignment
-changes between the true and fitted partitions must lie within one of
-these slabs: by the matched-node correspondence of (P1), an observation
-outside every slab is on the same side of every true (equivalently,
-matched fitted) boundary it could cross, hence follows the same root-to-leaf
-path under both partitions and is not reassigned; taking the contrapositive,
-every reassigned observation lies in their union, so $\card{S_{j,n}}=O_p(1)$
-for each $j$.
-\end{proof}
-
-\paragraph{Proof audit.}
-The full hypothesis sets of the three cited propositions retain
-Assumptions~\ref{ass:design-twostage}, \ref{ass:global-density-twostage},
-\ref{ass:sparsity-jump}, and \ref{ass:solver-twostage} in their entirety;
-none of the citation-fidelity conditions fixed in the C1--C7 pass is dropped
-or transferred to Theorem~\ref{thm:main-P} -- they remain hypotheses of the
-propositions cited here, which are what verifies Condition~(P) for this
-instantiation.
-
-\begin{corollary}[Full-sample two-stage central limit theorem]
-\label{thm:main-twostage}
-Under the hypotheses of Proposition~\ref{prop:P-twostage},
-\[
-  \sqrt n\bigl(\thetahat-\theta_0\bigr)
-  \rightsquigarrow N(0,V),
-\]
-where $V$ is the same variance as in~\eqref{eq:vdecomp}.
-\end{corollary}
-
-\begin{proof}
-Proposition~\ref{prop:P-twostage} verifies Condition~(P) for both nuisances;
-the conclusion is Theorem~\ref{thm:main-P}.
-\end{proof}
-
-\begin{remark}
-Under the two-stage estimator, both realised nuisance errors are
-$O_p(n^{-1/2})$. Consequently the width conclusion of
-Corollary~\ref{cor:width} automatically reduces to $O_p(n^{-1/2})$; no
-modification of that corollary is required.
-\end{remark}
-
-\begin{corollary}[Variance estimation and confidence intervals, two-stage]
-\label{cor:variance-twostage}
-Under the hypotheses of Proposition~\ref{prop:P-twostage}, write
-$\thetahat=\thetahat(\hat c)$, $\ehat=\ehat(\cdot;\hat c)$ and
-$\mhat=\mhat(\cdot;\hat c)$ for the estimator and the fitted nuisances formed
-from the Stage-B refined partitions. Let $\Vhat$ be the plug-in of
-\eqref{eq:vhat} evaluated at these two-stage fits. Then $\Vhat\to_pV$, with
-$V$ as in \eqref{eq:vdecomp}, and
-$\thetahat\pm z_{1-\alpha/2}\sqrt{\Vhat/n}$ has asymptotic coverage
-$1-\alpha$ for $\theta_0$, pointwise in $P$.
-\end{corollary}
-
-\begin{proof}
-Proposition~\ref{prop:P-twostage} verifies Condition~(P) for both nuisances;
-apply Corollary~\ref{cor:variance-P}.
-\end{proof}
-
-\begin{remark}[Finite-sample bias order, two-stage]
-The finite-sample downward bias of $\Vhat$ is of relative order
-\[
-  \frac{L_{0,e}+L_{0,\mu}+1}{n},
-  \qquad
-  L_{0,j}:=s_{0,j}+1\le\bar L,
-\]
-and is therefore bounded in order by $(2\bar L+1)/n$. By
-Proposition~\ref{prop:boundary-recovery}(i) and topology preservation in
-Assumption~\ref{ass:solver-twostage}(d), the refined trees carry exactly
-their true split counts with probability tending to one. Stage~A introduces
-no additional leaves and no collapse operation is performed. This refinement
-uses the exact leaf count Proposition~\ref{prop:boundary-recovery} supplies
-and is specific to this instantiation; Corollary~\ref{cor:variance-P}'s
-abstract bound $(2\bar L+1)/n$ is unaffected either way.
-\end{remark}
-% [Editorial note, 2026-09-01: Corollary~\ref{cor:variance-twostage} closes
-% what an earlier session's audit flagged as "S6: missing variance/CI
-% corollary." Its proof route is now inherited from
-% Corollary~\ref{cor:variance-P} above; see that corollary's proof audit for
-% the still-outstanding independent-audit caveat.]
-
-\begin{remark}[Grid schedule in practice]\label{rem:grid-practice}
-The current theoretical mechanism uses the true budgets $(\bar L,\bar D)$ in
-Stage~A. A grid-misaligned boundary is represented by one Stage-A split within
-$O_p(r_n^{-1})$ of the truth; no transition leaf, inflated budget, or collapse
-map is used. Stage~B then scans observed values in
-\[
-  I_{j,n}(N)
-  =
-  [\hat t^A_{j,N}-M_n/r_n,\,
-   \hat t^A_{j,N}+M_n/r_n],
-\]
-where $M_n\to\infty$ and $M_n/r_n\to0$, and supplies every final off-grid
-threshold value.
-
-No default finite-sample grid schedule is asserted. Any implementation must
-jointly respect (R1)--(R5), including
-\[
-  r_n=o\bigl(\sqrt{n/\log r_n}\bigr),
-  \qquad
-  \max\Bigl(\frac1{r_n},\sqrt{\frac{\log r_n}{n}}\Bigr)
-  \ll\lambda_n\ll1,
-\]
-\[
-  \frac{m_nr_n}{n}\to0,
-  \qquad
-  m_n\lambda_n\to\infty,
-  \qquad
-  \frac{m_n}{\sqrt n}\to\infty,
-\]
-together with the Stage-B interval conditions. These asymptotic restrictions
-do not identify a validated finite-sample default. The implementation status
-of a single orchestrating wrapper for this revised, non-collapse architecture
-must be reverified separately and is not asserted here.
-\end{remark}
-% [Editorial note, 2026-09-04: this remark was rewritten as part of the
-% C1-C7 citation-drift fix. The prior version's "collapse map"/"Milestone A"
-% (as_coordinate_tree(), collapse_transitions(), refine_tree_cuts()) claims
-% referred to Paper A's pre-remediation, inflated-budget architecture and are
-% now stale -- Paper A's current thm:stagea-topology uses the true budgets
-% $(\bar L,\bar D)$ directly, with no collapse step. Whether any companion-package
-% routine still implements a collapse map, and whether a single orchestrating
-% wrapper exists for the current non-collapse two-stage estimator, must be
-% reverified against the optimaltrees package directly rather than inferred
-% from this now-superseded note.]
-% ===========================================================================
 \section{Cross-fitted inference with optimal-tree nuisances}\label{sec:crossfit}
 
 The estimator of this section drops Assumption~\ref{ass:sparsity} and imposes no
@@ -4953,33 +4251,13 @@ Lem.~\ref{lem:cross} & Cross term & §4.2, statement only & 0.4 \\
 Lem.~\ref{lem:uniform} & Uniform asymptotic linearity & §4.2, statement only & 0.4 \\
 Thm.~\ref{thm:main} & Main central limit theorem & §4.3 & 0.5 \\
 Cor.~\ref{cor:variance} & Variance and intervals & §4.3 & 0.4 \\
-\multicolumn{4}{@{}l}{\emph{Section~\ref{sec:twostage}: two-stage
-  off-grid refinement (not yet assigned in submitted paper)}}\\[2pt]
-Ass.~\ref{ass:sparsity-jump} & Continuum sparsity, jump regularity, local design
-  & Not yet in submitted paper (restated from companion paper) & 0.2 \\
-Prop.~\ref{prop:boundary-recovery} & Stage-A topology recovery
-  & Not yet in submitted paper (restated from companion paper) & 0.2 \\
-Prop.~\ref{prop:search-interval} & Search-interval validity
-  & Not yet in submitted paper (restated from companion paper) & 0.1 \\
-Prop.~\ref{prop:twostage-superconsistency} & Simultaneous superconsistency
-  & Not yet in submitted paper (restated from companion paper) & 0.2 \\
---- & Topology-recovery machinery underlying the four restated results above
-  (grid-optimal class, refining-grid margin, budget binds at fixed
-  resolution, fixed-bracket reduction, stability under Stage-A descendants,
-  prism decomposition, contamination-robust localisation) --
-  moved 2026-09-01, no causal content
-  & Companion paper (\texttt{optimaltrees/inst/paper/main.tex}, \S2--4) & --- \\
-Def.~\ref{cond:P} & Partition recovery -- Condition~(P) & §\ref{sec:twostage} & --- \\
+\multicolumn{4}{@{}l}{\emph{Section~\ref{sec:condP}: general efficiency under
+  partition recovery}}\\[2pt]
+Def.~\ref{cond:P} & Partition recovery -- Condition~(P) & §\ref{sec:condP} & --- \\
 Thm.~\ref{thm:main-P} (alias Lem.~\ref{lem:anchor-perturb}) & Central limit
   theorem under Condition~(P) & Manuscript's Thm.~\texttt{thm:main} & 0.4 \\
 Cor.~\ref{cor:variance-P} & Variance estimation under Condition~(P)
-  & Not yet in submitted paper & 0.3 \\
-Prop.~\ref{prop:P-twostage} & The two-stage guarantees imply Condition~(P)
-  & Manuscript's Prop.~\texttt{prop:P-instantiation2} & 0.3 \\
-Cor.~\ref{thm:main-twostage} & Two-stage limit theorem (corollary of
-  Thm.~\ref{thm:main-P}) & Not yet in submitted paper & 0.1 \\
-Cor.~\ref{cor:variance-twostage} & Two-stage variance and intervals
-  (corollary of Cor.~\ref{cor:variance-P}) & Not yet in submitted paper & 0.1 \\[4pt]
+  & Not yet in submitted paper & 0.3 \\[4pt]
 \multicolumn{4}{@{}l}{\emph{Main text, continued}}\\[2pt]
 Thm.~\ref{thm:uniform-cover} & Uniform coverage & §4.4 & 0.3 \\
 Thm.~\ref{thm:regular} & Regularity and efficiency & §4.5 & 0.5 \\
