@@ -9,9 +9,19 @@
 # Every parameter has a working default, so sourcing this file interactively
 # yields a runnable configuration.
 #
-# Run time: ~3-4 h on 8 workers at REPS = 500 (dominated by the exact
-# optimal-tree fits in the n = 20000, Lbar in {20, 30} cells; a single depth-7
-# outcome fit at n = 20000 is ~45 s).
+# Run time: dominated by the exact optimal-tree fits at the largest n, Lbar
+# cells (a single depth-6 outcome fit at n = 20000, Lbar = 20 is ~45 s).
+#
+# Lbar = 30 is DELIBERATELY DROPPED from the default grid (2026-09-08): the
+# 2026-09-08 run crashed at Lbar = 30 calibration (n = 2000, the cheapest
+# cell) with "Model limit exceeded" -- Configuration::model_limit (10,000)
+# was hit by tied-optimal-score trees during single-tree extraction, not by
+# a Rashomon-set request. See
+# quality_reports/2026-09-08_optimaltrees-p5-feasibility-status.md and
+# Oracle's tie-explosion analysis. Re-add Lbar = 30 via RTVR_L once the
+# extractor's deterministic-single-optimum fix (models.hpp) lands and the
+# runtime curve from Lbar in {5,10,20} says the architecture is still worth
+# extending that far.
 # ---------------------------------------------------------------------------
 
 library(optimaltrees)
@@ -25,7 +35,7 @@ library(dplyr)
 REPS <- as.integer(Sys.getenv("RTVR_REPS", "500"))
 WORKERS <- as.integer(Sys.getenv("RTVR_WORKERS", "8"))
 N_GRID <- as.integer(strsplit(Sys.getenv("RTVR_N", "2000,5000,10000,20000"), ",")[[1]])
-L_GRID <- as.integer(strsplit(Sys.getenv("RTVR_L", "5,10,20,30"), ",")[[1]])
+L_GRID <- as.integer(strsplit(Sys.getenv("RTVR_L", "5,10,20"), ",")[[1]])  # 30 dropped, see header note
 FIT_TIME_LIMIT <- as.numeric(Sys.getenv("RTVR_FIT_TIME_LIMIT", "600"))
 SEED <- as.integer(Sys.getenv("RTVR_SEED", "20260908"))
 RESULT_DIR <- Sys.getenv("RTVR_RESULT_DIR", "results")

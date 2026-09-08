@@ -1,7 +1,7 @@
 # Requirements Specification: empirical size of the value-recovery remainder terms
 
 **Date:** 2026-09-08
-**Status:** implemented
+**Status:** implemented; grid revised 2026-09-08 (Lbar=30 dropped, see §Update)
 **Question:** At practical `n` (thousands) and leaf budget `Lbar` (10–30), are the
 finite-sample remainders `T_a` and `T_eps` of the value-recovery inference route
 actually `o_p(n^{-1/2})`, or do they behave as badly as the crude theoretical
@@ -25,6 +25,29 @@ Crude worst-case bounds are notoriously loose, so this study measures the terms
 directly instead of arguing about the bound.
 
 **Scope:** measurement only. This study does not attempt to repair the theory.
+
+---
+
+## Update, 2026-09-08: Lbar=30 dropped from the grid
+
+The first full run crashed during lambda calibration at `Lbar=30, n=2000` (the
+cheapest cell in that batch) with `Model limit exceeded` from the underlying
+GOSDT/TreeFARMS single-tree extractor (`Configuration::model_limit`, default
+10,000, exceeded by tied-optimal-score trees -- NOT a Rashomon-set request).
+Oracle's analysis: the tree count realizing a full product partition over `d`
+binary features follows `T(d) = d*T(d-1)^2` (`T(4)=576`, `T(5)=1,658,880`),
+which brackets the observed L=20-pass / L=30-fail boundary almost exactly.
+These ties are partition-identical (same fitted function), so they are a
+fixable extractor defect (deterministic single-optimum selection instead of
+enumerating the full cross-product of tied children), not evidence against
+the architecture. Full writeup:
+`quality_reports/2026-09-08_optimaltrees-p5-feasibility-status.md`.
+
+**Grid revised to `Lbar in {5, 10, 20}` (12 cells) pending the extractor fix.**
+Re-add Lbar=30 via `RTVR_L=5,10,20,30` once the fix lands and the runtime
+curve from these three leaf budgets says the architecture is still worth
+extending that far -- the 949s calibration cost at Lbar=20, n=20000 is itself
+a live go/no-go signal per Oracle, independent of the tie issue.
 
 ---
 
@@ -64,12 +87,12 @@ Asymptotic linearity needs `sqrt(n) (T_eps - T_a) = o_p(1)`.
 | Outcome model | `Y = mu_0(Z) + 1 * A + eps`, `eps ~ Uniform(-sqrt 3, sqrt 3)` (variance 1, **bounded**, so the theory's `B_Y` moment bound holds literally) |
 | True ATT | `theta_0 = 1` exactly (constant effect) |
 | Jump size | leaf-value jumps 0.5–1.5 noise SD ⇒ moderate SNR as specified |
-| Min leaf mass | 11.1% (`Lbar = 5`) → 1.65% (`Lbar = 30`); at `n = 2000, Lbar = 30` that is ~33 units, ~16 controls per leaf |
+| Min leaf mass | 11.1% (`Lbar = 5`) → ~4.1% (`Lbar = 20`); at `n = 2000, Lbar = 20` that is ~82 units, ~41 controls per leaf (`Lbar = 30` dropped, see Update above) |
 
 ### Cells
 
-`n in {2000, 5000, 10000, 20000}` × `Lbar in {5, 10, 20, 30}` = 16 cells,
-**500 replications each**.
+`n in {2000, 5000, 10000, 20000}` × `Lbar in {5, 10, 20}` = 12 cells,
+**500 replications each**. (`Lbar = 30` dropped 2026-09-08, see Update above.)
 
 ### Fitting — no cross-fitting, well-specified regime
 
@@ -87,8 +110,8 @@ Asymptotic linearity needs `sqrt(n) (T_eps - T_a) = o_p(1)`.
 * Leaf budget `Lbar` is **enforced on every draw**: `lambda` is calibrated once
   per cell (geometric bisection to the largest `lambda` whose realised leaf count
   is `<= Lbar`), then raised geometrically on any individual draw that overshoots.
-* Depth budget `= depth of the true partition` (3, 5, 6, 7 for
-  `Lbar = 5, 10, 20, 30`), so the truth is inside the searched class.
+* Depth budget `= depth of the true partition` (3, 5, 6 for
+  `Lbar = 5, 10, 20`), so the truth is inside the searched class.
 
 **Documented restriction.** The searched class is
 `{trees with <= Lbar leaves AND depth <= d(Lbar)}`, not the theory's full
