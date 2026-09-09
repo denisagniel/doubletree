@@ -37,7 +37,23 @@ suppressPackageStartupMessages({
   library(furrr)
   library(progressr)
 })
-suppressMessages(devtools::load_all("doubletree", quiet = TRUE))
+
+# TWO PACKAGE-LOADING PATHS, ONE GATE (added 2026-09-09 for SLURM deployment):
+#
+#   DOUBLETREE_USE_INSTALLED unset/"0"  DEV path (default, unchanged behaviour):
+#       devtools::load_all() on the source tree. Correct on the dev box.
+#
+#   DOUBLETREE_USE_INSTALLED="1"        CLUSTER path: library() against packages
+#       that were R CMD INSTALLed on the cluster. Module R does not carry a working
+#       pkgload/devtools dev-load.
+USE_INSTALLED_PKGS <- Sys.getenv("DOUBLETREE_USE_INSTALLED", "0") == "1"
+if (USE_INSTALLED_PKGS) {
+  suppressPackageStartupMessages({
+    library(doubletree)
+  })
+} else {
+  suppressMessages(devtools::load_all("doubletree", quiet = TRUE))
+}
 
 REPO_ROOT <- normalizePath(".")     # scripts run from the repo root
 STUDY_DIR <- fs::path("doubletree", "simulations", "single_tree_coverage")
@@ -72,9 +88,17 @@ cli::cli_inform(c(
 # --- worker: self-load SOURCE package + study code, then run one rep ---------
 # Multisession workers are fresh R sessions; they must load the SOURCE package
 # (the installed build is stale) exactly once, then reuse it across tasks.
+# Uses the same DOUBLETREE_USE_INSTALLED gate as the main script.
 worker_run_one <- function(dgp, n, rep_id, theta_star) {
   if (!isTRUE(getOption("gs_stc_loaded"))) {
-    suppressMessages(pkgload::load_all(file.path(REPO_ROOT, "doubletree"), quiet = TRUE))
+    use_installed <- Sys.getenv("DOUBLETREE_USE_INSTALLED", "0") == "1"
+    if (use_installed) {
+      suppressPackageStartupMessages({
+        library(doubletree)
+      })
+    } else {
+      suppressMessages(pkgload::load_all(file.path(REPO_ROOT, "doubletree"), quiet = TRUE))
+    }
     source(file.path(REPO_ROOT, "doubletree", "simulations", "single_tree_coverage",
                      "code", "oracle_theta_star.R"))
     source(file.path(REPO_ROOT, "doubletree", "simulations", "single_tree_coverage",

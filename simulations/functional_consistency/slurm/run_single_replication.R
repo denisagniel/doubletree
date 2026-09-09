@@ -33,22 +33,28 @@ if (length(missing) > 0) {
 }
 
 # Load packages (try devtools for local development, library for O2)
+# TWO PACKAGE-LOADING PATHS, ONE GATE (added 2026-09-09 for SLURM deployment):
+#
+#   DOUBLETREE_USE_INSTALLED unset/"0"  DEV path (default, unchanged behaviour):
+#       devtools::load_all() on local source trees. Correct on the dev box.
+#
+#   DOUBLETREE_USE_INSTALLED="1"        CLUSTER path: library() against packages
+#       that were R CMD INSTALLed on the cluster. Module R does not carry a working
+#       pkgload/devtools dev-load.
 suppressPackageStartupMessages({
-  # Try to detect if we're in local development vs O2
-  local_opt <- file.path(Sys.getenv("HOME"), "RAND/rprojects/global-scholars/optimaltrees")
-  local_dbl <- file.path(Sys.getenv("HOME"), "RAND/rprojects/global-scholars/doubletree")
-
-  if (file.exists(file.path(local_opt, "DESCRIPTION"))) {
+  USE_INSTALLED_PKGS <- Sys.getenv("DOUBLETREE_USE_INSTALLED", "0") == "1"
+  if (USE_INSTALLED_PKGS) {
+    library(optimaltrees)
+    library(doubletree)
+    cat("Loaded via library (installed packages)\n")
+  } else {
     # Local development: use devtools
     library(devtools)
+    local_opt <- file.path(Sys.getenv("HOME"), "RAND/rprojects/global-scholars/optimaltrees")
+    local_dbl <- file.path(Sys.getenv("HOME"), "RAND/rprojects/global-scholars/doubletree")
     load_all(local_opt, quiet = TRUE)
     load_all(local_dbl, quiet = TRUE)
     cat("Loaded via devtools (local dev)\n")
-  } else {
-    # O2 cluster: use installed packages
-    library(optimaltrees)
-    library(doubletree)
-    cat("Loaded via library (O2 cluster)\n")
   }
 })
 

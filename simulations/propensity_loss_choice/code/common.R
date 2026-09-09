@@ -52,15 +52,35 @@ for (.d in c(DIR_RESULTS, DIR_FIGURES, DIR_TABLES)) {
 # `propensity_loss`), so the SOURCE tree is loaded explicitly. optimaltrees is
 # normally already dev-loaded by doubletree/.Rprofile; load it here too so the
 # scripts behave identically under `Rscript --vanilla` and in worker processes.
+#
+# TWO PACKAGE-LOADING PATHS, ONE GATE (added 2026-09-09 for SLURM deployment):
+#
+#   DOUBLETREE_USE_INSTALLED unset/"0"  DEV path (default, unchanged behaviour):
+#       pkgload::load_all() on this source tree and on the sibling
+#       ../optimaltrees source tree. Correct on the dev box.
+#
+#   DOUBLETREE_USE_INSTALLED="1"        CLUSTER path: library() against packages
+#       that were R CMD INSTALLed on the cluster. Module R does not carry a working
+#       pkgload/devtools dev-load, and `../optimaltrees` is a RELATIVE sibling path
+#       that is only correct when the checkout happens to have both repos side by side.
 .optimaltrees_src <- file.path(dirname(PKG_ROOT), "optimaltrees")
-if (!isNamespaceLoaded("optimaltrees")) {
-  if (dir.exists(.optimaltrees_src)) {
-    pkgload::load_all(.optimaltrees_src, quiet = TRUE, export_all = FALSE)
-  } else {
+
+USE_INSTALLED_PKGS <- Sys.getenv("DOUBLETREE_USE_INSTALLED", "0") == "1"
+if (USE_INSTALLED_PKGS) {
+  suppressPackageStartupMessages({
     library(optimaltrees)
+    library(doubletree)
+  })
+} else {
+  if (!isNamespaceLoaded("optimaltrees")) {
+    if (dir.exists(.optimaltrees_src)) {
+      pkgload::load_all(.optimaltrees_src, quiet = TRUE, export_all = FALSE)
+    } else {
+      library(optimaltrees)
+    }
   }
+  pkgload::load_all(PKG_ROOT, quiet = TRUE, export_all = FALSE)
 }
-pkgload::load_all(PKG_ROOT, quiet = TRUE, export_all = FALSE)
 
 if (!"propensity_loss" %in% names(formals(doubletree::estimate_att))) {
   cli::cli_abort(c(

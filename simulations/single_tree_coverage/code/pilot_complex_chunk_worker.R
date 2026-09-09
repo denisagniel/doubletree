@@ -18,7 +18,23 @@
 suppressPackageStartupMessages({
   library(dplyr); library(tibble); library(purrr); library(readr); library(fs)
 })
-suppressMessages(devtools::load_all("doubletree", quiet = TRUE))
+
+# TWO PACKAGE-LOADING PATHS, ONE GATE (added 2026-09-09 for SLURM deployment):
+#
+#   DOUBLETREE_USE_INSTALLED unset/"0"  DEV path (default, unchanged behaviour):
+#       devtools::load_all() on the source tree. Correct on the dev box.
+#
+#   DOUBLETREE_USE_INSTALLED="1"        CLUSTER path: library() against packages
+#       that were R CMD INSTALLed on the cluster. Module R does not carry a working
+#       pkgload/devtools dev-load.
+USE_INSTALLED_PKGS <- Sys.getenv("DOUBLETREE_USE_INSTALLED", "0") == "1"
+if (USE_INSTALLED_PKGS) {
+  suppressPackageStartupMessages({
+    library(doubletree)
+  })
+} else {
+  suppressMessages(devtools::load_all("doubletree", quiet = TRUE))
+}
 
 STUDY_DIR <- fs::path("doubletree", "simulations", "single_tree_coverage")
 source(fs::path(STUDY_DIR, "code", "oracle_theta_star.R"))   # THETA0, N_GRID, load_oracle
