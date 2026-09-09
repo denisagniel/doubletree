@@ -71,14 +71,45 @@ for (.d in c(DIR_RESULTS, DIR_FIGURES, DIR_TABLES)) {
 # tree, so load the SOURCE explicitly -- same posture as S1's and
 # propensity_loss_choice's common.R, and for the same reason.
 .OPTIMALTREES_SRC <- file.path(dirname(PKG_ROOT), "optimaltrees")
-if (!isNamespaceLoaded("optimaltrees")) {
-  if (dir.exists(.OPTIMALTREES_SRC)) {
-    pkgload::load_all(.OPTIMALTREES_SRC, quiet = TRUE, export_all = FALSE)
-  } else {
+
+# TWO PACKAGE-LOADING PATHS, ONE GATE (added 2026-09-09 for the SLURM deployment;
+# simulations/honest_inference_sparsity_failure/slurm/README_O2.md documents the
+# cluster side). Same gate as head_to_head_comparison/code/common.R (S5), for the
+# same reason and with the same DEV default.
+#
+#   HIS_USE_INSTALLED unset/"0"  DEV path (default, UNCHANGED behaviour):
+#       pkgload::load_all() on this source tree and on the sibling
+#       ../optimaltrees source tree. Correct on the dev box, where the source is
+#       what is being developed and an installed copy may be stale.
+#
+#   HIS_USE_INSTALLED="1"        CLUSTER path: library() against packages that
+#       were R CMD INSTALLed on the cluster. Module R does not carry a working
+#       pkgload/devtools dev-load, and `../optimaltrees` is a RELATIVE sibling
+#       path that is only correct when the checkout happens to have both repos
+#       side by side -- neither assumption is safe inside a SLURM job. The rest
+#       of this file is loading-agnostic: every package call below is either
+#       `doubletree::`-qualified or reached through asNamespace(), so nothing
+#       else has to change.
+#
+# .OPTIMALTREES_SRC is still defined on BOTH paths: cell_metadata() stamps its
+# git SHA, and git_sha() already records a missing/failed lookup as a reason
+# string rather than collapsing it to NA.
+USE_INSTALLED_PKGS <- Sys.getenv("HIS_USE_INSTALLED", "0") == "1"
+if (USE_INSTALLED_PKGS) {
+  suppressPackageStartupMessages({
     library(optimaltrees)
+    library(doubletree)
+  })
+} else {
+  if (!isNamespaceLoaded("optimaltrees")) {
+    if (dir.exists(.OPTIMALTREES_SRC)) {
+      pkgload::load_all(.OPTIMALTREES_SRC, quiet = TRUE, export_all = FALSE)
+    } else {
+      library(optimaltrees)
+    }
   }
+  pkgload::load_all(PKG_ROOT, quiet = TRUE, export_all = FALSE)
 }
-pkgload::load_all(PKG_ROOT, quiet = TRUE, export_all = FALSE)
 
 # Fail fast rather than at replication 200: this study needs the CURRENT
 # signatures, read directly from R/ rather than assumed from the spec's prose.
