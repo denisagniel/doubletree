@@ -1,0 +1,30 @@
+# Cluster simulation architecture exceptions
+#
+# Read by agent-assisted-research-meta/scripts/check-sim-architecture.sh.
+# Format: one entry per line, relative to this project root.
+#   <study-path>            whole study exempt
+#   <study-path>: <file>    one template-relative file exempt for that study
+# Blank lines ignored; '#' starts a comment.
+
+# six-approach-arbitration submits per method and per tier rather than through a
+# single entry point, so slurm/submit.sh does not exist here. Its role is served
+# by slurm/submit_per_method.sh and slurm/submit_tier2.sh. This is a deliberate
+# architectural variant, not a missing file; the checker matches template-relative
+# filenames literally and cannot see the substitution.
+#
+# NOT exempted: slurm/purge_failed_tasks.R. That gap is real — this study has no
+# tool to clear poisoned all-NA task files, which is a genuine crash-safety hole
+# rather than a naming difference.
+simulations/six-approach-arbitration: slurm/submit.sh
+
+# slurm/retry_failed.sh is structurally incompatible with this study, not merely absent.
+# The template's retry resumes a flat scratch layout, <root>/<run-id>/, and contains zero
+# references to a method level. This study nests per method — submit_per_method.sh:113,
+# METHOD_SCRATCH="${SCRATCH_DIR}/${m}" ("per-method subdir: no task-file collision") — so a
+# substituted template retry would point one directory level too high, find no task files,
+# and resume nothing while exiting 0.
+#
+# HMS_ID/PROJECT_NAME/STUDY_NAME ARE recoverable from submit_per_method.sh, so this is not a
+# missing-values problem. Closing it needs a retry that walks the per-method subdirs, which is
+# a change to the template (or a study-local variant), not a copy.
+simulations/six-approach-arbitration: slurm/retry_failed.sh
