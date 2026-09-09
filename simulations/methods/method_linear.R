@@ -105,7 +105,7 @@ att_linear <- function(X, A, Y, K = 5, seed = NULL,
     train_data_e <- cbind(X[train_idx, , drop = FALSE], A = A[train_idx])
 
     # Build formula
-    if (interactions && ncol(X) <= 4) {
+    if (interactions && ncol(X) <= 5) {
       # Include two-way interactions (only if not too many features)
       formula_e <- as.formula(paste("A ~ .^2"))
     } else {
@@ -141,7 +141,7 @@ att_linear <- function(X, A, Y, K = 5, seed = NULL,
                            Y = Y[control_train_idx])
 
     # Build formula
-    if (interactions && ncol(X) <= 4) {
+    if (interactions && ncol(X) <= 5) {
       formula_m0 <- as.formula(paste("Y ~ .^2"))
     } else {
       formula_m0 <- as.formula("Y ~ .")
