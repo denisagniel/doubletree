@@ -101,3 +101,39 @@ single-outcome-tree simulation study covering `lem:single-tree-linear`,
 `cor:single-tree-saturated`, `cor:single-tree-coarsening` (including the heteroskedasticity
 reversal), `rem:single-tree-se`, and ideally `prop:spectest`. This does not exist anywhere in
 the current `simulations/` tree under any name.
+
+---
+
+## Table 3: Proposed additions — finite-$X$, legibility, and coarsening bias (2026-09-16, not yet drafted)
+
+Registered here per this project's hard gate 2 — **before** the corresponding prose exists,
+not after — because the gate requires a claim to have an anchor before it is written, and
+writing the anchor down first is what makes that checkable. See `outline.md`'s §2 rows for
+Introduction, `sec:trees`, and `sec:honest-manuscript` for placement. None of the rows below
+are in `manuscript.tex` yet.
+
+| Label (tentative) | Type | Statement (one line) | Proposed location | Anchor it rests on | Status |
+|---|---|---|---|---|---|
+| *(regime ladder, no label — prose)* | Motivation, not a claim | Names three regimes (audit-complete / sparse / general covariate space) to motivate why legibility favors finite $X$, without asserting finite $X$ is required | Introduction | None needed — explicitly motivation, not a contribution; must not be written as a claim | **Proposed** |
+| *(legibility-vs-audit-completeness remark, no label — prose)* | Remark | Distinguishes legibility (delivered by the fixed cutpoint grid regardless of $\cX$) from audit-completeness/fidelity (requires atom-measurable nuisances — restates `ass:sparsity`, does not add to it) | `sec:trees`, after `manuscript.tex:88` | `def:sufficient`; the sufficient-class condition already in `manuscript.tex` | **Proposed** |
+| `rem:coarsening` (tentative) | Remark | Discretizing a continuous covariate onto the grid is a special case of sparsity failure that `thm:anchor` already covers; explicitly disclaims "residual confounding" terminology (epidemiology usage: Becher; Brenner & Blettner) in favor of "coarsening bias" / leaf-constancy misspecification, because `ass:causal` conditions on the full $X$ and identification is unaffected — only the working-model error in `prop:bilinear`'s remainder is | `sec:honest-manuscript`, after `manuscript.tex:598` (`cor:width`) | `prop:bilinear`, `lem:biasbound`, `thm:anchor` — **no new theory required** | **Proposed** |
+| `prop:coarsen-bound` (tentative) | Proposition | Under a Lipschitz sensitivity device on $e_0,\mu_0$ (constants $L_e,L_\mu$, local to this proposition only) and grid mesh $h$: $\delta_e\lesssim L_eh$, $\delta_\mu\lesssim L_\mu h$; combined with a finite-class ERM excess-risk step bridging $\delta$ to the realized $D_w,D_\mu$ that `cor:width` actually uses, gives anchor-interval width $=O_p(\max\{n^{-1/2},h^2\})$ | Same location as `rem:coarsening` | Builds on `lem:biasbound`, `cor:width`; the ERM-bridging step is the one piece of genuinely new technical work in this plan | **Proposed, open decision — not yet committed** (see `outline.md`'s "open question") |
+| *(narrow, don't delete, `:666–671`)* | Amendment to existing prose | Points `sec:finite-discussion`'s existing "we do not minimize this cost in general" at `prop:coarsen-bound` | `sec:finite-discussion` | `prop:coarsen-bound` | **Conditional on `prop:coarsen-bound` being adopted** |
+| *(narrow, don't delete, `:701`)* | Amendment to existing prose | Narrows (not deletes) the "genuine misspecification... left to future work" clause in `sec:discussion`, since `prop:coarsen-bound` would be a first cut at exactly this | `sec:discussion` | `prop:coarsen-bound` | **Conditional on `prop:coarsen-bound` being adopted** |
+
+**What is settled vs. not, as of this registry entry:**
+
+- **Settled:** the regime-ladder motivation, the legibility/audit-completeness distinction, and
+  `rem:coarsening`'s content and terminology choice (coarsening bias, not confounding) — all
+  three require no new theory, only prose, and were checked against `notation.md` §3's
+  identification-status table (`ass:causal` governs identification and is unaffected by
+  coarsening; `ass:sparsity` governs the working model and is what actually fails).
+- **Not settled:** whether `prop:coarsen-bound` is drafted at all. It is the only item requiring
+  new technical work (the finite-class ERM bridging step) and a genuinely new simulation study
+  if it lands (none of the existing studies in Table 2 above test a Lipschitz-mesh sensitivity
+  bound) — consistent with this registry's existing practice of not claiming what has no
+  evidence anchor yet.
+- **Explicitly rejected, not merely deferred:** stating "finite $X$ is required" as a new
+  assumption. This would contradict `manuscript.tex:79` and `theory.tex:594–618`'s existing,
+  deliberate "escape hatch... does not survive" framing, and is not being carried forward in
+  any of the rows above.
