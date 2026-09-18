@@ -78,6 +78,9 @@ first introduced.
 | $\hat w_{\mathrm{tie}}(\bx)=|\ell_{\hat\tau_\mu}(\bx)|_1/|\ell_{\hat\tau_\mu}(\bx)|_0$ | Empirical treated-to-control odds within the outcome tree's leaf | `:406` | |
 | $e_\tau(\bx)=\Prob(A=1\mid\bX\in\ell_\tau(\bx))$ | Leaf-averaged (not leaf-refit) true propensity | `:413` | Distinct from $\hat e_\tau$ (the empirical leaf plug-in): $e_\tau$ is a population object, the true propensity's leaf average, used only in the single-tree corollary family's population-side analysis. |
 | $w_\tau=e_\tau/(1-e_\tau)$; $\mu_\tau=\Pi_\tau^\nu\mu_0$ | Leaf-average propensity odds; control-weighted leaf projection of $\mu_0$ | `:413` | |
+| $\tau_j^\dagger$ ($j\in\{e,\mu\}$) | The unique population-risk minimizer over $\cT_{\Lbar}$ for nuisance $j$, when it exists | New, `ass:pseudo` (~`:472`) | Existence/uniqueness is the content of `ass:pseudo`, not automatic. Under structural sparsity, $\tau_j^\dagger$ is the finest partition in $\cS_j$. |
+| $\Delta_j^\dagger$ | Margin between $\tau_j^\dagger$'s population risk and every other candidate's | New, `ass:pseudo` (~`:472`) | Redundant given uniqueness + finiteness of $\cT_{\Lbar}$ (a minimum over finitely many strictly positive numbers is strictly positive) — kept in the assumption's statement for readability/parallelism with `prop:selection-rate`'s $\Delta_j$, not as an independent requirement. |
+| $\eta_*=(e_*,\mu_*)$, $\theta_*$ | Pseudo-true nuisance pair ($e_*=e_{\tau_e^\dagger}$, $\mu_*=\Pi^\nu_{\tau_\mu^\dagger}\mu_0$, two generally distinct partitions) and the effect it implies (solves $\E[\psi(\bO;\theta,\eta_*)]=0$) | New, `ass:pseudo` (~`:472`) | Do not confuse with $\eta_\tau,\theta_\tau$ (`:413`), which are indexed by one shared $\tau$; $\eta_*$'s two components carry their own, generally different, partitions. Under structural sparsity, $\eta_*=\eta_0$. |
 | $\eta_\tau=(e_\tau,\mu_\tau)$; $\theta_\tau$ solves $\E[\psi(\bO;\theta,\eta_\tau)]=0$; $\psi_\tau=\psi(\bO;\theta_\tau,\eta_\tau)$ | Population objects at a fixed partition $\tau$ | `:413` | |
 | $\eta_{\mathrm{tie}}=\eta_{\hat\tau_\mu}$, $\theta_{\mathrm{tie}}=\theta_{\hat\tau_\mu}$, $\psi_{\mathrm{tie}}=\psi_{\hat\tau_\mu}$ | The above, evaluated at the *realized* (random) partition | `:413` | Random-index objects — `lem:single-tree-linear`'s whole point is that these need not be a single fixed number across realizations of $\hat\tau_\mu$ unless $\cS_\mu$ is a singleton or $\hat\tau_\mu$ stabilizes. |
 | $\bar Y_1(\ell)$ | Treated-arm sample mean within leaf $\ell$ | `:435` (inside `lem:single-tree-linear`'s proof) | |
@@ -170,6 +173,32 @@ environment name (`assum`, `cond`, `hyp`, etc.) occurs in this document.
 - **Cited as a range anywhere?** No.
 - **Declared in:** body (§3.3).
 
+#### Pseudo-true margin — `\label{ass:pseudo}`
+
+- **Stated at:** ~`:472–478` (new, inserted 2026-09-17 at the head of §3.3, before `prop:bilinear`)
+- **Statement:** For each $j\in\{e,\mu\}$, a unique $\tau_j^\dagger\in\cT_{\Lbar}$ minimizes $R^{(j)}$
+  over $\cT_{\Lbar}$ (the margin $\Delta_j^\dagger>0$ is then automatic — see the symbol table's
+  note).
+- **Discharges:** Gives `prop:pseudo-consistency` a fixed target $(\tau_e^\dagger,\tau_\mu^\dagger)$
+  to land selection on when structural sparsity fails but a well-defined best approximation still
+  exists; supplies `prop:spectest`'s consistency-direction hypothesis as a derived consequence
+  ($\hat\eta\to_p\eta_*$) rather than an assumed one.
+- **Role:** Strictly weaker than structural sparsity — requires uniqueness of the best
+  tree-representable approximation, not exactness. Promoted from a condition previously bundled,
+  unlabeled, into `prop:spectest`'s own hypothesis line (see §2c below, now superseded).
+- **When reasonable:** Whenever the population risk surface over the fixed finite class
+  $\cT_{\Lbar}$ has no exact ties among its best candidates — a strictly weaker requirement than
+  structural sparsity, and one violated only by an exact tie (a near-tie leaves the assumption
+  intact and only affects the rate via `prop:selection-rate`'s exponent).
+- **When unreasonable:** An exact tie between two or more risk-minimizing partitions — then
+  $\tau_j^\dagger$ is undefined, $\eta_*,\theta_*$ do not exist, and the selected partitions can
+  oscillate with no fixed limit. `thm:anchor` remains valid regardless; only the pseudo-true
+  target and `prop:spectest`'s consistency direction are lost.
+- **Verifiable from data?** No — a property of the population risk surface, like `ass:rate`.
+- **Used by:** `prop:pseudo-consistency`; `prop:spectest`'s consistency direction.
+- **Cited as a range anywhere?** No.
+- **Declared in:** body (§3.3, at the head of the section, before `prop:bilinear`).
+
 ### 2b. Implicit — carried in constraints or prose, not numbered
 
 | Assumption | Where it hides | Role | Should it be promoted to formal? |
@@ -188,7 +217,7 @@ environment name (`assum`, `cond`, `hyp`, etc.) occurs in this document.
 | $\bar Lm_n\lesssim n$ | `lem:selection`'s hypothesis, `:246` | Keeps the minimum-leaf-mass feasibility constraint from binding asymptotically. | Yes — a rate condition, standard. |
 | $\lambda_n\to0$ | `lem:selection`'s hypothesis, `:247`; `lem:uniform` notes exact global optimization and $\lambda_n$'s rate are *not* required for its own (weaker) uniform statement, `:313–314` | Penalty vanishing fast enough not to distort selection asymptotically. | Yes — a tuning-parameter rate condition. |
 | $V:=\E[\psi_0^2]>0$ | `prop:P-instantiation1`'s hypothesis, `:322` | Non-degeneracy — rules out a degenerate limiting variance. | Not really "relaxable"; a genuine non-degeneracy requirement for the CLT to be non-trivial. |
-| Unique, margin-separated population risk minimizer under the alternative | `prop:spectest`'s hypothesis, `:616–618` | Needed for the fidelity diagnostic's *consistency* (as opposed to its size, which needs nothing extra) under a sparsity-violating alternative. | Yes — local to `prop:spectest`'s consistency half only; its size-control half needs no such condition. |
+| **Superseded 2026-09-17** — unique, margin-separated population risk minimizer under the alternative | `prop:spectest`'s hypothesis, `:616–618` (pre-edit line numbers) | Promoted to formal `ass:pseudo` (§2a above), at the head of §3.3. `prop:spectest`'s own text now cites `ass:pseudo` by label instead of restating the condition inline. | Done — see §2a. |
 | **Lipschitz nuisances on grid atoms** (proposed, not yet in the manuscript) | Would be new, in §3.3 | Would bound the coarsening-specific component of $\delta_e,\delta_\mu$ via mesh $h$: $\delta_e\lesssim L_eh$, $\delta_\mu\lesssim L_\mu h$. | **Yes, and must be presented as relaxable/local** — a sensitivity-analysis device attached to one proposition, not a standing assumption that would re-impose the smoothness restriction the fixed-grid framework was built to avoid (Oracle's explicit warning, carried over from the prior pass). |
 
 ### 2d. Summary — what is assumed and why
