@@ -1,0 +1,315 @@
+## ============================================================================
+## application/_config.R
+##
+## Single source of gates, dataset keys, column contracts, analysis windows, and
+## the OPEN_DECISIONS registry for doubletree's real-data application.
+##
+## Sourced by every numbered script (01-07, 90). Nothing here reads data.
+##
+## Configuration idiom (deliberate, matches smidata's inst/server/*.R
+## convention as of 2026-09-17, and dual-bounds' analysis/real_data/_config.R):
+## operational knobs are PLAIN TOP-LEVEL R VARIABLES, edited in place before a
+## run -- NOT Sys.getenv(). Environment variables are reserved for smidata's own
+## per-machine path overrides (SMI_DATA_DIR, SMI_CACHE_DIR, ANALYSIS_ENV, ...),
+## which are a different kind of setting: they must resolve identically across
+## five independent projects sharing one server. A per-run knob belongs to one
+## invocation of one script and travels with the file, not the shell.
+##
+## RELATIONSHIP TO dual-bounds. This paper reuses dual-bounds' population,
+## exposure, outcome and covariate SOURCE design verbatim (smidata
+## inst/analyses/doubletree__application.yml, sections 2-6, mostly
+## `status: inherited`). It differs in exactly two places: the ESTIMATOR
+## (doubletree::estimate_att()/estimate_att_crossfit() instead of marbounds'
+## partial-identification bounds), and OUTCOME MISSINGNESS (a complete-case
+## restriction instead of a modelled response indicator R -- doubletree's
+## estimator signature has no censoring argument for R to attach to).
+##
+## Inheriting a DESIGN is not the same as sharing CODE. Constants below that
+## happen to equal dual-bounds' constants are still declared here, locally, and
+## nothing in this directory reads dual-bounds' files. The shared IMPLEMENTATION
+## lives in smidata >= 0.2.0 as exported smi_*() functions -- that is the one
+## thing the two projects genuinely share, and it is shared by calling it, not
+## by copying it.
+## ============================================================================
+
+## ---- 0 gates (edit these directly before a run) ----------------------------
+
+## Emit the open-decision banner at the top of every numbered script.
+config_echo_decisions <- TRUE
+
+## Tiny smoke-check patient count for the pure-function calls that CAN run
+## without real data (see 03_cost_windows.R's execution guard).
+config_smoke_n_patients <- 2L
+
+## Cost-claims file-suffix years present in the confirmed contract
+## (aim3_svc_cost_16 .. _24 etc.). Verbatim from smidata snapshot
+## 2026-09-15_2824080e: 4 families x 9 years = 36 dataset keys.
+config_cost_years <- 16:24
+
+## Which column of the cost-claims tables carries the service-setting
+## description that the "Managed Care Invoice" exclusion matches on. Both
+## SS_DESC and NEW_SERVICE_SETTINGS exist in all 36 files; SS_DESC is the
+## declared default. Which one literally contains the string is a Tier-1 server
+## check (90_checks_tier1.R), not something to paper over with column probing.
+config_cost_setting_col <- "SS_DESC"
+
+## Achievement threshold for AAP: MSR_NUM / MSR_DEN >= this counts as achieved.
+## Confirmed PI 2026-09-17 (dual-bounds' exposure.definition, inherited here).
+## Passed explicitly to smidata::smi_select_aap_row(), which exposes it because
+## it means different things in different papers.
+config_aap_achievement_threshold <- 0.5
+
+## ---- estimator gates -------------------------------------------------------
+
+## Which entry point 07_estimate_att.R treats as the FLAGSHIP result.
+##   "att"      -> doubletree::estimate_att(), the paper's primary estimator.
+##                 Valid only under grid-exact sparsity (ass:sparsity): a tree
+##                 of at most leaf_budget leaves represents BOTH nuisances
+##                 exactly on the analyst's pre-specified grid. Not checkable
+##                 from data.
+##   "crossfit" -> doubletree::estimate_att_crossfit(), the K-fold fallback,
+##                 which does NOT require sparsity.
+##
+## Either way, 07 reports BOTH. See its own comments for why.
+config_estimator <- "att"
+
+## The leaf budget Lbar (estimate_att()'s `leaf_budget`, required, no default).
+## A FIXED, analyst-chosen structural parameter, constant in n. 4L is the
+## value doubletree's own README and test suite use as the worked example. It
+## is an analysis decision, not a dataset fact, so it lives here.
+config_leaf_budget <- 4L
+
+## K for the cross-fitting companion estimate.
+config_crossfit_k <- 5L
+
+## Seed for the cross-fitting fold assignment. estimate_att() itself is
+## deterministic given (X, A, Y); only the crossfit path randomizes.
+config_seed <- 20260917L
+
+## ---- smidata availability --------------------------------------------------
+
+## This repo has no data and, on some machines, no smidata. Guard the version
+## assertion so sourcing _config.R never hard-fails locally; the numbered
+## scripts each report the absence explicitly rather than proceeding blind.
+##
+## The floor is 0.2.0, the release that PROMOTED the dataset-semantics helpers
+## this pipeline needs: smi_parse_msr_yr(), smi_month_index(),
+## smi_select_aap_row(), smi_classify_is_mci(), smi_patient_windows(),
+## smi_window_coverage(), smi_stream_cost_files(), smi_sum_cost_in_windows(),
+## and smi_read(). NOTHING in this directory reimplements or copies them; a
+## local function with any of those names would be the drift the promotion
+## exists to eliminate.
+config_has_smidata <- requireNamespace("smidata", quietly = TRUE)
+if (config_has_smidata) {
+  stopifnot(utils::packageVersion("smidata") >= "0.2.0")
+}
+
+## ---- analysis windows (THIS PAPER's decision, not a dataset fact) ----------
+##
+## smidata::smi_patient_windows() deliberately has NO default `windows`
+## argument: which months constitute the outcome ascertainment window and which
+## the prior-covariate window is a per-paper research decision. This is that
+## decision for this paper, and it is passed explicitly at every call site.
+##
+## Half-open: start INCLUSIVE, end EXCLUSIVE. prior_cost's end IS INDEX_DT, so
+## the index day belongs to neither window and no claim is counted twice.
+##
+## Inherited from dual-bounds' confirmed design (outcome.ascertainment_window,
+## covariates.measurement_window). The VALUES currently equal dual-bounds'
+## DUAL_BOUNDS_WINDOWS. They are still declared here rather than read from that
+## project: an inherited design decision that becomes a cross-project code
+## dependency is a decision that changes silently in one repo and breaks another.
+DOUBLETREE_WINDOWS <- tibble::tibble(
+  window = c("outcome", "prior_cost"),
+  start_months = c(12L, -12L),
+  end_months = c(24L, 0L)
+)
+
+## The complete-case horizon (outcome.outcome_missingness, confirmed PI
+## 2026-09-16): the estimation sample is restricted to patients with Y observed
+## through INDEX_DT + this many months. It equals DOUBLETREE_WINDOWS's outcome
+## end_months by construction -- observing Y means observing the whole outcome
+## window -- and is named separately because 05_complete_case.R is about
+## OBSERVABILITY, not about summing cost.
+config_complete_case_months <- 24L
+
+## ---- dataset keys and confirmed column contracts --------------------------
+
+#' Dataset keys, as they appear in smidata's contract manifest.
+#'
+#' Verbatim from smidata snapshot 2026-09-15_2824080e. `cost_claims` holds
+#' BASE keys; the real dataset keys append `_<yy>` for each of
+#' `config_cost_years` (see `cost_dataset_keys()`).
+#'
+#' This paper requires NO datasets beyond the ones dual-bounds already
+#' requires -- its only additional construction (prior_cost's quartile
+#' discretization) is computed from data already being read.
+SMI_KEYS <- list(
+  covariates  = "larger_smi_covariates",
+  aap         = "msr_aap",
+  cost_claims = list(
+    aim3_svc   = "aim3_svc_cost",
+    new_svc    = "new_svc_cost",
+    aim3_pharm = "aim3_pharm_cost",
+    new_pharm  = "new_pharm_cost"
+  )
+)
+
+#' Columns this pipeline actually requires, by dataset.
+#'
+#' Confirmed against the real fingerprint, not inferred. `larger_smi_covariates`
+#' has 72 columns and `msr_aap` has 5; these are the subsets the pipeline reads.
+#' The 12 table-resident covariates are added on top -- see
+#' `helpers/covariate_blocks.R`, which unlike dual-bounds' candidate map is
+#' PI-CONFIRMED and therefore not an open decision.
+SMI_COLS <- list(
+  covariates  = c("ID", "INDEX_DT"),
+  aap         = c("ID", "MSR", "MSR_YR", "MSR_DEN", "MSR_NUM"),
+  cost_claims = c("ID", "SRV_DT", "AMOUNT_PAID", "SEQ_ID", config_cost_setting_col)
+)
+
+#' Expand the four cost-claims families across the confirmed suffix years.
+#'
+#' @param years Integer vector of two-digit file suffixes. Default
+#'   `config_cost_years` (16:24), the confirmed span.
+#' @return Character vector of 36 dataset keys, family-major.
+cost_dataset_keys <- function(years = config_cost_years) {
+  families <- unlist(SMI_KEYS$cost_claims, use.names = FALSE)
+  as.vector(outer(families, years, function(f, y) paste0(f, "_", y)))
+}
+
+## ---- OPEN_DECISIONS registry ----------------------------------------------
+##
+## Every entry is a question that is NOT settled. `value` is either a
+## PLACEHOLDER (loudly warned about on every access via open_value()) or NULL
+## when no placeholder is even defensible. `blocking_final = TRUE` means no
+## final artifact -- table, figure, or number in the manuscript -- may depend
+## on it.
+##
+## SHARED ENTRIES. Two of these (cost_family_scope, msr_code) are the SAME
+## question dual-bounds is asking, about the same files, because this paper
+## inherits that part of the design verbatim. They carry `shared_with` and
+## `registry_ref` fields rather than a re-derived question text: two projects
+## independently wording the same open question is how the two answers end up
+## differing. Resolving either resolves both, and the resolution belongs in
+## smidata's registry, not in one of the two consuming repos.
+##
+## WHAT IS DELIBERATELY ABSENT, relative to dual-bounds' registry:
+##   admin_gap_days  Superseded. There is no response indicator R here to apply
+##                   an allowed-gap tolerance to; the complete-case restriction
+##                   is a hard inclusion criterion, so the question collapses
+##                   into enrollment_source itself.
+##   msr_tie_break   Not applicable. This pipeline calls
+##                   smidata::smi_select_aap_row() at its DEFAULT
+##                   tie_break = "earlier" and passes no other value; smidata
+##                   aborts on any other value anyway. There is no choice being
+##                   made here to flag.
+##   sl_lib          Not applicable. SuperLearner is marbounds' nuisance
+##                   machinery. doubletree fits its nuisances with optimal trees
+##                   via optimaltrees; there is no learner library to specify.
+##
+## LINE-LENGTH EXCEPTION (r-code-conventions §7). Several `question`/`note`
+## strings below exceed 100 characters. They are single string LITERALS whose
+## exact text is the registry's content: breaking one across source lines would
+## embed a newline plus indentation into the recorded question.
+
+OPEN_DECISIONS <- list(
+  enrollment_source = list(
+    question = "Table/columns providing continuous-enrollment spans through INDEX_DT+24mo, needed to determine COMPLETE-CASE STATUS (whether Y is observed for the whole outcome window). NO table in the confirmed design carries enrollment spans reaching that far: larger_smi_covariates is a covariate snapshot (72 columns, no span fields), msr_aap is measure periods (not enrollment), and the sibling aim1_smi_charac -- not elected by this paper -- encodes only ~12mo post-index enrollment.",
+    status = "open_decision", blocking_final = TRUE, value = NULL,
+    note = "PARTIALLY RESOLVED (PI, 2026-09-17, same finding as dual-bounds' identically-named entry): 'There is an enrollment source - it's something like medicaid_monthly_flag' -- CONFIRMED present via contract evidence: larger_smi_medicaid_monthly_flag (smidata snapshot 2026-09-15_2824080e, 23,972,773 rows, columns ID/INDEX_DT/TYPE/COHORT/YEAR_MONTH/MEDICAID_FLAG). Still blocking: MONTHLY grain, not daily -- complete-case status should be 'MEDICAID_FLAG=1 for enough of the ~24 months in [INDEX_DT, INDEX_DT+24mo]', but no numeric threshold for 'enough' has been given, and the TYPE column's role is unchecked. 05_complete_case.R remains a stub until both are resolved."),
+  cost_family_scope = list(
+    question = "SHARED WITH dual-bounds -- see registry_ref. Whether all four cost-claims families are disjoint claim sources or aim3_*/new_* are overlapping extracts of the same claims (which would double-count cost if all four are summed).",
+    status = "confirmed", blocking_final = FALSE, value = "all_four",
+    shared_with = "dual-bounds",
+    registry_ref = "smidata::inst/analyses/dual-bounds__application.yml#cost_family_scope",
+    note = "RESOLVED (PI, 2026-09-17): 'They are disjoint subsets of patients - aim3* is the subset with 12-month enrollment after index and new* is without that enrollment guarantee.' A given patient's claims appear in exactly one family per claim type -- summing does NOT double-count, and does not shift prior_cost's quartile boundaries either, since no patient contributes to more than one family. IDENTICAL finding to dual-bounds' entry -- resolved once for both. Not yet independently verified against real claim-level data; the aim3_svc_cost_20-vs-new_svc_cost_20 comparison in dual-bounds' 90_checks_tier1.R remains worth running as corroboration."),
+  msr_code = list(
+    question = "SHARED WITH dual-bounds -- see registry_ref. Which msr_aap$MSR code value identifies the AAP measure specifically (msr_aap is not filtered to one measure, so 'the single nearest-month row' is ambiguous without it).",
+    status = "confirmed", blocking_final = FALSE, value = "AAP (no filter needed)",
+    shared_with = "dual-bounds",
+    registry_ref = "smidata::inst/analyses/dual-bounds__application.yml#msr_code",
+    note = "RESOLVED (PI, 2026-09-17): 'msr_code is always AAP in the msr_aap dataset' -- a measure-specific extract, not a combined all-measures file. Corroborated by contract evidence: msr_aap's MSR_NUM column carries the SAS label 'AAP_NUM'. IDENTICAL finding to dual-bounds' entry -- exposure A (inherited from dual-bounds) is now deterministic on this point. smidata::smi_select_aap_row()'s abort-on-tie behavior remains the safety net regardless."),
+  diagnostics = list(
+    question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
+    status = "open_decision", blocking_final = TRUE, value = NULL,
+    note = "analysis_plan.diagnostics, status: open_decision (smidata inst/analyses/doubletree__application.yml). doubletree-specific: dual-bounds' diagnostics_plan concerns marbounds' optimizer convergence and divergence budgets, a different set of quantities. Note the underlying assumption -- grid-exact sparsity -- is NOT checkable from data, so no diagnostic can confirm it; the question is which proxies are informative enough to act on. PI (2026-09-17): 'Same' as dual-bounds' diagnostics_plan -- wants a synchronous conversation, not resolved via async exchange.")
+)
+
+
+#' Read an open decision's placeholder value, loudly.
+#'
+#' Every access warns. This is intentional: a placeholder that can be read
+#' silently is a placeholder that ends up in a manuscript.
+#'
+#' @param id Name of an `OPEN_DECISIONS` entry.
+#' @return The entry's `value` (possibly `NULL`).
+open_value <- function(id) {
+  d <- OPEN_DECISIONS[[id]]
+  if (is.null(d)) cli::cli_abort("Unknown open decision {.val {id}}.")
+  cli::cli_warn(c("!" = "Unconfirmed value for {.val {id}}: {.val {d$value}}", "i" = d$note))
+  d$value
+}
+
+#' Print the full open-decision banner.
+#'
+#' Called at the top of every numbered script so no run is ever silent about
+#' what is still unsettled.
+#'
+#' @return `invisible(NULL)`, called for its side effect.
+echo_open_decisions <- function() {
+  cli::cli_h2("Open decisions (unconfirmed -- see application/_config.R)")
+  for (id in names(OPEN_DECISIONS)) {
+    d <- OPEN_DECISIONS[[id]]
+    ## cli has no cli_bullet(); cli_bullets() takes a named vector, "*" = plain
+    ## bullet. Verified against cli 3.6.6.
+    cli::cli_bullets(c("*" = paste0(
+      id, " [", d$status,
+      if (isTRUE(d$blocking_final)) ", BLOCKS FINAL ARTIFACT" else "",
+      if (!is.null(d$shared_with)) paste0(", SHARED WITH ", d$shared_with) else "",
+      "]: ", d$question
+    )))
+  }
+  invisible(NULL)
+}
+
+#' Refuse to proceed while any blocking open decision is unresolved.
+#'
+#' Called only where a final artifact would otherwise be produced:
+#' `06_assemble_analytic_data.R` (before the analytic-data write) and
+#' `07_estimate_att.R` (before any estimator call).
+#'
+#' @return `invisible(TRUE)` if nothing blocks; otherwise aborts.
+assert_no_blocking_open <- function() {
+  blocking <- vapply(OPEN_DECISIONS, function(d) isTRUE(d$blocking_final), logical(1))
+  if (any(blocking)) {
+    cli::cli_abort(c(
+      "Cannot proceed: {sum(blocking)} blocking open decision(s) unresolved.",
+      stats::setNames(
+        paste0("{.val ", names(OPEN_DECISIONS)[blocking], "}: ",
+               vapply(OPEN_DECISIONS[blocking], function(d) d$question, character(1))),
+        rep("x", sum(blocking))
+      )
+    ))
+  }
+  invisible(TRUE)
+}
+
+#' TRUE iff at least one blocking open decision remains.
+#'
+#' Lets a script branch on the gate without triggering the abort (e.g. to
+#' choose a `_PROVISIONAL` output suffix).
+#'
+#' @return Logical scalar.
+has_blocking_open <- function() {
+  any(vapply(OPEN_DECISIONS, function(d) isTRUE(d$blocking_final), logical(1)))
+}
+
+#' Names of the blocking open decisions.
+#'
+#' @return Character vector.
+blocking_open_ids <- function() {
+  names(OPEN_DECISIONS)[
+    vapply(OPEN_DECISIONS, function(d) isTRUE(d$blocking_final), logical(1))
+  ]
+}
