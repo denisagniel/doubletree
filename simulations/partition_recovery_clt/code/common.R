@@ -74,10 +74,14 @@ if (USE_INSTALLED_PKGS) {
 
 # Fail fast rather than at replication 700: this study needs the CURRENT
 # estimate_att() signature, which it read directly rather than assumed.
-for (.arg in c("leaf_budget", "propensity_loss", "outcome_type", "lambda_n", "m_n")) {
-  if (!.arg %in% names(formals(doubletree::estimate_att))) {
+# NOTE: the loop variable must not be named `.arg` -- cli >= 3.4.0 reserves
+# any `{.foo}` starting with a dot exclusively for its own inline styles, so
+# `{.arg {.arg}}` no longer interpolates a variable named `.arg`; it is parsed
+# as an (invalid) nested style directive instead.
+for (arg_name in c("leaf_budget", "propensity_loss", "outcome_type", "lambda_n", "m_n")) {
+  if (!arg_name %in% names(formals(doubletree::estimate_att))) {
     cli::cli_abort(c(
-      "Loaded {.fun doubletree::estimate_att} has no {.arg {.arg}} argument.",
+      "Loaded {.fun doubletree::estimate_att} has no {.arg {arg_name}} argument.",
       i = "A stale installed copy is probably shadowing the source tree."
     ))
   }

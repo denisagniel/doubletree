@@ -113,17 +113,21 @@ if (USE_INSTALLED_PKGS) {
 
 # Fail fast rather than at replication 200: this study needs the CURRENT
 # signatures, read directly from R/ rather than assumed from the spec's prose.
-for (.arg in c("leaf_budget", "propensity_loss", "outcome_type", "lambda_n", "m_n")) {
-  if (!.arg %in% names(formals(doubletree::estimate_att))) {
+# NOTE: the loop variable must not be named `.arg` -- cli >= 3.4.0 reserves
+# any `{.foo}` starting with a dot exclusively for its own inline styles, so
+# `{.arg {.arg}}` no longer interpolates a variable named `.arg`; it is parsed
+# as an (invalid) nested style directive instead.
+for (arg_name in c("leaf_budget", "propensity_loss", "outcome_type", "lambda_n", "m_n")) {
+  if (!arg_name %in% names(formals(doubletree::estimate_att))) {
     cli::cli_abort(c(
-      "Loaded {.fun doubletree::estimate_att} has no {.arg {.arg}} argument.",
+      "Loaded {.fun doubletree::estimate_att} has no {.arg {arg_name}} argument.",
       i = "A stale installed copy is probably shadowing the source tree."
     ))
   }
 }
-for (.arg in c("K", "outcome_type", "cv_regularization", "max_depth", "seed")) {
-  if (!.arg %in% names(formals(doubletree::estimate_att_crossfit))) {
-    cli::cli_abort("Loaded {.fun doubletree::estimate_att_crossfit} has no {.arg {.arg}} argument.")
+for (arg_name in c("K", "outcome_type", "cv_regularization", "max_depth", "seed")) {
+  if (!arg_name %in% names(formals(doubletree::estimate_att_crossfit))) {
+    cli::cli_abort("Loaded {.fun doubletree::estimate_att_crossfit} has no {.arg {arg_name}} argument.")
   }
 }
 # honest_ci() must be the generic 5-argument function the spec describes; this
