@@ -50,34 +50,35 @@ The remainder of the paper proceeds as follows. Section~\ref{sec:setup} sets up 
 
 \subsection{Data, estimand, and notation}
 
-We observe $n$ observations $O_1, \ldots, O_n$ each an \iid draw from the random variable $\bO = (\bX, A, Y) \sim \Prob$. The observed data $\bO$ consists of a covariate vector $\bX \in \cX \subset \R^p$, a binary treatment $A \in \{0,1\}$, and an outcome $Y \in \cY \subset \R$. Let $Y(a)$ denote the potential outcome under treatment $A = a$. Define the two primary nuisance functions to be the propensity score $e_0(\bx)=\Prob(A=1\mid \bX=\bx)$ and the control ($A=0$) outcome function $\mu_0(\bx)=\E[Y\mid A=0,\bX=\bx]$. Define also $\pi=\Prob(A=1)$, and let $m_1(\bx)=\E[Y\mid A=1,\bX=\bx]$ and $\sigma_a^2(\bx)=\Var(Y\mid A=a,\bX=\bx)$. 
+We observe $n$ observations $\bO_1, \ldots, \bO_n$, each an \iid realization of the random variable $\bO = (\bX, A, Y) \sim \Prob$. The observed data $\bO$ consists of a covariate vector $\bX \in \cX \subset \R^p$, a binary treatment $A \in \{0,1\}$, and an outcome $Y \in \R$. Let $Y(a)$ denote the potential outcome under treatment $A = a$. Define the two primary nuisance functions to be the propensity score $e_0(\bx)=\Prob(A=1\mid \bX=\bx)$ and the control ($A=0$) outcome function $\mu_0(\bx)=\E[Y\mid A=0,\bX=\bx]$. Let $\pi=\Prob(A=1)$, $m_1(\bx)=\E[Y\mid A=1,\bX=\bx]$, and $\sigma_a^2(\bx)=\Var(Y\mid A=a,\bX=\bx)$.
 
 Our target parameter is the average treatment effect on the treated (ATT),
 \begin{equation}
 \label{eq:att}
 \theta_0 = \E[Y(1) - Y(0) \mid A=1].
 \end{equation}
+The results below are developed for the ATT throughout. Appendix~\ref{app:ate} sketches how the
+same identification and bias structure extends to the average treatment effect (ATE).
 
-It is useful to define the following weight when working with the ATT: $w_0(\bx)=e_0(\bx)/\{1-e_0(\bx)\}$, and for a candidate propensity $e(\bx)$ we write
-$w(\bx)=e(\bx)/\{1-e(\bx)\}$. We collect the two nuisances into $\eta_0=(e_0,\mu_0)$, and define candidate nuisances as $\eta=(e,\mu)$. It is convenient to index the two nuisances by $j\in\{e,\mu\}$ and to
-write $\gamma_{0,e}=e_0$, $\gamma_{0,\mu}=\mu_0$.
-
-We write $\Prob_n$ for the empirical measure, $\Prob_n f=n^{-1}\sum_{i\le n}f(\bO_i)$, and
+It is useful to define the following weight when working with the ATT: $w_0(\bx)=e_0(\bx)/\{1-e_0(\bx)\}$, and for a candidate propensity $e(\bx)$, we write
+$w(\bx)=e(\bx)/\{1-e(\bx)\}$. We collect the two nuisances into $\eta_0=(e_0,\mu_0)$ and any candidate nuisances into $\eta=(e,\mu)$. We index the two by $j\in\{e,\mu\}$, and we use the notation $\gamma_{0,e}=e_0$ and $\gamma_{0,\mu}=\mu_0$. We write $\Prob_n$ for the empirical measure, $\Prob_n f=n^{-1}\sum_{i\le n}f(\bO_i)$, and
 $\pihat=\Prob_n A$. Two norms on functions of $\bx$ are used throughout:
 \[
   \twonorm{f}^2=\E\bigl[f(\bX)^2\bigr],
   \qquad
   \|f\|_{2,w}^2=\E\bigl[\{1-e_0(\bX)\}f(\bX)^2\bigr],
 \]
-the second being the control-weighted norm. Convergence in distribution is
-denoted $\rightsquigarrow$, and $z_{1-\alpha/2}$ is the standard normal
-quantile.
+the second being the control-weighted norm; the subscript $w$ here records
+the control weight $1-e_0$ and is unrelated to the propensity odds $w_0,w$
+introduced above. Convergence in distribution is denoted $\rightsquigarrow$
+and convergence in probability $\to_p$, and $z_{1-\alpha/2}$ is the standard
+normal quantile.
 
 
 \subsection{Covariate space, tree partitions, and optimal trees}\label{sec:trees}
 
-The covariate space $\cX$ need not be finite. Instead, before seeing the data,
-the analyst fixes a finite collection of permissible cutpoints or category
+We do not put a restriction on $\cX$, but we require a
+fixed finite collection of permissible cutpoints or category
 groupings on each coordinate, such as age brackets, income bands, or clinical
 cutoffs. These cutpoints are never updated using the observed data and generate
 a finite collection of grid atoms $\cA$, fixed in $n$, with
@@ -86,6 +87,7 @@ a finite collection of grid atoms $\cA$, fixed in $n$, with
   \qquad
   \Prob(X\in a)>0\quad\text{for every }a\in\cA.
 \]
+
 A \emph{tree partition} $\tau$ of $\cX$ is induced by recursive axis-aligned
 binary splits at these pre-specified cutpoints only. Its blocks are
 \emph{leaves}, each leaf is a union of grid atoms, $\card\tau$ is its leaf
@@ -124,7 +126,7 @@ In this section, we briefly review how the causal effect of interest is identifi
 
 \begin{assumption}[Causal identification]\label{ass:causal}
 Consistency, $Y=AY(1)+(1-A)Y(0)$; ignorability,
-$\{Y(0),Y(1)\}\perp A\mid X$; $\pi>0$; and there exists $c\in(0,1)$ with
+$\{Y(0),Y(1)\}\perp A\mid \bX$; $\pi>0$; and there exists $c\in(0,1)$ with
 \[
   1-e_0(x)\ \ge\ c \qquad\text{for every }x\in\cX .
 \]
@@ -132,14 +134,15 @@ $\{Y(0),Y(1)\}\perp A\mid X$; $\pi>0$; and there exists $c\in(0,1)$ with
 
 Versions of this set of assumptions are standard in the causal inference literature, though we require a \emph{uniform} lower bound $1-e_0(x)\ge c$ for every $x\in\cX$, rather than the weaker pointwise condition $e_0(x)<1$ that suffices in some other treatments. On a finite covariate space the two are essentially interchangeable, since a maximum over finitely many finite values is automatically finite. On a general (e.g.\ continuous) $\cX$ they are not: the semiparametric efficiency bound's variance decomposition (the companion theory document's Eq.~(vdecomp)) contains a term $\E[e_0(X)^2\sigma_0^2(X)/\{1-e_0(X)\}]$, which can diverge under only pointwise positivity if $P_X$ places mass where $1-e_0(x)\to0$ without a compensating decay in the control-outcome variance $\sigma_0^2(x)$. The uniform bound $c$ is what keeps this term finite, not merely a convenience. Under Assumption \ref{ass:causal}, we may identify the ATT by the following observed data quantity:
 \begin{align}
+\label{eq:att-id}
 	\theta_0 = \E\left\{Y - \E\left(Y | \bX, A = 0\right) | A = 1\right\}.
 \end{align}
 The efficient influence function for this functional in the nonparametric model is
 \citep{hahn1998}
 \begin{equation}\label{eq:score}
-  \psi(O;\theta,\eta)
-  =\frac1\pi\Bigl[A\bigl\{Y-\mu(X)-\theta\bigr\}
-   -(1-A)\,w(X)\bigl\{Y-\mu(X)\bigr\}\Bigr],
+  \psi(\bO;\theta,\eta)
+  =\frac1\pi\Bigl[A\bigl\{Y-\mu(\bX)-\theta\bigr\}
+   -(1-A)\,w(\bX)\bigl\{Y-\mu(\bX)\bigr\}\Bigr],
   \qquad w=\frac e{1-e},
 \end{equation}
 and we write $\psi_0=\psi(\cdot;\theta_0,\eta_0)$. We will use this quantity to build a new estimator for the ATT based on interpretable trees in the next section.
@@ -375,11 +378,17 @@ has pointwise asymptotic coverage $1-\alpha$ for $\theta_0$.
 \end{corollary}
 
 \begin{proof}
-For every fixed $(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$, the leaf refits
-$(\hat e_{\tau_e},\hat\mu_{\tau_\mu})$ converge to $(e_0,\mu_0)$ on the
-finitely many leaves of $(\tau_e,\tau_\mu)$, and Assumption~\ref{ass:construct}
-keeps $1-\hat e$ bounded away from zero throughout. The law of large numbers
-and the uniformly bounded conditional second moment of $Y$ then give
+Write $\Vhat(\tau_e,\tau_\mu)$ for the statistic above formed from the
+leaf refits $(\hat e_{\tau_e},\hat\mu_{\tau_\mu})$ at a fixed pair
+$(\tau_e,\tau_\mu)$, so that $\Vhat=\Vhat(\hat\tau_e,\hat\tau_\mu)$. For every
+fixed $(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$, these leaf refits converge to
+$(e_0,\mu_0)$ on the finitely many leaves of $(\tau_e,\tau_\mu)$, and
+Assumption~\ref{ass:construct} keeps $1-\hat e$ bounded away from zero
+throughout, so $\hat w=\hat e/(1-\hat e)$ is uniformly bounded by $(1-c)/c$.
+Because each summand of $\Vhat(\tau_e,\tau_\mu)$ is a function of these
+finitely many, uniformly bounded leaf-wise plug-ins, the law of large
+numbers applies leaf by leaf and, together with the uniformly bounded
+conditional second moment of $Y$, gives
 $\Vhat(\tau_e,\tau_\mu)\to_p\E[\psi_0^2]=V$; since $\cS_e\times\cS_\mu$ is
 fixed and finite, this convergence is uniform over it. By
 Proposition~\ref{lem:selection}, the selected partitions land in
@@ -409,10 +418,10 @@ positivity bound $1-e_0\ge c$: no estimator that is regular along every
 parametric submodel through the true law can improve on the asymptotic
 variance $V$. No additional restriction on $e_0$ -- in particular, no lower
 bound on $e_0$ itself -- is required: differentiating the ATT's
-observed-data representation $\theta_0=\E\{Y-\E(Y\mid \bX,A=0)\mid A=1\}$
+observed-data representation \eqref{eq:att-id}
 directly needs only the control regression $\mu_0$, which
 Assumption~\ref{ass:causal} already keeps well defined everywhere, and never
-$\E[Y\mid A=1,\bX=\bx]$, which would be undefined wherever $e_0(\bx)=0$.
+$m_1(\bx)$, which would be undefined wherever $e_0(\bx)=0$.
 \end{theorem}
 
 \begin{proposition}[The submodel bound is not exploited]
@@ -569,7 +578,7 @@ This interval retains $\thetahat$, and hence the two displayed trees, as the poi
 \begin{corollary}[Width]
 \label{cor:width}
 Suppose the conditions of Theorem~\ref{thm:anchor} hold, the doubletree
-nuisances satisfy the moment, construction, and fixed-budget conditions above,
+nuisances satisfy the conditions of Proposition~\ref{lem:selection},
 and the anchor is $\sqrt n$-efficient. With $D_w, D_\mu$ as in
 Lemma~\ref{lem:biasbound}, we have
 \[
@@ -732,15 +741,87 @@ The assumptions that purchase fast nuisance rates differ. Lasso analyses typical
 \section{Discussion}
 \label{sec:discussion}
 
-Return to the payment, triage, and sentencing settings that motivated doubletree. In each, an analyst deploying doubletree reports exactly two objects: the propensity tree and the outcome tree, each small enough to display in full, together with the point estimate and either the plain confidence interval (if the fidelity diagnostic of Proposition~\ref{prop:spectest} does not reject structural sparsity) or the anchor interval's wider, approximation-aware bound (if it does, or if the analyst does not wish to rely on the diagnostic at all). A reviewer of the decision -- a regulator, a judge, an auditor -- can trace the point estimate to specific leaf-level contrasts in those two trees without reference to a black-box model, a held-out fold, or a stability argument across resamples. That is the audit trail this paper set out to make available, and it is available whether or not structural sparsity actually holds: only the width of the reported interval, not the interpretability of the displayed trees or the validity of the reported inference, depends on it.
+Return to the payment, triage, and sentencing settings that motivated doubletree. In each, an analyst deploying doubletree reports exactly two objects: the propensity tree and the outcome tree, each small enough to display in full, together with the point estimate and a confidence interval. The fidelity diagnostic of Proposition~\ref{prop:spectest} offers evidence on whether structural sparsity is plausible, informing how much confidence to place in the plain interval relative to the anchor interval's wider, approximation-aware width -- but it does not establish coverage for an interval chosen on the basis of its outcome, and its own operating characteristics away from the asymptotic regime are themselves unvalidated. Proposition~\ref{prop:spectest} establishes only that the diagnostic's size tends to zero and that it is consistent against alternatives with a unique pseudo-true partition (Assumption~\ref{ass:pseudo}) and nonzero limiting bias, both conclusions conditional on the anchor's own rate condition (Assumption~\ref{ass:rate}), which concerns the unobservable population nuisances and cannot itself be checked from data -- not what the diagnostic's actual size or power looks like at a sample size and leaf budget an analyst would use in practice. A reader who wants coverage unconditional on that choice can report the anchor interval throughout instead, which requires only that the anchor be $\sqrt n$-consistent and asymptotically normal (Theorem~\ref{thm:anchor}), at the cost of extra width whenever sparsity in fact holds. A reviewer of the decision -- a regulator, a judge, an auditor -- can always trace the point estimate to specific leaf-level contrasts in the two displayed trees, without reference to a black-box model, a held-out fold, or a stability argument across resamples, whether or not structural sparsity holds. Auditing the interval's width, rather than the point estimate, is a different matter: the diagnostic's own test statistic is built from the anchor, so running the diagnostic pulls the anchor into the audit trail regardless of which interval it ends up recommending, and a reviewer who wants to audit that anchor inherits whatever interpretability cost the analyst's choice of anchor carries -- the fold-multiplicity of interpreting several distinct fits if it is a cross-fit interpretable learner, or the opacity of a black-box model if it is not, since the anchor need only be $\sqrt n$-consistent and may be either. The audit trail this paper delivers is therefore complete for the point estimate in every case, and complete for the interval only when the analyst reports the plain interval on the strength of structural sparsity assumed outright, without running the diagnostic.
 
 The tree representation itself is not limited to small trees: Remark~\ref{rem:saturated-general} (\S\ref{sec:trees}) shows the saturated class subsumes any generalized linear working model on the grid, strictly so whenever the truth departs from additivity on the model's link scale. Doubletree restricts the search to a small leaf budget for legibility, and \S\ref{sec:finite-discussion} argues that restriction costs nothing in the statistical model. It can cost something in representation, however: a nuisance whose additive structure is spread widely enough across active covariates to need more than $\Lbar$ leaves is exactly a nuisance for which structural sparsity fails at that budget, and Theorem~\ref{thm:anchor} absorbs the resulting bias into the anchor interval's width (Corollary~\ref{cor:width}) rather than into the validity of the reported inference. Whether real nuisance functions spread additive structure this way is an empirical question this paper does not settle; the broader case that legibility need not cost accuracy in practice, on structured data with meaningful covariates, is one \citet{rudin2019} has argued forcefully. \S\ref{sec:lasso-comparison} compares the assumptions doubletree and penalized linear methods each need for valid and efficient inference.
+
+The paper is stated throughout for the average treatment effect on the treated, not the average treatment effect, and this is a scope decision rather than an oversight. The bilinearity of the estimating equation's bias in the two nuisance errors -- the structure Proposition~\ref{prop:bilinear} establishes for the ATT score -- is not itself specific to the ATT: Appendix~\ref{app:ate} sketches how the same mechanism, there splitting into one term for each of the two outcome regressions the ATE's identification requires, plausibly extends the argument. That preliminary argument stops short of a selection-consistency result, a central limit theorem, or an anchor interval for the resulting three-nuisance case, so we make no claim of a proven extension -- only that the identification and the shape of the bias are worked out, and that the natural doubletree analogue there would be three trees rather than two, which would need its own interpretability accounting. One part of the paper is ATT-specific by construction, not by omission: the single-tree corollary family (\S\ref{sec:single-tree}) is stated for the ATT's efficient score and efficiency bound, drawing its interest from \citet{hahn1998}'s result that knowing the exact propensity score lowers the semiparametric efficiency bound for the ATT but not for the ATE; and Remark~\ref{rem:two-trees-why}'s second point, that the propensity nuisance itself remains informative for the ATT, rests on the same asymmetry (the remark's first point, that the propensity tree is an interpretability rather than a validity requirement, is not ATT-specific). Under the ATE that asymmetry disappears, so whether an analogous single-tree result holds there is a distinct question from the one Corollary~\ref{cor:single-tree} answers here; we do not assume an ATE analogue would subsume it. Carrying Appendix~\ref{app:ate}'s sketch through to a proven selection-consistency result, central limit theorem, and anchor interval, and settling what, if anything, survives of the single-tree family in the process, is future work.
 
 What this paper has not done is show that doubletree performs well, or even adequately, on any real or simulated payment, triage, or sentencing dataset; every guarantee here is asymptotic and pointwise in the data-generating process, not a demonstration that the leaf budgets, cutpoint grids, and sample sizes typical of these applications fall inside the regime where the asymptotics are a good guide. Extending the analysis to finite-sample behavior and to genuine misspecification (rather than the exact-versus-not-exact dichotomy of \S\ref{sec:instantiation1}) is the natural next step.
 
 A real-data application is planned, not yet run. It targets the New York State Office of Mental Health Medicaid serious-mental-illness cohort, reusing in full the population, exposure, and outcome design of a companion paper's partial-identification application (adherence to antipsychotic medication in the twelve months following an index diagnosis as the binary treatment; total medical cost in the following twelve months as the outcome; covariates drawn from the cohort's own baseline table) so that the two papers analyze the same applied dataset under contrasting identification strategies -- point identification here, joint-sensitivity partial identification there. Whether the estimator's requirements -- covariates in binary form, and either the fixed-grid exact-sparsity condition of \S\ref{sec:instantiation1} or the cross-fitting fallback that does not require it -- are met by that cohort's actual covariate set is itself an open, checkable question rather than an assumption: it depends on real column-level data this manuscript does not yet have access to, and answering it is the first step of the application rather than a precondition assumed to hold. An applied comparison against the black-box and linear alternatives discussed in \S\ref{sec:lasso-comparison} is a further natural extension once that application exists.
 
 \appendix
+
+\section{Extension to the average treatment effect (sketch)}
+\label{app:ate}
+
+The results above are developed for the ATT throughout; this appendix does not offer a complete
+counterpart of them for a different estimand. It states the ATE analogue of \S\ref{sec:setup}'s
+identification and efficient-influence-function machinery, and shows that the bilinear bias
+structure underlying Proposition~\ref{prop:bilinear} carries over, split across two outcome
+regressions instead of one. It stops there: no selection-consistency result, central limit
+theorem, or anchor interval is derived for the resulting three-nuisance case, and none is claimed.
+
+The ATE is $\theta_0^{\mathrm{ATE}}=\E[Y(1)-Y(0)]$. Identification requires only that both arms be
+represented, $0<e_0(\bx)<1$ for (Lebesgue-)almost every $\bx$, so that $m_1$ is defined --
+already strictly more than Assumption~\ref{ass:causal}, which permits $e_0(\bx)=0$. Efficient
+estimation needs a uniform two-sided strengthening of this, $c'\le e_0(\bx)\le1-c'$ for every
+$\bx\in\cX$ and some $c'\in(0,1/2)$ -- a possibly different, generally smaller constant than
+Assumption~\ref{ass:causal}'s own $c$ -- since both treatment arms enter the efficient influence
+function's denominators below: exactly the additional restriction Theorem~\ref{thm:regular} shows
+the ATT does not need. Under consistency, ignorability, and at least the pointwise bound,
+\begin{equation}
+\label{eq:ate-id}
+  \theta_0^{\mathrm{ATE}} = \E[m_1(\bX)-\mu_0(\bX)],
+\end{equation}
+using both outcome regressions -- $m_1(\bx)=\E[Y\mid A=1,\bX=\bx]$, already defined in
+\S\ref{sec:setup}, together with $\mu_0$. Like the ATT's own identification result
+\eqref{eq:att-id}, \eqref{eq:ate-id} involves no propensity; unlike the ATT's, it requires the
+treated-arm regression $m_1$ as well as $\mu_0$. The propensity enters only through the efficient
+influence function: for a candidate nuisance triple $\eta^{\mathrm{ATE}}=(e,m,\mu)$ -- one
+outcome-regression function per treatment arm, plus the propensity --
+\begin{equation}
+\label{eq:score-ate}
+  \psi^{\mathrm{ATE}}(\bO;\theta,\eta^{\mathrm{ATE}})
+  =
+  m(\bX)-\mu(\bX)-\theta
+  +
+  \frac{A}{e(\bX)}\{Y-m(\bX)\}
+  -
+  \frac{1-A}{1-e(\bX)}\{Y-\mu(\bX)\},
+\end{equation}
+the standard efficient influence function for the ATE in the nonparametric model
+\citep{hahn1998}. The natural doubletree analogue built on this score is three trees, not two,
+one for each of $e_0,m_1,\mu_0$ -- though, echoing \S\ref{sec:discussion}'s own framing, whether a
+propensity-free analogue of \S\ref{sec:single-tree} exists here is exactly the question the ATE's
+lack of the ATT's propensity asymmetry leaves open, not one this appendix answers.
+
+\begin{remark}[Bilinear bias, split across two outcome regressions]
+\label{rem:bilinear-ate}
+For any candidate $\eta^{\mathrm{ATE}}=(e,m,\mu)$ with $c'\le e(\bx)\le1-c'$ for every
+$\bx\in\cX$, evaluating $\E[\psi^{\mathrm{ATE}}(\bO;\theta_0^{\mathrm{ATE}},\eta^{\mathrm{ATE}})]$
+by the same conditioning-on-$\bX$ argument that produces Proposition~\ref{prop:bilinear} for the
+ATT gives
+\[
+  \E\bigl[\psi^{\mathrm{ATE}}(\bO;\theta_0^{\mathrm{ATE}},\eta^{\mathrm{ATE}})\bigr]
+  =
+  \E\left[\frac{e_0(\bX)-e(\bX)}{e(\bX)}\{m_1(\bX)-m(\bX)\}\right]
+  +
+  \E\left[\frac{e_0(\bX)-e(\bX)}{1-e(\bX)}\{\mu_0(\bX)-\mu(\bX)\}\right].
+\]
+The bias is again bilinear in a propensity error and an outcome-regression error -- exactly the
+mechanism Proposition~\ref{prop:bilinear} isolates for the ATT -- but now there is one such term
+per treatment arm rather than one term in total (the control-arm term here is exactly
+Proposition~\ref{prop:bilinear}'s own remainder, up to its $\pi^{-1}$ normalization). If every
+nuisance were exactly tree-representable at some shared leaf budget (a three-nuisance analogue of
+\S\ref{sec:instantiation1}'s structural sparsity, with a third sufficient class $\cS_m$ for $m_1$
+alongside $\cS_e,\cS_\mu$, in the sense of Definition~\ref{def:sufficient}), both terms would
+vanish exactly, echoing how sparsity zeroes out Proposition~\ref{prop:bilinear}'s single term for
+the ATT. Whether the fixed-finite-class selection argument of \S\ref{sec:partition-recovery}
+extends unchanged to three simultaneously selected partitions, and whether the resulting central
+limit theorem and anchor interval carry through, is not verified here.
+\end{remark}
 
 % Bibliography
 \bibliographystyle{apalike}
