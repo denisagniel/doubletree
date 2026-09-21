@@ -30,7 +30,7 @@
 
 \maketitle
 \begin{abstract}
-Modern causal inference relies on flexible, black-box nuisance estimation together with sample splitting to obtain valid, efficient inference for treatment effects. In high-stakes settings -- health care payment, treatment triage, sentencing -- that estimation step is itself the object stakeholders need to audit, and a black-box nuisance model, however well it performs, does not offer an auditable trail. We propose \emph{doubletree}, an estimator of the average treatment effect on the treated (ATT) that replaces the propensity and outcome nuisances with two globally optimal, size-budgeted decision trees, each small enough to display and each fit on every observation, with no sample splitting or cross-fitting for either displayed tree. When the two nuisances are exactly representable by trees within the analyst's leaf budget -- a structural sparsity condition we make precise on the analyst's own pre-specified grid -- doubletree attains the classical semiparametric efficiency bound for the ATT at the parametric $\sqrt n$ rate, and its influence-function variance estimator is the ordinary plug-in, with no jackknife or debiasing correction needed for asymptotically valid inference; this efficiency is not a parametric artifact of fixing the candidate class in advance, since doubletree remains regular and efficient for the full nonparametric model and does not exploit the smaller variance a genuinely parametric restriction would buy. When the leaf budget does not contain the truth, we do not assume the approximation error away: an anchor-interval construction absorbs the resulting bias into an honest, approximation-aware confidence interval, so that a defensible inferential statement remains available even outside the class -- the reported point estimate remains the two displayed trees throughout, and only the interval's width, never the estimate itself, depends on the anchor. We are explicit about what this buys and does not: the partition recovery that drives our results is pointwise, not uniform, in the underlying data-generating process, and we make no claim of matching the flexibility of an unrestricted machine-learning ensemble. The comparison we defend is against a generalized linear working model: the underlying tree representation is at least as general as such a working model, and strictly more general once the truth departs from additivity, while remaining exactly as auditable, and it matches the efficiency of generic double machine learning without requiring cross-fitting, so the two displayed trees are the entire audit trail.
+Modern causal inference relies on flexible, black-box nuisance estimation together with sample splitting to obtain valid, efficient inference for treatment effects. In high-stakes settings -- health care payment, treatment triage, sentencing -- that estimation step is itself the object stakeholders need to audit, and a black-box nuisance model, however well it performs, does not offer an audit trail. We propose \emph{doubletree}, an estimator of the average treatment effect on the treated (ATT) that replaces the propensity and outcome nuisances with two globally optimal, size-budgeted decision trees, each small enough to display and each fit on every observation, with no sample splitting or cross-fitting for either displayed tree. When the two nuisances are exactly representable by trees within the analyst's leaf budget -- a structural sparsity condition we make precise on the analyst's own pre-specified grid -- doubletree attains the classical semiparametric efficiency bound for the ATT at the parametric $\sqrt n$ rate, and its influence-function variance estimator is the ordinary plug-in, with no jackknife or debiasing correction needed for asymptotically valid inference; this efficiency is not a parametric artifact of fixing the candidate class in advance, since doubletree remains regular and efficient for the full nonparametric model and does not exploit the smaller variance a genuinely parametric restriction would buy. When the leaf budget does not contain the truth, we do not assume the approximation error away: an anchor-interval construction absorbs the resulting bias into an honest, approximation-aware confidence interval, so that a defensible inferential statement remains available even outside the class -- the reported point estimate remains the two displayed trees throughout, and only the interval's width, never the estimate itself, depends on the anchor. We are explicit about what this buys and does not: the partition recovery that drives our results is pointwise, not uniform, in the underlying data-generating process, and we make no claim of matching the flexibility of an unrestricted machine-learning ensemble. The comparison we defend is against a generalized linear working model: the underlying tree representation is at least as general as such a working model, and strictly more general once the truth departs from additivity, while remaining exactly as auditable, and it matches the efficiency of generic double machine learning without requiring cross-fitting, so the two displayed trees are the entire audit trail.
 \end{abstract}
 
 \section{Introduction}
@@ -87,13 +87,14 @@ a finite collection of grid atoms $\cA$, fixed in $n$, with
   \qquad
   \Prob(X\in a)>0\quad\text{for every }a\in\cA.
 \]
+Write $p_x=\Prob(\bX\in a)$ for the atom $a\in\cA$ containing $x$ -- the
+marginal probability mass this induces on $\cA$, positive everywhere on
+$\cX$ by the display above.
 
 A \emph{tree partition} $\tau$ of $\cX$ is induced by recursive axis-aligned
 binary splits at these pre-specified cutpoints only. Its blocks are
 \emph{leaves}, each leaf is a union of grid atoms, $\card\tau$ is its leaf
-count, and $\ell_\tau(x)$ is the leaf containing $x$. This restriction on the
-permissible splits is what makes the candidate partition class fixed and
-finite; it is not merely a convention. \S\ref{sec:finite-discussion} returns to the natural objection this restriction invites -- that it looks like trading nonparametric flexibility for an essentially parametric hypothesis space -- and shows why it is not. Further, for leaf $\ell$ define the leaf sample size as $|\ell| = \sum_{i=1}^n \cI\{X_i \in \ell\}$, and the control sample size as $|\ell|_0 = \sum_{i=1}^n \cI\{X_i \in \ell, A_i = 0\}$. For a strictly positive weight $\nu$ on $\cX$, let $\Pi^\nu_\tau$ denote the $\nu$-weighted projection onto functions constant on the leaves of $\tau$; we write $\Pi_\tau$ for $\Pi^{p}_\tau$, and use the control-weighted version, $\nu_x=p_x\{1-e_0(x)\}$, for the outcome nuisance. Because every leaf is a nonempty union of positive-mass atoms, every candidate leaf automatically has positive probability mass; no separate raw-cell probability floor is required.
+count, and $\ell_\tau(x)$ is the leaf containing $x$. Further, for leaf $\ell$ define the leaf sample size as $|\ell| = \sum_{i=1}^n \cI\{X_i \in \ell\}$, and the control sample size as $|\ell|_0 = \sum_{i=1}^n \cI\{X_i \in \ell, A_i = 0\}$. For a strictly positive weight $\nu$ on $\cX$, let $\Pi^\nu_\tau$ denote the $\nu$-weighted projection onto functions constant on the leaves of $\tau$; we write $\Pi_\tau$ for $\Pi^{p}_\tau$, and use the control-weighted version, $\nu_x=p_x\{1-e_0(x)\}$, for the outcome nuisance. Because every leaf is a nonempty union of positive-mass atoms, every candidate leaf automatically has positive probability mass; no separate raw-cell probability floor is required.
 
 We operate under the assumption that a tree is sufficiently interpretable if it obeys a user-specified \emph{leaf budget}, or a maximum number of leaves the tree partition may have. This budget allows the user to determine how complex the tree may become. The saturated grid budget is $\bar L = M$, one leaf per grid atom. In general, stakeholders may prefer a smaller tree, in which case we set the leaf budget at $\bar L \leq M$. Then, define the space of all possible partitions under that budget as
 \[
@@ -119,7 +120,42 @@ equivalently the set of $\tau\in\cT_{\Lbar}$ on whose leaves $\gamma_{0,j}$ is
 $\Prob$-a.s.\ constant. The characterization is independent of the strictly
 positive weight $\nu$.
 \end{definition}
- 
+
+\begin{assumption}[Structural sparsity]\label{ass:sparsity}
+$\cS_e\ne\emptyset$ and $\cS_\mu\ne\emptyset$: some tree in $\cT_{\Lbar}$
+represents the propensity exactly, and some tree in $\cT_{\Lbar}$ represents
+the control-outcome regression exactly, each in the sense of
+Definition~\ref{def:sufficient}.
+\end{assumption}
+
+Assumption~\ref{ass:sparsity} is a sparsity condition, not a
+correct-specification condition: it does not require $e_0$ or $\mu_0$ to
+take any particular functional form, only that each be exactly constant on
+the leaves of some tree built from the pre-specified grid, at or below the
+leaf budget $\Lbar$. \S\ref{sec:finite-discussion} returns to what fixing
+the candidate class in advance does and does not restrict.
+
+\begin{remark}[Legibility does not by itself make the audit trail complete]
+\label{rem:legibility-not-complete}
+A legible leaf budget $\Lbar$ bounds every fitted tree at $\Lbar$ leaves --
+small enough to display in full at the budgets this paper intends --
+regardless of whether Assumption~\ref{ass:sparsity} holds, since
+$\cT_{\Lbar}$ is fixed and finite by construction whatever $\cS_e$ and
+$\cS_\mu$ turn out to be. Legibility is therefore free of
+Assumption~\ref{ass:sparsity} -- though not free of representational cost,
+which Remark~\ref{rem:saturated-general} and Corollary~\ref{cor:width} price
+separately. A \emph{complete} audit trail, in which the displayed trees
+are not merely legible but exactly equal to the true nuisances, is a
+different matter: it is exactly what Assumption~\ref{ass:sparsity} buys.
+When the assumption fails, the displayed trees remain fully auditable
+objects, but what they display is a tree-representable approximation to
+$e_0$ and $\mu_0$, not $e_0$ and $\mu_0$ themselves -- the
+population-risk-optimal such approximation in the limit when
+Assumption~\ref{ass:pseudo} below supplies a unique one, and with no fixed
+limit at all when it does not. \S\ref{sec:honest-manuscript} constructs the
+anchor interval that keeps inference valid either way.
+\end{remark}
+
  \subsection{Identification and influence function}
  
 In this section, we briefly review how the causal effect of interest is identified. 
@@ -230,12 +266,11 @@ sparsity argument applies without passing through Condition~(P) at all.
 \subsection{Instantiation 1: fixed grid, exact sparsity}
 \label{sec:instantiation1}
 
-We are in this setting when the sufficient classes are not empty:
-$\cS_\mu\ne\emptyset$, $\cS_e\ne\emptyset$. Sparsity implies that both
-nuisances are representable by trees that observe the leaf budget $\Lbar$ on
-the analyst's own pre-specified grid. This is the expository case: the grid
-is finite by construction (\S\ref{sec:trees}), so once selection lands in
-the sufficient class, topology recovery is exact. The resulting central
+We are in this setting when Assumption~\ref{ass:sparsity} holds: both
+nuisances are exactly representable by trees that observe the leaf budget
+$\Lbar$ on the analyst's own pre-specified grid. This is the expository
+case: the grid is finite by construction (\S\ref{sec:trees}), so once
+selection lands in the sufficient class, partition recovery is exact. The resulting central
 limit theorem is proved by uniform asymptotic linearity over the whole
 sufficient class, not by verifying Condition~(P) or comparing the selected
 partition with a single reference partition -- see the discussion following
@@ -252,12 +287,13 @@ bounded; the pre-specified cutpoints and their induced positive-mass grid
 atoms are fixed and finite in $n$, and optimization considers only partitions
 built from those cutpoints; $\Lbar$ is fixed;
 $\Lbar m_n\lesssim n$; and $\tauhat_j$ is an exact global minimizer
-of~\eqref{eq:select}, with $\lambda_n\to0$. If
-$\cS_e\ne\emptyset$ and $\cS_\mu\ne\emptyset$, then, for each
-$j\in\{e,\mu\}$,
+of~\eqref{eq:select}, with $\lambda_n\to0$. For each $j\in\{e,\mu\}$, if
+$\cS_j\ne\emptyset$, then
 \[
-  \Prob\bigl(\tauhat_j\in\cS_j\bigr)\longrightarrow1 .
+  \Prob\bigl(\tauhat_j\in\cS_j\bigr)\longrightarrow1 ;
 \]
+in particular, under Assumption~\ref{ass:sparsity} this holds for both $j$
+simultaneously.
 \end{proposition}
 
 This proposition ensures that $\tauhat_j$ is consistent for the true sufficient partition for both nuisances $j = e, \mu$. If we furthermore have $Y$ bounded, we can establish the rate of this selection consistency:
@@ -326,8 +362,8 @@ This proposition establishes an asymptotic equivalence between the normalized em
 
 \begin{proposition}[Fixed-grid central limit theorem by uniform linearity]
 \label{prop:P-instantiation1}
-Suppose the conditions of Proposition~\ref{lem:uniform} hold,
-$\cS_e\ne\emptyset$, $\cS_\mu\ne\emptyset$, and $V:=\E[\psi_0^2]>0$. Then
+Suppose the conditions of Proposition~\ref{lem:uniform} hold -- in
+particular Assumption~\ref{ass:sparsity} -- and $V:=\E[\psi_0^2]>0$. Then
 \[
   \sqrt n(\thetahat-\theta_0)\rightsquigarrow N(0,V).
 \]
@@ -453,11 +489,11 @@ For each $j\in\{e,\mu\}$, there is a unique $\tau_j^\dagger\in\cT_{\Lbar}$ minim
 Write $\eta_*=(e_*,\mu_*)$, with $e_*=e_{\tau_e^\dagger}$ and $\mu_*=\Pi^\nu_{\tau_\mu^\dagger}\mu_0$ in the notation of \S\ref{sec:instantiation1} -- the two components indexed by their own, generally distinct, partitions -- and let $\theta_*$ solve $\E[\psi(\bO;\theta,\eta_*)]=0$; this solution is unique because $\psi$ is affine and strictly monotone in $\theta$ (\S\ref{sec:trees}--\S\ref{sec:setup}).
 \end{assumption}
 
-Because $\cT_{\Lbar}$ is finite, the margin $\Delta_j^\dagger$ is automatically positive once the minimizer $\tau_j^\dagger$ is unique -- a minimum over finitely many strictly positive numbers cannot be zero -- so uniqueness is the substantive content of Assumption~\ref{ass:pseudo}, not a separate condition alongside it. Under structural sparsity, $\tau_j^\dagger$ is the finest partition in $\cS_j$ and $\eta_*=\eta_0$: Assumption~\ref{ass:pseudo} is strictly weaker than the sparsity condition of \S\ref{sec:instantiation1}, requiring only that the best tree-representable approximation to each nuisance be unique, not that it be exact. It fails only through an exact tie: if two or more partitions of $\cT_{\Lbar}$ attain the same best population risk, $\tau_j^\dagger$ is undefined and the proposition below does not apply. A near-tie leaves Assumption~\ref{ass:pseudo} intact -- the conclusion below still holds -- and only slows how quickly it kicks in, through the exponent of Proposition~\ref{prop:selection-rate}.
+Because $\cT_{\Lbar}$ is finite, the margin $\Delta_j^\dagger$ is automatically positive once the minimizer $\tau_j^\dagger$ is unique -- a minimum over finitely many strictly positive numbers cannot be zero -- so uniqueness is the substantive content of Assumption~\ref{ass:pseudo}, not a separate condition alongside it. Assumptions~\ref{ass:sparsity} and~\ref{ass:pseudo} are non-nested rather than ordered: Assumption~\ref{ass:pseudo} drops exactness, requiring only that the best tree-representable approximation to each nuisance be unique, but it is not implied by Assumption~\ref{ass:sparsity}, since every $\tau\in\cS_j$ attains the same population risk $R^{(j)}(\tau)$ by Definition~\ref{def:sufficient} -- so a non-singleton sufficient class is exactly an exact tie, and structural sparsity generically produces one whenever $\cS_j$ is not a singleton. Assumption~\ref{ass:pseudo} is therefore the relevant hypothesis when sparsity fails and the best approximation is nonetheless unique -- the case this subsection treats -- not a weakening of Assumption~\ref{ass:sparsity}. It fails only through an exact tie: if two or more partitions of $\cT_{\Lbar}$ attain the same best population risk, $\tau_j^\dagger$ is undefined and the proposition below does not apply. A near-tie leaves Assumption~\ref{ass:pseudo} intact -- the conclusion below still holds -- and only slows how quickly it kicks in, through the exponent of Proposition~\ref{prop:selection-rate}.
 
 \begin{proposition}[Consistency at the pseudo-true partitions]
 \label{prop:pseudo-consistency}
-Under Assumption~\ref{ass:pseudo} and the conditions of Proposition~\ref{lem:selection} other than $\cS_e\ne\emptyset,\cS_\mu\ne\emptyset$,
+Under Assumption~\ref{ass:pseudo} and the conditions of Proposition~\ref{lem:selection} other than Assumption~\ref{ass:sparsity},
 \[
   \Prob(\tauhat_j=\tau_j^\dagger)\longrightarrow 1, \qquad j\in\{e,\mu\},
 \]
@@ -634,7 +670,7 @@ buys interpretability, and the estimator declines the resulting information
 rather than exploiting it.
 
 What \emph{does} restrict the data-generating process is structural sparsity
-itself (\S\ref{sec:instantiation1}) -- that the true nuisances be
+itself (Assumption~\ref{ass:sparsity}) -- that the true nuisances be
 \emph{exactly} representable by some tree within the budget $\Lbar$. We do
 not minimize this cost in general: Proposition~\ref{prop:P-instantiation1} requires the truth
 to align exactly, not merely approximately, with some tree in the relevant
@@ -708,7 +744,7 @@ Suppose $\Prob(\tauhat_\mu\in\cS_e\cap\cS_\mu)\to1$. For \emph{every} $\tau\in\c
 
 \begin{corollary}[A super-efficient submodel estimator under coarsening and homoskedasticity]
 \label{cor:single-tree-coarsening}
-Suppose $\Prob(\tauhat_\mu\in\cS_\mu)\to1$ and $\cS_e\ne\emptyset$ as well (equivalently, structural sparsity holds for the propensity too, under Instantiation~1), so that the untied two-tree estimator attains $V=\E[\psi_0^2]$ by Proposition~\ref{prop:P-instantiation1}; the two hypotheses are compatible, and their compatibility is the point. By Lemma~\ref{lem:single-tree-linear}, $\theta_{\mathrm{tie}}=\theta_0$ \emph{exactly} regardless of which $\tau\in\cS_\mu$ is realized, and $\thetahat_{\mathrm{tie}}-\theta_0=O_p(n^{-1/2})$; absent partition stabilization, this is the random-index expansion of that lemma, not yet a statement of one fixed asymptotic variance.
+Suppose $\Prob(\tauhat_\mu\in\cS_\mu)\to1$ and $\cS_e\ne\emptyset$ as well -- jointly, Assumption~\ref{ass:sparsity} -- so that the untied two-tree estimator attains $V=\E[\psi_0^2]$ by Proposition~\ref{prop:P-instantiation1}; the two hypotheses are compatible, and their compatibility is the point. By Lemma~\ref{lem:single-tree-linear}, $\theta_{\mathrm{tie}}=\theta_0$ \emph{exactly} regardless of which $\tau\in\cS_\mu$ is realized, and $\thetahat_{\mathrm{tie}}-\theta_0=O_p(n^{-1/2})$; absent partition stabilization, this is the random-index expansion of that lemma, not yet a statement of one fixed asymptotic variance.
 
 Fix $\tau\in\cS_\mu$ and suppose, further, that $\sigma_0^2(\bx)$ is constant on every leaf of $\tau$ (within-leaf homoskedasticity of the control outcome). Then the fixed-partition tied estimator satisfies $\sqrt n\{\thetahat_{\mathrm{tie}}(\tau)-\theta_0\}\rightsquigarrow N(0,V_\tau)$ for $V_\tau=\Var(\psi_\tau)$, with
 \[
@@ -815,7 +851,7 @@ mechanism Proposition~\ref{prop:bilinear} isolates for the ATT -- but now there 
 per treatment arm rather than one term in total (the control-arm term here is exactly
 Proposition~\ref{prop:bilinear}'s own remainder, up to its $\pi^{-1}$ normalization). If every
 nuisance were exactly tree-representable at some shared leaf budget (a three-nuisance analogue of
-\S\ref{sec:instantiation1}'s structural sparsity, with a third sufficient class $\cS_m$ for $m_1$
+Assumption~\ref{ass:sparsity}, with a third sufficient class $\cS_m$ for $m_1$
 alongside $\cS_e,\cS_\mu$, in the sense of Definition~\ref{def:sufficient}), both terms would
 vanish exactly, echoing how sparsity zeroes out Proposition~\ref{prop:bilinear}'s single term for
 the ATT. Whether the fixed-finite-class selection argument of \S\ref{sec:partition-recovery}

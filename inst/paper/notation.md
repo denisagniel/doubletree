@@ -46,7 +46,7 @@ first introduced.
 | $z_{1-\alpha/2}$ | Standard normal quantile | `:73` | |
 | $\cX$ | Covariate space. **Need not be finite.** | `:53`, elaborated `:79` | Do not write "$\cX$ is finite" unqualified anywhere — contradicts `:79` directly. |
 | $\cA$ | Finite family of **grid atoms** from the analyst's pre-specified cutpoints; $M:=\card\cA<\infty$ | `:79–88` | The thing that is actually required finite — not $\cX$. Do not conflate. |
-| $P(a)$, written $p_x$ | Probability mass of an atom / covariate value | `:85`, `:94` | $p_x$ notation used specifically inside $\Pi_\tau=\Pi_\tau^{p}$; consistent with $P(a)$ but the manuscript switches symbols between the two without a bridging sentence — recorded here as a minor internal-notation seam, not a defect requiring a fix, just something a reader must reconstruct. |
+| $P(a)$, written $p_x$ | Probability mass of an atom / covariate value | `:88` (now defines it: "Write $p_x=\Prob(\bX\in a)$..."), `:97` (`\Pi_\tau=\Pi_\tau^p$) | **Fixed 2026-09-21** — a bridging sentence now connects $p_x$ to the atom-positivity display, closing the seam this row used to flag. |
 | $\tau$ | A tree partition of $\cX$, built from pre-specified cutpoints only | `:89–93` | |
 | $\card\tau$ | Leaf count of $\tau$ | `:90` | |
 | $\ell_\tau(x)$ | The leaf of $\tau$ containing $x$ | `:90` | |
@@ -55,7 +55,7 @@ first introduced.
 | $\nu_x=p_x\{1-e_0(x)\}$ | Control-weighted density used for the outcome nuisance's projection | `:94` | |
 | $\bar L$ | Leaf budget (analyst-chosen, before data) | `:96` | Saturated budget $\bar L=M$. |
 | $\cT_{\bar L}$ | Candidate class of tree partitions, $\card\tau\le\bar L$ | `:96–101` | Fixed and finite regardless of whether $\cX$ itself is finite — depends only on $\cA,\bar L$. |
-| $\cS_j$ | **Sufficient class** — $\tau\in\cT_{\bar L}$ on whose leaves $\gamma_{0,j}$ is $P$-a.s. constant | `:105–114` (`def:sufficient`) | The manuscript-level stand-in for `theory.tex`'s formal `ass:sparsity`; here it is a *definition*, and "structural sparsity" is the (implicit, unnumbered) condition $\cS_e\ne\emptyset,\ \cS_\mu\ne\emptyset$ built from it — see §2b. |
+| $\cS_j$ | **Sufficient class** — $\tau\in\cT_{\bar L}$ on whose leaves $\gamma_{0,j}$ is $P$-a.s. constant | `:112–121` (`def:sufficient`) | The manuscript-level stand-in for `theory.tex`'s formal `ass:sparsity`; here it is a *definition*, and "structural sparsity" is now the numbered `\label{ass:sparsity}` (`manuscript.tex:123`, drafted 2026-09-21) built from it — see §2a. |
 | $c\in(0,1)$ | Uniform one-sided positivity constant | `:120–126` (`ass:causal`) | |
 | $\psi(O;\theta,\eta)$ | Efficient influence function (EIF) for the ATT | `:132–139` (eq. `score`) | $\psi_0:=\psi(\cdot;\theta_0,\eta_0)$. |
 | $\cT_n^{(\mu)},\ \cT_n^{(e)}$ | Feasible sets — partitions whose every leaf carries $\ge m_n$ (control) observations | `:145–149` (eq. `feasible`) | |
@@ -121,6 +121,38 @@ first introduced.
 environment name (`assum`, `cond`, `hyp`, etc.) occurs in this document.
 
 ### 2a. Formal — explicitly numbered in the paper
+
+#### Structural sparsity — `\label{ass:sparsity}` (drafted 2026-09-21)
+
+- **Stated at:** `:123–128`
+- **Statement:** $\cS_e\ne\emptyset$ and $\cS_\mu\ne\emptyset$ — some tree in $\cT_{\Lbar}$
+  represents the propensity exactly, and some tree in $\cT_{\Lbar}$ represents the
+  control-outcome regression exactly, each in the sense of `def:sufficient`.
+- **Discharges:** `lem:selection` (selection lands in the sufficient class w.p.$\to1$),
+  `prop:P-instantiation1` (the headline CLT), and everything in §3.2 built on them; also the
+  new legibility-vs-audit-completeness remark immediately following it (`:139–150`), which
+  restates it by label rather than in spirit.
+- **Role:** The single most load-bearing condition in the manuscript — delivers full
+  semiparametric efficiency at the parametric rate. Its failure is the entire subject of
+  `sec:honest-manuscript` (the anchor interval).
+- **When reasonable:** The two nuisances' additive structure is concentrated enough, relative
+  to the leaf budget $\Lbar$, that a tree of at most $\Lbar$ leaves represents each exactly on
+  the analyst's pre-specified grid — cheap when dependence is hierarchical (the active
+  coordinate set varies by region), expensive when it is additive across many active
+  coordinates.
+- **When unreasonable:** The truth's additive structure is spread widely enough across active
+  covariates that no tree within the leaf budget represents it exactly. `thm:anchor` remains
+  valid regardless; only the plain interval's efficiency claim is lost, absorbed into the
+  anchor interval's width (`cor:width`).
+- **Verifiable from data?** No — a property of the unobservable population nuisances, like
+  `ass:rate`. `prop:spectest`'s diagnostic offers indirect evidence, not verification.
+- **Used by:** `lem:selection`, `prop:P-instantiation1`. **Not** by
+  `lem:single-tree-linear`/`cor:single-tree-coarsening` in the single-tree corollary family —
+  those need only $\cS_\mu\ne\emptyset$, or add $\cS_e\ne\emptyset$ as a separate hypothesis,
+  rather than the joint condition, so citing `ass:sparsity` there would overstate what they
+  actually assume; left as direct $\cS_e/\cS_\mu$ prose (`:711,:739`) on purpose.
+- **Cited as a range anywhere?** No.
+- **Declared in:** body (§2.2).
 
 #### Causal identification — `\label{ass:causal}`
 
@@ -210,7 +242,7 @@ environment name (`assum`, `cond`, `hyp`, etc.) occurs in this document.
 
 | Assumption | Where it hides | Role | Should it be promoted to formal? |
 |---|---|---|---|
-| **Structural sparsity**, $\cS_e\ne\emptyset,\ \cS_\mu\ne\emptyset$ | `:225–226` (opens §`sec:instantiation1`); the hypothesis line of `lem:selection` (`:248`), `prop:P-instantiation1` (`:321–322`) | Delivers full efficiency at the parametric rate; its failure is the entire subject of `sec:honest-manuscript`. Has a *definition* it is built from (`def:sufficient`, formal) but the condition "$\cS_e,\cS_\mu\ne\emptyset$" itself is never wrapped in its own `\begin{assumption}` in this document — `theory.tex`'s `ass:sparsity` is the formal version, out of scope here. | **Yes, arguably** — it is the single most load-bearing condition in the manuscript and currently has no numbered environment of its own, unlike `ass:causal`/`ass:construct`/`ass:rate`, which are comparatively peripheral to the headline result. Flagging as a finding, not fixing unilaterally. |
+| **Structural sparsity** — **MOVED to §2a, 2026-09-21.** Promoted to `\label{ass:sparsity}` (`manuscript.tex:123`); this row's own earlier finding ("Yes, arguably" it should be promoted) is now resolved. See §2a's new entry for the full record. | — | — | **Resolved 2026-09-21** |
 | **iid sampling** | Bundled into `lem:selection`'s hypothesis list, `:241` ("the observations are iid") | Standard sampling assumption underlying every asymptotic result in the paper. | Optional — 9.5% of methods-theory papers name every assumption (per `paper-protocol.md`'s measurement); bundling a sampling assumption into a proposition's hypothesis rather than a separate numbered environment is common practice, not a defect. |
 | **Uniformly bounded conditional second moments of $Y$** | Bundled into `lem:selection`'s hypothesis (`:242`), `cor:variance`'s proof (`:376–377`) | Needed for the LLN/CLT arguments underlying `lem:selection`, `cor:variance`. | Optional, same reasoning as above. |
 | **$Y$ bounded** (stronger than the second-moment condition) | Bundled into `prop:selection-rate`'s hypothesis, `:259` | Needed for the exponential (rather than merely polynomial) selection-consistency rate. | Optional. |
