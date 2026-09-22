@@ -6,8 +6,12 @@
 renumbering of §3 plus a new §4, decided after a `structure-reviewer` critique
 (session-local report, not filed under `quality_reports/reviews/` yet — see maintenance
 contract) triggered by the author's observation that the old §3.4/§3.5 "were things we
-discussed and then got stuck on the end." Nothing below reflects a change to `manuscript.tex`
-itself yet — this file states the *target* structure; the moves are still pending.
+discussed and then got stuck on the end." **Corrected 2026-09-21 (this line was stale and wrong
+by that date, and had been for some time):** several rows below **have** since been drafted into
+`manuscript.tex` — check each row's own inline status note (e.g. "**Drafted 2026-09-21**,"
+"**confirmed complete**") rather than this header for whether a given row reflects the target
+structure or still only plans it. This line itself is exactly the kind of outline/manuscript
+divergence this file exists to prevent, and it went uncaught for days.
 
 > **Why this file exists.** It is a content-distribution plan, not a table of contents: which
 > section owns which idea, so a claim is made once, in one place, at full strength.
