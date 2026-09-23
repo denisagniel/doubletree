@@ -13,7 +13,7 @@
 #   bash slurm/submit_per_method.sh
 #
 # UNATTENDED ONE-SHOT (profile THEN auto-submit ~1000 long tasks):
-#   sbatch --export=ALL,TARGET_TASKS=1000,AUTO_SUBMIT=1 slurm/profile.slurm
+#   TARGET_TASKS=1000 AUTO_SUBMIT=1 sbatch --export=ALL slurm/profile.slurm
 # This sizes for ~1000 tasks and, ONLY if all 7 sizing envs come out valid,
 # chain-launches submit_per_method.sh from within this job. If profiling is
 # truncated (timeout/OOM leaves <7 envs), it submits NOTHING and exits non-zero.
@@ -36,7 +36,7 @@
 # `medium` (5-day cap) removes the 12h ceiling so profiling can't be truncated by
 # the cap, and schedules sooner than `long`; the 24h wall below is a generous
 # ceiling for a run-once sizing job. If runtime is still a concern, cut probe cost
-# with --export=ALL,N_UNITS_PROBE=3.
+# with N_UNITS_PROBE=3 and a plain --export=ALL.
 #SBATCH --partition=medium
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -46,55 +46,32 @@
 #SBATCH --output=logs/profile_%j.out
 #SBATCH --error=logs/profile_%j.err
 
+# --- Module environment -------------------------------------------------------
+# Backfilled 2026-09-23. `module` is a bash FUNCTION that Lmod `export -f`s into the
+# environment, so it is INHERITED, not found on PATH: present when a human submits from
+# an interactive shell, ABSENT under `ssh host 'bash -s'`. With strict mode already on,
+# the bare `module load` below then aborted the task with no useful output.
+#
+# Bootstrap MUST precede `set -euo pipefail`: /etc/profile.d/* scripts reference unset
+# variables and return non-zero, both fatal under `set -eu`.
+#
+# (Separately: the 2026-09-18 mass cancellation of this study was NOT this bug -- it was
+# `sbatch --export=ALL,KEY=value`, fixed in the launcher. See O2_SSH_GOTCHAS.md §12.)
+set +eu
+if ! command -v module >/dev/null 2>&1; then
+  for profile_script in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh /etc/profile; do
+    [ -r "${profile_script}" ] && . "${profile_script}" && break
+  done
+fi
 set -euo pipefail
 
-# --- Tunables (override at submit time, e.g. sbatch --export=ALL,TARGET_HOURS=3 ...) ---
-TARGET_HOURS="${TARGET_HOURS:-2}"     # target wall time per PRODUCTION task (sizing input)
-# TARGET_TASKS: if set, size for this TOTAL number of production array tasks across
-# all 7 methods (cost-proportional -> uniform per-task walltime, partition auto-picked)
-# instead of a per-task wall-time target. Use to stay under the 10k MaxSubmitJobs cap
-# and submit ONE shot, unattended, e.g.  sbatch --export=ALL,TARGET_TASKS=1000 slurm/profile.slurm
-TARGET_TASKS="${TARGET_TASKS:-}"      # empty => classic target-hours sizing
-MEM_CAP_GB="${MEM_CAP_GB:-24}"        # per-unit kill ceiling; MUST be < --mem (48G)
-N_UNITS_PROBE="${N_UNITS_PROBE:-5}"   # probe units per method at the worst cell
-# AUTO_SUBMIT=1: after profiling, if AND ONLY IF all 7 sizing_<method>.env are valid,
-# chain-launch the production arrays via submit_per_method.sh from within this job --
-# so a single `sbatch` profiles then submits, unattended. If any method's sizing is
-# missing/invalid (e.g. profiling timed out after N<7 methods, as job 47933203 did),
-# NOTHING is submitted and this job exits non-zero (better than launching a partial,
-# broken study). Requires the cluster to permit sbatch-from-within-a-job (O2 does).
-AUTO_SUBMIT="${AUTO_SUBMIT:-0}"
-
-# --- Resolve study dir --------------------------------------------------------
-# Under `sbatch`, SLURM runs a SPOOLED COPY of this script (e.g.
-# /var/spool/slurmd/job<id>/slurm_script), so ${BASH_SOURCE[0]} does NOT point
-# into the repo -- deriving STUDY_DIR from it yields /var/spool/slurmd and the
-# mkdir below fails "Permission denied", aborting under set -e before any sizing
-# runs. SLURM sets SLURM_SUBMIT_DIR to the dir `sbatch` was invoked from (the
-# study dir, per the header) and cd's into it, so prefer that. Fall back to
-# BASH_SOURCE for an interactive `bash slurm/profile.slurm`.
-if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
-  STUDY_DIR="${SLURM_SUBMIT_DIR}"
-  SLURM_DIR="${STUDY_DIR}/slurm"
-else
-  SLURM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  STUDY_DIR="$(dirname "${SLURM_DIR}")"
-fi
-
-# Fail loudly if we did not land in the study dir (e.g. sbatch'd from elsewhere):
-# the profiler needs config/grid.R and slurm/profile_per_method.R to be here.
-if [[ ! -f "${SLURM_DIR}/profile_per_method.R" || ! -f "${STUDY_DIR}/config/grid.R" ]]; then
-  echo "ERROR: study dir '${STUDY_DIR}' is missing slurm/profile_per_method.R or config/grid.R." >&2
-  echo "       Submit from the study dir:  cd <study-dir> && sbatch slurm/profile.slurm" >&2
-  exit 1
-fi
-
-mkdir -p "${STUDY_DIR}/logs"
-
-# --- Module environment (module R has no devtools; profiler uses base + callr/ps) ---
-module load gcc/14.2.0 2>/dev/null || module load gcc || true
-module load R/4.4.2   2>/dev/null || module load R
-
+# Distinguishable exit codes: 78 module env, 79 Rscript missing.
+die() { echo "[$(date '+%F %T')] FATAL(${2}): ${1}" >&2; exit "${2}"; }
+command -v module >/dev/null 2>&1 || die "module unavailable after profile bootstrap" 78
+module purge 2>/dev/null || true
+module load gcc/14.2.0 || die "module load gcc/14.2.0" 78
+module load R/4.4.2 || die "module load R/4.4.2" 78
+command -v Rscript >/dev/null 2>&1 || die "Rscript not on PATH after module load" 79
 # --- Freshness gate: fail loudly if project packages are missing/stale-uninstalled ---
 Rscript -e '
   pkgs <- c("doubletree", "optimaltrees")

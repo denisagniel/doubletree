@@ -26,19 +26,32 @@
 # run_single_replication.R) because spec §5's per-method wall-clock comparison is
 # only meaningful if no arm is quietly given more cores than another.
 
+# --- Module environment -------------------------------------------------------
+# Backfilled 2026-09-23. `module` is a bash FUNCTION that Lmod `export -f`s into the
+# environment, so it is INHERITED, not found on PATH: present when a human submits from
+# an interactive shell, ABSENT under `ssh host 'bash -s'`. With strict mode already on,
+# the bare `module load` below then aborted the task with no useful output.
+#
+# Bootstrap MUST precede `set -euo pipefail`: /etc/profile.d/* scripts reference unset
+# variables and return non-zero, both fatal under `set -eu`.
+#
+# (Separately: the 2026-09-18 mass cancellation of this study was NOT this bug -- it was
+# `sbatch --export=ALL,KEY=value`, fixed in the launcher. See O2_SSH_GOTCHAS.md §12.)
+set +eu
+if ! command -v module >/dev/null 2>&1; then
+  for profile_script in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh /etc/profile; do
+    [ -r "${profile_script}" ] && . "${profile_script}" && break
+  done
+fi
 set -euo pipefail
 
-# --- Module environment -------------------------------------------------------
-# Same versions this project's other cluster studies use today (copied from
-# six-approach-arbitration/slurm/{array.slurm,submit_per_method.sh}, 2026-07).
-# NOTE: functional_consistency/slurm/README_O2.md still documents gcc/9.2.0 and
-# R/4.2.1 -- that is a stale April-2026 pairing and is NOT what this study uses.
-#
-# Module R carries no working devtools/pkgload dev-load, which is exactly why
-# run_single_replication.R sets H2H_USE_INSTALLED=1 and the packages must be
-# R CMD INSTALLed first (README_O2.md, prerequisites).
-module load gcc/14.2.0 2>/dev/null || module load gcc || true
-module load R/4.4.2   2>/dev/null || module load R
+# Distinguishable exit codes: 78 module env, 79 Rscript missing.
+die() { echo "[$(date '+%F %T')] FATAL(${2}): ${1}" >&2; exit "${2}"; }
+command -v module >/dev/null 2>&1 || die "module unavailable after profile bootstrap" 78
+module purge 2>/dev/null || true
+module load gcc/14.2.0 || die "module load gcc/14.2.0" 78
+module load R/4.4.2 || die "module load R/4.4.2" 78
+command -v Rscript >/dev/null 2>&1 || die "Rscript not on PATH after module load" 79
 # No `|| true` on the R load: without R this task cannot run at all, and failing
 # here names the cause, whereas continuing would surface it as "Rscript: command
 # not found" in 134 logs at once.

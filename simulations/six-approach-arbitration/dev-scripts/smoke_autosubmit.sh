@@ -153,8 +153,16 @@ cat <<EOF
 RUN THE FULL AUTO_SUBMIT CHAIN (from the SMOKE dir, so SLURM_SUBMIT_DIR is set):
 
   cd "${SMOKE_DIR}"
+  # Shell-exported, then a plain --export=ALL. The combined --export=ALL,KEY=value
+  # form is CANCELLED BY ROOT on O2 within seconds with NO output written at all --
+  # it destroyed run 20260918-130255_88ba1bd. Isolated 2026-09-23; see
+  # O2_SSH_GOTCHAS.md section 12. Do not collapse this back into the flag.
+  export SCRATCH_ROOT=${SMOKE_SCRATCH}
+  export TARGET_TASKS=14
+  export AUTO_SUBMIT=1
+  export N_UNITS_PROBE=2
   sbatch --partition=short --mem=4G --time=0-01:00 \\
-    --export=ALL,SCRATCH_ROOT=${SMOKE_SCRATCH},TARGET_TASKS=14,AUTO_SUBMIT=1,N_UNITS_PROBE=2 \\
+    --export=ALL \
     slurm/profile.slurm
 
   # The --partition/--mem/--time flags shrink the PROFILING job (override its
@@ -180,7 +188,7 @@ VERIFY (success = all of):
 TEST THE GATE'S REFUSAL (optional, proves it won't launch a partial study):
   rm config/sizing_single_tree.env
   sbatch --partition=short --mem=4G --time=0-01:00 \\
-    --export=ALL,SCRATCH_ROOT=${SMOKE_SCRATCH},AUTO_SUBMIT=1 slurm/profile.slurm
+    SCRATCH_ROOT=${SMOKE_SCRATCH} AUTO_SUBMIT=1 sbatch --export=ALL slurm/profile.slurm
   # (re-profiles + resubmits; but to test refusal in isolation, inspect the log:
   #  it should say "NOT submitting" only if a method's env is missing/invalid.)
 

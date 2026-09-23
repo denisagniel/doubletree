@@ -16,6 +16,38 @@
 # =============================================================================
 
 set -euo pipefail
+# --- Login-node environment bootstrap (added 2026-09-23) ----------------------
+# This launcher runs on a LOGIN node and calls Rscript below. `module` is a bash
+# function that Lmod `export -f`s into the environment, so it is INHERITED: present for
+# a human at an interactive prompt, ABSENT under `ssh host 'bash -s'`. Without this,
+# agent-driven submission dies at "Rscript: command not found" while the identical
+# command works when typed by hand.
+#
+# Must precede `set -euo pipefail`: /etc/profile.d/* scripts reference unset variables
+# and return non-zero, both fatal under `set -eu`.
+#
+# Deliberately NO `module purge` here, unlike the job script: purging on a login node
+# would silently drop modules a human had loaded in their own session. Determinism comes
+# from the explicit loads below.
+set +eu
+if ! command -v module >/dev/null 2>&1; then
+  for profile_script in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh /etc/profile; do
+    [ -r "${profile_script}" ] && . "${profile_script}" && break
+  done
+fi
+set -euo pipefail
+if command -v module >/dev/null 2>&1; then
+  module load gcc/14.2.0 2>/dev/null || module load gcc || true
+  module load R/4.4.2 2>/dev/null || module load R || true
+fi
+command -v Rscript >/dev/null 2>&1 || {
+  echo "ERROR: Rscript not on PATH after module bootstrap -- cannot run preflight." >&2
+  echo "       (If running non-interactively, this is the inherited-\`module\` problem;" >&2
+  echo "        see O2_SSH_GOTCHAS.md section 4.)" >&2
+  exit 1
+}
+export R_LIBS_USER="${R_LIBS_USER:-${HOME}/R/x86_64-pc-linux-gnu-library/4.4}"
+
 
 HMS_ID="dma12"
 PROJECT_NAME="global-scholars"
@@ -125,6 +157,16 @@ for m in "${METHODS[@]}"; do
     if (( arrays_in_wave == 0 )) && [[ -n "${prev_wave_last}" ]]; then
       dep_args=(--dependency=afterany:"${prev_wave_last}")
     fi
+    # Shell-exported, then a plain --export=ALL. The combined --export=ALL,KEY=value
+    # form is CANCELLED BY ROOT on O2 within seconds with NO output written at all --
+    # it destroyed run 20260918-130255_88ba1bd. Isolated 2026-09-23; see
+    # O2_SSH_GOTCHAS.md section 12. Do not collapse this back into the flag.
+    export STUDY_DIR="${STUDY_DIR}"
+    export SCRATCH_DIR="${METHOD_SCRATCH}"
+    export REPS_PER_JOB="${REPS_PER_JOB}"
+    export ARRAY_OFFSET="${offset}"
+    export UNIT_OFFSET="${UNIT_OFFSET}"
+    export MAX_UNIT="${MAX_UNIT}"
     jobid=$(sbatch --parsable \
       --job-name="${STUDY_NAME}-${m}" \
       --array=1-"${chunk}"%"${cap}" \
@@ -133,7 +175,7 @@ for m in "${METHODS[@]}"; do
       --output="${LOG_DIR}/${m}_%A_%a.out" \
       --error="${LOG_DIR}/${m}_%A_%a.err" \
       "${dep_args[@]}" \
-      --export=ALL,STUDY_DIR="${STUDY_DIR}",SCRATCH_DIR="${METHOD_SCRATCH}",REPS_PER_JOB="${REPS_PER_JOB}",ARRAY_OFFSET="${offset}",UNIT_OFFSET="${UNIT_OFFSET}",MAX_UNIT="${MAX_UNIT}" \
+      --export=ALL \
       "${SLURM_DIR}/array.slurm")
     ALL_JOB_IDS+=("${jobid}")
     echo "    array ${jobid}: tasks $((offset+1))-$((offset+chunk)) (%${cap})"

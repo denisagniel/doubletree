@@ -101,7 +101,7 @@ for (m in METHODS) {
   path <- file.path(config_dir, sprintf("sizing_%s.env", m))
   if (!file.exists(path))
     stop(sprintf(paste0("Missing %s. Cannot resize what does not exist -- reprofile ",
-                        "(sbatch --export=ALL,TARGET_TASKS=%d slurm/profile.slurm)."),
+                        "(TARGET_TASKS=%d sbatch --export=ALL slurm/profile.slurm)."),
                  path, opt$target_tasks), call. = FALSE)
   e <- read_env(path)
   for (k in c("N_UNITS_METHOD", "REPS_PER_JOB", "WALLTIME", "MEM_GB", "UNIT_OFFSET"))
@@ -117,7 +117,7 @@ for (m in METHODS) {
   if (clamped)
     stop(sprintf(paste0("%s: WALLTIME %s is at the old wall cap (%.1f h), so the recovered ",
                         "per-unit cost is only a LOWER BOUND -- resizing would under-set --time. ",
-                        "Reprofile instead: sbatch --export=ALL,TARGET_TASKS=%d slurm/profile.slurm"),
+                        "Reprofile instead: TARGET_TASKS=%d sbatch --export=ALL slurm/profile.slurm"),
                  path, e[["WALLTIME"]], opt$old_wall_cap_h, opt$target_tasks), call. = FALSE)
   if (!is.finite(med) || med <= 0)
     stop(sprintf("%s: recovered non-positive per-unit cost (%.3f).", path, med), call. = FALSE)

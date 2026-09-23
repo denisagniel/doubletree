@@ -26,6 +26,32 @@
 
 set -euo pipefail
 
+# --- Login-node environment bootstrap (added 2026-09-23) ----------------------
+# This launcher runs on a LOGIN node, and its preflight calls Rscript. `module` is a
+# bash function Lmod `export -f`s into the environment, so it is INHERITED: present for
+# a human at an interactive prompt, ABSENT under `ssh host 'bash -s'`. Without this,
+# agent-driven submission dies at the preflight with "Rscript: command not found" while
+# the identical command works when typed by hand. Bootstrap before strict mode --
+# /etc/profile.d/* scripts reference unset vars and return non-zero.
+set +eu
+if ! command -v module >/dev/null 2>&1; then
+  for profile_script in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh /etc/profile; do
+    [ -r "${profile_script}" ] && . "${profile_script}" && break
+  done
+fi
+set -euo pipefail
+if command -v module >/dev/null 2>&1; then
+  module purge 2>/dev/null || true
+  module load gcc/14.2.0 2>/dev/null || module load gcc || true
+  module load R/4.4.2 2>/dev/null || module load R || true
+fi
+command -v Rscript >/dev/null 2>&1 || {
+  echo "ERROR: Rscript not on PATH after module bootstrap; cannot run preflight." >&2
+  exit 1
+}
+export R_LIBS_USER="${R_LIBS_USER:-${HOME}/R/x86_64-pc-linux-gnu-library/4.4}"
+echo " R       : $(command -v Rscript)  R_LIBS_USER=${R_LIBS_USER}"
+
 HMS_ID="dma12"
 PROJECT_NAME="global-scholars"
 STUDY_NAME="head_to_head_comparison"
@@ -141,6 +167,14 @@ while read -r REGIME N_TASKS WALLTIME MEM_GB PARTITION; do
     continue
   fi
 
+  # Shell-exported, then a plain --export=ALL. The combined --export=ALL,KEY=value
+  # form is CANCELLED BY ROOT on O2 within seconds with NO output written at all --
+  # it destroyed run 20260918-130255_88ba1bd. Isolated 2026-09-23; see
+  # O2_SSH_GOTCHAS.md section 12. Do not collapse this back into the flag.
+  export PKG_ROOT="${PKG_ROOT}"
+  export SCRATCH_DIR="${REGIME_SCRATCH}"
+  export REGIME="${REGIME}"
+  export TARGET_SECS="${H2H_TARGET_SECS}"
   jobid=$(sbatch --parsable \
     --job-name="${STUDY_NAME}-${REGIME}" \
     --array=1-"${N_TASKS}"%"${CAP}" \
@@ -149,7 +183,7 @@ while read -r REGIME N_TASKS WALLTIME MEM_GB PARTITION; do
     --mem="${MEM_GB}G" \
     --output="${LOG_DIR}/${REGIME}_%A_%a.out" \
     --error="${LOG_DIR}/${REGIME}_%A_%a.err" \
-    --export=ALL,PKG_ROOT="${PKG_ROOT}",SCRATCH_DIR="${REGIME_SCRATCH}",REGIME="${REGIME}",TARGET_SECS="${H2H_TARGET_SECS}" \
+    --export=ALL \
     "${SLURM_DIR}/run_simulations.slurm")
   ALL_JOB_IDS+=("${jobid}")
   echo "    submitted array ${jobid}"

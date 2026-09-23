@@ -24,12 +24,42 @@
 # picked by profile_per_method.R (a later --partition flag wins over this default),
 # so long-walltime runs land on medium/long automatically.
 
+# --- Module environment -------------------------------------------------------
+# Backfilled 2026-09-22. `module` is a bash FUNCTION that Lmod `export -f`s into the
+# environment, so --export=ALL carries it only from an INTERACTIVE submitting shell.
+# Submitted non-interactively (ssh host 'bash -s') it is ABSENT, the bare `module
+# load` below failed, and `set -euo pipefail` killed every task within a second.
+# That is what happened to doubletree run 20260918-130255_88ba1bd (6 arrays, 134
+# tasks). See O2_SSH_GOTCHAS.md sections 4 and 11.
+#
+# Bootstrap MUST precede strict mode: /etc/profile.d/* scripts reference unset
+# variables and return non-zero, both fatal under `set -eu`.
+set +eu
+if ! command -v module >/dev/null 2>&1; then
+  for profile_script in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh /etc/profile; do
+    [ -r "${profile_script}" ] && . "${profile_script}" && break
+  done
+fi
 set -euo pipefail
 
-# --- Module environment (module R has no devtools; use library()) ------------
-module load gcc/14.2.0 2>/dev/null || module load gcc || true
-module load R/4.4.2   2>/dev/null || module load R
+# Distinguishable exit codes so `sacct -o State,ExitCode` names the cause with no log
+# read: 78 module env, 79 Rscript missing, 80 R library path.
+die() { echo "[$(date '+%F %T')] FATAL(${2}): ${1}" >&2; exit "${2}"; }
 
+command -v module >/dev/null 2>&1 || die "module unavailable after profile bootstrap" 78
+module purge 2>/dev/null || true
+module load gcc/14.2.0 || die "module load gcc/14.2.0" 78
+module load R/4.4.2 || die "module load R/4.4.2" 78
+command -v Rscript >/dev/null 2>&1 || die "Rscript not on PATH after module load" 79
+
+# Pinned, not inherited: --export=ALL otherwise propagates the submitter's
+# R_LIBS_USER/MODULEPATH, which is the likely cause of the .libPaths()
+# non-determinism in O2_SSH_GOTCHAS.md section 5. Defaulted rather than required so
+# this patch does not depend on also replacing submit.sh.
+R_LIBS_USER="${R_LIBS_USER:-${HOME}/R/x86_64-pc-linux-gnu-library/4.4}"
+export R_LIBS_USER
+[[ -d "${R_LIBS_USER}" ]] || die "R_LIBS_USER does not exist: ${R_LIBS_USER}" 80
+echo "[$(date '+%F %T')] R_LIBS_USER=${R_LIBS_USER}"
 # --- Global task id -----------------------------------------------------------
 GLOBAL_TASK_ID=$(( SLURM_ARRAY_TASK_ID + ARRAY_OFFSET ))
 
