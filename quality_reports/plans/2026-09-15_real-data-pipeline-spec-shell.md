@@ -1,5 +1,10 @@
 # Plan: Real-Data Application Pipeline Spec (smidata-shaped, uniform template)
 
+**SUPERSEDED 2026-09-16.** The PI decided doubletree reuses dual-bounds' real-data design
+wholesale. See `2026-09-15_real-data-pipeline-spec.md` (same directory) for the current spec.
+This file is retained unmodified as the historical record of the pre-decision blank state
+described below.
+
 **Date:** 2026-09-15
 **Status:** SPEC-SHELL ONLY — §1-4 below are genuinely undetermined, not just unverified. This
 is NOT a design discussion outcome; it is a record of the current blank state, written so the
