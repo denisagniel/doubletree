@@ -45,6 +45,7 @@ source(file.path(app_dir_for_tests, "helpers", "covariate_blocks.R"))
 source(file.path(app_dir_for_tests, "helpers", "discretize_prior_cost.R"))
 source(file.path(app_dir_for_tests, "helpers", "design_matrix.R"))
 source(file.path(app_dir_for_tests, "helpers", "complete_case.R"))
+source(file.path(app_dir_for_tests, "helpers", "msr_filter.R"))
 
 #' Toy `larger_smi_covariates`-shaped frame: the 12 confirmed columns, 0/1 coded.
 #'

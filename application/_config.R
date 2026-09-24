@@ -59,6 +59,17 @@ config_cost_setting_col <- "SS_DESC"
 ## it means different things in different papers.
 config_aap_achievement_threshold <- 0.5
 
+## Literal msr_aap$MSR value for the AAP measure. DISTINCT from
+## OPEN_DECISIONS$msr_code$value ("AAP (no filter needed)" -- a human-readable
+## annotation of the resolution, not a filter value to plug into a query
+## directly; filtering on that whole string would match zero real rows).
+## 02_population_and_eligibility.R filters msr_aap to this literal before
+## calling smi_select_aap_row() -- see that decision's note for why the
+## registry's "abort-on-tie is the safety net" framing is not sufficient on
+## its own, and why this filter (plus reporting any exclusion) is needed
+## regardless of the "no filter needed" resolution's own intent.
+AAP_MSR_CODE <- "AAP"
+
 ## ---- estimator gates -------------------------------------------------------
 
 ## Which entry point 07_estimate_att.R treats as the FLAGSHIP result.
@@ -264,7 +275,7 @@ OPEN_DECISIONS <- list(
     status = "confirmed", blocking_final = FALSE, value = "AAP (no filter needed)",
     shared_with = "dual-bounds",
     registry_ref = "smidata::inst/analyses/dual-bounds__application.yml#msr_code",
-    note = "RESOLVED (PI, 2026-09-17): 'msr_code is always AAP in the msr_aap dataset' -- a measure-specific extract, not a combined all-measures file. Corroborated by contract evidence: msr_aap's MSR_NUM column carries the SAS label 'AAP_NUM'. IDENTICAL finding to dual-bounds' entry -- exposure A (inherited from dual-bounds) is now deterministic on this point. smidata::smi_select_aap_row()'s abort-on-tie behavior remains the safety net regardless."),
+    note = "RESOLVED (PI, 2026-09-17): 'msr_code is always AAP in the msr_aap dataset' -- a measure-specific extract, not a combined all-measures file. Corroborated by contract evidence: msr_aap's MSR_NUM column carries the SAS label 'AAP_NUM'. IDENTICAL finding to dual-bounds' entry -- exposure A (inherited from dual-bounds) is now deterministic on this point. CORRECTION (2026-09-24, this repo, found while implementing 02_population_and_eligibility.R for real): the registry's claim that 'smidata::smi_select_aap_row()'s abort-on-tie behavior remains the safety net regardless' OVERSTATES that function's protection. Read smi_select_aap_row()'s actual source (~/RAND/tools/smidata/R/msr_aap.R): its winner-selection (candidates/winners) joins and groups on ID only and never references MSR at all except inside the tie-diagnostic message -- the abort fires ONLY when multiple rows tie at the exact same winning month_gap/row_month for one patient. A non-AAP row that is simply CLOSER in time to the target month than any true AAP row, with no tie, would be silently selected as the winner, corrupting elig_aap/aap_achieved for that patient with no abort and no warning. 02_population_and_eligibility.R now filters to AAP_MSR_CODE explicitly (below) and reports (does not silently trust) any exclusion, rather than relying on the abort-on-tie safety net this note previously (incorrectly) said was sufficient on its own. NOT YET propagated to smidata's actual dual-bounds__application.yml registry or to dual-bounds' own 02 -- both still carry the overstated claim and the identical silent-contamination exposure; see session_notes and the upstream item this should become."),
   diagnostics = list(
     question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
     status = "open_decision", blocking_final = TRUE, value = NULL,

@@ -37,16 +37,18 @@ the drift their promotion eliminated.
 
 ## Status
 
-**Tier 0 (laptop, fixture):** partially reached. `application/tests/` runs today with no data and
-no server — **135 assertions, 1 failure** (the 1 failure and 3 skips below are the local
-`optimaltrees.so` security-tool block, unrelated to data/server availability — see
-`session_notes/2026-09-24.md`) — and includes a call to `estimate_att()` at the real covariate
+**Tier 0 (laptop, fixture):** reached for stage `02`, still partial overall. `application/tests/`
+runs today with no data and no server — **165 assertions, 1 failure** (the 1 failure and 3 skips
+below are the local `optimaltrees.so` security-tool block, unrelated to data/server availability —
+see `session_notes/2026-09-24.md`) — and includes a call to `estimate_att()` at the real covariate
 shape (15 binary columns, `outcome_type = "continuous"`, `leaf_budget = 4`) on a hand-built
-known-truth DGP, plus `helpers/complete_case.R`'s full fixture suite (added 2026-09-24). What is
-*not* reached is a fixture-backed run of stages 02–06: `smi_fixture()` cannot build one, because
-`smi_census()` has not been run on `larger_smi_covariates`, `msr_aap`, or the cost-claims family.
-The unblocker is a server-side `smi_census()` run, not anything in this repo. **Do not hand-write
-a stand-in fixture.**
+known-truth DGP, plus `helpers/complete_case.R`'s and `helpers/msr_filter.R`'s full fixture suites
+(added 2026-09-24). **`02_population_and_eligibility.R` now runs end to end against a Tier-0
+fixture** (fixed 2026-09-24, once `smi_census()` promoted the relevant datasets 2026-09-23 —
+`smidata::smi_read()` dispatches to `smi_fixture()` automatically off-server). Stages `03`–`06`
+have not been attempted against fixtures yet — their own "intended pipeline" comments are
+unexecuted, not because of a census gap (that closed 2026-09-23) but because nobody has run them
+since. **Do not hand-write a stand-in fixture** for any stage.
 
 **Tier 1 (server, subsample + whole-data checks):** not started. `90_checks_tier1.R` specifies
 four checks; two are dual-bounds' own (referenced, not re-derived), one is this paper's own
@@ -55,11 +57,11 @@ default's prerequisite at whole-table scope — `helpers/complete_case.R` self-c
 question at cohort/window-restricted scope, but that is not a substitute for CHECK 4's run.
 
 **Tier 2 (server, full cohort):** blocked behind `diagnostics` (the one open decision still
-`blocking_final = TRUE`) and, separately, `02_population_and_eligibility.R`'s own stale gate (see
-Files, above — `msr_code` resolved 2026-09-17 but `02`'s code was not updated to match).
+`blocking_final = TRUE`). `02`'s gate is fixed (see `msr_code`'s row, above); stages `03`–`06`
+still need attempting against real data once `diagnostics` resolves.
 
 ```bash
-Rscript application/run_tests.R          # 135 passed, 1 failed (optimaltrees.so block), 3 skipped
+Rscript application/run_tests.R          # 165 passed, 1 failed (optimaltrees.so block), 3 skipped
 ```
 
 ## Open decisions
@@ -73,7 +75,7 @@ as of 2026-09-24; the other three resolved on 2026-09-17/2026-09-24 (see each ro
 |---|---|---|---|
 | `enrollment_source` | same table, different use | **confirmed** (2026-09-24) | `MEDICAID_FLAG==1` in `larger_smi_medicaid_monthly_flag` for every one of the 24 months in `[INDEX_DT, INDEX_DT+24mo)`, no `TYPE` filter, zero gap tolerance — a PI-given, revisable default. Implemented in `helpers/complete_case.R`; provisional on CHECK 4 (below) not yet running. |
 | `cost_family_scope` | **yes** — identical question | **confirmed** (`all_four`) | All four cost-claims families are disjoint claim sources; sum all four. |
-| `msr_code` | **yes** — identical question | **confirmed** (`"AAP (no filter needed)"`) | `msr_aap` is already an AAP-only extract — no `MSR` filter needed. **Not yet mirrored into `02_population_and_eligibility.R`'s own gate**, which still aborts pending this value; see that file's status below. |
+| `msr_code` | **yes** — identical question | **confirmed** (`"AAP (no filter needed)"`) | `msr_aap` is already an AAP-only extract — no `MSR` filter needed at the *registry* level. **Fixed 2026-09-24**: `02_population_and_eligibility.R`'s gate now reads this value (was stale since 2026-09-17). But "no filter needed" is not what `02` actually does — `smidata::smi_select_aap_row()`'s abort-on-tie does NOT guard against a non-AAP row silently winning when it merely lands closer to the target month than any true AAP row (no tie forms), so `02` filters to the literal `AAP_MSR_CODE` explicitly and reports any exclusion. See this decision's `note` for the full correction — the registry's "abort-on-tie is the safety net" claim was wrong, and is not yet fixed upstream (smidata, dual-bounds). |
 | `diagnostics` | no — this paper's own | **open, BLOCKS FINAL ARTIFACT** | Which sparsity **proxies** (`certified_*`, `n_leaves_*`, `gap_*`) license reporting the flagship estimate. Note sparsity itself is *not* checkable from data. |
 
 The two shared entries carry machine-readable `shared_with` and `registry_ref` fields instead of a
@@ -101,15 +103,16 @@ oversight:
 | `helpers/discretize_prior_cost.R` | yes (tested) | Pure: dollars → 3 quartile dummies, Q1 implicit reference, cutpoints returned as an attribute. Aborts on a collapsed boundary or an empty bin. |
 | `helpers/design_matrix.R` | yes (tested) | `assemble_design_matrix()`, and `assert_binary_design_matrix()` — the four checks the package does **not** give you (see below). |
 | `helpers/complete_case.R` | yes (tested) | `parse_year_month()`, `ym_month_index()`, `compute_complete_case()` — the real `enrollment_source` logic, pure and hand-fixture-tested (no server, no `smidata`). See its file header for the split rationale. |
+| `helpers/msr_filter.R` | yes (tested) | `filter_to_msr_code()` — the real `msr_code` contamination guard `02` uses (see that decision's row, above), pure and hand-fixture-tested. |
 | `01_declare_requirements.R` | yes | Declares 39 dataset requirements (added `medicaid_monthly_flag` 2026-09-24) + the 12 `_YN` columns via `smidata::smi_require()`; reports the census gap. Skips gracefully without smidata. |
-| `02_population_and_eligibility.R` | **aborts by design** | Aborts on the unknown AAP `MSR` code. **Stale as of 2026-09-24**: `msr_code` is now `confirmed`, but this script's own gate has not been updated to read that value — a separate, pre-existing gap, not fixed by this pass. Intended pipeline in comments. |
+| `02_population_and_eligibility.R` | yes (fixture) | **Fixed 2026-09-24** (was stale — see `msr_code`'s row above). Runs end to end locally against a Tier-0 fixture (`smidata::smi_read()` dispatches to `smi_fixture()` off-server automatically): builds `base_cohort`, filters `msr_aap` to `AAP_MSR_CODE` (`helpers/msr_filter.R`, tested), calls `smi_select_aap_row()`, reports eligibility/exposure-arm counts. On the server it reads the real tables instead — same code path, `smidata::smi_env()` dispatches. |
 | `03_cost_windows.R` | partly | Builds the 36-row `cost_sources`; smoke-checks `smi_patient_windows()`/`smi_window_coverage()` on two hand-written patients. The outcome window and the `prior_cost` window are two slices of **one** pass. |
 | `04_covariates.R` | yes | Asserts the confirmed 15-column selection against the source column list. No fallback — there is nothing to fall back from. |
-| `05_complete_case.R` | yes (real logic; server read still blocked on `02`, above) | Computes complete-case status for real via `helpers/complete_case.R::compute_complete_case()`. `enrollment_source` resolved 2026-09-24; the demo on this file's own tail runs on a hand-built fixture, not real data — the real orchestration is written out (commented) pending `analysis_cohort` from a working `02`. Deliberately does **not** proxy enrollment from claims presence; the two directional failure modes are spelled out in the file, and why `MEDICAID_FLAG` avoids both. |
+| `05_complete_case.R` | yes (real logic; own orchestration still commented pending wiring) | Computes complete-case status for real via `helpers/complete_case.R::compute_complete_case()`. `enrollment_source` resolved 2026-09-24; the demo on this file's own tail runs on a hand-built fixture, not real data. `02` now supplies a real `analysis_cohort` (fixed 2026-09-24, above) — `05`'s commented orchestration has not yet been updated to actually call it; that's a follow-on, not done by this pass. Deliberately does **not** proxy enrollment from claims presence; the two directional failure modes are spelled out in the file, and why `MEDICAID_FLAG` avoids both. |
 | `06_assemble_analytic_data.R` | **aborts by design** | Joins 02–05, re-discretizes `prior_cost` **on the final sample**, `assert_binary_design_matrix()`, then `assert_no_blocking_open()`. |
 | `07_estimate_att.R` | **aborts by design** | Gate is the first statement after config. Then both estimators, and their discrepancy. |
 | `90_checks_tier1.R` | no | Comment-only spec. Checks 1–2 reference dual-bounds'; check 3 (`_YN` coding) is this paper's own. |
-| `tests/` | yes | 135 assertions, no data, no server. |
+| `tests/` | yes | 165 assertions, no data, no server. |
 | `run_tests.R` | yes | `testthat::test_dir("application/tests")`. |
 
 ## What the package does not check for you
