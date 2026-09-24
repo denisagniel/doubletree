@@ -1,0 +1,35 @@
+"gate","regime","arm","check","observed","target","pass"
+"2 (empirical)","A","oracle_tie","n*Var/V in [0.88, 1.14]",0.99471680669673,"0.88-1.14 (registered at nsim=1000)",TRUE
+"2 (analytic)","A","-","|V_tau/V - 1| <= 1e-12",0,"<= 1e-12",TRUE
+"3 (analytic)","B","-","V_tau/V <= 0.7",0.538461538461538,"<= 0.7 (spec: 0.539)",TRUE
+"3 (empirical)","B","oracle_tie","n*Var/V <= 0.7",0.403261163128058,"<= 0.7 (spec: 0.539)",TRUE
+"4 (analytic)","C","-","V_tau/V >= 1.5",1.97936186376298,">= 1.5 (spec: 1.979)",TRUE
+"4 (empirical)","C","oracle_tie","n*Var/V >= 1.5",2.46419090243417,">= 1.5 (spec: 1.979)",TRUE
+"5 (observation)","A","oracle_tie","naive/correct variance <= 0.6",0.382399394751912,"reported, not gated",NA
+"5 (observation)","B","oracle_tie","naive/correct variance <= 0.6",0.617504605625962,"reported, not gated",NA
+"5 (gated cell)","C","oracle_tie","naive/correct variance <= 0.6",0.314020146394468,"<= 0.6 (spec: 0.311)",TRUE
+"6","A","oracle_tie","|bias| <= 2 * MCSE(bias)",0.0115553133377792,"<= 0.021202",TRUE
+"6","B","oracle_tie","|bias| <= 2 * MCSE(bias)",0.00569173558368591,"<= 0.017735",TRUE
+"6","C","oracle_tie","|bias| <= 2 * MCSE(bias)",-0.00703578611766759,"<= 0.015138",TRUE
+"6","E","fitted_tie","|bias| <= 2 * MCSE(bias)",-0.00888614479498864,"<= 0.019248",TRUE
+"§6(ii)","A","fitted_tie","partition recovery >= 0.95",1,">= 0.95",TRUE
+"§6(ii)","B","fitted_tie","partition recovery >= 0.95",1,">= 0.95",TRUE
+"§6(ii)","C","fitted_tie","partition recovery >= 0.95",1,">= 0.95",TRUE
+"§1/§6(i)","all","tie arms","max |theta_tie - theta_forced| <= 1e-10",4.10782519111308e-15,"<= 1e-10",TRUE
+"2 (empirical)","A","fitted_tie","n*Var/V in [0.88, 1.14]",0.99471680669673,"0.88-1.14 (registered at nsim=1000)",TRUE
+"2 (analytic)","A","-","|V_tau/V - 1| <= 1e-12",0,"<= 1e-12",TRUE
+"3 (analytic)","B","-","V_tau/V <= 0.7",0.538461538461538,"<= 0.7 (spec: 0.539)",TRUE
+"3 (empirical)","B","fitted_tie","n*Var/V <= 0.7",0.403261163128058,"<= 0.7 (spec: 0.539)",TRUE
+"4 (analytic)","C","-","V_tau/V >= 1.5",1.97936186376298,">= 1.5 (spec: 1.979)",TRUE
+"4 (empirical)","C","fitted_tie","n*Var/V >= 1.5",2.46419090243417,">= 1.5 (spec: 1.979)",TRUE
+"5 (observation)","A","fitted_tie","naive/correct variance <= 0.6",0.382399394751912,"reported, not gated",NA
+"5 (observation)","B","fitted_tie","naive/correct variance <= 0.6",0.617504605625962,"reported, not gated",NA
+"5 (gated cell)","C","fitted_tie","naive/correct variance <= 0.6",0.314020146394468,"<= 0.6 (spec: 0.311)",TRUE
+"6","A","fitted_tie","|bias| <= 2 * MCSE(bias)",0.0115553133377792,"<= 0.021202",TRUE
+"6","B","fitted_tie","|bias| <= 2 * MCSE(bias)",0.00569173558368591,"<= 0.017735",TRUE
+"6","C","fitted_tie","|bias| <= 2 * MCSE(bias)",-0.00703578611766759,"<= 0.015138",TRUE
+"6","E","fitted_tie","|bias| <= 2 * MCSE(bias)",-0.00888614479498864,"<= 0.019248",TRUE
+"§6(ii)","A","fitted_tie","partition recovery >= 0.95",1,">= 0.95",TRUE
+"§6(ii)","B","fitted_tie","partition recovery >= 0.95",1,">= 0.95",TRUE
+"§6(ii)","C","fitted_tie","partition recovery >= 0.95",1,">= 0.95",TRUE
+"§1/§6(i)","all","tie arms","max |theta_tie - theta_forced| <= 1e-10",4.10782519111308e-15,"<= 1e-10",TRUE

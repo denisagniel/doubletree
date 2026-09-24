@@ -1,0 +1,11 @@
+"dgp","label","p","leaf_budget","theta0","pi_pop","e0_min","e0_max","e_vars","mu_vars","bias_pseudo","delta_e_kl","delta_mu_kl"
+"A","DGP-A: shared-interaction, gate-swapped (exact sparsity, GLM-main-effects misspecified)",5,4,0.08,0.4,0.2,0.75,"X1+X2","X1+X2",NA,NA,NA
+"A2","DGP-A2 = F1 (reused unmodified): grid-exact sparsity, shared-X1 confounding",5,4,0.08,0.4,0.2,0.75,"X1+X2","X1+X3",NA,NA,NA
+"A2_L4","F1, Lbar = 4 (exactly sufficient)",5,4,0.08,0.4,0.2,0.75,"X1+X2","X1+X3",NA,NA,NA
+"A2_L8","F1, Lbar = 8 (over-budget)",5,8,0.08,0.4,0.2,0.75,"X1+X2","X1+X3",NA,NA,NA
+"A2_L16","F1, Lbar = 16 (far over-budget)",5,16,0.08,0.4,0.2,0.75,"X1+X2","X1+X3",NA,NA,NA
+"B_eps0","DGP-B eps = 0.00 (exact sparsity)",5,2,0.1,0.475,0.25,0.7,"X1","X1",0,2.77555756156289e-17,0
+"B_eps05","DGP-B eps = 0.05 (small violation)",5,2,0.1,0.475,0.2,0.75,"X1+X4","X1+X4",0.012280701754386,0.00633759602522036,0.0063047154602763
+"B_eps10","DGP-B eps = 0.10 (moderate violation)",5,2,0.1,0.475,0.15,0.8,"X1+X4","X1+X4",0.0491228070175438,0.025707268989834,0.0249278605425822
+"B_eps15","DGP-B eps = 0.15 (severe violation)",5,2,0.1,0.475,0.1,0.85,"X1+X4","X1+X4",0.110526315789474,0.0593640878567799,0.055293541116657
+"C","DGP-C = ST3 (reused unmodified): weak overlap, e_0 up to 0.982",4,4,0.1,0.593861611563199,0.0758581800212435,0.982013790037908,"X1+X2","X1+X2",NA,NA,NA
