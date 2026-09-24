@@ -149,24 +149,40 @@ if (!config_has_smidata) {
   census_keys <- contract$census_keys
   without_census <- setdiff(needed_keys, census_keys)
 
-  cli::cli_alert_warning(
-    "Tier-0 is BLOCKED: {length(without_census)} of {length(needed_keys)} required
-     datasets have no {.fn smi_census} record."
-  )
-  cli::cli_alert_warning(
-    "Without a census, {.fn smidata::smi_fixture} cannot build a structurally valid
-     fixture for {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}}, or the
-     cost_claims family."
-  )
-  cli::cli_alert_warning(
-    "The unblocker is a server-side {.fn smi_census} run -- not anything in this
-     repo. Do not hand-write a stand-in fixture."
-  )
-  cli::cli_alert_info(
-    "What DOES run at Tier 0 today: {.file application/tests/}, which exercises the
-     15-column design matrix and the estimator call at the real SHAPE on
-     hand-built toy data. Shape, not distribution."
-  )
+  if (length(without_census) > 0L) {
+    cli::cli_alert_warning(
+      "Tier-0 is BLOCKED: {length(without_census)} of {length(needed_keys)} required
+       datasets have no {.fn smi_census} record."
+    )
+    cli::cli_alert_warning(
+      "Without a census, {.fn smidata::smi_fixture} cannot build a structurally valid
+       fixture for {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}}, or the
+       cost_claims family."
+    )
+    cli::cli_alert_warning(
+      "The unblocker is a server-side {.fn smi_census} run -- not anything in this
+       repo. Do not hand-write a stand-in fixture."
+    )
+    cli::cli_alert_info(
+      "What DOES run at Tier 0 today: {.file application/tests/}, which exercises the
+       15-column design matrix and the estimator call at the real SHAPE on
+       hand-built toy data. Shape, not distribution."
+    )
+  } else {
+    cli::cli_alert_success(
+      "Tier-0 is UNBLOCKED: all {length(needed_keys)} required datasets have a
+       {.fn smi_census} record in snapshot {.val {contract$snapshot_id}}
+       (promoted 2026-09-23). Same census gap as dual-bounds', resolved once for
+       both."
+    )
+    cli::cli_alert_info(
+      "{.fn smidata::smi_fixture} can now build structurally valid fixtures for
+       {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}}, and the cost_claims
+       family, in addition to what already ran at Tier 0
+       ({.file application/tests/}'s 15-column design matrix on hand-built toy
+       data). Distributional shape from real census, still not real data."
+    )
+  }
 }
 
 ## ---- script-only section ---------------------------------------------------
