@@ -339,10 +339,19 @@ confirmed_value <- function(id) {
 #' Print the full open-decision banner.
 #'
 #' Called at the top of every numbered script so no run is ever silent about
-#' what is still unsettled.
+#' what is still unsettled. Prints ONCE per R session (a sentinel in
+#' `globalenv()`), not once per call -- added 2026-09-24 alongside
+#' `require_stage()`: a script cascading into several upstream scripts in one
+#' session would otherwise print this banner once per cascade level, which is
+#' noise, not new information, after the first time.
 #'
 #' @return `invisible(NULL)`, called for its side effect.
 echo_open_decisions <- function() {
+  if (isTRUE(get0(".doubletree_decisions_echoed", envir = globalenv(), ifnotfound = FALSE))) {
+    return(invisible(NULL))
+  }
+  assign(".doubletree_decisions_echoed", TRUE, envir = globalenv())
+
   cli::cli_h2("Open decisions (unconfirmed -- see application/_config.R)")
   for (id in names(OPEN_DECISIONS)) {
     d <- OPEN_DECISIONS[[id]]
@@ -358,11 +367,83 @@ echo_open_decisions <- function() {
   invisible(NULL)
 }
 
+#' Ensure upstream objects exist, sourcing the script that creates them if not.
+#'
+#' @description
+#' Makes every numbered script genuinely runnable standalone
+#' (`Rscript application/0N_....R`, no manual pre-sourcing) while ALSO
+#' working efficiently when the whole pipeline is sourced in one session
+#' (`run_pipeline.R`, or a human `source()`-ing 02, 03, 04, ... in order at
+#' the console): if the named objects already exist in `globalenv()`, this
+#' is a no-op; otherwise it sources `script` once and re-checks.
+#'
+#' @details
+#' Re-sourcing `_config.R` and an upstream numbered script is safe here
+#' because none of them read data unconditionally at the top level in a way
+#' that depends on NOT having run before -- `_config.R` only defines
+#' constants and functions, and each numbered script's real logic is
+#' idempotent (re-running `02` twice produces the same `analysis_cohort`
+#' from the same read, not a second copy appended to it).
+#'
+#' `source()`'s default `local = FALSE` evaluates in `globalenv()`, which is
+#' where a script run via `Rscript` already sits at top level -- so an
+#' object the cascade creates is visible to the caller with no extra
+#' plumbing, the same way `_config.R`'s own constants already are.
+#'
+#' @param objects Character vector of object names required in `globalenv()`.
+#' @param script Base filename (relative to `app_dir`, in scope where this is
+#'   called) of the script that creates them.
+#' @return `invisible(TRUE)`. Aborts, naming exactly which objects are STILL
+#'   missing, if sourcing `script` did not produce them -- e.g. because
+#'   `config_has_smidata` is `FALSE` and the creating script skipped its own
+#'   real-data section entirely (see `02`'s own such guard).
+require_stage <- function(objects, script) {
+  missing <- objects[!vapply(
+    objects, exists, logical(1), envir = globalenv(), inherits = FALSE
+  )]
+  if (length(missing) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  cli::cli_alert_info(
+    "{.field {missing}} not yet in scope; sourcing {.file {script}} first."
+  )
+  ## app_dir is defined at the top of every numbered script, before that
+  ## script's own source(_config.R) call -- it is in scope here because
+  ## require_stage() is called from within that same script, after _config.R
+  ## has been sourced into it.
+  source(file.path(app_dir, script))
+
+  still_missing <- objects[!vapply(
+    objects, exists, logical(1), envir = globalenv(), inherits = FALSE
+  )]
+  if (length(still_missing) > 0L) {
+    cli::cli_abort(c(
+      "{.file {script}} did not produce {.field {still_missing}}.",
+      "i" = "Two known causes: {.pkg smidata} is not installed (the script
+             skips its real-data section entirely, via its own
+             {.code config_has_smidata} guard); or a Tier-0 fixture-only
+             limitation stopped it before producing this object (e.g.
+             05_complete_case.R's YEAR_MONTH gap, 2026-09-24). Either way,
+             {.file {script}}'s own console output above names which one --
+             this abort does not re-derive it."
+    ))
+  }
+  invisible(TRUE)
+}
+
 #' Refuse to proceed while any blocking open decision is unresolved.
 #'
-#' Called only where a final artifact would otherwise be produced:
-#' `06_assemble_analytic_data.R` (before the analytic-data write) and
-#' `07_estimate_att.R` (before any estimator call).
+#' Called only where a REPORTABLE final result would otherwise be produced:
+#' `07_estimate_att.R`, before any estimator call. NOT called from
+#' `06_assemble_analytic_data.R` (moved out 2026-09-24, design-reviewed by
+#' `oracle`): `06` assembles the analytic DATASET, and `diagnostics` -- the
+#' one decision still `blocking_final = TRUE` as of this writing -- is
+#' specifically about which ESTIMATOR result to trust in `07`, not about
+#' whether the assembled data is correct. `06` instead branches on
+#' [has_blocking_open()] to choose a `_PROVISIONAL` filename suffix, so an
+#' inspectable intermediate artifact is reachable while the REPORTABLE
+#' (non-suffixed) one still is not.
 #'
 #' @return `invisible(TRUE)` if nothing blocks; otherwise aborts.
 assert_no_blocking_open <- function() {

@@ -22,8 +22,15 @@
 ## to a candidate. There is no fallback in this script because there is nothing
 ## to fall back from: the 15 columns are confirmed, so they are asserted.
 ##
-## Run time: seconds. This script joins two already-built tables; the expensive
-## work happened in 03.
+## REAL AS OF 2026-09-24: covariates_raw/covariates/the preview design matrix
+## are now live (cascade-guarded on 03, which cascades to 02), not commented
+## pseudocode. Explicitly a PREVIEW, not the authoritative sample -- 06 owns
+## the real, final-sample discretization; see the paragraph inline for why
+## the two are not interchangeable.
+##
+## Run time: seconds locally against Tier-0 fixtures; on the server, seconds
+## once 03's expensive cost-window pass has completed (this script joins
+## already-built tables, spending no time of its own).
 ## ============================================================================
 
 app_dir <- if (dir.exists("application")) "application" else "."
@@ -64,50 +71,99 @@ cli::cli_alert_info(
    the units it is actually about."
 )
 
-## ---- INTENDED PIPELINE (needs real data) -----------------------------------
+## ---- covariates + prior_cost: REAL as of 2026-09-24 -------------------------
 ##
-## covariates_raw <- smidata::smi_read(
-##   SMI_KEYS$covariates,
-##   columns = c("ID", "INDEX_DT", unlist(blocks, use.names = FALSE))
-## )
-## ## smidata::smi_read() already aborts on a missing requested column, so there
-## ## is nothing to re-check here; a second probe would just be noise.
-##
-## ## prior_cost from 03_cost_windows.R's cost_by_window, "prior_cost" slice.
-## ## A patient with NO pre-index claims has prior_cost 0, not NA -- absence of a
-## ## claim is a real zero here, unlike absence of an enrollment record. Coding it
-## ## as 0 is a substantive statement, made explicitly:
-## prior_cost_x <- prior_cost |>
-##   dplyr::transmute(ID = .data$id, prior_cost = .data$cost)
-##
-## covariates <- covariates_raw |>
-##   dplyr::semi_join(analysis_cohort, by = "ID") |>   # eligible patients only
-##   dplyr::left_join(prior_cost_x, by = "ID") |>
-##   dplyr::mutate(prior_cost = dplyr::coalesce(.data$prior_cost, 0))
-##
-## ## WHICH SAMPLE THE QUARTILES ARE COMPUTED WITHIN IS A DECISION, AND THIS IS
-## ## WHERE IT IS MADE. The confirmed design says "computed within the analytic
-## ## sample". The analytic sample is the AAP-eligible cohort AFTER the
-## ## complete-case restriction of 05 -- so strictly, discretization belongs after
-## ## that filter, not before it. It is written here for readability and MUST be
-## ## re-applied in 06 on the final sample; discretizing on the pre-filter cohort
-## ## and then subsetting gives different boundaries than discretizing the filtered
-## ## sample, and the two are not interchangeable.
-## prior_cost_dummies <- discretize_prior_cost(covariates$prior_cost)
-## cli::cli_alert_info(
-##   "Realized quartile cutpoints (REPORT THESE in the methods section):
-##    {.val {attr(prior_cost_dummies, 'cutpoints')}}"
-## )
-##
-## X_with_id <- assemble_design_matrix(covariates, prior_cost_dummies)
-##
-## ## The guard the package does not give you. See helpers/design_matrix.R's
-## ## header: check_att_data() does not examine X's coding at all, and
-## ## estimate_att_crossfit() adds no further check -- so a "Y"/"N" or 1/2 coded
-## ## _YN column reaches optimaltrees and returns a number. Checked HERE, at
-## ## assembly time, not at estimation time hours later.
-## assert_binary_design_matrix(dplyr::select(X_with_id, -"ID"))
+## covariates_raw/covariates/prior_cost_dummies/X_with_id here are a PREVIEW,
+## not the authoritative analytic sample -- see the paragraph below on why
+## quartiles get recomputed in 06. Cascade-guarded on 03 (which itself
+## cascades to 02), matching 02/03's `require_stage()` convention.
+
+if (!config_has_smidata) {
+  cli::cli_alert_info(
+    "{.pkg smidata} is not installed; skipping the real covariate assembly
+     entirely (same convention as 01/02/03)."
+  )
+} else {
+  require_stage(c("analysis_cohort", "prior_cost"), "03_cost_windows.R")
+
+  covariates_raw <- smidata::smi_read(
+    SMI_KEYS$covariates,
+    columns = c("ID", "INDEX_DT", unlist(blocks, use.names = FALSE))
+  )
+  ## smidata::smi_read() already aborts on a missing requested column, so
+  ## there is nothing to re-check here; a second probe would just be noise.
+
+  ## The 12 confirmed _YN columns, ID-keyed, no INDEX_DT or prior_cost -- the
+  ## explicit interface 06_assemble_analytic_data.R's own (pre-existing)
+  ## comments already name and expect.
+  covariates_yn <- dplyr::select(covariates_raw, "ID", dplyr::all_of(unlist(blocks, use.names = FALSE)))
+
+  ## prior_cost from 03_cost_windows.R -- ALREADY one row per cohort patient,
+  ## with the coverage-aware NA-vs-0 distinction resolved there (03's header
+  ## explains why: absence of a claim under FULL file coverage is a real
+  ## zero; absence/truncation under PARTIAL coverage is unknowable and left
+  ## NA, not coalesced). No coalesce() here -- that would silently undo 03's
+  ## fix and reintroduce the exact truncation bug this file's own comments
+  ## originally warned about.
+  prior_cost_x <- dplyr::transmute(prior_cost, ID = .data$ID, prior_cost = .data$cost)
+
+  covariates <- covariates_raw |>
+    dplyr::semi_join(analysis_cohort, by = "ID") |>   # eligible patients only
+    dplyr::left_join(prior_cost_x, by = "ID")
+
+  n_prior_cost_na <- sum(is.na(covariates$prior_cost))
+  if (n_prior_cost_na > 0L) {
+    cli::cli_alert_warning(
+      "{n_prior_cost_na} of {nrow(covariates)} patients have {.val NA}
+       prior_cost (file-coverage truncation, per 03_cost_windows.R) --
+       discretize_prior_cost() below will ABORT on this, by design: an
+       {.val NA} silently binned into a quartile is a fabricated covariate
+       value. This is the decision 04's own header names -- do not coalesce
+       past it here."
+    )
+  }
+
+  ## WHICH SAMPLE THE QUARTILES ARE COMPUTED WITHIN IS A DECISION, MADE IN 06.
+  ## The confirmed design says "computed within the analytic sample". The
+  ## analytic sample is the AAP-eligible cohort AFTER the complete-case
+  ## restriction of 05 -- so strictly, discretization belongs after that
+  ## filter, not before it. Run here anyway, for a PREVIEW only (labelled as
+  ## such below): discretizing on the pre-filter cohort and then subsetting
+  ## gives different boundaries than discretizing the filtered sample, and
+  ## the two are not interchangeable -- 06 MUST re-discretize on its own,
+  ## final sample; this call does not gate or feed anything downstream.
+  if (n_prior_cost_na == 0L) {
+    prior_cost_dummies_preview <- discretize_prior_cost(covariates$prior_cost)
+    cli::cli_alert_info(
+      "PREVIEW quartile cutpoints, pre-filter cohort (NOT the reported
+       cutpoints -- 06 recomputes these on the final, complete-case-filtered
+       sample): {.val {round(attr(prior_cost_dummies_preview, 'cutpoints'), 2)}}"
+    )
+
+    x_with_id_preview <- assemble_design_matrix(covariates, prior_cost_dummies_preview)
+    ## The guard the package does not give you. See helpers/design_matrix.R's
+    ## header: check_att_data() does not examine X's coding at all, and
+    ## estimate_att_crossfit() adds no further check -- so a "Y"/"N" or 1/2
+    ## coded _YN column reaches optimaltrees and returns a number. Checked
+    ## HERE, at preview time, not at estimation time hours later -- and again
+    ## in 06 on the real sample, since a preview pass does not guarantee the
+    ## final one.
+    assert_binary_design_matrix(dplyr::select(x_with_id_preview, -"ID"))
+    cli::cli_alert_success(
+      "Preview design matrix ({nrow(x_with_id_preview)} pre-filter patients)
+       passes assert_binary_design_matrix()."
+    )
+  } else {
+    cli::cli_alert_info(
+      "Skipping the preview discretize/assemble/assert steps -- see the
+       {.val NA} prior_cost warning above."
+    )
+  }
+}
 
 if (!interactive() && sys.nframe() == 0L) {
-  cli::cli_alert_info("04_covariates.R complete (structure only; no data read).")
+  cli::cli_alert_info(
+    "04_covariates.R complete
+     ({if (config_has_smidata) 'ran the real preview assembly' else 'structure only, no smidata'})."
+  )
 }
