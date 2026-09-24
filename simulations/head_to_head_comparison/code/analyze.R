@@ -212,12 +212,106 @@ print_ratio_summary <- function(res, regime) {
   invisible(tab)
 }
 
+#' Deduplicate checkpoint files that cover the same cell at different vintages
+#'
+#' A "cell" is identified by its filename with the trailing \code{_r<nsim>.rds}
+#' vintage suffix stripped (e.g. \code{cell_R4_C_n500} covers both
+#' \code{..._r30.rds}, an old pilot/smoke-test checkpoint, and
+#' \code{..._r1000.rds}, the full-scale one -- both can legitimately coexist on
+#' disk because nothing ever deletes a pilot checkpoint once the sweep
+#' supersedes it). \code{load_results()} used to \code{rbind()} every matching
+#' file unconditionally, silently pooling stale, lower-nsim checkpoints on top
+#' of the full run for any cell where one had not been cleaned up -- found
+#' 2026-09-24 auditing the just-completed S5 sweep: 19 of 37 cells had a stale
+#' vintage still present, contributing 1,942 duplicate \code{(regime, dgp, n,
+#' arm, rep)} rows, 70 of which were NOT byte-identical to the full run's
+#' value for that same key (concentrated in R4/DGP-C: near-empty control
+#' cells there make the tree-splitting objective tie, and the study ran under
+#' an emergency \code{optimaltrees} tie-breaking revert -- see
+#' \code{quality_reports/reviews/2026-09-24_s5-claims-audit.md}). The
+#' numerical impact turned out to be sub-0.1pp on every reported coverage/bias
+#' number for this sweep, but that was verified by hand, not guaranteed by the
+#' code, and a future rerun with a larger genuine drift would have failed
+#' silently in exactly the same way.
+#'
+#' This function picks, per cell, only the file with the LARGEST \code{_r<n>}
+#' vintage suffix (the newest/most-complete checkpoint) and uses every other
+#' vintage only as a cross-check: any \code{(arm, rep)} key shared between a
+#' stale vintage and the kept one must match on \code{theta} to floating-point
+#' tolerance, or the function aborts loudly rather than silently pooling two
+#' checkpoints that disagree. Stale checkpoints are never partially trusted --
+#' either they agree with the kept file everywhere they overlap, or the run
+#' stops.
+#'
+#' @param files Character vector of checkpoint paths (already filtered to the
+#'   study's `results/` directory).
+#' @return The subset of `files` to actually load, one per cell.
+dedup_checkpoints <- function(files) {
+  base <- basename(files)
+  has_vintage <- grepl("_r[0-9]+\\.rds$", base)
+  if (!all(has_vintage)) {
+    cli::cli_abort(c(
+      "Checkpoint filename(s) do not match the expected {.code cell_..._r<nsim>.rds} pattern:",
+      files[!has_vintage]
+    ))
+  }
+  key <- sub("_r[0-9]+\\.rds$", "", base)
+  suf <- as.integer(sub(".*_r([0-9]+)\\.rds$", "\\1", base))
+  keep <- logical(length(files))
+  for (k in unique(key)) {
+    idx <- which(key == k)
+    primary <- idx[which.max(suf[idx])]
+    keep[primary] <- TRUE
+    stale <- setdiff(idx, primary)
+    if (!length(stale)) next
+    ref <- readRDS(files[primary])$results
+    for (s in stale) {
+      old <- readRDS(files[s])$results
+      common_cols <- intersect(names(old), c("arm", "rep", "theta"))
+      if (!all(c("arm", "rep", "theta") %in% common_cols)) next
+      for (a in intersect(unique(old$arm), unique(ref$arm))) {
+        o <- old[old$arm == a, c("rep", "theta")]
+        r <- ref[ref$arm == a, c("rep", "theta")]
+        common_reps <- intersect(o$rep, r$rep)
+        if (!length(common_reps)) next
+        om <- o$theta[match(common_reps, o$rep)]
+        rm_ <- r$theta[match(common_reps, r$rep)]
+        bad <- !isTRUE(all.equal(om, rm_, tolerance = 1e-9))
+        if (bad) {
+          mismatch_n <- sum(abs(om - rm_) > 1e-9, na.rm = TRUE)
+          cli::cli_abort(c(
+            "Stale checkpoint {.path {files[s]}} disagrees with the kept \\
+             checkpoint {.path {files[primary]}} for cell {.val {k}}, arm \\
+             {.val {a}}: {mismatch_n} of {length(common_reps)} shared \\
+             replications have a different {.code theta}.",
+            "This means the two files were generated under different code \\
+             states (e.g. a tie-breaking-sensitive package revert) and are \\
+             NOT exchangeable draws -- pooling them would silently mix \\
+             methodologies. Archive or delete the stale checkpoint after \\
+             confirming which vintage is correct; this function refuses to \\
+             guess."
+          ))
+        }
+      }
+    }
+  }
+  files[keep]
+}
+
 #' Load every checkpoint on disk for a set of regimes
+#'
+#' Deduplicates across checkpoint vintages first (see \code{dedup_checkpoints()}):
+#' if a cell has both a stale pilot/smoke-test checkpoint and the full-scale
+#' one, only the full-scale one is loaded. This is a change from the original
+#' behaviour (unconditional \code{rbind()} of every matching file), made
+#' 2026-09-24 after auditing the S5 sweep found 19/37 cells silently pooling a
+#' stale vintage on top of the real one.
 load_results <- function(regimes = REGIME_IDS, reps = NULL) {
   files <- list.files(DIR_RESULTS, pattern = "^cell_.*\\.rds$", full.names = TRUE)
   if (!length(files)) {
     cli::cli_abort("No checkpoints in {.path {DIR_RESULTS}}; run the pilot or sweep first.")
   }
+  files <- dedup_checkpoints(files)
   payloads <- lapply(files, readRDS)
   res <- do.call(rbind, lapply(payloads, `[[`, "results"))
   res <- res[res$regime %in% regimes, , drop = FALSE]

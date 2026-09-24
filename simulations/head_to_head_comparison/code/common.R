@@ -699,7 +699,35 @@ REGIMES <- list(
     # still inside (0.01, 0.99) so it would in fact run -- but the RMSE ratio
     # would be to a near-degenerate-weight benchmark, which is not the C1
     # statistic and would invite over-reading. Spec §4 lists flagship/GLM/RF.
-    arms = c("doubletree", "glm_main", "forest"),
+    #
+    # ADDED 2026-09-24 (adversarial claims audit, quality_reports/reviews/
+    # 2026-09-24_s5-claims-audit.md): the full sweep found plain doubletree's
+    # coverage under this small-c (near-positivity-boundary) regime real and
+    # only partially resolving with n -- 89.7% at n=500, 91.3% at n=1000, 93.7%
+    # at n=2000, all against 95% nominal -- and README.md §10 open item 2
+    # pre-registered "if 0.900 persists it is a real finding." It persisted.
+    # doubletree_crossfit + doubletree_anchor are added with a PRE-REGISTERED,
+    # falsifiable prediction, made before this arm's numbers exist: the anchor
+    # widens (theta_full +/- (|theta_full-theta_anchor| + z*sigma_anchor)) but
+    # STILL falls short of nominal here, because thm:anchor's construction
+    # targets the BILINEAR BIAS remainder (it can only rescue coverage by
+    # widening around a detected theta_full-vs-theta_anchor disagreement), and
+    # R4's shortfall is not primarily a bias problem: relative bias shrinks
+    # fast (44.3% -> 10.8%, n=500->1000 at pilot scale) while undercoverage
+    # persists. That dissociation points to variance/tail behaviour near a
+    # thin propensity margin (Vhat contains an e_0^2/(1-e_0) term, inflated
+    # ~55x at e_0=0.982 -- manuscript.tex:171), which the anchor's widening
+    # mechanism is not aimed at. If this prediction is wrong -- the anchor
+    # actually restores nominal coverage here -- that would itself be an
+    # interesting finding about thm:anchor's reach beyond ass:rate violations
+    # and should be flagged back to the manuscript, not quietly accepted.
+    #
+    # ass:causal is NOT violated here (DGP-C's worst e_0 = 0.982 < 1, so c>0)
+    # -- this is a small-c regime, not a positivity failure. Framing it as an
+    # "ass:causal violation" (an earlier draft of this comment did) overstates
+    # what the stress test shows; see claims.md's `ass:causal` row.
+    arms = c("doubletree", "doubletree_crossfit", "doubletree_anchor",
+             "glm_main", "forest"),
     ratio_ref = NULL
   ),
   R5 = list(
