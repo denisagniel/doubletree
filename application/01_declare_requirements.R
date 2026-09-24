@@ -6,12 +6,18 @@
 ## 200 lines into stage 03.
 ##
 ## This paper requires NO datasets beyond the ones dual-bounds already requires:
-## larger_smi_covariates, msr_aap, and all 36 cost-claims keys. Its only
-## additional construction -- prior_cost's quartile discretization -- is computed
-## from data already being read. The declaration below is therefore the same 38
-## requirements dual-bounds declares, and that is a fact worth checking rather
-## than assuming: if this list ever grows, the "reuses dual-bounds' design
-## wholesale" claim in the registry has quietly stopped being true.
+## larger_smi_covariates, msr_aap, medicaid_monthly_flag, and all 36 cost-claims
+## keys. Its only additional construction -- prior_cost's quartile
+## discretization -- is computed from data already being read. The declaration
+## below is therefore the same 39 requirements dual-bounds' identical design
+## implies, and that is a fact worth checking rather than assuming: if this
+## list ever grows, the "reuses dual-bounds' design wholesale" claim in the
+## registry has quietly stopped being true.
+##
+## medicaid_monthly_flag was added 2026-09-24 (see application/_config.R's
+## SMI_KEYS comment): it was needed by OPEN_DECISIONS$enrollment_source's
+## resolution from the day that decision was confirmed, but was never
+## actually declared until this pass -- a registration gap, not new scope.
 ##
 ## Runs locally with a clear message when smidata is absent -- it must not
 ## abort, because its whole job is to report the state of the contract.
@@ -34,7 +40,7 @@ if (!config_has_smidata) {
   )
   cli::cli_alert_info(
     "Install from {.path ~/RAND/tools/smidata} to check the
-     {length(cost_dataset_keys()) + 2L} dataset requirements."
+     {length(cost_dataset_keys()) + 3L} dataset requirements."
   )
 } else {
   cli::cli_alert_info("Environment: {.val {smidata::smi_env()}}")
@@ -48,6 +54,9 @@ if (!config_has_smidata) {
     stats::setNames(list(SMI_COLS$covariates), SMI_KEYS$covariates),
     stats::setNames(list(SMI_COLS$aap), SMI_KEYS$aap),
     stats::setNames(
+      list(SMI_COLS$medicaid_monthly_flag), SMI_KEYS$medicaid_monthly_flag
+    ),
+    stats::setNames(
       rep(list(SMI_COLS$cost_claims), length(cost_dataset_keys())),
       cost_dataset_keys()
     )
@@ -56,7 +65,7 @@ if (!config_has_smidata) {
   cli::cli_alert_info("Declaring {length(requirements)} dataset requirement{?s}.")
 
   ## Which required datasets does the resolved contract actually contain?
-  ## Checked BEFORE the smi_require() loop, and for all 38 at once, because
+  ## Checked BEFORE the smi_require() loop, and for all 39 at once, because
   ## smi_require() aborts on the first absent dataset -- which on a laptop
   ## resolving smidata's bundled example contract means reporting one missing
   ## dataset instead of the real answer, "this is the wrong contract". This is
@@ -156,8 +165,8 @@ if (!config_has_smidata) {
     )
     cli::cli_alert_warning(
       "Without a census, {.fn smidata::smi_fixture} cannot build a structurally valid
-       fixture for {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}}, or the
-       cost_claims family."
+       fixture for {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}},
+       {.val {SMI_KEYS$medicaid_monthly_flag}}, or the cost_claims family."
     )
     cli::cli_alert_warning(
       "The unblocker is a server-side {.fn smi_census} run -- not anything in this
@@ -177,10 +186,11 @@ if (!config_has_smidata) {
     )
     cli::cli_alert_info(
       "{.fn smidata::smi_fixture} can now build structurally valid fixtures for
-       {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}}, and the cost_claims
-       family, in addition to what already ran at Tier 0
-       ({.file application/tests/}'s 15-column design matrix on hand-built toy
-       data). Distributional shape from real census, still not real data."
+       {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}},
+       {.val {SMI_KEYS$medicaid_monthly_flag}}, and the cost_claims family, in
+       addition to what already ran at Tier 0 ({.file application/tests/}'s
+       15-column design matrix on hand-built toy data). Distributional shape
+       from real census, still not real data."
     )
   }
 }

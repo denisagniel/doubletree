@@ -141,12 +141,23 @@ config_complete_case_months <- 24L
 #' BASE keys; the real dataset keys append `_<yy>` for each of
 #' `config_cost_years` (see `cost_dataset_keys()`).
 #'
+#' `medicaid_monthly_flag` was added 2026-09-24, when
+#' `OPEN_DECISIONS$enrollment_source` resolved and 05_complete_case.R stopped
+#' being a stub: it had never been declared here before, even though the
+#' resolved decision's `note` already referenced it by name -- a real
+#' registration gap, not an oversight in the decision itself.
+#'
 #' This paper requires NO datasets beyond the ones dual-bounds already
 #' requires -- its only additional construction (prior_cost's quartile
-#' discretization) is computed from data already being read.
+#' discretization) is computed from data already being read, and
+#' `medicaid_monthly_flag` is the SAME table dual-bounds' own (also still
+#' pseudocode-only, as of 2026-09-24) response indicator `R` would read for
+#' its identical, still-open registration gap -- see 05_complete_case.R's
+#' header. This registers it here, not a claim that dual-bounds already has.
 SMI_KEYS <- list(
-  covariates  = "larger_smi_covariates",
-  aap         = "msr_aap",
+  covariates            = "larger_smi_covariates",
+  aap                   = "msr_aap",
+  medicaid_monthly_flag = "larger_smi_medicaid_monthly_flag",
   cost_claims = list(
     aim3_svc   = "aim3_svc_cost",
     new_svc    = "new_svc_cost",
@@ -162,9 +173,15 @@ SMI_KEYS <- list(
 #' The 12 table-resident covariates are added on top -- see
 #' `helpers/covariate_blocks.R`, which unlike dual-bounds' candidate map is
 #' PI-CONFIRMED and therefore not an open decision.
+#'
+#' `medicaid_monthly_flag`'s five columns are the full confirmed schema (see
+#' 90_checks_tier1.R CHECK 4 and smidata's inst/server/07_enrollment_coverage.R)
+#' minus `COHORT`, which this pipeline's own use
+#' (`helpers/complete_case.R::compute_complete_case()`) does not read.
 SMI_COLS <- list(
-  covariates  = c("ID", "INDEX_DT"),
-  aap         = c("ID", "MSR", "MSR_YR", "MSR_DEN", "MSR_NUM"),
+  covariates            = c("ID", "INDEX_DT"),
+  aap                   = c("ID", "MSR", "MSR_YR", "MSR_DEN", "MSR_NUM"),
+  medicaid_monthly_flag = c("ID", "INDEX_DT", "TYPE", "YEAR_MONTH", "MEDICAID_FLAG"),
   cost_claims = c("ID", "SRV_DT", "AMOUNT_PAID", "SEQ_ID", config_cost_setting_col)
 )
 
@@ -279,6 +296,32 @@ open_value <- function(id) {
   d <- OPEN_DECISIONS[[id]]
   if (is.null(d)) cli::cli_abort("Unknown open decision {.val {id}}.")
   cli::cli_warn(c("!" = "Unconfirmed value for {.val {id}}: {.val {d$value}}", "i" = d$note))
+  d$value
+}
+
+#' Read a RESOLVED (`status == "confirmed"`) open decision's value, quietly.
+#'
+#' [open_value()]'s "Unconfirmed value" warning is correct for a genuine
+#' placeholder, but became misleading the moment `enrollment_source`,
+#' `cost_family_scope`, and `msr_code` moved to `status = "confirmed"`
+#' (2026-09-17/2026-09-24): calling [open_value()] on any of them would still
+#' print "Unconfirmed" about a value the PI has actually given. This reads
+#' the same `value` field without that warning, and aborts instead if the
+#' entry is not actually confirmed -- so a status typo, or a decision that
+#' later regresses to `open_decision`, cannot be read past silently either.
+#'
+#' @param id Name of an `OPEN_DECISIONS` entry.
+#' @return The entry's `value`.
+confirmed_value <- function(id) {
+  d <- OPEN_DECISIONS[[id]]
+  if (is.null(d)) cli::cli_abort("Unknown open decision {.val {id}}.")
+  if (!identical(d$status, "confirmed")) {
+    cli::cli_abort(c(
+      "{.val {id}} is not confirmed (status: {.val {d$status}}).",
+      "i" = "Use {.fn open_value} to read an unresolved placeholder -- it
+             warns on every access, deliberately."
+    ))
+  }
   d$value
 }
 
