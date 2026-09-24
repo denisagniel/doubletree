@@ -152,3 +152,43 @@
 ## explicitly a cross-tabulation -- these CAN contain cells under 11 for a rare
 ## flag. Route through smidata::smi_suppress() before export.
 ## ---------------------------------------------------------------------------
+
+## ---------------------------------------------------------------------------
+## CHECK 4 -- resolve whether larger_smi_medicaid_monthly_flag$TYPE can be
+## safely ignored (OPEN_DECISIONS$enrollment_source's IP/OP sub-question)
+##   [SHARED, REFERENCED -- identical check to dual-bounds' CHECK 3]
+##
+## QUESTION. PI (2026-09-24) deferred the IP-vs-OP choice and directed:
+## proceed WITHOUT filtering on TYPE for now -- every
+## larger_smi_medicaid_monthly_flag row counts as enrollment evidence
+## (toward complete-case status) regardless of TYPE. That is only safe if
+## TYPE does not fragment a single patient's own enrollment signal in a way
+## that changes the answer: if a patient's IP and OP rows for the same
+## (ID, YEAR_MONTH) never DISAGREE on MEDICAID_FLAG, ignoring TYPE is a
+## no-op; if they can disagree, "ignore TYPE" silently picks whichever row
+## happens to be read first/last, which is not a decision anyone made.
+##
+## THE CHECK. Identical to dual-bounds' CHECK 3 -- run once, applies to both
+## papers (same table, same question). On the server, group
+## larger_smi_medicaid_monthly_flag by (ID, YEAR_MONTH) and compute:
+##
+##   (a) HOW MANY PATIENTS carry BOTH TYPE values at all (any row with
+##       TYPE=='IP' AND any row with TYPE=='OP' for the same ID, anywhere in
+##       their history) vs. patients with only one TYPE ever.
+##
+##   (b) WITHIN an (ID, YEAR_MONTH) cell that has both TYPE=='IP' and
+##       TYPE=='OP' rows, do MEDICAID_FLAG values ever DISAGREE (one row 1,
+##       the other 0)? Tabulate agree/disagree counts. Disagreement means
+##       "ignore TYPE" is not neutral, and the deferred IP/OP choice will
+##       change results, not just documentation.
+##
+##   (c) If (b) finds disagreement, report its size (patient-months
+##       affected) so the PI can see whether the deferred choice is a
+##       rounding error or a real modeling decision before
+##       OPEN_DECISIONS$enrollment_source's interim "ignore TYPE" default is
+##       relied on for a real number.
+##
+## SUPPRESSION. (a) is a per-category patient count and (c) is a
+## patient-month count -- suppress any cell with n < 11 (CMS/HIPAA Safe
+## Harbor) via smidata::smi_suppress() before export.
+## ---------------------------------------------------------------------------

@@ -216,8 +216,26 @@ cost_dataset_keys <- function(years = config_cost_years) {
 OPEN_DECISIONS <- list(
   enrollment_source = list(
     question = "Table/columns providing continuous-enrollment spans through INDEX_DT+24mo, needed to determine COMPLETE-CASE STATUS (whether Y is observed for the whole outcome window). NO table in the confirmed design carries enrollment spans reaching that far: larger_smi_covariates is a covariate snapshot (72 columns, no span fields), msr_aap is measure periods (not enrollment), and the sibling aim1_smi_charac -- not elected by this paper -- encodes only ~12mo post-index enrollment.",
-    status = "open_decision", blocking_final = TRUE, value = NULL,
-    note = "PARTIALLY RESOLVED (PI, 2026-09-17, same finding as dual-bounds' identically-named entry): 'There is an enrollment source - it's something like medicaid_monthly_flag' -- CONFIRMED present via contract evidence: larger_smi_medicaid_monthly_flag (smidata snapshot 2026-09-15_2824080e, 23,972,773 rows, columns ID/INDEX_DT/TYPE/COHORT/YEAR_MONTH/MEDICAID_FLAG). Still blocking: MONTHLY grain, not daily -- complete-case status should be 'MEDICAID_FLAG=1 for enough of the ~24 months in [INDEX_DT, INDEX_DT+24mo]', but no numeric threshold for 'enough' has been given. The TYPE column's role is now CHECKED (smidata census, snapshot 2026-09-21_2824080e, promoted 2026-09-23): exactly 2 values, IP/OP, complete (levels_status='complete') -- a filter genuinely is needed, not a single-value formality, but WHICH of IP/OP (or both) counts has not been decided. 05_complete_case.R remains a stub until both the gap-months threshold and the IP/OP filter choice are resolved."),
+    status = "confirmed", blocking_final = FALSE,
+    value = list(type_filter = "none -- all TYPE values counted", gap_months = 0L),
+    shared_with = "dual-bounds",
+    registry_ref = "smidata::inst/analyses/dual-bounds__application.yml -- IDENTICAL interim resolution, PI answered both papers in one sitting (2026-09-24)",
+    note = "RESOLVED, INTERIM (PI, 2026-09-24, same finding as dual-bounds'
+      identically-named entry). TYPE (IP/OP): PI explicitly deferred the
+      IP-vs-OP choice -- 'note this as a question and just proceed ignoring
+      this for now' -- so complete-case status is computed from
+      larger_smi_medicaid_monthly_flag WITHOUT filtering on TYPE; every row
+      counts as enrollment evidence regardless of IP/OP. PI separately
+      flagged a prerequisite: verify no patient carries conflicting TYPE
+      values before trusting that this is neutral -- see CHECK 4 in
+      90_checks_tier1.R (server-only, not yet run; identical check to
+      dual-bounds' CHECK 3). Gap-months: PI (2026-09-24) -- 'let's just not
+      have a gap for now. We can change this later.' -- complete-case status
+      now requires FULL continuity (0-month gap tolerance, MEDICAID_FLAG=1
+      for every one of the ~24 months in [INDEX_DT, INDEX_DT+24mo]) as an
+      explicit, PI-given, REVISABLE default, not an implementation guess.
+      Both sub-decisions are provisional. 05_complete_case.R can now be
+      implemented against these two values instead of remaining a stub."),
   cost_family_scope = list(
     question = "SHARED WITH dual-bounds -- see registry_ref. Whether all four cost-claims families are disjoint claim sources or aim3_*/new_* are overlapping extracts of the same claims (which would double-count cost if all four are summed).",
     status = "confirmed", blocking_final = FALSE, value = "all_four",
@@ -233,7 +251,20 @@ OPEN_DECISIONS <- list(
   diagnostics = list(
     question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
     status = "open_decision", blocking_final = TRUE, value = NULL,
-    note = "analysis_plan.diagnostics, status: open_decision (smidata inst/analyses/doubletree__application.yml). doubletree-specific: dual-bounds' diagnostics_plan concerns marbounds' optimizer convergence and divergence budgets, a different set of quantities. Note the underlying assumption -- grid-exact sparsity -- is NOT checkable from data, so no diagnostic can confirm it; the question is which proxies are informative enough to act on. PI (2026-09-17): 'Same' as dual-bounds' diagnostics_plan -- wants a synchronous conversation, not resolved via async exchange.")
+    note = "PARTIALLY RESOLVED (PI, 2026-09-24): the GENERAL diagnostics
+      standard for this paper is now overlap/balance checks PLUS nuisance
+      fit examined against OLS/GLM competitors (analysis_plan.diagnostics,
+      smidata inst/analyses/doubletree__application.yml -- status: confirmed
+      as of 2026-09-24). That answer does NOT resolve THIS entry's narrower
+      question: which of estimate_att()'s own sparsity-proxy outputs
+      (certified_e, gap_e, etc.), at which numeric thresholds, license
+      reporting the flagship estimate rather than the cross-fit fallback.
+      The underlying assumption -- grid-exact sparsity -- is not checkable
+      from data, so no diagnostic can confirm it directly; the OLS/GLM
+      nuisance-fit comparison may end up informing which proxy thresholds
+      are trustworthy, but that is an inference to make once that
+      comparison exists, not a PI statement resolving this entry now. Still
+      open -- do not invent a threshold.")
 )
 
 
