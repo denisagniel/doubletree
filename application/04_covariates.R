@@ -86,12 +86,13 @@ if (!config_has_smidata) {
 } else {
   require_stage(c("analysis_cohort", "prior_cost"), "03_cost_windows.R")
 
-  covariates_raw <- smidata::smi_read(
+  covariates_raw <- smi_read_pinned(
     SMI_KEYS$covariates,
     columns = c("ID", "INDEX_DT", unlist(blocks, use.names = FALSE))
   )
-  ## smidata::smi_read() already aborts on a missing requested column, so
-  ## there is nothing to re-check here; a second probe would just be noise.
+  ## smi_read_pinned() (i.e. smidata::smi_read()) already aborts on a missing
+  ## requested column, so there is nothing to re-check here; a second probe
+  ## would just be noise.
 
   ## The 12 confirmed _YN columns, ID-keyed, no INDEX_DT or prior_cost -- the
   ## explicit interface 06_assemble_analytic_data.R's own (pre-existing)

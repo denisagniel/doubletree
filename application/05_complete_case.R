@@ -92,7 +92,7 @@ if (!config_has_smidata) {
     SMI_KEYS$medicaid_monthly_flag,
     columns = SMI_COLS$medicaid_monthly_flag
   )
-  monthly_flag <- smidata::smi_read(
+  monthly_flag <- smi_read_pinned(
     SMI_KEYS$medicaid_monthly_flag,
     columns = SMI_COLS$medicaid_monthly_flag
   )

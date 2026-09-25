@@ -70,6 +70,41 @@ config_aap_achievement_threshold <- 0.5
 ## regardless of the "no filter needed" resolution's own intent.
 AAP_MSR_CODE <- "AAP"
 
+## Pinned ingest for a run against staged or published server data. NOT a
+## per-run knob that gets cleared after use -- a pin persists even after the
+## ingest it names PUBLISHES, because "newest" is a property of the frozen
+## ingest cache at read time, not a property of this paper's design (see
+## smidata::smi_read()'s own Details on pinned vs. unpinned reads).
+##
+## NA_character_, not NULL: smi_read_pinned() below tests it with is.na(), and
+## smidata's own smi_run_start() normalizes a NULL ingest_id to NA_character_
+## for the identical reason -- a length-1 character sentinel is type-stable
+## (always character, never the length-0 NULL that would break a `||`
+## boolean test below), and this file has no other convention for an unset
+## SCALAR gate to follow instead (OPEN_DECISIONS's own `value = NULL`
+## convention is for a different kind of registry -- a question with no
+## defensible placeholder at all -- not an operational knob like this one).
+config_ingest_id <- NA_character_   # <- edit before a run against staged/published data
+
+## Every read in this pipeline goes through here -- never call
+## smidata::smi_read() directly (enforced by
+## application/tests/test-no-unpinned-reads.R). ingest_id is dropped whenever
+## it would hit smi_read()'s own local-environment guard: that function
+## ABORTS if given a non-NULL ingest_id while smi_env() == "local", because
+## the ingest cache is server-only -- so an unset (NA) pin, or ANY pin at
+## all while running locally, must never reach it. Tier-0 fixture runs must
+## stay green with zero configuration.
+smi_read_pinned <- function(dataset_key, columns = NULL, n = 200L) {
+  smidata::smi_read(
+    dataset_key, columns = columns, n = n,
+    ingest_id = if (identical(smidata::smi_env(), "local") || is.na(config_ingest_id)) {
+      NULL
+    } else {
+      config_ingest_id
+    }
+  )
+}
+
 ## ---- estimator gates -------------------------------------------------------
 
 ## Which entry point 07_estimate_att.R treats as the FLAGSHIP result.

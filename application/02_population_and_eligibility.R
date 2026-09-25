@@ -87,7 +87,7 @@ if (!config_has_smidata) {
   }
 
   ## ---- base cohort -----------------------------------------------------
-  base_cohort <- smidata::smi_read(SMI_KEYS$covariates, columns = SMI_COLS$covariates)
+  base_cohort <- smi_read_pinned(SMI_KEYS$covariates, columns = SMI_COLS$covariates)
 
   if (nrow(base_cohort) == 0L) {
     cli::cli_abort("{.val {SMI_KEYS$covariates}} returned zero rows.")
@@ -113,7 +113,7 @@ if (!config_has_smidata) {
   }
 
   ## ---- msr_aap: contamination guard, THEN smi_select_aap_row() ----------
-  aap_raw <- smidata::smi_read(SMI_KEYS$aap, columns = SMI_COLS$aap)
+  aap_raw <- smi_read_pinned(SMI_KEYS$aap, columns = SMI_COLS$aap)
 
   ## filter_to_msr_code() (helpers/msr_filter.R) is pure and independently
   ## tested; `quiet` suppresses its own warning under a Tier-0 fixture, where

@@ -181,7 +181,7 @@ if (!config_has_smidata) {
   ## claim-key column per SMI_COLS$cost_claims and dropping it here would
   ## silently diverge this read from every other read of the same files).
   cost_read_fn <- function(key) {
-    smidata::smi_read(key, columns = SMI_COLS$cost_claims)
+    smi_read_pinned(key, columns = SMI_COLS$cost_claims)
   }
 
   ## The expensive call on the server (budget hours, per this file's header);
