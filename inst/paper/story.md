@@ -91,10 +91,15 @@ unrestricted ML ensemble — the defended comparison is against a GLM working mo
 - **S7:** The leaf budget is a single interpretability knob whose price is quantified exactly rather
   than asserted — smaller budget, more displayable tree, wider approximation-aware interval.
 - **S8:** The underlying tree representation is not itself a limitation: at the saturated budget it
-  represents any grid-measurable function, strictly containing what a generalized linear working
-  model can compute whenever the truth departs from additivity on the link scale. Doubletree's small
-  leaf budget is a *chosen* restriction for legibility, not a representational ceiling — the earlier
-  framing ("neither representation is uniformly preferable") understated this and has been corrected.
+  represents any grid-measurable function, containing what *any* model restricted to the same
+  grid-measurable inputs can compute — a generalized linear working model, but by the identical
+  measurability argument also a random forest, boosting ensemble, or kernel smoother so restricted.
+  Against the GLM specifically the containment is strict (a tree can represent a cross-coordinate
+  departure from additivity on the working model's link scale that no coefficient choice can);
+  against a flexible learner grown to purity on the same inputs it is generically an equality, not
+  a strict improvement. Doubletree's small leaf budget is a *chosen* restriction for legibility, not
+  a representational ceiling — the earlier framing ("neither representation is uniformly
+  preferable") understated this and has been corrected.
   The cost of the small budget is bounded and already priced by S4/S7's machinery: a nuisance too
   additive-and-distributed to fit the budget is exactly a nuisance for which structural sparsity
   fails, absorbed into the anchor interval's width, not into validity.
@@ -115,3 +120,29 @@ citation to `rudin2019` for the practical case that legibility need not cost acc
 function on the grid" — contradicted by §2.2's own "$\cX$ need not be finite"), a link-scale
 subtlety (log-link GLMs can represent what looks like an interaction on the identity scale), and
 an unsupported empirical claim about "real" nuisance functions.
+
+## Reconciliation log, continued (2026-09-25, third pass)
+
+S8 broadened and corrected. `rem:saturated-general`'s containment claim was generalized from
+GLM-specific to any model restricted to the same grid-measurable inputs (sound — a pure
+measurability argument, no hidden GLM-specific step, per an independent `domain-reviewer` audit,
+`quality_reports/reviews/2026-09-25_sec2.2-saturated-general-broadening.md`). That same audit
+found the *strictness* claim does not generalize: against a flexible grid-restricted learner grown
+to purity, the containment is generically an equality, not strict, since such a learner reproduces
+exactly the atom-wise fit the saturated tree already delivers — a real error that had already
+propagated into `claims.md`. Also fixed same day, both live only once the leaf-cost formula was
+generalized from the binary-only $2^k$ to $\prod_i c_i$: a false coefficient-tie-robustness claim
+(within-coordinate ties between adjacent categories *can* collapse leaves, unlike cross-coordinate
+ties — vacuous under the old binary-only framing), and a self-contradictory stated reason for it
+("not unions of grid atoms," when every level set of an atom-constant function is one by the
+remark's own opening premise — corrected to "not *axis-aligned* unions"). `manuscript.tex`,
+`claims.md`, and `notation.md` all updated to state the same scope consistently.
+
+Separately, the same session found and fixed an unrelated, pre-existing ambiguity one paragraph
+away: the control-weighted projection $\Pi^\nu_\tau$ never stated its reference measure, and a
+newly-added explanatory sentence made the ambiguity load-bearing (under the wrong reading, a
+result the paper already relies on — "these projections are exactly the squared-error
+minimizers," `manuscript.tex:214` — would have been false). Resolved by author confirmation: $\nu$
+is a measure, matching `theory.tex:206–207`'s $d\nu=\{1-e_0\}dP$ exactly, with no atom-mass
+density factor. The atom-mass symbol $p_x$ this had relied on is removed from `manuscript.tex`
+entirely as a result — it had no other use in the document.
