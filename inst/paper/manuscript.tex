@@ -175,14 +175,12 @@ The efficient influence function for this functional in the nonparametric model 
 and we write $\psi_0=\psi(\cdot;\theta_0,\eta_0)$. We will use this quantity to build a new estimator for the ATT based on interpretable trees in the next section.
 
 \subsection{The doubletree algorithm}
-We use globally optimal interpretable trees to estimate both required nuisance functions $e_0,\mu_0$.
-
-Doubletree selects, for each nuisance, the tree minimizing a penalized empirical risk over a feasible subset of $\cT_{\Lbar}$, rather than over $\cT_{\Lbar}$ itself. Restricting to a subset first is a regularity device: an unconstrained minimizer over $\cT_{\Lbar}$ could return a partition with an arbitrarily small leaf, and the leaf-wise plug-ins below are unstable on such a leaf. Specifically, define the feasible sets
+We use globally optimal interpretable trees to estimate both required nuisance functions $e_0,\mu_0$ and call our approach \emph{doubletree}. Doubletree selects, for each nuisance, the tree minimizing a penalized empirical risk over a feasible subset of $\cT_{\Lbar}$, rather than over $\cT_{\Lbar}$ itself. Restricting to a subset ensures that no unconstrained minimizer over $\cT_{\Lbar}$ returns a partition with an arbitrarily small leaf, which would result in unstable leaf-wise plug-ins. Specifically, define the feasible sets
 \begin{equation}\label{eq:feasible}
   \cT^{(\mu)}_n=\bigl\{\tau\in\cT_{\Lbar}: \min_{\ell \in \tau} |\ell|_0 \geq m_n\bigr\}, \qquad 
     \cT^{(e)}_n=\bigl\{\tau\in\cT_{\Lbar}: \min_{\ell \in \tau} |\ell| \geq m_n\bigr\},
 \end{equation}
-for a sequence $m_n$ with $1\le m_n\to\infty$ and $m_n=o(n)$. Both $\cT^{(\mu)}_n,\cT^{(e)}_n$ are data-dependent -- they depend on $(\bX_i,A_i)_{i\le n}$ through the realized leaf counts -- and each is nonempty with probability tending to one, since the root partition (the single leaf $\cX$) has $|\cX|=n$ and $|\cX|_0=n(1-\pi)+o_p(n)$, both eventually exceeding $m_n=o(n)$; \S\ref{sec:instantiation1} makes the corresponding leaf-mass floor precise for every sufficient partition, not only the root. On the null event that a leaf of the selected outcome partition contains no controls -- ruled out once $m_n\ge1$ -- the outcome refit below takes the parent leaf's control mean instead.
+for a sequence $m_n$ with $1\le m_n\to\infty$ and $m_n=o(n)$. Both $\cT^{(\mu)}_n,\cT^{(e)}_n$ depend on $(\bX_i,A_i)_{i\le n}$ and are nonempty with probability tending to one see section \ref{sec:instantiation1}).
 
 For a penalty $\lambda_n>0$, set
 \begin{equation}\label{eq:select}
@@ -202,19 +200,19 @@ squared error for both the propensity tree and the outcome tree, with leaf-wise 
 \qquad
 \hat\mu_\tau(\bx)=\frac{1}{|\ell_\tau(\bx)|_0}\sum_{i:\bX_i\in\ell_\tau(\bx),\,A_i=0}Y_i ,
 \end{equation}
-i.e.\ the empirical proportion treated and the empirical control-outcome mean within the leaf containing $\bx$, both unclipped as written: $\hat e_\tau$ ranges over this unclipped family for every $\tau$ used inside the argmin \eqref{eq:select} and the risk \eqref{eq:risk-emp}. Only the propensity actually reported -- the leaf refit evaluated at the selected partition $\tauhat_e$ -- is clipped, and from here on we overload $\hat e_{\tauhat_e}$ to denote that clipped value:
+i.e.\ the empirical proportion treated and the empirical control-outcome mean within the leaf containing $\bx$. This family is unclipped for every $\tau$, with no exception: $\hat e_\tau,\hat\mu_\tau$ as written are exactly what \eqref{eq:select} searches over and what $R^{(e)}_n,R^{(\mu)}_n$ in \eqref{eq:risk-emp} evaluate, including at $\tau=\tauhat_e,\tauhat_\mu$. The propensity actually reported is a distinct object, clipped and never used inside the argmin or the risks:
 \begin{assumption}[Clipping]\label{ass:construct}
-Write $\hat e_{\tauhat_e}$ for the clipped propensity, satisfying $1-\hat e_{\tauhat_e}(\bx)\ge c$ for every $\bx$, with $c$ the constant of Assumption~\ref{ass:causal}; structure selection and $R^{(e)}_n$ in \eqref{eq:select}--\eqref{eq:risk-emp} used the unclipped leaf refit of \eqref{eq:refit} instead.
+Let $\hat e=\mathrm{clip}(\hat e_{\tauhat_e})$ project the unclipped leaf refit at the selected partition onto $\{f:1-f(\bx)\ge c\text{ for every }\bx\}$, with $c$ the constant of Assumption~\ref{ass:causal}, and write $\hat w=\hat e/(1-\hat e)$. Neither $\hat e$ nor $\hat w$ enters structure selection or the risks of \eqref{eq:select}--\eqref{eq:risk-emp}, which use only the unclipped family of \eqref{eq:refit}.
 \end{assumption}
-Given the selected partitions $\tauhat_e,\tauhat_\mu$, the outcome leaf-refit $\hat\mu_{\tauhat_\mu}$ (as in \eqref{eq:refit}) and the clipped propensity refit $\hat e_{\tauhat_e}$ (Assumption~\ref{ass:construct}), the doubletree estimate $\thetahat=\thetahat(\tauhat_e,\tauhat_\mu)$ is the solution of the empirical estimating equation $\Prob_n[\psi(\bO;\theta,\hat e_{\tauhat_e},\hat\mu_{\tauhat_\mu})]=0$ for $\psi$ as in \eqref{eq:score}, i.e.\
+Given the selected partitions $\tauhat_e,\tauhat_\mu$, write $\hat\mu=\hat\mu_{\tauhat_\mu}$ for the outcome leaf-refit (as in \eqref{eq:refit}) and $\hat e,\hat w$ for the clipped propensity and its odds (Assumption~\ref{ass:construct}); the doubletree estimate $\thetahat=\thetahat(\tauhat_e,\tauhat_\mu)$ is the solution of the empirical estimating equation $\Prob_n[\psi(\bO;\theta,\hat e,\hat\mu)]=0$ for $\psi$ as in \eqref{eq:score}, i.e.\
 \[
   \thetahat
   =
   \frac{1}{n\hat\pi}\sum_{i=1}^n
-  \Bigl[A_i\{Y_i-\hat\mu_{\tauhat_\mu}(\bX_i)\}
-    -\{1-A_i\}\hat w_{\tauhat_e}(\bX_i)\{Y_i-\hat\mu_{\tauhat_\mu}(\bX_i)\}\Bigr],
+  \Bigl[A_i\{Y_i-\hat\mu(\bX_i)\}
+    -\{1-A_i\}\hat w(\bX_i)\{Y_i-\hat\mu(\bX_i)\}\Bigr],
 \]
-with $\hat\pi=\Prob_n A$ and $\hat w_{\tauhat_e}=\hat e_{\tauhat_e}/(1-\hat e_{\tauhat_e})$; the map $\theta\mapsto\Prob_n[\psi(\bO;\theta,\hat\eta)]$ is affine in $\theta$ with slope $-\hat\pi/\pi$, so the root is unique whenever $\hat\pi>0$. The quantity $R^{(j)}(\tau)$ is the population counterpart of $R^{(j)}_n(\tau)$,
+with $\hat\pi=\Prob_n A$; the map $\theta\mapsto\Prob_n[\psi(\bO;\theta,\hat\eta)]$ is affine in $\theta$ with slope $-\hat\pi/\pi$, so the root is unique whenever $\hat\pi>0$. The quantity $R^{(j)}(\tau)$ is the population counterpart of $R^{(j)}_n(\tau)$,
 \begin{equation}\label{eq:risk-pop}
 R^{(e)}(\tau)=\E\bigl[\{A-\Pi_\tau e_0(\bX)\}^2\bigr],
 \qquad
@@ -403,13 +401,19 @@ has pointwise asymptotic coverage $1-\alpha$ for $\theta_0$.
 \end{corollary}
 
 \begin{proof}
-Write $\Vhat(\tau_e,\tau_\mu)$ for the statistic above formed from the
-leaf refits $(\hat e_{\tau_e},\hat\mu_{\tau_\mu})$ at a fixed pair
-$(\tau_e,\tau_\mu)$, so that $\Vhat=\Vhat(\hat\tau_e,\hat\tau_\mu)$. For every
-fixed $(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$, these leaf refits converge to
-$(e_0,\mu_0)$ on the finitely many leaves of $(\tau_e,\tau_\mu)$, and
-Assumption~\ref{ass:construct} keeps $1-\hat e$ bounded away from zero
-throughout, so $\hat w=\hat e/(1-\hat e)$ is uniformly bounded by $(1-c)/c$.
+Write $\Vhat(\tau_e,\tau_\mu)$ for the statistic above formed from
+$(\mathrm{clip}(\hat e_{\tau_e}),\hat\mu_{\tau_\mu})$ at a fixed pair
+$(\tau_e,\tau_\mu)$, applying Assumption~\ref{ass:construct}'s clip operator
+to the (unclipped) leaf refit at any fixed $\tau_e$, not only at $\tauhat_e$;
+this matches $\hat e,\hat w$ at $(\tauhat_e,\tauhat_\mu)$, so
+$\Vhat=\Vhat(\tauhat_e,\tauhat_\mu)$. For every fixed
+$(\tau_e,\tau_\mu)\in\cS_e\times\cS_\mu$, the unclipped leaf refits
+$\hat e_{\tau_e},\hat\mu_{\tau_\mu}$ converge to $(e_0,\mu_0)$ on the finitely
+many leaves of $(\tau_e,\tau_\mu)$, and the clip keeps
+$1-\mathrm{clip}(\hat e_{\tau_e})(\bx)\ge c$ for every $\bx$ and every $n$ by
+construction of $\mathrm{clip}(\cdot)$ itself, not as a consequence of this
+convergence, so $\hat w(\bx)=\mathrm{clip}(\hat e_{\tau_e})(\bx)/\{1-\mathrm{clip}(\hat e_{\tau_e})(\bx)\}$
+is uniformly bounded by $(1-c)/c$ throughout.
 Because each summand of $\Vhat(\tau_e,\tau_\mu)$ is a function of these
 finitely many, uniformly bounded leaf-wise plug-ins, the law of large
 numbers applies leaf by leaf and, together with the uniformly bounded

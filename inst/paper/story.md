@@ -198,3 +198,50 @@ session's review queue.
 
 `manuscript.tex`, `claims.md`, and `notation.md` all updated in the same turn. Recompiled clean
 (4-pass XeLaTeX, 0 undefined references/citations, 0 label-changed warnings on the final pass).
+
+## Reconciliation log, continued (2026-09-25, fifth pass: clipped-vs-unclipped notation)
+
+The author asked, after the fourth pass above, why the fix to Issue 1.1 overloaded
+$\hat e_{\tauhat_e}$ (matching `theory.tex:235`'s own move) rather than using genuinely distinct
+notation for the clipped and unclipped propensity. Answer given: consistency with `theory.tex`
+and a "clipping only bites at a boundary event, usually inert" argument were the case *for*
+overloading — but `theory.tex` itself is the counter-evidence: deep in the selection-consistency
+proof (`theory.tex:3790–3791`, Step 5), it needs both meanings in the same paragraph and has to
+improvise a *third* symbol, `\ehat^{\mathrm{pre}}`, on the spot, because its own overloaded
+`\ehat` isn't available for the unclipped meaning at that point. That is exactly the failure mode
+that produced the manuscript's original Issue 1.1 bug (a display imported without its scoping
+sentence). Recommendation: switch, since it's cheap and removes a whole bug class rather than
+just correctly wording around it. Author: "Do it."
+
+Implemented by re-purposing a distinction the manuscript's §3 already relied on implicitly but
+never formally declared: bare $\hat e,\hat w,\hat\mu$ (no subscript) throughout `cor:variance`'s
+$\Vhat$ display and `lem:biasbound`'s $D_w,D_\mu$ already meant "the reported, fitted-at-the-
+selected-partition nuisance" — this pass makes that a real, distinct, formally-defined object for
+the first time, rather than an overload of the subscripted family. Now: $\hat e_\tau$ (subscripted
+by *any* $\tau$, including $\tauhat_e$) is unconditionally the literal unclipped leaf refit of
+`eq:refit`, with no exception; `ass:construct` separately defines the new bare symbol
+$\hat e:=\mathrm{clip}(\hat e_{\tauhat_e})$ (the clip operator applied to the unclipped refit at
+the selected partition) and $\hat w:=\hat e/(1-\hat e)$; §2.4's $\thetahat$ display and
+`ass:construct` itself were rewritten in terms of the bare symbols directly.
+
+**Ripple this exposed, fixed in the same pass:** `cor:variance`'s own proof (`:404–420`) had
+relied on the *old* overload — it wrote the general fixed-$\tau_e$ leaf refit as bare
+`\hat e_{\tau_e}` and then invoked "Assumption~\ref{ass:construct} keeps $1-\hat e$ bounded away
+from zero," a sentence that only parsed under the old reading where the clip applied to *any*
+fixed $\tau_e$, not only $\tauhat_e$. Under the newly strict `ass:construct`, that citation no
+longer covers a general $\tau_e$. Fixed by applying `\mathrm{clip}(\cdot)` explicitly inside the
+proof (the operator itself is generic, not restricted to $\tauhat_e$) and re-deriving the
+uniform-boundedness step as immediate from the clip's own deterministic definition — true for
+every $n$, by construction — rather than from a convergence argument. This is a strictly cleaner
+proof than the one it replaced, not merely a notational patch: the original conflated "the clip
+keeps things bounded" (deterministic, true always) with something the LLN step needed to
+establish (it didn't — the clip already gives it for free).
+
+Checked for other sites the overload's removal could silently break: `lem:biasbound`'s
+$D_w=\|\hat w-w_0\|_{2,w}$ (bare, consistent with the new definition, no change needed);
+`cor:single-tree`'s local `\hat e` (explicitly universally-quantified — "for *any*
+leaf-wise-constant choice of $\hat e$" — self-contained, does not depend on the global bare
+definition, untouched); `rem:two-trees-why`'s informal prose "$\hat w$" (generic, non-notational,
+untouched). `notation.md`, `claims.md`, `blessings.md` updated with the same distinction. Recompiled
+clean (4-pass XeLaTeX, 0 undefined references/citations, same 4 pre-existing overfull-hbox
+warnings, all outside §2/§3.2).

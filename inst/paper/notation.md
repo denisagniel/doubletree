@@ -63,7 +63,8 @@ first introduced.
 | $\lambda_n$ | Penalty on leaf count in the selection criterion | `:188–192` (eq. `select`) | Governed by $\lambda_n\to0$ — see §2c. |
 | $\tauhat_j$ | Selected partition for nuisance $j$ | `:188–192` | **Corrected 2026-09-25** — `eq:select`'s own display previously used `\that_j` (renders as $\hat t_j$, hat over Latin *t*, per `common-defs.tex:291`), a broken symbol chain against every downstream use of $\tauhat_j$/`\tauhat`; fixed at `:189` and at the one other stray occurrence (`:428`, the degrees-of-freedom divisor). |
 | $R_n^{(j)}(\tau)$ | Empirical risk of $\tau$ for nuisance $j$ | `:193–198` (eq. `risk-emp`) | **Corrected 2026-09-25** — $R_n^{(\mu)}$ was on the control-*conditional* scale ($\div n_0$, $\mid A{=}0$), which `theory.tex:3116–3121` explicitly rules out by name (silently rescales `prop:selection-rate`'s $\Delta_\mu$ by $(1-\pi)^{-1}$ relative to `theory.tex`'s Step 4). Now $R_n^{(\mu)}(\tau)=\Prob_n[(1-A)\{Y-\hat\mu_\tau(\bX)\}^2]$, unnormalised and control-*weighted*, matching `eq:risk-pop`'s population form and §2.1's $\|\cdot\|_{2,w}$ directly. |
-| $\hat e_\tau(\bx),\ \hat\mu_\tau(\bx)$ | Leaf-wise empirical plug-ins (empirical proportion treated / control-outcome mean); both unclipped as a family in $\tau$ | `:199–204` (eq. `refit`) | `manuscript.tex` **overloads** $\hat e_{\tauhat_e}$ (only at the *selected* partition) to denote the clipped value from `ass:construct` — see that assumption's own registry entry above for the 2026-09-25 fix. |
+| $\hat e_\tau(\bx),\ \hat\mu_\tau(\bx)$ | Leaf-wise empirical plug-ins (empirical proportion treated / control-outcome mean); **always unclipped as a family in $\tau$, no exception, including at $\tau=\tauhat_e,\tauhat_\mu$** | `:199–204` (eq. `refit`) | **Corrected 2026-09-25 (second pass)** — `manuscript.tex` previously overloaded $\hat e_{\tauhat_e}$ to secretly mean the clipped value; now this subscripted family is always the literal formula above, for any $\tau$. See `ass:construct`'s registry entry above for why the overload was replaced. |
+| $\hat e,\ \hat w,\ \hat\mu$ (bare, no subscript) | The **reported** propensity, its odds, and the outcome leaf-refit at the selected partitions — $\hat e:=\mathrm{clip}(\hat e_{\tauhat_e})$, $\hat w:=\hat e/(1-\hat e)$, $\hat\mu:=\hat\mu_{\tauhat_\mu}$ | `:205–207` | **New row, 2026-09-25** — these bare symbols were already used throughout §3 (`cor:variance`'s $\Vhat$ display, `lem:biasbound`'s $D_w,D_\mu$, `theory.tex`'s own bare $\ehat,\what,\mhat$) but never formally defined in the manuscript until this pass; §2.4 now defines them once, at first use. Distinct from the subscripted family above by construction — `$\hat e$` is never equal to `$\hat e_\tau$` for a *general* $\tau$, only related to `$\hat e_{\tauhat_e}$` via the `$\mathrm{clip}$` operator. |
 | $\hat\tau_e,\hat\tau_\mu$ | Selected propensity / outcome partitions | throughout §2.4 | |
 | $\hat\theta=\hat\theta(\hat\tau_e,\hat\tau_\mu)$ | doubletree point estimate | `:168–175` | |
 | $\hat w_{\hat\tau_e}=\hat e_{\hat\tau_e}/(1-\hat e_{\hat\tau_e})$ | Fitted odds-scale propensity | `:175` | |
@@ -176,20 +177,38 @@ environment name (`assum`, `cond`, `hyp`, etc.) occurs in this document.
 
 #### Clipping — `\label{ass:construct}`
 
-- **Stated at:** `:206–208`
-- **Statement:** **Corrected 2026-09-25** — was an unscoped "fitted propensities are clipped for
-  every $\bx$," which literally applied to `eq:refit`'s leaf refit and hence to `eq:select`'s
-  argmin and $R^{(e)}_n$ itself, contradicting `theory.tex:234–235`'s explicit "structure
-  selection uses the unclipped leaf refit" and leaving $\thetahat$ (displayed 20 lines earlier)
-  technically undefined wherever a leaf is all-treated. Now scoped: `manuscript.tex` overloads
+- **Stated at:** `:205–206`
+- **Statement:** **Corrected 2026-09-25, twice.** First pass: was an unscoped "fitted propensities
+  are clipped for every $\bx$," which literally applied to `eq:refit`'s leaf refit and hence to
+  `eq:select`'s argmin and $R^{(e)}_n$ itself, contradicting `theory.tex:234–235`'s explicit
+  "structure selection uses the unclipped leaf refit" and leaving $\thetahat$ (displayed 20 lines
+  earlier) technically undefined wherever a leaf is all-treated. Fixed by overloading
   $\hat e_{\tauhat_e}$ (evaluated at the *selected* partition only) to mean the clipped value,
-  $1-\hat e_{\tauhat_e}(\bx)\ge c$ for every $\bx$; the general family $\hat e_\tau$ used inside
-  the argmin and $R^{(e)}_n$ stays unclipped throughout. Matches `theory.tex:235`'s own
-  "$\ehat=\ehat_{\that_e}$" overloading move exactly, rather than inventing new notation.
+  matching `theory.tex:235`'s own "$\ehat=\ehat_{\that_e}$" move. **Second pass, same day, at the
+  author's request:** the overload itself was replaced with genuinely distinct notation, after
+  the author asked why overload rather than distinguish — `theory.tex` itself needs a *third*
+  symbol ($\ehat^{\mathrm{pre}}$, `theory.tex:3791`) once a proof deep enough needs both the
+  clipped and unclipped values in the same paragraph, which is direct evidence overloading is not
+  free. Now: $\hat e_\tau$ (subscripted by *any* $\tau$, including $\tauhat_e$) is **always** the
+  literal unclipped leaf refit of `eq:refit`, with no exception; $\hat e:=\mathrm{clip}(\hat
+  e_{\tauhat_e})$ is a **new, distinct** bare symbol for the reported/clipped propensity, and
+  $\hat w:=\hat e/(1-\hat e)$. The bare-vs-subscripted split matches a convention the manuscript's
+  §3 already relied on implicitly (bare $\hat e,\hat w,\hat\mu$ throughout `cor:variance`,
+  `lem:biasbound`) but had never formally defined until now.
 - **Discharges:** Keeps the fitted nuisances inside `ass:causal`'s positivity region, so
   downstream bias/variance bounds (`lem:biasbound`, `thm:anchor`, `cor:variance`'s proof)
   apply to the estimator actually reported, not an unclipped one.
 - **Role:** Reconciles estimation with `ass:causal`'s positivity bound.
+- **Ripple fix, same pass:** `cor:variance`'s own proof (`:404–420`) previously wrote the general
+  fixed-$\tau_e$ leaf refit as bare `\hat e_{\tau_e}` and separately invoked "Assumption~
+  \ref{ass:construct} keeps $1-\hat e$ bounded away from zero" — a sentence that only made sense
+  under the old overloaded reading, where ass:construct's clip applied to any fixed $\tau_e$, not
+  only $\tauhat_e$. Under the new, strictly-scoped `ass:construct`, that citation no longer
+  applies to a general $\tau_e$. Fixed by applying `\mathrm{clip}(\cdot)` explicitly to
+  $\hat e_{\tau_e}$ inside the proof (the clip operator itself is generic, not restricted to
+  $\tauhat_e$) and re-deriving the boundedness as immediate from the clip's own definition
+  (deterministic, for every $n$) rather than from a probabilistic convergence argument — a
+  cleaner justification than the original, not just a notational patch.
 - **Not (yet) restored:** `theory.tex`'s `ass:construct` is a four-part bundle (Loss, Leaf refit,
   Clipping, Leaf mass); the manuscript's version under this same label is Clipping only. Coverage
   of the other three parts is now distributed elsewhere in §2.4 (Loss: `eq:risk-emp`'s own
