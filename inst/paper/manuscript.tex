@@ -175,16 +175,18 @@ The efficient influence function for this functional in the nonparametric model 
 and we write $\psi_0=\psi(\cdot;\theta_0,\eta_0)$. We will use this quantity to build a new estimator for the ATT based on interpretable trees in the next section.
 
 \subsection{The doubletree algorithm}
-To build an interpretable causal estimate, we use globally optimal interpretable trees to estimate both required nuisance functions $e_0, \mu_0$, and -- since this approach relies on two trees -- we call our estimation approach the \emph{doubletree} algorithm.
+We use globally optimal interpretable trees to estimate both required nuisance functions $e_0,\mu_0$.
 
-Doubletree selects the tree from $\cT_{\bar L}$ that minimizes the penalized empirical risk over the space of feasible trees. We take the space of feasible trees to be a subset of $\cT_{\bar L}$ for regularity reasons. Specifically, define the feasible sets as
+Doubletree selects, for each nuisance, the tree minimizing a penalized empirical risk over a feasible subset of $\cT_{\Lbar}$, rather than over $\cT_{\Lbar}$ itself. Restricting to a subset first is a regularity device: an unconstrained minimizer over $\cT_{\Lbar}$ could return a partition with an arbitrarily small leaf, and the leaf-wise plug-ins below are unstable on such a leaf. Specifically, define the feasible sets
 \begin{equation}\label{eq:feasible}
-  \cT^{(\mu)}_n=\bigl\{\tau\in\cT_{\bar L}: \min_{\ell \in \tau} |\ell|_0 \geq m_n\bigr\}, \qquad 
-    \cT^{(e)}_n=\bigl\{\tau\in\cT_{\bar L}: \min_{\ell \in \tau} |\ell| \geq m_n\bigr\},
+  \cT^{(\mu)}_n=\bigl\{\tau\in\cT_{\Lbar}: \min_{\ell \in \tau} |\ell|_0 \geq m_n\bigr\}, \qquad 
+    \cT^{(e)}_n=\bigl\{\tau\in\cT_{\Lbar}: \min_{\ell \in \tau} |\ell| \geq m_n\bigr\},
 \end{equation}
-and for a penalty $\lambda_n>0$ set
+for a sequence $m_n$ with $1\le m_n\to\infty$ and $m_n=o(n)$. Both $\cT^{(\mu)}_n,\cT^{(e)}_n$ are data-dependent -- they depend on $(\bX_i,A_i)_{i\le n}$ through the realized leaf counts -- and each is nonempty with probability tending to one, since the root partition (the single leaf $\cX$) has $|\cX|=n$ and $|\cX|_0=n(1-\pi)+o_p(n)$, both eventually exceeding $m_n=o(n)$; \S\ref{sec:instantiation1} makes the corresponding leaf-mass floor precise for every sufficient partition, not only the root. On the null event that a leaf of the selected outcome partition contains no controls -- ruled out once $m_n\ge1$ -- the outcome refit below takes the parent leaf's control mean instead.
+
+For a penalty $\lambda_n>0$, set
 \begin{equation}\label{eq:select}
-  \that_j\in\argmin_{\tau\in\cT^{(j)}_n}
+  \tauhat_j\in\argmin_{\tau\in\cT^{(j)}_n}
   \bigl\{R^{(j)}_n(\tau)+\lambda_n\card\tau\bigr\},
   \qquad j\in\{e,\mu\},
 \end{equation}
@@ -192,43 +194,42 @@ where $R^{(j)}_n(\tau)$ is the empirical risk of tree $\tau$ for nuisance $j$,
 \begin{equation}\label{eq:risk-emp}
 R^{(e)}_n(\tau)=\Prob_n\bigl[\{A-\hat e_\tau(\bX)\}^2\bigr],
 \qquad
-R^{(\mu)}_n(\tau)=\frac{1}{n_0}\sum_{i:A_i=0}\bigl\{Y_i-\hat\mu_\tau(\bX_i)\bigr\}^2,
+R^{(\mu)}_n(\tau)=\Prob_n\bigl[(1-A)\{Y-\hat\mu_\tau(\bX)\}^2\bigr],
 \end{equation}
-squared error for both the propensity tree and the outcome tree, with $n_0=\sum_{i\le n}(1-A_i)$ and leaf-wise empirical plug-ins
+squared error for both the propensity tree and the outcome tree, with leaf-wise empirical plug-ins
 \begin{equation}\label{eq:refit}
 \hat e_\tau(\bx)=\frac{1}{|\ell_\tau(\bx)|}\sum_{i:\bX_i\in\ell_\tau(\bx)}A_i,
 \qquad
 \hat\mu_\tau(\bx)=\frac{1}{|\ell_\tau(\bx)|_0}\sum_{i:\bX_i\in\ell_\tau(\bx),\,A_i=0}Y_i ,
 \end{equation}
-i.e.\ the empirical proportion treated and the empirical control-outcome mean within the leaf containing $\bx$. Given leaf-refit nuisances $(\hat e_{\hat\tau_e},\hat\mu_{\hat\tau_\mu})$ for the selected partitions $\hat\tau_e,\hat\tau_\mu$, the doubletree estimate $\thetahat=\thetahat(\hat\tau_e,\hat\tau_\mu)$ is the solution of the empirical estimating equation $\Prob_n[\psi(\bO;\theta,\hat e_{\hat\tau_e},\hat\mu_{\hat\tau_\mu})]=0$ for $\psi$ as in \eqref{eq:score}, i.e.\
+i.e.\ the empirical proportion treated and the empirical control-outcome mean within the leaf containing $\bx$, both unclipped as written: $\hat e_\tau$ ranges over this unclipped family for every $\tau$ used inside the argmin \eqref{eq:select} and the risk \eqref{eq:risk-emp}. Only the propensity actually reported -- the leaf refit evaluated at the selected partition $\tauhat_e$ -- is clipped, and from here on we overload $\hat e_{\tauhat_e}$ to denote that clipped value:
+\begin{assumption}[Clipping]\label{ass:construct}
+Write $\hat e_{\tauhat_e}$ for the clipped propensity, satisfying $1-\hat e_{\tauhat_e}(\bx)\ge c$ for every $\bx$, with $c$ the constant of Assumption~\ref{ass:causal}; structure selection and $R^{(e)}_n$ in \eqref{eq:select}--\eqref{eq:risk-emp} used the unclipped leaf refit of \eqref{eq:refit} instead.
+\end{assumption}
+Given the selected partitions $\tauhat_e,\tauhat_\mu$, the outcome leaf-refit $\hat\mu_{\tauhat_\mu}$ (as in \eqref{eq:refit}) and the clipped propensity refit $\hat e_{\tauhat_e}$ (Assumption~\ref{ass:construct}), the doubletree estimate $\thetahat=\thetahat(\tauhat_e,\tauhat_\mu)$ is the solution of the empirical estimating equation $\Prob_n[\psi(\bO;\theta,\hat e_{\tauhat_e},\hat\mu_{\tauhat_\mu})]=0$ for $\psi$ as in \eqref{eq:score}, i.e.\
 \[
   \thetahat
   =
   \frac{1}{n\hat\pi}\sum_{i=1}^n
-  \Bigl[A_i\{Y_i-\hat\mu_{\hat\tau_\mu}(\bX_i)\}
-    -\{1-A_i\}\hat w_{\hat\tau_e}(\bX_i)\{Y_i-\hat\mu_{\hat\tau_\mu}(\bX_i)\}\Bigr],
+  \Bigl[A_i\{Y_i-\hat\mu_{\tauhat_\mu}(\bX_i)\}
+    -\{1-A_i\}\hat w_{\tauhat_e}(\bX_i)\{Y_i-\hat\mu_{\tauhat_\mu}(\bX_i)\}\Bigr],
 \]
-with $\hat\pi=\Prob_n A$ and $\hat w_{\hat\tau_e}=\hat e_{\hat\tau_e}/(1-\hat e_{\hat\tau_e})$; the root is unique whenever $\hat\pi>0$, since $\psi$ is affine and strictly monotone in $\theta$. The quantity $R^{(j)}(\tau)$ is the population counterpart of $R^{(j)}_n(\tau)$,
+with $\hat\pi=\Prob_n A$ and $\hat w_{\tauhat_e}=\hat e_{\tauhat_e}/(1-\hat e_{\tauhat_e})$; the map $\theta\mapsto\Prob_n[\psi(\bO;\theta,\hat\eta)]$ is affine in $\theta$ with slope $-\hat\pi/\pi$, so the root is unique whenever $\hat\pi>0$. The quantity $R^{(j)}(\tau)$ is the population counterpart of $R^{(j)}_n(\tau)$,
 \begin{equation}\label{eq:risk-pop}
 R^{(e)}(\tau)=\E\bigl[\{A-\Pi_\tau e_0(\bX)\}^2\bigr],
 \qquad
-R^{(\mu)}(\tau)=\E\bigl[\{Y-\Pi^\nu_\tau\mu_0(\bX)\}^2\mid A=0\bigr],
+R^{(\mu)}(\tau)=\E\bigl[(1-A)\{Y-\Pi^\nu_\tau\mu_0(\bX)\}^2\bigr],
 \end{equation}
-obtained from \eqref{eq:risk-emp} by replacing the empirical measure with the population measure and the empirical leaf plug-ins $\hat e_\tau,\hat\mu_\tau$ with the projections $\Pi_\tau e_0$ and $\Pi^\nu_\tau\mu_0$ introduced above. These projections are exactly the squared-error minimizers.
+obtained from \eqref{eq:risk-emp} by replacing the empirical measure with the population measure and the empirical leaf plug-ins $\hat e_\tau,\hat\mu_\tau$ with the projections $\Pi_\tau e_0$ and $\Pi^\nu_\tau\mu_0$ introduced above. These projections are exactly the squared-error minimizers. The two risks are not on the same footing the bias bound of \S\ref{sec:honest-manuscript} needs: $R^{(\mu)}$ is control-weighted by construction, matching Lemma~\ref{lem:biasbound}'s $\|\cdot\|_{2,w}$ directly, but $R^{(e)}$ is unweighted squared error in $e$, while that bound is stated in the odds $w=e/(1-e)$ under the control-weighted norm. Assumptions~\ref{ass:causal} and~\ref{ass:construct} close this gap: since $c\le1-e_0(\bx)\le1$ on the clipped range, the unweighted and control-weighted norms in $e$ are equivalent up to constants depending on $c$, and $e\mapsto e/(1-e)$ is Lipschitz there, so a rate for $\|\hat e_\tau-e_0\|_2$ under $R^{(e)}$ transfers to a rate for $D_w$.
 
-\begin{remark}
-Note that we are using a flexible tree learner to estimate both nuisance functions, but we do not require sample-splitting/cross-fitting as most approaches that use data-adaptive nuisance learners do \citep{chernozhukov2018}. This means that doubletree will make more efficient use of potentially limited data. It also means that doubletree is fully explained by exactly two trees. Under $K$-fold cross-fitting, users would need to interpret 2$K$ trees, as opposed to doubletree's two.
+\begin{remark}[No cross-fitting is required]
+Doubletree uses a flexible tree learner for both nuisance functions, but -- unlike most approaches that pair a data-adaptive nuisance learner with sample-splitting or cross-fitting \citep{chernozhukov2018} -- it does not require either. Each tree is fit on all $n$ observations, and the result is fully explained by exactly two trees: under $K$-fold cross-fitting, users would instead need to interpret $2K$ trees.
 \end{remark}
 
-\begin{remark}[Why two trees: interpretability and identification are separate questions]
+\begin{remark}[Why two trees: efficiency and validity are separate questions]
 \label{rem:two-trees-why}
-The account above motivates two trees on interpretability grounds -- doubletree is exactly displayable as two objects -- but interpretability alone does not explain why \emph{efficiency} or \emph{validity} requires both nuisances to be estimated by a tree. Two points are worth separating precisely. First, the propensity \emph{tree} specifically is an interpretability choice, not by itself a validity requirement: the exact bias decomposition stated below in \S\ref{sec:honest-manuscript} (Proposition~\ref{prop:bilinear}, Lemma~\ref{lem:biasbound}) shows that only the \emph{product} of the two realized nuisance errors, $D_wD_\mu$ in that lemma's notation, needs to vanish fast enough, and that product-rate condition is indifferent to whether $\hat w$ is itself piecewise constant on a tree. This is necessary but not sufficient on its own: because doubletree performs no sample splitting or cross-fitting, asymptotic linearity of $\thetahat$ also requires the own-observation empirical-process term $(\Prob_n-\Prob)\{\psi(\cdot;\theta_0,\hat\eta)-\psi_0\}$ to be $o_p(n^{-1/2})$, and it is exactly to control \emph{that} term without splitting that the fixed, finite candidate class $\cT_{\Lbar}$ and exact structural sparsity on it are needed (\S\ref{sec:partition-recovery}--\S\ref{sec:instantiation1}). An arbitrary non-tree $\hat w$ fit on the same $n$ observations and satisfying only the product-rate condition is not in general covered by this argument. Second, the propensity \emph{nuisance} itself is genuinely informative for the ATT, unlike for the ATE: \citet{hahn1998} shows that knowledge of $e_0$ does not lower the semiparametric efficiency bound for the average treatment effect, but it does lower it for the average treatment effect on the treated -- so dropping the propensity is not a free simplification for the estimand considered here. Corollary~\ref{cor:single-tree} and its consequences below make both points precise in the concrete special case of a single outcome tree fit with no propensity tree at all.
+The account above motivates two trees on interpretability grounds -- doubletree is exactly displayable as two objects -- but interpretability alone does not explain why \emph{efficiency} or \emph{validity} requires both nuisances to be estimated by a tree. Two points are worth separating precisely. First, the propensity \emph{tree} specifically is an interpretability choice, not by itself a validity requirement: the exact bias decomposition stated below in \S\ref{sec:honest-manuscript} (Proposition~\ref{prop:bilinear}, Lemma~\ref{lem:biasbound}) shows that only the \emph{product} of the two realized nuisance errors, $D_wD_\mu$ in that lemma's notation, needs to vanish fast enough, and that product-rate condition is indifferent to whether $\hat w$ is itself piecewise constant on a tree. This is necessary but not sufficient on its own: because doubletree performs no sample splitting or cross-fitting, asymptotic linearity of $\thetahat$ also requires the own-observation empirical-process term $(\Prob_n-\Prob)\{\psi(\cdot;\theta_0,\hat\eta)-\psi_0\}$ to be $o_p(n^{-1/2})$, and it is to control \emph{that} term without splitting that the fixed, finite candidate class $\cT_{\Lbar}$ is additionally needed (\S\ref{sec:partition-recovery}--\S\ref{sec:instantiation1}). An arbitrary non-tree $\hat w$ fit on the same $n$ observations and satisfying only the product-rate condition is not in general covered by this argument. Second, the propensity \emph{nuisance} itself is genuinely informative for the ATT, unlike for the ATE: \citet{hahn1998} shows that knowledge of $e_0$ does not lower the semiparametric efficiency bound for the average treatment effect, but it does lower it for the average treatment effect on the treated -- so dropping the propensity is not a free simplification for the estimand considered here. Corollary~\ref{cor:single-tree} and its consequences below work both points out in the concrete special case of a single outcome tree fit with no propensity tree at all: the propensity is not avoided but implied by the outcome tree's own leaf structure (Remark~\ref{rem:single-tree-se}), and the resulting estimator is still efficient under saturated leaves (Corollary~\ref{cor:single-tree-saturated}).
 \end{remark}
-
-Additionally, we assume that the fitted propensities agree with the positivity assumption in \ref{ass:causal}:
-\begin{assumption}[Clipping]\label{ass:construct}
-Fitted propensities are clipped so that $1-\hat e(\bx)\ge c$ for every $\bx$, with $c$ the constant of Assumption~\ref{ass:causal}.
-\end{assumption}
 
 \section{Doubletree bias and inference}
 
@@ -425,7 +426,7 @@ approaches used throughout EIF-based causal inference. Because both tree
 structures and their leaf values are fitted on all $n$ observations,
 $\Vhat$'s summands are in-sample residuals, so $\Vhat$ is downward biased in
 finite samples by a relative factor of order $(2\bar L+1)/n$; a
-degrees-of-freedom divisor $n-(\card{\that_e}+\card{\that_\mu}+1)$ is a
+degrees-of-freedom divisor $n-(\card{\tauhat_e}+\card{\tauhat_\mu}+1)$ is a
 reasonable finite-sample convention, though the accompanying software
 reports the plain $n$-normalised plug-in by default, to keep doubletree
 directly comparable to the other estimators it ships alongside, and leaves
@@ -681,7 +682,7 @@ in Corollary~\ref{cor:width}'s width.
 \subsection{A special case: the single-outcome-tree plug-in}
 \label{sec:single-tree}
 
-Remark~\ref{rem:two-trees-why} separated two points about the propensity tree: that its use is an interpretability choice rather than a validity requirement, and that the propensity nuisance itself remains informative for the ATT. The following corollaries make both points precise in the concrete special case of a single outcome tree fit with no propensity tree at all.
+Remark~\ref{rem:two-trees-why} separated two points about the propensity tree: that its use is an interpretability choice, not by itself a validity requirement, and that the propensity nuisance itself remains informative for the ATT. The following corollaries work both points out in the concrete special case of a single outcome tree fit with no propensity tree at all: the propensity is not avoided but implied by the outcome tree's own leaf structure (Remark~\ref{rem:single-tree-se}), and the resulting estimator is still efficient under saturated leaves (Corollary~\ref{cor:single-tree-saturated}).
 
 \begin{corollary}[Single-outcome-tree plug-in as a special case of doubletree]
 \label{cor:single-tree}

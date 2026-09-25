@@ -58,13 +58,12 @@ first introduced.
 | $\cS_j$ | **Sufficient class** — $\tau\in\cT_{\bar L}$ on whose leaves $\gamma_{0,j}$ is $P$-a.s. constant | `:112–121` (`def:sufficient`) | The manuscript-level stand-in for `theory.tex`'s formal `ass:sparsity`; here it is a *definition*, and "structural sparsity" is now the numbered `\label{ass:sparsity}` (`manuscript.tex:123`, drafted 2026-09-21) built from it — see §2a. |
 | $c\in(0,1)$ | Uniform one-sided positivity constant | `:120–126` (`ass:causal`) | |
 | $\psi(O;\theta,\eta)$ | Efficient influence function (EIF) for the ATT | `:132–139` (eq. `score`) | $\psi_0:=\psi(\cdot;\theta_0,\eta_0)$. |
-| $\cT_n^{(\mu)},\ \cT_n^{(e)}$ | Feasible sets — partitions whose every leaf carries $\ge m_n$ (control) observations | `:145–149` (eq. `feasible`) | |
-| $m_n$ | Minimum per-leaf sample-size threshold | `:145–149` | Governed by the regularity condition $\bar Lm_n\lesssim n$ — see §2c. |
-| $\lambda_n$ | Penalty on leaf count in the selection criterion | `:150–155` (eq. `select`) | Governed by $\lambda_n\to0$ — see §2c. |
-| $\hat\tau_j$ | Selected partition for nuisance $j$ | `:150–155` | |
-| $R_n^{(j)}(\tau)$ | Empirical risk of $\tau$ for nuisance $j$ | `:156–161` (eq. `risk-emp`) | |
-| $n_0=\sum_{i\le n}(1-A_i)$ | Control-arm sample size | `:161` | $n_1=\sum_{i\le n}A_i$ introduced later, `:404`. |
-| $\hat e_\tau(\bx),\ \hat\mu_\tau(\bx)$ | Leaf-wise empirical plug-ins (empirical proportion treated / control-outcome mean) | `:162–167` (eq. `refit`) | |
+| $\cT_n^{(\mu)},\ \cT_n^{(e)}$ | Feasible sets — partitions whose every leaf carries $\ge m_n$ (control) observations | `:181–185` (eq. `feasible`) | Data-dependent (through the realized leaf counts); each nonempty w.p.$\to1$ — added 2026-09-25 after a `domain-reviewer` finding that non-emptiness/randomness were previously unaddressed. |
+| $m_n$ | Minimum per-leaf sample-size threshold | `:181–185` | **Corrected 2026-09-25** — now directly conditioned in `manuscript.tex` ($1\le m_n\to\infty$, $m_n=o(n)$), not just via the imported $\Lbar m_n\lesssim n$ (see the `theory.tex:3167` rate-mismatch note below); the parent-leaf no-controls fallback (`theory.tex`'s `ass:construct`(d)) is also now stated here. |
+| $\lambda_n$ | Penalty on leaf count in the selection criterion | `:188–192` (eq. `select`) | Governed by $\lambda_n\to0$ — see §2c. |
+| $\tauhat_j$ | Selected partition for nuisance $j$ | `:188–192` | **Corrected 2026-09-25** — `eq:select`'s own display previously used `\that_j` (renders as $\hat t_j$, hat over Latin *t*, per `common-defs.tex:291`), a broken symbol chain against every downstream use of $\tauhat_j$/`\tauhat`; fixed at `:189` and at the one other stray occurrence (`:428`, the degrees-of-freedom divisor). |
+| $R_n^{(j)}(\tau)$ | Empirical risk of $\tau$ for nuisance $j$ | `:193–198` (eq. `risk-emp`) | **Corrected 2026-09-25** — $R_n^{(\mu)}$ was on the control-*conditional* scale ($\div n_0$, $\mid A{=}0$), which `theory.tex:3116–3121` explicitly rules out by name (silently rescales `prop:selection-rate`'s $\Delta_\mu$ by $(1-\pi)^{-1}$ relative to `theory.tex`'s Step 4). Now $R_n^{(\mu)}(\tau)=\Prob_n[(1-A)\{Y-\hat\mu_\tau(\bX)\}^2]$, unnormalised and control-*weighted*, matching `eq:risk-pop`'s population form and §2.1's $\|\cdot\|_{2,w}$ directly. |
+| $\hat e_\tau(\bx),\ \hat\mu_\tau(\bx)$ | Leaf-wise empirical plug-ins (empirical proportion treated / control-outcome mean); both unclipped as a family in $\tau$ | `:199–204` (eq. `refit`) | `manuscript.tex` **overloads** $\hat e_{\tauhat_e}$ (only at the *selected* partition) to denote the clipped value from `ass:construct` — see that assumption's own registry entry above for the 2026-09-25 fix. |
 | $\hat\tau_e,\hat\tau_\mu$ | Selected propensity / outcome partitions | throughout §2.4 | |
 | $\hat\theta=\hat\theta(\hat\tau_e,\hat\tau_\mu)$ | doubletree point estimate | `:168–175` | |
 | $\hat w_{\hat\tau_e}=\hat e_{\hat\tau_e}/(1-\hat e_{\hat\tau_e})$ | Fitted odds-scale propensity | `:175` | |
@@ -177,19 +176,35 @@ environment name (`assum`, `cond`, `hyp`, etc.) occurs in this document.
 
 #### Clipping — `\label{ass:construct}`
 
-- **Stated at:** `:194–196`
-- **Statement:** Fitted propensities are clipped so $1-\hat e(\bx)\ge c$, matching `ass:causal`'s
-  constant.
+- **Stated at:** `:206–208`
+- **Statement:** **Corrected 2026-09-25** — was an unscoped "fitted propensities are clipped for
+  every $\bx$," which literally applied to `eq:refit`'s leaf refit and hence to `eq:select`'s
+  argmin and $R^{(e)}_n$ itself, contradicting `theory.tex:234–235`'s explicit "structure
+  selection uses the unclipped leaf refit" and leaving $\thetahat$ (displayed 20 lines earlier)
+  technically undefined wherever a leaf is all-treated. Now scoped: `manuscript.tex` overloads
+  $\hat e_{\tauhat_e}$ (evaluated at the *selected* partition only) to mean the clipped value,
+  $1-\hat e_{\tauhat_e}(\bx)\ge c$ for every $\bx$; the general family $\hat e_\tau$ used inside
+  the argmin and $R^{(e)}_n$ stays unclipped throughout. Matches `theory.tex:235`'s own
+  "$\ehat=\ehat_{\that_e}$" overloading move exactly, rather than inventing new notation.
 - **Discharges:** Keeps the fitted nuisances inside `ass:causal`'s positivity region, so
-  downstream bias/variance bounds (`lem:biasbound`, `thm:anchor`, `cor:variance`'s proof `:375`)
+  downstream bias/variance bounds (`lem:biasbound`, `thm:anchor`, `cor:variance`'s proof)
   apply to the estimator actually reported, not an unclipped one.
 - **Role:** Reconciles estimation with `ass:causal`'s positivity bound.
+- **Not (yet) restored:** `theory.tex`'s `ass:construct` is a four-part bundle (Loss, Leaf refit,
+  Clipping, Leaf mass); the manuscript's version under this same label is Clipping only. Coverage
+  of the other three parts is now distributed elsewhere in §2.4 (Loss: `eq:risk-emp`'s own
+  squared-error statement; Refit: `eq:refit`; Leaf mass: the new $m_n$ condition text after
+  `eq:feasible`, `:185`) rather than bundled under `ass:construct` itself — flagged by a
+  `domain-reviewer` audit (2026-09-25,
+  `quality_reports/reviews/2026-09-25_sec2.4-algorithm-audit.md`) as MINOR/not-yet-actioned: a
+  reader tracing "the conditions of Proposition~\ref{lem:selection}" via `ass:construct` alone
+  cannot recover the leaf-mass floor from that citation, only from the surrounding prose.
 - **When reasonable:** Whenever a fixed clip constant consistent with domain knowledge about
   achievable overlap is chosen.
 - **When unreasonable:** If $c$ is misspecified too aggressively, clipping could itself
   introduce bias — not separately analyzed in this manuscript.
 - **Verifiable from data?** Partially — enforced by construction, not verified.
-- **Used by:** `lem:biasbound`, `thm:anchor`, `cor:variance`.
+- **Used by:** `lem:selection`, `lem:biasbound`, `thm:anchor`, `cor:variance`.
 - **Cited as a range anywhere?** No.
 - **Declared in:** body (§2.4).
 
