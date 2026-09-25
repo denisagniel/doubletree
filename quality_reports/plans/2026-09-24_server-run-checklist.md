@@ -37,9 +37,31 @@ cost, not a per-byte cost, and it scales with file size. **Before ingest complet
 operation**, and the runbook's own guidance is to budget **one** such operation per server
 session, not several.
 
-**Action before running anything below:** check ingest progress (ask whoever is running
-`06_ingest.R`, or check `smi_ingest_list()`'s output on the server) for these four specific
-datasets, since they're the only ones this pipeline touches:
+**CORRECTION (2026-09-25, `session_notes/2026-09-25.md`): checking "per-dataset progress" is
+not actually useful, and the paragraph below originally implied otherwise.** Read
+`smi_ingest()`'s actual implementation (`~/RAND/tools/smidata/R/ingest.R`) and `smi_read()`'s
+server-side lookup (`.smi_newest_ingest_path()`, `R/read.R`): `smi_ingest()` stages every
+requested dataset into `.staging/<ingest_id>/` and publishes the WHOLE batch via a single
+atomic rename plus a `_COMPLETE` sentinel, written only once **every** dataset in that run has
+finished. The code's own comment states the design intent directly: *"Never cherry-picks
+survivors. A partial `<ingest_id>` invites someone to pin an ingest that is silently missing a
+dataset."* `smi_read()`'s lookup filters strictly to `complete == TRUE` ingests, so **an
+in-progress run is invisible to `smi_read()` regardless of how many individual files it has
+already converted internally** — a dataset finishing early inside the batch (e.g.
+`aim3_svc_cost_16` done on day one) does not make it readable via the fast path one hour
+sooner than the last dataset in that same run. `06_ingest.R` calls `smi_ingest()` exactly once
+for the whole run, not once per file, so "16/64 in 24h" is one batch's internal progress, not
+16 independently-published datasets.
+
+**What this means for the table below:** it still tells you WHICH four datasets matter and
+roughly how expensive each is, but "check whether dataset X specifically is done" is not a
+useful question to ask while the run is in progress — the only question that matters is
+whether the WHOLE run (all datasets requested in this `smi_ingest()` call, not just these four)
+has published. Ask whoever is running it for the run's overall completion status, not a
+per-file breakdown.
+
+**Action before running anything below:** confirm the batch has fully published (the ETA below,
+or ask directly) for these four datasets this pipeline touches:
 
 | Dataset | Needed by | Size (2026-09-15 fingerprint) |
 |---|---|---|
@@ -48,9 +70,17 @@ datasets, since they're the only ones this pipeline touches:
 | `larger_smi_medicaid_monthly_flag` | `05`, CHECK 4 | 5.8 GB / ~24M rows |
 | the 36 cost-claims files (`aim3_svc_cost_*`, `new_svc_cost_*`, `aim3_pharm_cost_*`, `new_pharm_cost_*`) | `03` | **171.5 GB — 91.8% of every byte in the whole tree** |
 
-If none of these four are ingested yet, **stop here and wait for the ETA above** rather than
-attempting a raw-file run — see §1 for why a partial attempt right now is actively risky, not
-just slow.
+If the batch hasn't fully published yet, you have two real options, not just "wait":
+
+- **Wait for full publish** (~3 more days per the ETA above) — safest, and every `smi_read()`
+  call across the whole pipeline becomes fast afterward.
+- **Use `smi_read()`'s raw-`.sas7bdat` fallback today** for ONE specific dataset if there's real
+  urgency — it works independent of the in-progress ingest (reads its own copy, no conflict),
+  at the hours-scale-per-file cost the runbook warns about. Only worth it if starting `02`
+  (say) today matters more than waiting; still budget one such operation per session.
+
+Either way, see §1 for why attempting several stages via the raw-file path across separate
+sessions is riskier than it looks.
 
 ---
 
