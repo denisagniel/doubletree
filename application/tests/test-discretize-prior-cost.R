@@ -124,3 +124,52 @@ test_that("a non-quartile probs vector gives (k - 1) dummies", {
   ## Type-7 on 1:99: p33.3 = 1 + (1/3)*98 = 33.667, p66.7 = 1 + (2/3)*98 = 66.333
   expect_equal(unname(attr(out, "cutpoints")), c(33 + 2 / 3, 66 + 1 / 3))
 })
+
+## ============================================================================
+## floor_negative_prior_cost() -- OPEN_DECISIONS$prior_cost_negative_floor
+## (PI, 2026-09-28): the decision discretize_prior_cost()'s own negative-value
+## abort exists to force, applied.
+## ============================================================================
+
+test_that("negative values are floored to the default (0), positives untouched", {
+  out <- floor_negative_prior_cost(c(-5, 0, 10, -0.01, 20))
+  expect_equal(as.numeric(out), c(0, 0, 10, 0, 20))
+  expect_equal(attr(out, "n_floored"), 2L)  ## -5 and -0.01; 0 itself is not negative
+})
+
+test_that("a custom floor_value is used instead of 0", {
+  out <- floor_negative_prior_cost(c(-5, 10), floor_value = 1.5)
+  expect_equal(as.numeric(out), c(1.5, 10))
+  expect_equal(attr(out, "n_floored"), 1L)
+})
+
+test_that("no negatives -> n_floored is 0 and the vector is unchanged", {
+  out <- floor_negative_prior_cost(c(0, 10, 20))
+  expect_equal(as.numeric(out), c(0, 10, 20))
+  expect_equal(attr(out, "n_floored"), 0L)
+})
+
+test_that("NA passes through unchanged -- flooring is not this function's NA decision", {
+  out <- floor_negative_prior_cost(c(-5, NA, 10))
+  expect_equal(as.numeric(out), c(0, NA, 10))
+  expect_equal(attr(out, "n_floored"), 1L)  ## NA is not counted as negative
+})
+
+test_that("floor_negative_prior_cost() composes with discretize_prior_cost()", {
+  ## The exact composition 04/06 use: flooring first unblocks binning that
+  ## would otherwise abort on the raw negative input.
+  x <- c(-5, -1, as.numeric(1:20))
+  expect_error(discretize_prior_cost(x), "negative")
+
+  floored <- floor_negative_prior_cost(x)
+  expect_equal(attr(floored, "n_floored"), 2L)
+  out <- discretize_prior_cost(floored)
+  expect_equal(nrow(out), 22L)
+})
+
+test_that("input validation: non-numeric prior_cost, and a bad floor_value", {
+  expect_error(floor_negative_prior_cost("100"), "must be numeric")
+  expect_error(floor_negative_prior_cost(c(1, 2), floor_value = "0"), "floor_value")
+  expect_error(floor_negative_prior_cost(c(1, 2), floor_value = c(0, 1)), "floor_value")
+  expect_error(floor_negative_prior_cost(c(1, 2), floor_value = NA_real_), "floor_value")
+})

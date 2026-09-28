@@ -182,3 +182,56 @@ discretize_prior_cost <- function(prior_cost, probs = c(0.25, 0.5, 0.75)) {
   attr(out, "probs") <- probs
   out
 }
+
+#' Floor negative `prior_cost` values at zero.
+#'
+#' @description
+#' `discretize_prior_cost()` refuses a negative input outright (see its own
+#' abort above) because a negative pre-index cost -- claim reversals in the
+#' window exceeding payments -- is "a decision, not a binning detail." This
+#' function IS that decision, applied: PI-confirmed 2026-09-28
+#' (`OPEN_DECISIONS$prior_cost_negative_floor` in `_config.R`, 2 affected
+#' patients on the first real server run) to floor the net at zero -- no net
+#' pre-index cost -- rather than exclude the patient or let a signed value
+#' into the quantile grid.
+#'
+#' @details
+#' Deliberately a SEPARATE function from `discretize_prior_cost()`, called
+#' explicitly at each call site (`04_covariates.R`'s preview,
+#' `06_assemble_analytic_data.R`'s authoritative pass) rather than folded
+#' into it: `discretize_prior_cost()`'s own negative-value abort stays
+#' exactly as strict as before, so a future caller of that function which
+#' forgets to floor first still gets a loud abort naming the gap, not a
+#' silently-relaxed guard. The RAW dollar `prior_cost` retained downstream
+#' (06's `analytic_data$prior_cost`) is built from the UNFLOORED vector, not
+#' this function's output -- only the value handed to
+#' `discretize_prior_cost()` is floored, so the true negative net cost for
+#' the affected patients stays visible for the methods section's reported
+#' distribution.
+#'
+#' @param prior_cost Numeric vector, one element per patient. `NA` passes
+#'   through unchanged -- flooring is not this function's NA decision; see
+#'   `discretize_prior_cost()`'s own NA guard for that one.
+#' @param floor_value Single numeric value to replace negatives with. Default
+#'   `0`. Deliberately a plain default, not a read of
+#'   `OPEN_DECISIONS$prior_cost_negative_floor` -- this file has no
+#'   `_config.R` dependency (see file header, "no smidata dependency", the
+#'   same reasoning). Callers pass the confirmed registry value explicitly
+#'   (see `04_covariates.R` / `06_assemble_analytic_data.R`), the same
+#'   pattern `03_cost_windows.R` uses for `cost_family_scope`.
+#' @return `prior_cost` with negative values replaced by `floor_value`. The
+#'   count floored is attached as attribute `"n_floored"` (integer scalar),
+#'   so the caller can report it rather than floor silently.
+floor_negative_prior_cost <- function(prior_cost, floor_value = 0) {
+  if (!is.numeric(prior_cost)) {
+    cli::cli_abort("{.arg prior_cost} must be numeric, not {.cls {class(prior_cost)}}.")
+  }
+  if (!is.numeric(floor_value) || length(floor_value) != 1L || is.na(floor_value)) {
+    cli::cli_abort("{.arg floor_value} must be a single non-NA numeric value.")
+  }
+  negative <- !is.na(prior_cost) & prior_cost < 0
+  out <- prior_cost
+  out[negative] <- floor_value
+  attr(out, "n_floored") <- sum(negative)
+  out
+}

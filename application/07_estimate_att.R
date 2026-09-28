@@ -35,9 +35,14 @@
 ## post-selection inference the paper does not analyse.
 ##
 ## Run time when unblocked: both paths fit optimal trees via optimaltrees (GOSDT).
-## Cost grows with the number of binary columns and the leaf budget; 15 columns at
-## leaf_budget = 4 is modest, but the crossfit path fits 2K trees rather than 2 and
-## its cv_regularization sweep multiplies that again. Budget accordingly.
+## Cost grows with the number of binary columns and the leaf budget; raised from
+## 4L to config_leaf_budget = 15L (PI, 2026-09-28), so expect BOTH paths to run
+## markedly slower than at the old value -- GOSDT-style search cost typically
+## grows steeply, not linearly, with the leaf budget. The crossfit path fits 2K
+## trees rather than 2, and its cv_regularization sweep multiplies that again.
+## Budget accordingly -- treat the first real run at leaf_budget = 15 as its own
+## timing unknown, not a scaled-up version of the leaf_budget = 4 runs already
+## timed at Tier 0.
 ## ============================================================================
 
 app_dir <- if (dir.exists("application")) "application" else "."

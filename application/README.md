@@ -42,7 +42,7 @@ logic can be verified. `application/tests/` runs today with no data and no serve
 assertions, 1 failure** (the 1 failure and 3 skips below are the local `optimaltrees.so`
 security-tool block, unrelated to data/server availability — see `session_notes/2026-09-24.md`) —
 and includes a call to `estimate_att()` at the real covariate shape (15 binary columns,
-`outcome_type = "continuous"`, `leaf_budget = 4`) on a hand-built known-truth DGP, plus
+`outcome_type = "continuous"`, `leaf_budget = config_leaf_budget`) on a hand-built known-truth DGP, plus
 `helpers/complete_case.R`'s and `helpers/msr_filter.R`'s full fixture suites (added 2026-09-24).
 
 `Rscript application/run_pipeline.R` (new 2026-09-24, convenience only — every script cascades to
@@ -82,7 +82,7 @@ Rscript application/run_tests.R          # 165 passed, 1 failed (optimaltrees.so
 Registered in `_config.R`, echoed at the top of every numbered script. Confirmed decisions are
 read via `confirmed_value()` (no warning); unresolved placeholders are read via `open_value()`
 (warns on every access — see `_config.R`). **Only `diagnostics` still blocks the final artifact**
-as of 2026-09-24; the other three resolved on 2026-09-17/2026-09-24 (see each row).
+as of 2026-09-28; the other four resolved on 2026-09-17/2026-09-24/2026-09-28 (see each row).
 
 | id | shared with dual-bounds | status | one line |
 |---|---|---|---|
@@ -90,6 +90,7 @@ as of 2026-09-24; the other three resolved on 2026-09-17/2026-09-24 (see each ro
 | `cost_family_scope` | **yes** — identical question | **confirmed** (`all_four`) | All four cost-claims families are disjoint claim sources; sum all four. |
 | `msr_code` | **yes** — identical question | **confirmed** (`"AAP (no filter needed)"`) | `msr_aap` is already an AAP-only extract — no `MSR` filter needed at the *registry* level. **Fixed 2026-09-24**: `02_population_and_eligibility.R`'s gate now reads this value (was stale since 2026-09-17). But "no filter needed" is not what `02` actually does — `smidata::smi_select_aap_row()`'s abort-on-tie does NOT guard against a non-AAP row silently winning when it merely lands closer to the target month than any true AAP row (no tie forms), so `02` filters to the literal `AAP_MSR_CODE` explicitly and reports any exclusion. See this decision's `note` for the full correction — the registry's "abort-on-tie is the safety net" claim was wrong, and is not yet fixed upstream (smidata, dual-bounds). |
 | `diagnostics` | no — this paper's own | **open, BLOCKS FINAL ARTIFACT** | Which sparsity **proxies** (`certified_*`, `n_leaves_*`, `gap_*`) license reporting the flagship estimate. Note sparsity itself is *not* checkable from data. |
+| `prior_cost_negative_floor` | no — this paper's own | **confirmed** (`0`, 2026-09-28) | 2 patients had negative `prior_cost` (claim reversals exceeding pre-index payments) on the first real server run. Floored to 0 before `discretize_prior_cost()`, via `helpers/discretize_prior_cost.R::floor_negative_prior_cost()` — the raw dollar value retained in `06`'s output is unaffected; only the value fed to binning is floored. `discretize_prior_cost()` itself still aborts unchanged on a negative input. |
 
 The two shared entries carry machine-readable `shared_with` and `registry_ref` fields instead of a
 re-worded question. Two projects independently wording one question is how the two answers end up
@@ -125,7 +126,8 @@ oversight:
 | `06_assemble_analytic_data.R` | yes (fixture chain stops at `05`'s boundary; own logic verified separately) | Joins `02`–`05`, reports THREE separate attrition reasons (not complete-case; unknowable `Y`; unknowable `prior_cost` — see `03`'s coverage column), re-discretizes `prior_cost` on the real final sample, `assert_binary_design_matrix()` (unconditional), then writes with a `_PROVISIONAL` suffix while anything blocks, or without one once nothing does. **The PROVISIONAL release valve is now real** (fixed 2026-09-24, design-reviewed by `oracle`) — it was pure documentation before: `assert_no_blocking_open()` always aborted first, so the write was never reachable. Moved that call to `07` only (`diagnostics` gates the *estimate*, not the assembled *data*). **Found and fixed while verifying this script with hand-built inputs**: the original complete-case filter used `isTRUE(.data$complete_case)`, which is not vectorized — it would have silently zeroed the analytic sample on every real run, for a reason unrelated to complete-case status itself. Fixed to `.data$complete_case %in% TRUE`. |
 | `07_estimate_att.R` | **aborts by design** | Gate (`assert_no_blocking_open()`) is the first statement after config — the only place it still runs, as of 2026-09-24 (moved out of `06`). Then both estimators, and their discrepancy. |
 | `run_pipeline.R` | yes | New 2026-09-24. Convenience only (sources `01`–`07` in order) — every script is independently runnable via its own `require_stage()` cascade; this just saves typing seven commands. |
-| `90_checks_tier1.R` | no | Comment-only spec. Checks 1–2 reference dual-bounds'; check 3 (`_YN` coding) is this paper's own. |
+| `90_checks_tier1.R` | no | Comment-only spec. Checks 1–2 reference dual-bounds'; check 3 (`_YN` coding) is this paper's own; check 4 (added 2026-09-24) verifies the `enrollment_source` TYPE-ignore default's prerequisite. |
+| `91_leaf_budget_feasibility.R` | yes (needs real analytic data) | New 2026-09-28. STANDALONE, NOT gated by `assert_no_blocking_open()` and NOT part of the 01–07 cascade — times `estimate_att()` alone at `config_leaf_budget` on the real analytic data (`analytic_cohort_PROVISIONAL.parquet`, since `diagnostics` still blocks the reportable name) and reports elapsed time. Informational only; never a reportable estimate. Added after benchmarking `leaf_budget = 15` (raised from 4, PI 2026-09-28) on the 400-row Tier-0 toy fixture: 4.8s at `leaf_budget = 4`, 94.5s at `6`, still running past 5+ minutes at `15` (killed) — the real cohort's `07` risks discovering an infeasible budget only after `03`'s multi-hour cost-streaming pass. Invoke wrapped in the shell's `timeout` (the real bound; this script's own `setTimeLimit()` is best-effort only against optimaltrees' compiled C++ search — see the file's own header): `timeout 900 Rscript application/91_leaf_budget_feasibility.R`. |
 | `tests/` | yes | 165 assertions, no data, no server. |
 | `run_tests.R` | yes | `testthat::test_dir("application/tests")`. |
 

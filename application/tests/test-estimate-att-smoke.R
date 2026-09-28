@@ -3,27 +3,50 @@
 ##
 ## Tier-0 smoke test: estimate_att() and estimate_att_crossfit() called at the
 ## REAL shape -- 15 binary covariates in the confirmed order,
-## outcome_type = "continuous", leaf_budget = config_leaf_budget -- on a
-## hand-built known-truth DGP.
+## outcome_type = "continuous" -- on a hand-built known-truth DGP.
+##
+## LEAF_BUDGET IS DELIBERATELY DECOUPLED FROM config_leaf_budget, AS OF
+## 2026-09-28. Benchmarked directly (not guessed) on this same 400-row toy
+## fixture before this test suite ever ran at the raised value: estimate_att()
+## took 4.8s at leaf_budget=4, 94.5s at 6, and was still running past 5+
+## minutes at 15 (config_leaf_budget's confirmed value, raised from 4, PI
+## 2026-09-28) when killed -- optimaltrees' GOSDT-style search cost grows
+## steeply with leaf_budget, essentially independent of n. Using
+## config_leaf_budget here directly would turn this file's job -- proving the
+## design-matrix contract and the package's estimator contract fit together,
+## fast, with no data and no server (see application/README.md's own
+## "165 assertions... runs today" claim) -- into a multi-minute-or-worse local
+## test run. smoke_leaf_budget below is a FIXED, small value chosen only to
+## be feasible on 400 toy rows; it proves nothing about whether
+## config_leaf_budget itself is feasible on the real cohort -- that is
+## 91_leaf_budget_feasibility.R's job, on real data, on the server.
 ##
 ## WHAT THIS PROVES: the application's design-matrix contract and the package's
 ## estimator contract fit together, and grid-exact sparsity is SATISFIABLE at
 ## this covariate shape in principle. In helper-toy.R's toy_att_data(), the
 ## propensity depends on one binary covariate and the control outcome on another,
-## so a 2-leaf tree represents each exactly and a 4-leaf budget is more than
-## enough. 15 binary columns at leaf_budget = 4 is therefore not a
-## self-contradictory specification.
+## so a 2-leaf tree represents each exactly and any smoke_leaf_budget >= 2 is
+## more than enough. 15 binary columns at a small leaf_budget is therefore not
+## a self-contradictory specification -- a claim that does not depend on which
+## exact small value is used.
 ##
 ## WHAT THIS DOES NOT PROVE, and cannot: that sparsity holds on the REAL joint
-## distribution of the 15 confirmed covariates. That is not checkable from data
-## at all (theory.tex ass:sparsity is an identifying assumption), which is exactly
-## why 07_estimate_att.R always reports the cross-fit companion and why
-## OPEN_DECISIONS$diagnostics is open. A passing test here says the pipe fits
-## together; it says nothing about the applied answer.
+## distribution of the 15 confirmed covariates, OR that config_leaf_budget is
+## computationally feasible at real scale. Neither is checkable here -- the
+## first is theory.tex's ass:sparsity, an identifying assumption never
+## checkable from data; the second is exactly why
+## 91_leaf_budget_feasibility.R exists as a separate, real-data-only script.
+## This file's passing tests say the pipe fits together; they say nothing
+## about the applied answer OR about feasibility at config_leaf_budget.
 ##
 ## Not a re-test of the estimators themselves -- tests/testthat/ (the package
 ## suite) covers those.
 ## ============================================================================
+
+## Fixed, small, and independent of config_leaf_budget -- see header. Not
+## read from _config.R on purpose: a future config_leaf_budget change must
+## not silently change this file's own runtime again.
+smoke_leaf_budget <- 4L
 
 test_that("estimate_att() runs at the real 15-column shape and returns the documented structure", {
   skip_if_not_installed("doubletree")
@@ -41,7 +64,7 @@ test_that("estimate_att() runs at the real 15-column shape and returns the docum
 
   fit <- doubletree::estimate_att(
     X = d$X, A = d$A, Y = d$Y,
-    leaf_budget = config_leaf_budget,
+    leaf_budget = smoke_leaf_budget,
     outcome_type = "continuous"
   )
 
@@ -62,14 +85,14 @@ test_that("estimate_att() runs at the real 15-column shape and returns the docum
   expect_length(fit$score_values, 400L)
 
   expect_equal(fit$n, 400L)
-  expect_equal(fit$leaf_budget, config_leaf_budget)
+  expect_equal(fit$leaf_budget, smoke_leaf_budget)
   ## lambda_n defaults to log(n)/n -- hand-computed, not read off the fit.
   expect_equal(fit$lambda_n, log(400) / 400)
 
   ## The realised leaf counts must respect the budget. This is the budget
   ## mechanism working, not a statement about sparsity.
-  expect_lte(fit$n_leaves_e, config_leaf_budget)
-  expect_lte(fit$n_leaves_m0, config_leaf_budget)
+  expect_lte(fit$n_leaves_e, smoke_leaf_budget)
+  expect_lte(fit$n_leaves_m0, smoke_leaf_budget)
 })
 
 test_that("estimate_att() recovers the known constant effect on the toy DGP", {
@@ -83,7 +106,7 @@ test_that("estimate_att() recovers the known constant effect on the toy DGP", {
   d <- toy_att_data(n = 400L, tau = 250, sigma = 25, seed = 11L)
   fit <- doubletree::estimate_att(
     X = d$X, A = d$A, Y = d$Y,
-    leaf_budget = config_leaf_budget, outcome_type = "continuous"
+    leaf_budget = smoke_leaf_budget, outcome_type = "continuous"
   )
 
   expect_gt(fit$theta, 150)
@@ -127,7 +150,7 @@ test_that("estimate_att() rejects a continuous prior_cost -- the reason it is pr
   expect_error(
     doubletree::estimate_att(
       X = X_cont, A = d$A, Y = d$Y,
-      leaf_budget = config_leaf_budget, outcome_type = "continuous"
+      leaf_budget = smoke_leaf_budget, outcome_type = "continuous"
     ),
     "binary"
   )

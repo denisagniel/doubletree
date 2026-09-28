@@ -154,7 +154,20 @@ if (!config_has_smidata) {
   ## sample", and the analytic sample is the post-restriction,
   ## known-Y-and-prior_cost one -- not 04's pre-filter preview. Discretizing
   ## before the filter and then subsetting produces different boundaries.
-  prior_cost_dummies <- discretize_prior_cost(analytic_known_x$prior_cost)
+  prior_cost_for_binning <- floor_negative_prior_cost(
+    analytic_known_x$prior_cost, floor_value = confirmed_value("prior_cost_negative_floor")
+  )
+  n_floored <- attr(prior_cost_for_binning, "n_floored")
+  if (n_floored > 0L) {
+    cli::cli_alert_warning(
+      "{n_floored} patient(s) have negative prior_cost (claim reversals
+       exceeding payments) -- floored to 0 for binning per PI decision
+       2026-09-28 (OPEN_DECISIONS$prior_cost_negative_floor). The RAW dollar
+       prior_cost retained in analytic_data below is NOT floored -- only the
+       value handed to discretize_prior_cost() is."
+    )
+  }
+  prior_cost_dummies <- discretize_prior_cost(prior_cost_for_binning)
   cutpoints <- attr(prior_cost_dummies, "cutpoints")
   cli::cli_alert_info(
     "Realized quartile cutpoints on the analytic sample (REPORT THESE):

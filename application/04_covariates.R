@@ -134,7 +134,20 @@ if (!config_has_smidata) {
   ## the two are not interchangeable -- 06 MUST re-discretize on its own,
   ## final sample; this call does not gate or feed anything downstream.
   if (n_prior_cost_na == 0L) {
-    prior_cost_dummies_preview <- discretize_prior_cost(covariates$prior_cost)
+    prior_cost_for_binning <- floor_negative_prior_cost(
+      covariates$prior_cost, floor_value = confirmed_value("prior_cost_negative_floor")
+    )
+    n_floored <- attr(prior_cost_for_binning, "n_floored")
+    if (n_floored > 0L) {
+      cli::cli_alert_warning(
+        "{n_floored} patient(s) have negative prior_cost (claim reversals
+         exceeding payments) -- floored to 0 for binning per PI decision
+         2026-09-28 (OPEN_DECISIONS$prior_cost_negative_floor). The raw
+         dollar value is unaffected; only the value handed to
+         discretize_prior_cost() below is floored."
+      )
+    }
+    prior_cost_dummies_preview <- discretize_prior_cost(prior_cost_for_binning)
     cli::cli_alert_info(
       "PREVIEW quartile cutpoints, pre-filter cohort (NOT the reported
        cutpoints -- 06 recomputes these on the final, complete-case-filtered

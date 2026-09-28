@@ -120,10 +120,18 @@ smi_read_pinned <- function(dataset_key, columns = NULL, n = 200L) {
 config_estimator <- "att"
 
 ## The leaf budget Lbar (estimate_att()'s `leaf_budget`, required, no default).
-## A FIXED, analyst-chosen structural parameter, constant in n. 4L is the
-## value doubletree's own README and test suite use as the worked example. It
-## is an analysis decision, not a dataset fact, so it lives here.
-config_leaf_budget <- 4L
+## A FIXED, analyst-chosen structural parameter, constant in n. Raised from
+## 4L (doubletree's own README/test-suite worked example) to 15L, PI decision
+## 2026-09-28: a much larger budget relaxes how sparse a representation
+## grid-exact sparsity (ass:sparsity) demands of both nuisances on the
+## 2^15-atom grid the 15 binary covariates generate -- 15 is still <<
+## 32768, so the grid is not exhausted, but the assumption is looser (more
+## plausible for messier real nuisances) than at 4. It is an analysis
+## decision, not a dataset fact, so it lives here. NOTE: runtime grows with
+## leaf_budget for both estimators (optimaltrees' GOSDT-style search), and
+## estimate_att_crossfit() pays this K times over plus its cv_regularization
+## sweep -- see 07_estimate_att.R's header.
+config_leaf_budget <- 15L
 
 ## K for the cross-fitting companion estimate.
 config_crossfit_k <- 5L
@@ -327,9 +335,29 @@ OPEN_DECISIONS <- list(
       nuisance-fit comparison may end up informing which proxy thresholds
       are trustworthy, but that is an inference to make once that
       comparison exists, not a PI statement resolving this entry now. Still
-      open -- do not invent a threshold.")
+      open -- do not invent a threshold."),
+  prior_cost_negative_floor = list(
+    question = "How to treat patients whose pre-index prior_cost (sum of
+      AMOUNT_PAID over [INDEX_DT-12mo, INDEX_DT)) is NEGATIVE -- claim
+      reversals in the window exceeding payments. discretize_prior_cost()
+      refuses to bin a negative value by design (its own note: 'a decision,
+      not a binning detail') -- net it to zero, drop the patient, or allow
+      the signed value into the quantile grid are three genuinely different
+      choices with different consequences for the covariate grid.",
+    status = "confirmed", blocking_final = FALSE, value = 0,
+    note = "RESOLVED (PI, 2026-09-28, first real server run, 2 affected
+      patients): floor negative prior_cost at 0 (no net pre-index cost)
+      before discretizing into quartile dummies. Applied via
+      helpers/discretize_prior_cost.R::floor_negative_prior_cost() at both
+      call sites (04_covariates.R's preview, 06_assemble_analytic_data.R's
+      authoritative pass) -- discretize_prior_cost() itself keeps aborting
+      on a negative input unchanged, so a future caller that forgets to
+      floor first still gets the loud abort, not a silent bin. The RAW
+      dollar prior_cost retained in 06's analytic_data output is NOT
+      floored -- only the value fed to discretize_prior_cost() is -- so the
+      2 patients' true negative net cost remains visible for the methods
+      section's reported distribution.")
 )
-
 
 #' Read an open decision's placeholder value, loudly.
 #'
