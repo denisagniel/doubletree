@@ -84,7 +84,7 @@ AAP_MSR_CODE <- "AAP"
 ## SCALAR gate to follow instead (OPEN_DECISIONS's own `value = NULL`
 ## convention is for a different kind of registry -- a question with no
 ## defensible placeholder at all -- not an operational knob like this one).
-config_ingest_id <- NA_character_   # <- edit before a run against staged/published data
+config_ingest_id <- "2026-09-24T095810_001"   # published 2026-09-28; excludes archive/*, telehealth_covariates, msr_smc, cohort_20260420.csv -- none of these are used by this pipeline
 
 ## Every read in this pipeline goes through here -- never call
 ## smidata::smi_read() directly (enforced by
