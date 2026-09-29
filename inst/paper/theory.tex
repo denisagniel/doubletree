@@ -62,6 +62,11 @@
 \DeclarePairedDelimiter{\card}{\lvert}{\rvert}
 
 \newcommand{\cTcont}{\cT^{\mathrm{cont}}_{\bar L}}
+\newcommand{\etatil}{\widetilde{\eta}}
+\newcommand{\wtil}{\widetilde{w}}
+\newcommand{\mtil}{\widetilde{\mu}}
+\newcommand{\Vtil}{\widetilde{V}}
+\newcommand{\cF}{\mathcal{F}}
 
 \title{Interpretable Causal Inference with Optimal Decision Trees\\[2pt]
 \large Theory}
@@ -101,7 +106,13 @@ width, when sparsity fails.
 
 This document is the canonical statement of the theory, together with its
 proofs. Section~\ref{sec:setup} fixes notation and collects every standing
-assumption; assumptions are defined there and nowhere else, and are invoked by
+assumption restricting the sampling model $P$ or the estimator's global
+construction; assumptions with a narrower scope --- used by a single result or
+a single subsection, and stated where they are used --- are the exception
+(Assumptions~\ref{ass:pseudo-onesided}--\ref{ass:clip-margin}, \ref{ass:rate},
+and~\ref{ass:bridge-mesh} below), and each states its own scope where it is
+defined.
+Every assumption, wherever defined, is invoked by
 label throughout. Section~\ref{sec:eif} records the efficient influence function
 and the exact second-order remainder. Section~\ref{sec:structure} develops the
 structure of the tree class: sufficiency, invariance, the margin, selection
@@ -298,12 +309,22 @@ fixed in $n$ --- is a choice made by the analyst before seeing the data, not
 a property of $P$, and is more accurately grouped with \ref{ass:solver} as a
 restriction on the estimator's search space. Assumptions
 \ref{ass:construct}--\ref{ass:global} restrict the estimator, and
-\ref{ass:sparsity}--\ref{ass:pseudo} the structure of the problem. Each
-result below states which of \ref{ass:iid}--\ref{ass:pseudo} it uses, with
-Assumption~\ref{ass:solver} always additionally in force. Assumptions
-\ref{ass:margin-floor} and \ref{ass:pseudo} are local to
-Sections~\ref{sec:uniformity} and~\ref{sec:realised} respectively and are
-never in force elsewhere.
+\ref{ass:sparsity}--\ref{ass:pseudo} the structure of the problem; among the
+locally-declared exceptions of Section~\ref{sec:scope},
+Assumption~\ref{ass:pseudo-onesided} is a further problem-structure
+restriction of the same kind, one-sided, and Assumption~\ref{ass:clip-margin}
+is a restriction on $P$ jointly with the analyst's choice of $c$, a category
+this three-way split does not otherwise contain. Each
+result below states which of \ref{ass:iid}--\ref{ass:pseudo}, and, where
+applicable, which locally-declared assumption, it uses, with
+Assumption~\ref{ass:solver} always additionally in force. Assumption
+\ref{ass:margin-floor} is local to
+Section~\ref{sec:uniformity} and never in force elsewhere.
+Assumption~\ref{ass:pseudo} is local to Section~\ref{sec:realised} in its own
+right, but Remark~\ref{rem:onesided-random-index} additionally invokes it in
+full, alongside one-sided sufficiency, as a sufficient (not necessary)
+condition for Lemma~\ref{lem:onesided}'s part~(c); it is never in force
+anywhere else.
 
 \begin{assumption}[Sampling]\label{ass:iid}
 $O_1,\dots,O_n$ are independent and identically distributed copies of
@@ -1457,6 +1478,401 @@ degrees-of-freedom divisor $n-(\card{\that_e}+\card{\that_\mu}+1)$ is a
 reasonable finite-sample convention. All statements are on $\{\pihat>0\}$, whose
 probability tends to one.
 
+\subsection{One-sided sufficiency}\label{sec:onesided}
+
+Theorem~\ref{thm:main} requires sufficiency on both sides. The discussion
+following Lemma~\ref{lem:cross} shows why that requirement cannot simply be
+dropped: off $\cS_e$ the cross term is $O_p(n^{-1/2})$ rather than
+$o_p(n^{-1/2})$, and no leaf budget repairs it. What that discussion leaves open
+is the intermediate configuration in which sufficiency fails on exactly one side.
+This subsection settles it. The conclusion is a central limit theorem at a
+\emph{purged} nuisance: the estimator behaves as though the failing nuisance had
+been replaced not by its pseudo-true limit, but by the truth plus the component
+of the pseudo-true bias that is orthogonal, in the control-weighted inner
+product, to the leaves of the partition on the sufficient side. The orthogonal
+component survives because the surviving side's leaf refit annihilates exactly
+the parallel component, in finite samples and not merely in the limit.
+
+Throughout this subsection, $\psi(O;\theta,(w,\mu))$ denotes the
+formula~\eqref{eq:score} evaluated at an arbitrary pair of bounded measurable
+functions $(w,\mu)$, with no requirement that $w$ arise as $e/(1-e)$ for a
+propensity $e$ satisfying $1-e\ge c$; the pairs constructed below need not be
+probabilistically valid nuisances, and every mean-zero claim made of them is
+verified directly rather than through Proposition~\ref{prop:bilinear}.
+
+\begin{assumption}[One-sided pseudo-true margin]\label{ass:pseudo-onesided}
+For a specified $j\in\{e,\mu\}$: there is a unique $\tau^\dagger_j\in\cT_{\bar L}$
+minimising $R^{(j)}$ over $\cT_{\bar L}$, and
+\[
+  \Delta^\dagger_j:=\min_{\tau\in\cT_{\bar L}\setminus\{\tau^\dagger_j\}}
+  \bigl\{R^{(j)}(\tau)-R^{(j)}(\tau^\dagger_j)\bigr\}>0 .
+\]
+The corresponding population leaf refit is written $e_*=\Pi_{\tau^\dagger_e}\ez$
+with $w_*=e_*/(1-e_*)$ when $j=e$, and $\mu_*=\Pi^\nu_{\tau^\dagger_\mu}\mz$ when
+$j=\mu$, matching the notation of Assumption~\ref{ass:pseudo}. No membership
+$\tau^\dagger_j\in\cS_j$ is required. We refer to the assumption holding at a
+particular $j$ as Assumption~\ref{ass:pseudo-onesided} \emph{at} $j$. This
+assumption is local to Section~\ref{sec:onesided} and is never in force
+elsewhere.
+\end{assumption}
+
+\noindent Assumption~\ref{ass:pseudo} is exactly
+Assumption~\ref{ass:pseudo-onesided} imposed at $j=e$ and at $j=\mu$
+simultaneously; nothing in the present subsection needs both at once, and
+separating them is what makes the one-sided statement available. Like
+Assumption~\ref{ass:pseudo}, it constrains the population risk landscape and
+not the truth: it permits $\cS_j=\emptyset$.
+
+\begin{assumption}[Strict clipping margin]\label{ass:clip-margin}
+There is $\epsilon>0$ with $1-\ez(x)\ge c+\epsilon$ for every $x\in\cX$, with
+$c$ the clipping constant of Assumption~\ref{ass:construct}(c). This
+assumption is local to case~(ii) of Lemma~\ref{lem:onesided} and
+Corollary~\ref{cor:onesided-e} and is never in force elsewhere.
+\end{assumption}
+
+\noindent Assumption~\ref{ass:clip-margin} is strictly stronger than the uniform
+bound of Assumption~\ref{ass:causal} and is a joint restriction on $P$ and on the
+analyst's choice of $c$: it says the clipping threshold is chosen strictly
+conservatively, so that the truth never sits on the boundary at which clipping
+becomes active. Remark~\ref{rem:clip-margin} records what it buys, why
+Assumption~\ref{ass:causal} does not supply it, and why it is required in
+case~(ii) of Lemma~\ref{lem:onesided} and not in case~(i).
+
+\begin{lemma}[One-sided sufficiency]\label{lem:onesided}
+Suppose Assumptions~\ref{ass:iid}--\ref{ass:global} hold and that exactly one of
+the following configurations obtains.
+\begin{enumerate}[label=(\roman*),nosep]
+  \item \emph{Outcome sufficient.} $\cS_\mu\ne\emptyset$, and
+  Assumption~\ref{ass:pseudo-onesided} holds at $j=e$. For
+  $\tau_\mu\in\cS_\mu$ put
+  \[
+    \wtil_{\tau_\mu}=\wz+\bigl(I-\Pi^\nu_{\tau_\mu}\bigr)b,\qquad
+    \mtil_{\tau_\mu}=\mz,\qquad b:=w_*-\wz,
+  \]
+  and $\cF=\{\tau^\dagger_e\}\times\cS_\mu$.
+  \item \emph{Propensity sufficient.} $\cS_e\ne\emptyset$,
+  Assumption~\ref{ass:pseudo-onesided} holds at $j=\mu$, and
+  Assumption~\ref{ass:clip-margin} holds. For $\tau_e\in\cS_e$ put
+  \[
+    \wtil_{\tau_e}=\wz,\qquad
+    \mtil_{\tau_e}=\mz+\bigl(I-\Pi^\nu_{\tau_e}\bigr)a,\qquad a:=\mu_*-\mz,
+  \]
+  and $\cF=\cS_e\times\{\tau^\dagger_\mu\}$.
+\end{enumerate}
+Write $\etatil_\tau=(\wtil_\tau,\mtil_\tau)$, indexed in either case by the
+member $\tau$ of the sufficient class appearing in the pair. Then
+$\E[\psi(O;\theta_0,\etatil_\tau)]=0$ and
+$\Var\{\psi(O;\theta_0,\etatil_\tau)\}<\infty$ for every such $\tau$, and:
+\begin{enumerate}[label=(\alph*),nosep]
+  \item \emph{Uniform asymptotic linearity.}
+  \[
+    \max_{(\tau_e,\tau_\mu)\in\cF}
+    \Bigl\lvert\sqrt n\bigl\{\thetahat(\tau_e,\tau_\mu)-\theta_0\bigr\}
+     -\sqrt n\,\Pn\psi(\cdot;\theta_0,\etatil_\tau)\Bigr\rvert=o_p(1),
+  \]
+  with $\tau=\tau_\mu$ in case~(i) and $\tau=\tau_e$ in case~(ii).
+  \item \emph{Transfer to the selected pair.} With
+  $E_n=\{\that_e=\tau^\dagger_e\}\cap\{\that_\mu\in\cS_\mu\}$ in case~(i) and
+  $E_n=\{\that_e\in\cS_e\}\cap\{\that_\mu=\tau^\dagger_\mu\}$ in case~(ii), one
+  has $\PP(E_n)\to1$ and
+  $\sqrt n(\thetahat-\theta_0)=\sqrt n\,\Pn\psi(\cdot;\theta_0,\etatil_{\that})
+  +o_p(1)$, where $\that$ is the realised member of the sufficient class.
+  \item \emph{Central limit theorem.} If in addition there is a fixed
+  $\tau^\bullet$ in the sufficient class with $\PP(\that=\tau^\bullet)\to1$ ---
+  in particular if that class is a singleton --- then, writing
+  $\etatil=\etatil_{\tau^\bullet}$,
+  \[
+    \sqrt n\bigl(\thetahat-\theta_0\bigr)\rightsquigarrow N(0,\Vtil),
+    \qquad
+    \pi^2\Vtil=\E\bigl[A\{Y-\mtil-\theta_0\}^2\bigr]
+     +\E\bigl[\{1-\ez\}\wtil^{\,2}
+      \bigl\{\sigma_0^2+(\mtil-\mz)^2\bigr\}\bigr].
+  \]
+\end{enumerate}
+\end{lemma}
+
+\noindent Three features of the statement determine its scope. The purged
+nuisance perturbs one coordinate only, the other being left at the truth: in
+either case the surviving coordinate is exactly $\ez$ or $\mz$, so the mean-zero
+verification in the proof reduces to a single factor vanishing identically ---
+$\E[Y-\mz\mid A=0,X]=0$ in case~(i), $\E[h\mid X]=0$ in case~(ii) --- rather than
+to the bilinear cancellation of Proposition~\ref{prop:bilinear}, whose own
+hypothesis $1-e\ge c$ need not hold for the purged $\wtil$ of case~(i). This is
+why $\theta_0$ and not a pseudo-true target remains the
+centre. The projection is taken on the leaves of the \emph{sufficient} side, not
+of the failing side, so the correction is governed by how badly the surviving
+partition fails to absorb the other one's bias. And the index $\tau$ ranges over
+the sufficient class, so $\Vtil$ is a well-defined single number only under the
+stabilisation hypothesis of part~(c); Remark~\ref{rem:onesided-random-index}
+records what is and is not available without it.
+
+\begin{corollary}[Outcome sufficient, propensity pseudo-true]
+\label{cor:onesided-mu}
+In case~(i) of Lemma~\ref{lem:onesided}, under its part~(c) hypothesis and
+$\Vtil>0$, the
+influence function is
+\[
+  \psi_0-\pi^{-1}(1-A)\{Y-\mz(X)\}
+   \bigl(I-\Pi^\nu_{\tau^\bullet}\bigr)b(X),
+  \qquad b=w_*-\wz,
+\]
+and, with $\wtil=\wz+(I-\Pi^\nu_{\tau^\bullet})b$,
+\[
+  \pi^2\Vtil=\E\bigl[A\{Y-\mz-\theta_0\}^2\bigr]
+   +\E\bigl[\{1-\ez\}\wtil^{\,2}\sigma_0^2\bigr].
+\]
+Let $m(x)$ denote the leaf of $\that_\mu$ containing $x$, with $n_{0,m}$ and
+$n_{1,m}$ its control and treated counts, and set, on the event of probability
+tending to one that every leaf of $\that_\mu$ carries a control observation,
+\[
+  \wtil_n(x)=\what(x)
+   -\frac1{n_{0,m(x)}}\sum_{i:X_i\in m(x),\,A_i=0}\what(X_i)
+   +\frac{n_{1,m(x)}}{n_{0,m(x)}} .
+\]
+Then $\Vhat_\dagger$, defined as~\eqref{eq:vhat} with $\what$ replaced by $\wtil_n$,
+satisfies $\Vhat_\dagger\to_p\Vtil$, and on $\{\Vhat_\dagger>0\}$ the interval
+$\thetahat\pm z_{1-\alpha/2}\sqrt{\Vhat_\dagger/n}$ has asymptotic coverage $1-\alpha$
+for $\theta_0$, pointwise in $P$. No knowledge of $\wz$ or $\mz$ is used.
+\end{corollary}
+
+\begin{corollary}[Propensity sufficient, outcome pseudo-true]
+\label{cor:onesided-e}
+In case~(ii) of Lemma~\ref{lem:onesided}, under its part~(c) hypothesis, write
+$d=(I-\Pi^\nu_{\tau^\bullet})a$ with $a=\mu_*-\mz$, so that $\mtil=\mz+d$. The
+influence function is $\psi_0+\pi^{-1}h(O)\,d(X)$ with $h$ as in
+Lemma~\ref{lem:skeleton}, and
+\[
+  \pi^2\Vtil=\E\bigl[A\{Y-\mz-\theta_0-d\}^2\bigr]
+   +\E\bigl[\{1-\ez\}\wz^2\{\sigma_0^2+d^2\}\bigr],
+\]
+equivalently
+\[
+  \pi^2(\Vtil-V)=\E\Bigl[\frac{\ez}{1-\ez}d^2\Bigr]-2\,\E[\ez\,\Delta m\,d],
+  \qquad \Delta m=m_1-\mz-\theta_0 .
+\]
+The difference has no universal sign; see
+Remarks~\ref{rem:onesided-hahn} and~\ref{rem:onesided-bound}. Unlike
+Corollary~\ref{cor:onesided-mu}, $\Vtil>0$ here is automatic under
+Assumption~\ref{ass:moments} rather than a further hypothesis. Expanding the
+first display of this corollary by conditioning each arm on $X$,
+\[
+  \pi^2\Vtil=\underbrace{\E[\ez\sigma_1^2]}_{T_1}
+   +\underbrace{\E[\ez(\Delta m-d)^2]}_{T_2}
+   +\underbrace{\E[\{1-\ez\}\wz^2\sigma_0^2]}_{T_3}
+   +\underbrace{\E[\{1-\ez\}\wz^2d^2]}_{T_4},
+\]
+a sum of four expectations of non-negative quantities, so $\Vtil=0$ forces
+each to vanish. $T_4=\E[\ez^2d^2/(1-\ez)]=0$ gives $d=0$ $P$-a.s.\ on
+$\{\ez>0\}$; substituting into $T_2$ then gives $\E[\ez\Delta m^2]=0$, hence
+$\Delta m=0$ there as well; and $T_1=0$, $T_3=\E[\ez^2\sigma_0^2/(1-\ez)]=0$
+hold independently. Substituting all three into~\eqref{eq:vdecomp} gives
+$\pi^2V=\E[\ez\sigma_1^2]+\E[\ez^2\sigma_0^2/(1-\ez)]+\E[\ez\Delta m^2]=0$,
+contradicting $V>0$.
+Let $\ell(x)$
+denote the leaf of $\that_e$ containing $x$, and set, on the event of
+probability tending to one that every leaf of $\that_e$ carries a control
+observation,
+\[
+  \widehat a_\ell=\frac1{n_{0,\ell}}\sum_{i:X_i\in\ell,\,A_i=0}
+   \bigl\{\mhat(X_i)-Y_i\bigr\},\qquad
+  \mtil_n(x)=\mhat(x)-\widehat a_{\ell(x)} .
+\]
+Then $\Vhat_\dagger$, defined as~\eqref{eq:vhat} with $\mhat$ replaced by $\mtil_n$ in
+both occurrences, satisfies $\Vhat_\dagger\to_p\Vtil$, with the same coverage conclusion.
+No knowledge of $\mz$ or $\ez$ is used.
+\end{corollary}
+
+\noindent Both variance formulas are finite under
+Assumption~\ref{ass:moments} with no further moment condition. In particular
+$\Delta m$ is uniformly bounded, since $m_1(x)^2\le\E[Y^2\mid A=1,X=x]\le C_Y$
+and $\mz(x)^2\le C_Y$ by Jensen, so the second display of
+Corollary~\ref{cor:onesided-e} involves only integrable quantities; were
+Assumption~\ref{ass:moments} weakened to a marginal second-moment condition,
+$\E[\Delta m^2]<\infty$ would have to be imposed separately for that corollary
+and for Remark~\ref{rem:onesided-bound}.
+
+\begin{remark}[Collapse to Theorem~\ref{thm:main}]\label{rem:onesided-collapse}
+If the failing side is in fact sufficient, Lemma~\ref{lem:onesided} returns
+Theorem~\ref{thm:main}'s conclusion. In case~(i), $\tau^\dagger_e\in\cS_e$ gives
+$e_*=\Pi_{\tau^\dagger_e}\ez=\ez$, hence $b=0$, hence $\wtil=\wz$ and
+$\etatil=\eta_0$; in case~(ii), $\tau^\dagger_\mu\in\cS_\mu$ gives $a=0$, hence
+$d=0$ and $\mtil=\mz$. In either case the variance formula of part~(c) becomes
+\[
+  \pi^2\Vtil=\E\bigl[A\{Y-\mz-\theta_0\}^2\bigr]
+   +\E\bigl[\{1-\ez\}\wz^2\sigma_0^2\bigr]
+  =\E\bigl[\ez\{\sigma_1^2+\Delta m^2\}\bigr]
+   +\E\Bigl[\frac{\ez^2\sigma_0^2}{1-\ez}\Bigr]
+  =\pi^2V,
+\]
+the first equality by conditioning each arm on $X$ and the second by
+$\wz^2\{1-\ez\}=\ez^2/(1-\ez)$, matching~\eqref{eq:vdecomp} term by term. The
+two results agree on their overlap; neither contains the other, since
+Theorem~\ref{thm:main} needs no uniqueness and Lemma~\ref{lem:onesided} needs no
+sufficiency on the failing side.
+\end{remark}
+
+\begin{remark}[The projection in case~(ii) is an unweighted leaf average]
+\label{rem:onesided-unweighted}
+In case~(ii) the projection $\Pi^\nu_{\tau_e}$ is defined exactly as in
+Definition~\ref{def:sufficient}, with $d\nu=\{1-\ez\}dP$, but it is numerically
+an unweighted leaf average: for $\tau_e\in\cS_e$ and any leaf $\ell$, $\ez$ is
+$P$-a.s.\ constant on $\ell$, so
+\[
+  \bigl(\Pi^\nu_{\tau_e}f\bigr)\restriction_\ell
+  =\frac{\E[\{1-\ez\}f\mathbf1_\ell]}{\E[\{1-\ez\}\mathbf1_\ell]}
+  =\frac{\{1-\ez\restriction_\ell\}\E[f\mathbf1_\ell]}
+        {\{1-\ez\restriction_\ell\}\PP(X\in\ell)}
+  =\E[f\mid X\in\ell]
+  =\bigl(\Pi_{\tau_e}f\bigr)\restriction_\ell .
+\]
+This is the same operator specialised, not a different one; the control-weighted
+form is retained for uniformity with case~(i), where $\ez$ is \emph{not}
+leaf-constant on $\tau_\mu$ and the weighting is load-bearing. The same
+computation applies to the $v$-weighted projection of
+Proposition~\ref{prop:sparse-bound}, since $\ez(1-\ez)$ is then leaf-constant
+also, so $\Pi^v_{\tau_e}=\Pi^\nu_{\tau_e}=\Pi_{\tau_e}$ on $\cS_e$ wherever
+$\ez>0$; leaves on which $\ez=0$ carry zero $v$-mass and contribute nothing to
+either bound.
+\end{remark}
+
+\begin{remark}[No conflict with the efficiency bound]\label{rem:onesided-hahn}
+That $\Vtil<V$ is possible in case~(ii) is not in tension with $V$ being the
+efficiency bound of Proposition~\ref{prop:sparse-bound}'s ambient model $\cP$.
+Case~(ii) presumes $\cS_e\ne\emptyset$, that is, that $P$ lies in the submodel
+$\cP_{\tau^\bullet}$ in which $\ez$ is leaf-constant on a fixed partition within
+the budget, and Proposition~\ref{prop:sparse-bound} already records that the
+bound in that submodel is $V_{\tau^\bullet}\le V$, with
+$V^{\mathrm{known}\text{-}e}\le V_{\tau^\bullet}$; knowledge of the propensity
+lowers the attainable variance for the ATT \citep{hahn1998}. A variance below
+$V$ inside $\cP_{\tau^\bullet}$ is therefore expected rather than anomalous. The
+irregularity noted after Proposition~\ref{prop:sparse-bound} is untouched: the
+estimator is not claimed to attain $V_{\tau(P)}$ regularly across the union of
+submodels, and $\Vtil$ is a pointwise-in-$P$ statement only.
+\end{remark}
+
+\begin{remark}[A lower bound in case~(ii)]\label{rem:onesided-bound}
+In case~(ii), $\Pi^\nu_{\tau^\bullet}d=0$ by construction, and minimising
+$\pi^2(\Vtil-V)=\E[\ez(1-\ez)^{-1}d^2]-2\E[\ez\Delta m\,d]$ over all bounded $d$
+with $\Pi^\nu_{\tau^\bullet}d=0$ gives, leaf by leaf and using the
+leaf-constancy of $\ez$,
+\[
+  \Vtil\ \ge\ V-\pi^{-2}\,\E\Bigl[\ez(1-\ez)
+   \bigl\{(I-\Pi^\nu_{\tau^\bullet})\Delta m\bigr\}^2\Bigr]
+  \ =\ V_{\tau^\bullet},
+\]
+with equality if and only if $d=(1-\ez)(I-\Pi^\nu_{\tau^\bullet})\Delta m$
+$P$-a.s.; the identification of the right-hand side with
+Proposition~\ref{prop:sparse-bound}'s $V_{\tau^\bullet}$ uses
+Remark~\ref{rem:onesided-unweighted}. The maximal attainable gain over $V$ is
+thus the $\ez(1-\ez)$-weighted heterogeneity of the treated--control contrast
+$\Delta m$ that $\that_e$'s own leaves fail to capture, and the estimator never
+beats the submodel bound, hence never beats $V^{\mathrm{known}\text{-}e}$, by
+Proposition~\ref{prop:sparse-bound}'s sandwich. The bound is sharp over the
+class $\{d:\Pi^\nu_{\tau^\bullet}d=0\}$ of purged biases, but attainment is
+\emph{not} asserted: it would additionally require some
+$\tau^\dagger_\mu\in\cT_{\bar L}$ whose purged population bias equals the
+minimising $d$, and no such partition is exhibited here.
+\end{remark}
+
+\begin{remark}[The clipping margin, and where it is used]\label{rem:clip-margin}
+Under Assumption~\ref{ass:clip-margin}, $\Pi_\tau\ez\le1-c-\epsilon$ for every
+$\tau\in\cT_{\bar L}$, so by Lemma~\ref{lem:findim} and a union bound over the
+fixed finite class of Assumption~\ref{ass:budget},
+\[
+  \PP\bigl(\ehat^{\mathrm{pre}}\restriction_\ell\le1-c
+   \text{ for every leaf }\ell\text{ of every }\tau\in\cT_{\bar L}\bigr)
+  \longrightarrow1 ,
+\]
+so the reported $\ehat$ coincides with the unclipped leaf refit, and
+$\what\restriction_\ell=n_{1,\ell}/n_{0,\ell}$ exactly, with probability tending
+to one. Assumption~\ref{ass:causal} does not deliver this: it permits
+$1-\ez\restriction_\ell=c$ exactly, in which case the unclipped leaf mean of
+$A_i$ exceeds $1-c$ with probability tending to $1/2$ by the central limit
+theorem, and the algebraic identity of Step~(ii.1) below fails on an event of
+non-negligible probability. The condition is recorded as a numbered assumption
+rather than a remark because it is a restriction on the sampling model used as a
+hypothesis of a numbered result, and the classification given in the standing
+assumptions subsection separates such restrictions from properties of the
+estimator. It is required in case~(ii) only. Case~(i) needs no such condition:
+there the exact identity used is the control-mean identity on $\that_\mu$'s
+leaves, and $\mhat$ is never clipped, while the only role of $\ehat$ is through
+the bound $\max_\ell\abs{\what\restriction_\ell-w_*\restriction_\ell}
+=O_p(n^{-1/2})$, which survives clipping by the argument of
+Lemma~\ref{lem:clip}, applied at $e_*$.
+\end{remark}
+
+\begin{remark}[The index on the sufficient side]
+\label{rem:onesided-random-index}
+Part~(a) of Lemma~\ref{lem:onesided} bounds a maximum over a deterministic
+family, and part~(b) transfers it to the realised pair with no conditioning,
+exactly as in the proof of Theorem~\ref{thm:main}. What does not transfer for
+free is a \emph{single} asymptotic variance: unlike on the sufficient class of
+Lemma~\ref{lem:uniform}, where every member yields $\psi_0$ and
+Lemma~\ref{lem:invariance} makes the limit common, here $\etatil_\tau$ genuinely
+varies with $\tau$, because $\Pi^\nu_\tau$ does. When the sufficient class is
+not a singleton, which member is selected is a random index, part~(b) is
+asymptotic linearity towards a randomly indexed influence function, and a
+central limit theorem with one fixed $\Vtil$ requires the stabilisation hypothesis
+of part~(c). This limitation is inherited rather than new; it attaches to any
+single-tree linearity statement whose influence function depends on the selected
+partition.
+
+One clean sufficient condition is available and costs nothing extra. Imposing
+Assumption~\ref{ass:pseudo-onesided} at the \emph{sufficient} side $j$ as well
+forces $\cS_j$ to be a singleton, so part~(c) applies with
+$\tau^\bullet$ its unique member. Indeed all members of $\cS_j$ carry the same
+population risk: by the analysis-of-variance identity used in Step~1 of the
+proof of Lemma~\ref{lem:selection},
+$R^{(e)}(\tau)=\pi-\E[(\Pi_\tau\ez)^2]$ and
+$R^{(\mu)}(\tau)=\E[(1-A)Y^2]-\E[\{1-\ez\}(\Pi^\nu_\tau\mz)^2]$, and on $\cS_j$
+the projection is the identity, so the risk equals $\pi-\E[\ez^2]$, respectively
+$\E[(1-A)Y^2]-\E[\{1-\ez\}\mz^2]$, for every member. Two distinct members would
+therefore tie at the minimum and contradict uniqueness. Conversely, given
+$\cS_j\ne\emptyset$, Assumption~\ref{ass:pseudo-onesided} at $j$ asserts nothing
+beyond $\card{\cS_j}=1$: the margin $\Delta^\dagger_j$ then coincides with
+$\Delta_j$ of Lemma~\ref{lem:margin} and is positive by that lemma. Hence
+Assumption~\ref{ass:pseudo} in full, together with one-sided sufficiency,
+suffices for part~(c).
+\end{remark}
+
+\begin{remark}[What remains open]\label{rem:onesided-open}
+Lemma~\ref{lem:onesided} settles exactly the two configurations it names, and
+two others remain open. Sufficiency failing on \emph{both} sides is untouched:
+the argument below uses an exact finite-sample identity on the sufficient side
+at the point where the cross term would otherwise be $O_p(n^{-1/2})$, and with
+neither side sufficient no such identity is available; the discussion following
+Lemma~\ref{lem:cross} applies unchanged. Failure of
+Assumption~\ref{ass:pseudo-onesided} at the pseudo-true side is likewise
+untouched, and is the more consequential gap. If $R^{(j)}$ has two or more
+minimisers over $\cT_{\bar L}$ that are not sufficient, $\that_j$ oscillates
+among them with non-degenerate probabilities, the bias $b$ or $a$ has no limit,
+and the limit distribution of $\sqrt n(\thetahat-\theta_0)$ is a genuine
+post-selection law rather than a Gaussian; the impossibility results of
+\citet{leeb2005} bear directly on that configuration, which, unlike the setting
+of Lemma~\ref{lem:invariance}, is one in which the selected model changes the
+influence function. Nothing here resolves it, and no interval is offered for it.
+Away from these configurations, Theorem~\ref{thm:anchor} remains the only
+inference statement available without sparsity.
+\end{remark}
+
+\begin{remark}[Per-nuisance hypotheses of the cited lemmas]
+\label{rem:onesided-perj}
+Lemmas~\ref{lem:margin} and~\ref{lem:selection} are stated under
+Assumption~\ref{ass:sparsity}, which asserts $\cS_e\ne\emptyset$ \emph{and}
+$\cS_\mu\ne\emptyset$, but their conclusions are indexed by $j$ and their proofs
+are separable in $j$: the two selection problems in~\eqref{eq:select} have
+disjoint objectives and disjoint feasible sets, Step~2 of the proof of
+Lemma~\ref{lem:selection} establishes uniform convergence of risk differences
+over $\cT_{\bar L}$ using only
+Assumptions~\ref{ass:iid}, \ref{ass:causal}, \ref{ass:moments},
+\ref{ass:finite} and~\ref{ass:budget}, and Step~4 consumes only
+$\cS_j\ne\emptyset$ for the $j$ being invoked. Lemma~\ref{lem:onesided} uses
+them in that per-$j$ form, at the side where sufficiency holds. This is the same
+asymmetry already visible in Lemma~\ref{lem:U}, whose hypothesis involves
+$\tau_\mu$ alone and whose statement records that the bound does not involve
+$\tau_e$.
+\end{remark}
+
 \subsection{Uniformity in the underlying law}\label{sec:uniformity}
 
 Lemma~\ref{lem:selection} gives
@@ -1944,7 +2360,8 @@ $\sum_k\sum_{i\in\text{fold }k}\psi(O_i;\theta,\widehat\eta^{(-k)})=0$.
 
 \begin{assumption}[Rate condition]\label{ass:rate}
 $\Ltwo{\ehat-\ez}\cdot\Lw{\mhat-\mz}=o_p(n^{-1/2})$, where the norms are
-evaluated at the fold-wise fits.
+evaluated at the fold-wise fits. This assumption is local to
+Section~\ref{sec:crossfit} and is never in force elsewhere.
 \end{assumption}
 
 \begin{theorem}[Cross-fitted central limit theorem]\label{thm:crossfit}
@@ -3847,6 +4264,352 @@ theorem. The argument above instead exploits $\E[\varepsilon\mid X,A=0]=0$, a
 cancellation unavailable to Cauchy--Schwarz, which is the reason
 Lemma~\ref{lem:cross} is proved through conditional mean-zeroness and never
 through smallness.
+
+\begin{proof}[Proof of Lemma~\ref{lem:onesided}]
+Throughout, $(\tau_e,\tau_\mu)$ is a \emph{fixed} member of $\cF$; no
+maximisation over, or conditioning on, an estimated partition occurs before the
+final step. All statements are on $\{\pihat>0\}$, whose probability tends to one,
+which suffices for $o_p(1)$ conclusions. By Lemma~\ref{lem:skeleton}, identically
+and with no expansion,
+\begin{equation}\label{eq:onesided-start}
+  \pihat\{\thetahat(\tau_e,\tau_\mu)-\theta_0\}
+  =\Pn\phi(\cdot;\eta_0)+U-T .
+\end{equation}
+Every leaf of every $\tau\in\cT_{\bar L}$ has positive mass, and positive
+control mass, by Assumptions~\ref{ass:finite} and~\ref{ass:causal}, as recorded
+after the proof of Lemma~\ref{lem:findim}; so Lemma~\ref{lem:findim} applies at
+every partition appearing below, and the leaf counts satisfy
+$N_\ell\asymp n$, $N^0_\ell\asymp n$ by its occupancy step. In particular the
+event that every leaf of $\tau_\mu$ carries at least one control observation,
+on which the refit~\eqref{eq:refit} rather than the parent-leaf fallback of
+Assumption~\ref{ass:construct}(d) is in force, has probability tending to one,
+and all identities below are asserted on it.
+
+\emph{Mean zero and finite variance.} In case~(i),
+$\phi(O;\theta_0,\etatil_{\tau_\mu})
+=\phi(O;\eta_0)-(1-A)\{Y-\mz\}g$ with
+$g:=(I-\Pi^\nu_{\tau_\mu})b$, and
+$\E[(1-A)\{Y-\mz\}g]=\E[\{1-\ez\}g\,\E[Y-\mz\mid A=0,X]]=0$ by the definition of
+$\mz$; in case~(ii),
+$\phi(O;\theta_0,\etatil_{\tau_e})=\phi(O;\eta_0)+h(O)d$ with
+$d:=(I-\Pi^\nu_{\tau_e})a$, and $\E[hd]=\E[d\,\E[h\mid X]]=0$ since
+$\E[h\mid X]=0$ pointwise by Lemma~\ref{lem:skeleton}. As
+$\E\phi(\cdot;\eta_0)=0$, in both cases $\E\psi(\cdot;\theta_0,\etatil)=0$; in
+case~(ii), where $\wtil=\wz$ arises from $e=\ez$ satisfying $1-\ez\ge c$, this
+also agrees with Proposition~\ref{prop:bilinear}, whose remainder vanishes
+because $\mtil$ is the only coordinate departing from $\eta_0$ (in case~(i)
+$\wtil$ need not satisfy Proposition~\ref{prop:bilinear}'s hypothesis, per the
+remark following Lemma~\ref{lem:onesided}'s statement). Finiteness of
+the variance follows from $\abs{\wz}\le(1-c)/c$ and $e_*\in[0,1-c]$, hence
+$\abs{w_*}\le(1-c)/c$, from $\mz^2\le C_Y$ and $\mu_*^2\le C_Y$ by Jensen, and
+from $\E[Y^2\mid A,X]\le C_Y$, all under
+Assumptions~\ref{ass:causal} and~\ref{ass:moments}; the projections are
+conditional expectations, hence $L^\infty$-contractions, so they preserve the
+sup-norm bound $\ez\in[0,1-c]$ (giving $e_*\in[0,1-c]$ above) and, again by
+Jensen, the bound $\mu_*^2\le C_Y$.
+
+\medskip
+\noindent\textbf{Case (i): outcome sufficient.} Here $\tau_e=\tau^\dagger_e$ and
+$\tau_\mu\in\cS_\mu$.
+
+\emph{(i.1) The term $U$.} Lemma~\ref{lem:U} applies verbatim: its hypotheses
+are $\tau_\mu$'s leaf-constancy of $\mz$, positive control mass, and
+Assumption~\ref{ass:construct}(b), and its statement records that the bound does
+not involve $\tau_e$. Hence $\abs U=O_p(\bar L/n)$, uniformly over
+$\tau_\mu\in\cS_\mu$.
+
+\emph{(i.2) Exact split of $T$.} Write $\Delta w=b+r$ with $b=w_*-\wz$ fixed and
+bounded, and $r:=\what-w_*$, which \emph{is} $\tau^\dagger_e$-leaf-constant, so
+that
+$T=T_b+T_r$ with
+$T_b=\Pn[(1-A)b\{Y-\mhat\}]$ and $T_r=\Pn[(1-A)r\{Y-\mhat\}]$. This is an exact
+algebraic split.
+
+\emph{(i.3) Exact recentring of $T_b$.} Group $T_b$ by the leaves $m$ of
+$\tau_\mu$. By Assumption~\ref{ass:construct}(b) and~\eqref{eq:refit},
+$\sum_{i:X_i\in m,A_i=0}\{Y_i-\mhat\restriction_m\}=0$ exactly, so subtracting
+any $\tau_\mu$-leaf-constant from $b$ within each leaf leaves $T_b$ unchanged.
+This is the identity used in Step~1 of the proof of Lemma~\ref{lem:cross}; the
+one difference is the choice of constant. Take the \emph{population}
+control-weighted leaf average, $(\Pi^\nu_{\tau_\mu}b)\restriction_m$, rather
+than the sample average, and set $g=(I-\Pi^\nu_{\tau_\mu})b$, a fixed bounded
+function. Then, exactly,
+$T_b=\Pn[(1-A)g\{Y-\mhat\}]$.
+
+\emph{(i.4) Substitution and bookkeeping.} Since $\mz$ is $P$-a.s.\ constant on
+each leaf of $\tau_\mu$, for $i$ in leaf $m$ one has
+$Y_i-\mhat\restriction_m=\varepsilon_i
+-(\mhat\restriction_m-\mz\restriction_m)$, whence exactly
+\[
+  T_b=\Pn[(1-A)g\varepsilon]
+   -\sum_{m\in\tau_\mu}\bigl(\mhat\restriction_m-\mz\restriction_m\bigr)
+    \Pn\bigl[(1-A)g\mathbf1\{X\in m\}\bigr].
+\]
+In the second sum the first factor is $O_p(n^{-1/2})$ by Lemma~\ref{lem:findim}
+at $j=\mu$, and the second has population mean
+$\E[\{1-\ez\}g\mathbf1_m]
+=\E[\{1-\ez\}b\mathbf1_m]-(\Pi^\nu_{\tau_\mu}b)\restriction_m
+ \E[\{1-\ez\}\mathbf1_m]=0$ exactly, by the definition of the control-weighted
+leaf average --- this is what the choice of constant in Step~(i.3) buys --- and
+bounded variance, so it is $O_p(n^{-1/2})$ by
+Assumptions~\ref{ass:iid} and~\ref{ass:moments}. No independence between the
+factors is needed: a product of two $O_p(n^{-1/2})$ terms on a common
+probability space is $O_p(n^{-1})$, as in the proof of Lemma~\ref{lem:U}.
+Summing over at most $\bar L$ leaves, the second sum is $O_p(\bar L/n)$.
+
+\emph{(i.5) The term $T_r$.} Both $\what$ and $w_*$ are
+$\tau^\dagger_e$-leaf-constant, hence so is $r$. Set
+$M_n:=\max_{\ell'\in\tau^\dagger_e}\abs{r\restriction_{\ell'}}$. By
+Lemma~\ref{lem:findim} at $j=e$ and $\tau=\tau^\dagger_e$, for which no
+membership in $\cS_e$ is assumed,
+$\max_{\ell'}\abs{\ehat^{\mathrm{pre}}\restriction_{\ell'}
+-e_*\restriction_{\ell'}}=O_p(n^{-1/2})$, recalling
+$e_*=\Pi_{\tau^\dagger_e}\ez$. Clipping preserves this: $e_*\in[0,1-c]$ because
+$\ez\in[0,1-c]$ pointwise by Assumption~\ref{ass:causal} and $e_*$ is an average of
+its values, and the Euclidean projection onto $[0,1-c]$ fixes every point of that
+interval, so the argument of Lemma~\ref{lem:clip} applies, with
+$e_*\restriction_{\ell'}$ in place of $\ez(x)$. Since
+$\ehat\restriction_{\ell'},e_*\restriction_{\ell'}\in[0,1-c]$, on which
+$u\mapsto u/(1-u)$ has derivative at most $c^{-2}$, the mean value theorem gives
+$M_n\le c^{-2}\max_{\ell'}\abs{\ehat\restriction_{\ell'}
+-e_*\restriction_{\ell'}}=O_p(n^{-1/2})$.
+
+Now recentre $T_r$ within the leaves of $\tau_\mu$ exactly as in Step~(i.3),
+this time using the control-observation average $\bar r_m$, and substitute as in
+Step~(i.4); the inner sums $\sum_{i\in m,A_i=0}\alpha_i$ vanish exactly, where
+$\alpha_i:=r(X_i)-\bar r_{m(i)}$, so
+$T_r=n^{-1}\sum_{i:A_i=0}\alpha_i\varepsilon_i$ exactly. For fixed
+$(\tau^\dagger_e,\tau_\mu)$ the $\alpha_i$ are
+$\sigma(X_{1:n},A_{1:n})$-measurable, so by Assumption~\ref{ass:iid},
+$\E[T_r\mid X,A]=0$ and
+$\Var(T_r\mid X,A)\le C_Yn^{-2}\sum_{i:A_i=0}\alpha_i^2$, and centring within a
+leaf being an $\ell_2$ projection,
+$\sum_{i:A_i=0}\alpha_i^2\le\sum_{i:A_i=0}r(X_i)^2\le nM_n^2$. Fixing
+$\tau_\mu$ is load-bearing here for the same reason as in Step~3 of the proof of
+Lemma~\ref{lem:cross}: were it replaced by $\that_\mu$, the $\alpha_i$ would
+depend on $\{Y_i:A_i=0\}$ and the cancellation would fail. Conditional
+Chebyshev gives, for every $t>0$ and $K>0$,
+\[
+  \PP\bigl(\abs{T_r}>t\bigr)\le\PP\bigl(M_n>Kn^{-1/2}\bigr)
+   +\frac{C_YK^2}{n^2t^2} .
+\]
+Given $\eta>0$ choose $K$ with $\PP(M_n>Kn^{-1/2})<\eta$ for all large $n$,
+which is possible since $M_n=O_p(n^{-1/2})$; taking $t=\delta/n$ and then
+$\delta$ large makes the right-hand side at most $2\eta$. Hence
+$\abs{T_r}=O_p(n^{-1})$.
+
+\emph{(i.6) Assembly.} Combining (i.1)--(i.5) in~\eqref{eq:onesided-start},
+\[
+  \pihat\{\thetahat(\tau^\dagger_e,\tau_\mu)-\theta_0\}
+  =\Pn\bigl[\phi(\cdot;\eta_0)-(1-A)g\varepsilon\bigr]+O_p(\bar L/n)
+  =\Pn\phi(\cdot;\theta_0,\etatil_{\tau_\mu})+O_p(\bar L/n),
+\]
+the last equality being the identity of the ``mean zero'' step above, since
+$\wtil_{\tau_\mu}-\wz=g$ and $\mtil_{\tau_\mu}=\mz$.
+
+\medskip
+\noindent\textbf{Case (ii): propensity sufficient.} Here $\tau_e\in\cS_e$ and
+$\tau_\mu=\tau^\dagger_\mu$. All statements are additionally on the event, of
+probability tending to one by Remark~\ref{rem:clip-margin} under
+Assumption~\ref{ass:clip-margin}, on which clipping is inactive at every leaf of
+$\tau_e$, so that $\what\restriction_\ell=n_{1,\ell}/n_{0,\ell}$ exactly.
+
+\emph{(ii.1) An exact algebraic identity.} For a leaf $\ell$ of $\tau_e$, $\ez$
+is $P$-a.s.\ constant on $\ell$, so
+$\Pn[h\mathbf1_\ell]
+=n^{-1}\{\wz\restriction_\ell n_{0,\ell}-n_{1,\ell}\}
+=-n^{-1}n_{0,\ell}\Delta w\restriction_\ell$, using
+$n_{1,\ell}=\what\restriction_\ell n_{0,\ell}$. Equivalently
+$\Pn[\{(1-A)\what-A\}\mathbf1_\ell]=0$: the counting identity
+$n_{1,\ell}-n_{0,\ell}(n_{1,\ell}/n_{0,\ell})=0$, not a conditional-mean
+argument. Since $\E[h\mathbf1_\ell]=0$ and $\E[h^2\mid X]$ is bounded as
+computed in the proof of Lemma~\ref{lem:U}, $\Pn[h\mathbf1_\ell]=O_p(n^{-1/2})$,
+and since $n_{0,\ell}/n\to_pq_\ell:=\PP(A=0,X\in\ell)>0$ we obtain
+$\Delta w\restriction_\ell=O_p(n^{-1/2})$.
+
+\emph{(ii.2) Splitting $U$.} Write $\Delta\mu=a+\rho$ with $a=\mu_*-\mz$ fixed
+and bounded, and $\rho:=\mhat-\mu_*$, which \emph{is}
+$\tau^\dagger_\mu$-leaf-constant, so that
+$\max_{m}\abs{\rho\restriction_m}=O_p(n^{-1/2})$ by Lemma~\ref{lem:findim} at
+$j=\mu$ and $\tau=\tau^\dagger_\mu$, again with no membership in $\cS_\mu$
+assumed. Decompose $a=\bar a+d$ with $\bar a:=\Pi^\nu_{\tau_e}a$, which is
+$\tau_e$-leaf-constant, and $d=(I-\Pi^\nu_{\tau_e})a$. Then, exactly,
+\[
+  U=\sum_{\ell\in\tau_e}\bar a\restriction_\ell\,\Pn[h\mathbf1_\ell]
+   +\Pn[hd]+\Pn[h\rho]
+  =-\sum_{\ell\in\tau_e}\bar a\restriction_\ell\,
+    \frac{n_{0,\ell}}n\Delta w\restriction_\ell+\Pn[hd]+\Pn[h\rho],
+\]
+the second equality by Step~(ii.1). The term $\Pn[h\rho]$ is the
+population-projection-versus-sample-refit remainder: $\rho$ is
+$\tau^\dagger_\mu$-leaf-constant, so
+$\Pn[h\rho]=\sum_m\rho\restriction_m\Pn[h\mathbf1_m]$ with
+$\E[h\mathbf1_m]=0$, hence $\Pn[h\mathbf1_m]=O_p(n^{-1/2})$, and a product of
+two $O_p(n^{-1/2})$ terms summed over at most $\bar L$ leaves gives
+$\Pn[h\rho]=O_p(\bar L/n)$.
+
+\emph{(ii.3) Expanding $T$.} Since $\Delta w$ is $\tau_e$-leaf-constant,
+$T=\sum_{\ell\in\tau_e}\Delta w\restriction_\ell
+\Pn[(1-A)\mathbf1_\ell\{Y-\mhat\}]$, and
+$Y-\mhat=\varepsilon-a-\rho$ identically, so
+\[
+  T=\sum_{\ell}\Delta w\restriction_\ell
+   \Bigl\{\Pn[(1-A)\mathbf1_\ell\varepsilon]
+    -q_\ell\bar a\restriction_\ell-\beta_\ell
+    -\Pn[(1-A)\mathbf1_\ell\rho]\Bigr\},
+\]
+where $\beta_\ell:=\Pn[(1-A)\mathbf1_\ell a]-q_\ell\bar a\restriction_\ell$ and
+we used $\E[(1-A)\mathbf1_\ell a]=\E[\{1-\ez\}a\mathbf1_\ell]
+=q_\ell(\Pi^\nu_{\tau_e}a)\restriction_\ell$ exactly. Of the four inner terms,
+the second, $-q_\ell\bar a\restriction_\ell$, is a deterministic $O(1)$
+constant, retained below; the remaining three --- the first, third, and
+fourth --- are each
+$O_p(n^{-1/2})$: the first and the third have mean zero and bounded
+variance; the fourth is bounded in absolute value by
+$\max_m\abs{\rho\restriction_m}$. Multiplying by
+$\Delta w\restriction_\ell=O_p(n^{-1/2})$ and summing over at most $\bar L$
+leaves,
+$T=-\sum_\ell\Delta w\restriction_\ell q_\ell\bar a\restriction_\ell
++O_p(\bar L/n)$.
+
+\emph{(ii.4) Cancellation and assembly.} Subtracting,
+\[
+  U-T=\sum_{\ell\in\tau_e}\bar a\restriction_\ell\,
+   \Delta w\restriction_\ell\Bigl\{q_\ell-\frac{n_{0,\ell}}n\Bigr\}
+   +\Pn[hd]+O_p(\bar L/n)=\Pn[hd]+O_p(\bar L/n),
+\]
+since $\bar a$ is bounded, $q_\ell-n_{0,\ell}/n=O_p(n^{-1/2})$ by
+Assumption~\ref{ass:iid}, and $\Delta w\restriction_\ell=O_p(n^{-1/2})$ by
+Step~(ii.1). The parallel component $\bar a$ has cancelled exactly to first
+order, between the leaf-odds identity in $U$ and the leaf residual in $T$; only
+the orthogonal component $d$ survives. Hence, by~\eqref{eq:onesided-start} and
+the identity $\phi(\cdot;\theta_0,\etatil_{\tau_e})=\phi(\cdot;\eta_0)+hd$,
+\[
+  \pihat\{\thetahat(\tau_e,\tau^\dagger_\mu)-\theta_0\}
+  =\Pn\phi(\cdot;\theta_0,\etatil_{\tau_e})+O_p(\bar L/n).
+\]
+
+\medskip
+\noindent\textbf{From the fixed pair to the conclusion.}
+
+\emph{Part~(a).} In both cases, dividing by $\pihat$ and multiplying by
+$\sqrt n$,
+\[
+  \sqrt n\{\thetahat(\tau_e,\tau_\mu)-\theta_0\}
+  =\frac\pi{\pihat}\sqrt n\,\Pn\psi(\cdot;\theta_0,\etatil_\tau)
+   +\frac{\sqrt n\,O_p(\bar L/n)}{\pihat},
+\]
+exactly, for each fixed pair. Since $\pihat\to_p\pi>0$ by
+Assumptions~\ref{ass:iid} and~\ref{ass:causal}, $1/\pihat=O_p(1)$ and the second
+term is $o_p(1)$, $\bar L$ being fixed by Assumption~\ref{ass:budget}. For the
+first, write, with no series expansion, $\pi/\pihat-1=-(\pihat-\pi)/\pihat
+=O_p(n^{-1/2})$; and $\sqrt n\Pn\psi(\cdot;\theta_0,\etatil_\tau)=O_p(1)$ by the
+mean-zero and finite-variance facts established above, so
+$(\pi/\pihat-1)\sqrt n\Pn\psi(\cdot;\theta_0,\etatil_\tau)=O_p(n^{-1/2})$.
+Subtracting $\sqrt n\Pn\psi(\cdot;\theta_0,\etatil_\tau)$, taking the maximum of
+the absolute value over $\cF$ and applying the triangle inequality, the family
+is finite by Assumption~\ref{ass:budget} and a maximum of finitely many $o_p(1)$
+terms is $o_p(1)$ by a union bound over an index set whose cardinality does not
+grow with $n$.
+
+\emph{Part~(b).} On the sufficient side, Lemma~\ref{lem:selection} in the
+per-$j$ form of Remark~\ref{rem:onesided-perj} gives
+$\PP(\that_j\in\cS_j)\to1$. On the pseudo-true side $j'$, feasibility of
+$\tau^\dagger_{j'}$ holds with probability tending to one, since every leaf of
+every $\tau\in\cT_{\bar L}$ has positive population mass and positive control
+mass while $m_n/n\to0$ under Assumption~\ref{ass:construct}(d); and Steps~2
+and~3 of the proof of Lemma~\ref{lem:selection}, which use no sparsity, give
+$\max_{\tau,\tau'\in\cT_{\bar L}}\lvert\{R^{(j')}_n(\tau)-R^{(j')}_n(\tau')\}
+-\{R^{(j')}(\tau)-R^{(j')}(\tau')\}\rvert=o_p(1)$ and
+$\sup_\tau\lambda_n\card\tau=o(1)$. With the strict margin
+$\Delta^\dagger_{j'}>0$ of Assumption~\ref{ass:pseudo-onesided} and exact global
+optimisation over the feasible set (Assumption~\ref{ass:global}), the argument
+of Step~4 of that proof gives
+$\PP(\that_{j'}=\tau^\dagger_{j'})\to1$. In case~(ii), intersect with the
+clipping event of Remark~\ref{rem:clip-margin}. A union bound gives
+$\PP(E_n)\to1$.
+
+Part~(a) concerns the deterministic, data-independent family $\cF$: it asserts
+that a single random quantity, the maximum over that family, is $o_p(1)$. On
+$E_n$ the realised pair is some member of $\cF$ --- which member may depend on
+the data --- so, exactly as in the proof of Theorem~\ref{thm:main}, on $E_n$,
+\[
+  \bigl\lvert\sqrt n(\thetahat-\theta_0)
+   -\sqrt n\,\Pn\psi(\cdot;\theta_0,\etatil_{\that})\bigr\rvert
+  \le\max_{\cF}\bigl\lvert\sqrt n\{\thetahat(\tau)-\theta_0\}
+   -\sqrt n\,\Pn\psi(\cdot;\theta_0,\etatil_\tau)\bigr\rvert ,
+\]
+whence $\PP(\text{left side}>\epsilon)\le\PP(E^c_n)
++\PP(\text{right side}>\epsilon)\to0$ for every $\epsilon>0$. No conditioning on
+$E_n$, and none on any event $\{\that=\tau\}$, is used.
+
+\emph{Part~(c).} Intersecting $E_n$ with $\{\that=\tau^\bullet\}$, whose
+probability tends to one by hypothesis, part~(b) reads
+$\sqrt n(\thetahat-\theta_0)=\sqrt n\Pn\psi(\cdot;\theta_0,\etatil)+o_p(1)$ with
+$\etatil=\etatil_{\tau^\bullet}$ fixed. The summands of
+$\Pn\psi(\cdot;\theta_0,\etatil)$ are i.i.d.\ by Assumption~\ref{ass:iid}, mean
+zero and of finite variance as established above, so the ordinary
+Lindeberg--L\'evy central limit theorem applies and the limit is $N(0,\Vtil)$ with
+$\Vtil=\E[\psi(O;\theta_0,\etatil)^2]$. It remains to identify $\Vtil$. Since
+$A^2=A$ and $A(1-A)=0$, the two arms of~\eqref{eq:score} have disjoint support
+and
+\[
+  \pi^2\Vtil=\E\bigl[A\{Y-\mtil-\theta_0\}^2\bigr]
+   +\E\bigl[(1-A)\wtil^{\,2}\{Y-\mtil\}^2\bigr],
+\]
+with no cross term; conditioning the second expectation on $(A,X)$ and using
+$\E[\{Y-\mtil\}^2\mid A=0,X]=\sigma_0^2+(\mz-\mtil)^2$ gives the stated
+display.
+\end{proof}
+
+\begin{proof}[Proof of Corollaries~\ref{cor:onesided-mu}
+and~\ref{cor:onesided-e}]
+The influence functions and variance formulas are Lemma~\ref{lem:onesided}'s
+part~(c) with $\mtil=\mz$, respectively $\wtil=\wz$, substituted, using the
+identities $\phi(\cdot;\theta_0,\etatil)=\phi(\cdot;\eta_0)-(1-A)\{Y-\mz\}
+(I-\Pi^\nu_{\tau^\bullet})b$ and
+$\phi(\cdot;\theta_0,\etatil)=\phi(\cdot;\eta_0)+hd$ established in the proof.
+For the second display of Corollary~\ref{cor:onesided-e}, subtract
+$\pi^2V=\E[A\{Y-\mz-\theta_0\}^2]+\E[\{1-\ez\}\wz^2\sigma_0^2]$, which
+is~\eqref{eq:vdecomp} rearranged as in
+Remark~\ref{rem:onesided-collapse}: the treated arm contributes
+$\E[A\{-2d(Y-\mz-\theta_0)+d^2\}]=-2\E[\ez\Delta m\,d]+\E[\ez d^2]$, using
+$\E[Y\mid A=1,X]-\mz-\theta_0=\Delta m$, and the control arm contributes
+$\E[\{1-\ez\}\wz^2d^2]=\E[\ez^2d^2/(1-\ez)]$; adding,
+$\E[d^2\ez\{(1-\ez)+\ez\}/(1-\ez)]-2\E[\ez\Delta m\,d]$, which is the stated
+expression.
+
+For the variance estimators the route is that of
+Corollary~\ref{cor:variance}, with three inputs. First, on the event $E_n$ of
+Lemma~\ref{lem:onesided}(b) intersected with $\{\that=\tau^\bullet\}$, all
+partitions appearing are the fixed ones, so a union bound over the finite family
+of Assumption~\ref{ass:budget} reduces the claim to consistency at a fixed pair.
+Second, at a fixed pair, Lemma~\ref{lem:findim} gives
+$\Linf{\what-w_*}=o_p(1)$ and $\Linf{\mhat-\mu_*}=o_p(1)$ --- the latter with
+$\mu_*=\mz$ in case~(i) and the former with $w_*=\wz$ in case~(ii) --- and each
+leaf average appearing in $\wtil_n$ or $\mtil_n$ converges in probability to its
+population counterpart by Assumptions~\ref{ass:iid} and~\ref{ass:moments}
+together with the occupancy step of Lemma~\ref{lem:findim}: the control-arm leaf
+average of $\what$ over a leaf $m$ of $\tau^\bullet$ converges to
+$(\Pi^\nu_{\tau^\bullet}w_*)\restriction_m$, the ratio $n_{1,m}/n_{0,m}$ to
+$\PP(A=1,X\in m)/\PP(A=0,X\in m)=(\Pi^\nu_{\tau^\bullet}\wz)\restriction_m$, and
+the control-arm leaf average of $\mhat-Y$ over a leaf $\ell$ of $\tau^\bullet$
+to $(\Pi^\nu_{\tau^\bullet}a)\restriction_\ell$. Hence
+$\Linf{\wtil_n-\wtil}=o_p(1)$, respectively $\Linf{\mtil_n-\mtil}=o_p(1)$, using
+$\wtil=w_*-\Pi^\nu_{\tau^\bullet}w_*+\Pi^\nu_{\tau^\bullet}\wz$ and
+$\mtil=\mu_*-\Pi^\nu_{\tau^\bullet}a$. Third, $\thetahat\to_p\theta_0$ by
+Lemma~\ref{lem:onesided}. Since~\eqref{eq:vhat} is, by $A^2=A$ and $A(1-A)=0$, a
+sample average of $A\{\cdot\}^2+(1-A)\wtil_n^2\{\cdot\}^2$ with bounded-in-probability
+and
+uniformly convergent plug-ins, the weak law of large numbers gives
+$\Vhat_\dagger\to_p\pi^{-2}\E[\phi(O;\theta_0,\etatil)^2]=\Vtil$. Unlike~\eqref{eq:vhat}
+these summands do not have exactly zero sample mean, so $\Vhat_\dagger$ is an
+uncentred second moment; the centring is immaterial asymptotically because
+$\E\psi(\cdot;\theta_0,\etatil)=0$. Coverage then follows from
+Lemma~\ref{lem:onesided}(c), $\Vhat_\dagger\to_p\Vtil>0$, and Slutsky's theorem
+on
+$\{\Vhat_\dagger>0\}$, whose probability tends to one whenever $\Vtil>0$.
+\end{proof}
 
 \section{Proofs for Sections~\ref{sec:crossfit} and~\ref{sec:honest}}
 \label{app:honest}
