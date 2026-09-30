@@ -42,11 +42,17 @@ psi_att <- function(Y, A, theta, eta, pi_hat, e_min = NULL, e_max = NULL) {
     stop("pi_hat must be in (0, 1)")
   }
 
-  # Validate propensity scores are within acceptable bounds
-  # With clipping to [0.01, 0.99], e/(1-e) is bounded by [0.01, 99]
-  # Use strict inequalities since clamping may produce values exactly at bounds
-  if (any(e > 0.99) || any(e < 0.01)) {
-    stop("Propensity scores outside acceptable bounds [0.01, 0.99]. ",
+  # Validate propensity scores are within acceptable bounds.
+  # 2026-09-30: estimate_att() now clips ONE-SIDED (pmin(1 - clip_c, e_hat),
+  # no lower bound -- theory.tex: "e_0(x) = 0 is harmless", and two-sided
+  # clipping forfeits the one-sided clip's non-expansiveness "wherever
+  # e_0 < c"). This guard therefore only rejects the upper side (using the
+  # module's default clip constant as its own fixed backstop; term2 below is
+  # finite at e = 0 regardless, so a symmetric lower check was never load-
+  # bearing here) and a physically-impossible negative propensity.
+  if (any(e > 1 - .PROPENSITY_LOWER_BOUND) || any(e < 0)) {
+    stop("Propensity scores outside acceptable bounds [0, ",
+         1 - .PROPENSITY_LOWER_BOUND, "]. ",
          "This indicates numerical instability in the propensity model. ",
          "Check that propensity bounds are enforced at prediction time.",
          call. = FALSE)

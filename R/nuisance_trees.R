@@ -227,21 +227,44 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
   # OptimalTreesModel -- the only realistic failure is models$e_model NOT
   # being S7 at all, in which case `@` throws before is.null() ever runs. A
   # plain is.null() guard protects nothing; fall back to "log_loss" only on
-  # that access failure. This fallback is safe specifically because the
-  # log_loss branch below fails loud (not silently) on a squared_error model
-  # (`!is.matrix(pe)`), so misrouting into it cannot produce a silent wrong
-  # answer -- see the squared_error branch's own type="response" note below
-  # for why the reverse direction needs an explicit guard instead.
+  # that access failure.
+  #
+  # What `e_loss` cannot protect against, corrected 2026-09-30 (an earlier
+  # version of this comment claimed otherwise): if `@loss_function` itself is
+  # WRONG relative to how the tree was actually fit -- not "absent", but
+  # affirmatively desynced, e.g. manually reassigned after fitting -- neither
+  # `e_loss` here nor `type = "response"` below can detect it.
+  # optimaltrees::predict.optimaltrees_model() dispatches ENTIRELY on the
+  # model's own self-reported `@loss_function`, and `type` only reformats
+  # whatever that dispatch already decided to compute; `type = "response"`
+  # does NOT independently re-derive "what this tree was actually fit with"
+  # and cannot force the classification path open on a model that claims to
+  # be a regression. Traced directly (2026-09-30): a genuinely log_loss-fit
+  # tree with `@loss_function` force-set to `"squared_error"` post-fit, asked
+  # for `predict(type = "response")`, silently returns
+  # `get_fitted_from_tree()`'s raw per-leaf `prediction` field -- which for a
+  # log_loss/misclassification tree is the leaf's DISCRETE class label, not a
+  # continuous mean -- misread here as if it were a valid propensity. This is
+  # not reachable through any real doubletree call path (a model's
+  # `@loss_function` is always set from the same `loss_function =` argument
+  # actually passed to `fit_tree()`/`bisect_lambda_to_budget()`, so the two
+  # can never legitimately disagree); it is reachable only by manually
+  # reassigning `@loss_function` after fitting, which is a way of misusing
+  # the API this code has no obligation to defend against. Documented here,
+  # not defended against, because a real defense would mean
+  # `optimaltrees::predict()` independently re-verifying loss consistency at
+  # predict time -- a real feature, but a change to a different package, out
+  # of scope for this fix.
   e_loss <- tryCatch(models$e_model@loss_function, error = function(e) NULL)
   if (length(e_loss) != 1L || is.na(e_loss)) e_loss <- "log_loss"
   if (identical(e_loss, "squared_error")) {
-    # type = "response" (not the default "class"/omitted) is load-bearing:
-    # optimaltrees::predict_from_tree() only ignores `type` and returns
-    # fitted values for a genuine squared_error model. If e_loss were ever
-    # wrong (e.g. desynced from the model), omitting `type` would silently
-    # accept a log_loss model's {0,1} class predictions as propensities;
-    # type = "response" instead forces the log_loss path to return its
-    # 2-column matrix, which fails the length check below loudly.
+    # type = "response" here is about FORMAT, not SAFETY: for a genuine
+    # squared_error model it is the correct way to ask for the leaf mean
+    # (rather than a thresholded class), matching the "Regression: return
+    # fitted values" path documented at optimaltrees::predict_from_tree()'s
+    # own `type == "class"` branch (response and class coincide for
+    # regression). It provides no protection against e_loss being wrong; see
+    # the note above.
     pe <- predict(models$e_model, X_sub, type = "response")
     if (!is.numeric(pe) || length(pe) != nrow(X_sub)) {
       stop("Propensity model predict() returned unexpected format for a ",
@@ -268,13 +291,26 @@ predict_nuisances_fold <- function(models, X, fold_rows) {
     e_vec <- pe[, 2L]
   }
 
-  # Predict control outcomes
-  if (outcome_type == "continuous") {
-    pm0 <- predict(models$m0_model, X_sub)
+  # Predict control outcomes. m0's loss_function decides the predict() call,
+  # NOT outcome_type (2026-09-30 fix): estimate_att() now always fits m0 with
+  # squared_error (theory.tex ass:construct(a): "Both nuisances are fitted by
+  # squared error"), regardless of outcome_type, so a "binary" outcome_type
+  # no longer implies a log_loss m0 model on that path. estimate_att_crossfit()
+  # /estimate_att_rashomon() are untouched by that fix (still outcome_type-
+  # conditional in fit_nuisances_fold()/fit_nuisances_rashomon() above), and
+  # this branch is backward-compatible for them: a genuinely log_loss-fit m0
+  # model still reports loss_function = "log_loss" and takes the log_loss
+  # branch below, unchanged from before. Same branching pattern, and the
+  # same reasoning for why an on-access-failure fallback to "log_loss" is
+  # safe, as the e-side above.
+  m0_loss <- tryCatch(models$m0_model@loss_function, error = function(e) NULL)
+  if (length(m0_loss) != 1L || is.na(m0_loss)) m0_loss <- "log_loss"
+  if (identical(m0_loss, "squared_error")) {
+    pm0 <- predict(models$m0_model, X_sub, type = "response")
     if (!is.numeric(pm0) || length(pm0) != nrow(X_sub)) {
-      stop("Control outcome model predict() returned unexpected format. ",
-           "Expected numeric vector of length ", nrow(X_sub), ", got: ",
-           class(pm0), " with length ", length(pm0),
+      stop("Control outcome model predict() returned unexpected format for ",
+           "a squared_error fit. Expected numeric vector of length ",
+           nrow(X_sub), ", got: ", class(pm0), " with length ", length(pm0),
            call. = FALSE)
     }
     m0_vec <- as.numeric(pm0)

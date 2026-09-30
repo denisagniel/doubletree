@@ -34,8 +34,10 @@ test_that("estimate_att returns the documented list structure and runs on binary
   expect_length(fit$score_values, n)
   expect_equal(fit$n, n)
   expect_equal(fit$leaf_budget, 4L)
-  expect_equal(fit$m_n, 1L)
-  # Default lambda_n resolves to log(n)/n (prop:parsimony-compatible rate).
+  expect_equal(fit$m_n, as.integer(ceiling(sqrt(n))))
+  # Default lambda_n resolves to log(n)/n (prop:parsimony-compatible rate);
+  # this is the RATE returned, not the root-loss-relative value actually
+  # passed to each tree (see fit$lambda_e / fit$lambda_m0).
   expect_equal(fit$lambda_n, log(n) / n)
 
   # Sparsity-proxy diagnostics are present but never auto-acted on.
