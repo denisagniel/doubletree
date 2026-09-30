@@ -122,16 +122,43 @@ config_estimator <- "att"
 ## The leaf budget Lbar (estimate_att()'s `leaf_budget`, required, no default).
 ## A FIXED, analyst-chosen structural parameter, constant in n. Raised from
 ## 4L (doubletree's own README/test-suite worked example) to 15L, PI decision
-## 2026-09-28: a much larger budget relaxes how sparse a representation
-## grid-exact sparsity (ass:sparsity) demands of both nuisances on the
-## 2^15-atom grid the 15 binary covariates generate -- 15 is still <<
-## 32768, so the grid is not exhausted, but the assumption is looser (more
-## plausible for messier real nuisances) than at 4. It is an analysis
-## decision, not a dataset fact, so it lives here. NOTE: runtime grows with
-## leaf_budget for both estimators (optimaltrees' GOSDT-style search), and
-## estimate_att_crossfit() pays this K times over plus its cv_regularization
-## sweep -- see 07_estimate_att.R's header.
-config_leaf_budget <- 15L
+## 2026-09-28 -- then to 16L, 2026-09-30, superseding that decision after a
+## real-data hang traced the actual driver: `max_depth` defaults to
+## `leaf_budget - 1` (14, for the old 15L), not `ceiling(log2(leaf_budget))`
+## (4) -- the toy-fixture timing curve that motivated 15L varied depth and
+## leaf count together and never isolated which one was expensive. 16 = 2^4
+## paired with config_max_depth = 4L below guarantees the bisection search
+## needs exactly ONE fit per nuisance (no escalation possible), and matches
+## estimate_att_crossfit()'s own max_depth = 4L default, making the two
+## estimators' reported discrepancy a comparison of comparable search
+## classes for the first time. Cost, stated plainly: at 16/4, `certified_e`/
+## `certified_m0` become vacuously TRUE by construction (Oracle-verified,
+## 2026-09-30) -- the diagnostics licence confirmed 2026-09-30 stops
+## carrying information under this exact config. If the timing probe
+## (91_leaf_budget_feasibility.R, re-run against the REAL cohort, not yet
+## done as of this writing) shows depth-4 search is cheap at this n, 15L
+## paired with max_depth = 4L is a real alternative that keeps the licence
+## non-vacuous, at the cost of up to ~42 fits instead of 1 -- a PI call to
+## make from the probe's measured time, not in advance. Grid-exact sparsity
+## (ass:sparsity) is looser (more plausible) the larger this is, on the
+## 2^15-atom grid the 15 binary covariates generate; 16 is still << 32768.
+config_leaf_budget <- 16L
+
+## The search depth cap (estimate_att()'s `max_depth`, forwarded via `...` to
+## optimaltrees::bisect_lambda_to_budget()). Paired with `depth_restricted =
+## TRUE` in 07_estimate_att.R's estimate_att() call (required whenever
+## max_depth < leaf_budget - 1) and `model_limit = 0L` (undoes a separate,
+## confirmed false-positive high-dimensionality warning that would otherwise
+## set model_limit = 1e6 instead of the "low-dimension, single-tree,
+## unlimited" branch that actually applies at 15 already-binary covariates).
+## What this excludes, stated precisely (Oracle-verified, 2026-09-30): every
+## tree in which some leaf is defined by 5 or more of the 15 covariate
+## flags along one path -- NOT a restriction to only 4 covariates overall;
+## different branches can still reference up to all 15. The excluded
+## topologies are the deep chain-shaped ones (a 16-leaf chain has depth 15),
+## which this application's 15-covariate, clinically-curated design is not
+## plausibly powered to require anyway.
+config_max_depth <- 4L
 
 ## K for the cross-fitting companion estimate.
 config_crossfit_k <- 5L

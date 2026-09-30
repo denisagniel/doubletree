@@ -13,14 +13,25 @@
 ## same 15-column shape as the real design matrix), estimate_att() runtime grew
 ## steeply, not linearly, with leaf_budget: 4.8s at leaf_budget=4, 94.5s at
 ## leaf_budget=6, still running past 5+ minutes at leaf_budget=15 (killed).
-## That is on 400 TOY rows -- optimaltrees' GOSDT-style search cost is driven
-## by the tree-structure space (leaf budget x covariate count), not
-## meaningfully eased by n. Running the real ~250k-patient cohort at
-## config_leaf_budget straight into 07's full estimate_att() +
-## estimate_att_crossfit(K=5) pass, with no prior timing signal, risks
-## discovering an infeasible budget only AFTER 03's multi-hour, 171.5GB
-## cost-streaming pass has already been paid for -- 07 is the LAST stage.
-## This script is the five-minute check that avoids that.
+## CORRECTED READ, 2026-09-30: that curve is CONFOUNDED, not clean evidence
+## against a large leaf_budget per se -- max_depth defaults to
+## leaf_budget - 1 (not ceiling(log2(leaf_budget))), so the old runs varied
+## depth (3, 5, 14) and leaf count together. _config.R's
+## config_leaf_budget/config_max_depth = 16L/4L pairing, used below, fixes
+## depth at 4 regardless of leaf_budget, which the real-cohort trace
+## (application/07_log.R, this session) plus a matching real experiment in
+## quality_reports/plans/2026-09-01_two-stage-package-defaults-session.md
+## (leaf_budget=15 target, max_depth=4, binary covariates: ~90s) both point
+## to being cheap -- but that has NOT yet been confirmed against the real
+## cohort by this script; that confirmation is this run's whole point.
+## optimaltrees' GOSDT-style search cost is driven by the tree-structure
+## space (leaf budget x depth x covariate count), not meaningfully eased by
+## n. Running the real ~250k-patient cohort at config_leaf_budget straight
+## into 07's full estimate_att() + estimate_att_crossfit(K=5) pass, with no
+## prior timing signal, risks discovering an infeasible budget only AFTER
+## 03's multi-hour, 171.5GB cost-streaming pass has already been paid for --
+## 07 is the LAST stage. This script is the five-minute check that avoids
+## that.
 ##
 ## SCOPE, DELIBERATELY NARROW. Only estimate_att() (the flagship), not
 ## estimate_att_crossfit() (K=5 trees plus its own cv_regularization sweep --
@@ -147,7 +158,10 @@ fit <- tryCatch(
     doubletree::estimate_att(
       X = X, A = A, Y = Y,
       leaf_budget = config_leaf_budget,
-      outcome_type = "continuous"
+      outcome_type = "continuous",
+      max_depth = config_max_depth,
+      depth_restricted = TRUE,
+      model_limit = 0L
     )
   },
   error = function(e) {

@@ -43,14 +43,16 @@
 ## post-selection inference the paper does not analyse.
 ##
 ## Run time when unblocked: both paths fit optimal trees via optimaltrees (GOSDT).
-## Cost grows with the number of binary columns and the leaf budget; raised from
-## 4L to config_leaf_budget = 15L (PI, 2026-09-28), so expect BOTH paths to run
-## markedly slower than at the old value -- GOSDT-style search cost typically
-## grows steeply, not linearly, with the leaf budget. The crossfit path fits 2K
-## trees rather than 2, and its cv_regularization sweep multiplies that again.
-## Budget accordingly -- treat the first real run at leaf_budget = 15 as its own
-## timing unknown, not a scaled-up version of the leaf_budget = 4 runs already
-## timed at Tier 0.
+## config_leaf_budget/config_max_depth = 16L/4L (PI+Oracle, 2026-09-30,
+## superseding 2026-09-28's 15L/default-14) guarantees the flagship's
+## bisection needs exactly ONE fit per nuisance (16 = 2^4, so the budget
+## cannot be overshot) -- see _config.R for the full rationale and the
+## real-data-hang trace that motivated it. The crossfit path fits 2K trees
+## rather than 2, and its cv_regularization sweep multiplies that again;
+## it is NOT covered by this fix (a separate, confirmed root-loss-scale bug
+## in optimaltrees::cv_regularization_adaptive() remains open there,
+## crossfit explicitly de-prioritized 2026-09-30) -- budget its own timing
+## as unknown, not a scaled-up version of anything already measured.
 ## ============================================================================
 
 app_dir <- if (dir.exists("application")) "application" else "."
@@ -106,7 +108,12 @@ cli::cli_alert_info(
 fit_att <- doubletree::estimate_att(
   X = X, A = A, Y = Y,
   leaf_budget = config_leaf_budget,
-  outcome_type = "continuous"
+  outcome_type = "continuous",
+  max_depth = config_max_depth,
+  depth_restricted = TRUE,   # required whenever max_depth < leaf_budget - 1
+  model_limit = 0L           # undoes fit_tree()'s worst-case-continuous
+                              # feature-count heuristic (real X is already
+                              # binary; see application/README.md's `07` row)
 )
 
 cli::cli_h2("estimate_att() -- flagship, requires grid-exact sparsity")
@@ -129,6 +136,27 @@ cli::cli_alert_info(
    {fit_att$used_search_m0}; gaps: {signif(fit_att$gap_e, 3)},
    {signif(fit_att$gap_m0, 3)}"
 )
+cli::cli_alert_info(
+  "any_truncated_e = {fit_att$any_truncated_e}, any_truncated_m0 =
+   {fit_att$any_truncated_m0}; clip_rate_e = {signif(fit_att$clip_rate_e, 3)}"
+)
+if (isTRUE(fit_att$any_truncated_e) || isTRUE(fit_att$any_truncated_m0)) {
+  cli::cli_alert_warning(
+    "A truncated fit's incumbent is not proven optimal -- this breaks the
+     premise certified_* relies on for that tree even if certified_* itself
+     still reads TRUE. Treat this as its own failure mode, distinct from
+     certified_* == FALSE, not something the licence below already covers."
+  )
+}
+## certified_e/certified_m0 are VACUOUS BY CONSTRUCTION at
+## config_leaf_budget/config_max_depth = 16L/4L (Oracle-verified,
+## 2026-09-30): 16 = 2^4 means the search cannot overshoot the budget, so
+## the FIRST fit always satisfies case (ii) of the selection certificate
+## and certified reads TRUE regardless of what the data actually looks
+## like. This is the licence's real cost at this exact config -- see
+## _config.R's config_leaf_budget comment for the 15L/max_depth=4L
+## alternative that keeps the licence non-vacuous, and the probe that
+## should decide between them before this is treated as a reportable run.
 ## Also worth stating in the write-up rather than discovering in review: this
 ## path's `sigma` is the in-sample EIF plug-in and is downward biased by a
 ## relative factor of order (2 * leaf_budget + 1) / n, so the nominal 95%
