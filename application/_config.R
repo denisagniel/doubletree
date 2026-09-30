@@ -321,21 +321,43 @@ OPEN_DECISIONS <- list(
     note = "RESOLVED (PI, 2026-09-17): 'msr_code is always AAP in the msr_aap dataset' -- a measure-specific extract, not a combined all-measures file. Corroborated by contract evidence: msr_aap's MSR_NUM column carries the SAS label 'AAP_NUM'. IDENTICAL finding to dual-bounds' entry -- exposure A (inherited from dual-bounds) is now deterministic on this point. CORRECTION (2026-09-24, this repo, found while implementing 02_population_and_eligibility.R for real): the registry's claim that 'smidata::smi_select_aap_row()'s abort-on-tie behavior remains the safety net regardless' OVERSTATES that function's protection. Read smi_select_aap_row()'s actual source (~/RAND/tools/smidata/R/msr_aap.R): its winner-selection (candidates/winners) joins and groups on ID only and never references MSR at all except inside the tie-diagnostic message -- the abort fires ONLY when multiple rows tie at the exact same winning month_gap/row_month for one patient. A non-AAP row that is simply CLOSER in time to the target month than any true AAP row, with no tie, would be silently selected as the winner, corrupting elig_aap/aap_achieved for that patient with no abort and no warning. 02_population_and_eligibility.R now filters to AAP_MSR_CODE explicitly (below) and reports (does not silently trust) any exclusion, rather than relying on the abort-on-tie safety net this note previously (incorrectly) said was sufficient on its own. NOT YET propagated to smidata's actual dual-bounds__application.yml registry or to dual-bounds' own 02 -- both still carry the overstated claim and the identical silent-contamination exposure; see session_notes and the upstream item this should become."),
   diagnostics = list(
     question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
-    status = "open_decision", blocking_final = TRUE, value = NULL,
-    note = "PARTIALLY RESOLVED (PI, 2026-09-24): the GENERAL diagnostics
-      standard for this paper is now overlap/balance checks PLUS nuisance
-      fit examined against OLS/GLM competitors (analysis_plan.diagnostics,
-      smidata inst/analyses/doubletree__application.yml -- status: confirmed
-      as of 2026-09-24). That answer does NOT resolve THIS entry's narrower
-      question: which of estimate_att()'s own sparsity-proxy outputs
-      (certified_e, gap_e, etc.), at which numeric thresholds, license
-      reporting the flagship estimate rather than the cross-fit fallback.
-      The underlying assumption -- grid-exact sparsity -- is not checkable
-      from data, so no diagnostic can confirm it directly; the OLS/GLM
-      nuisance-fit comparison may end up informing which proxy thresholds
-      are trustworthy, but that is an inference to make once that
-      comparison exists, not a PI statement resolving this entry now. Still
-      open -- do not invent a threshold."),
+    status = "confirmed", blocking_final = FALSE,
+    value = "certified_e && certified_m0",
+    note = "RESOLVED (PI, 2026-09-30): certified_e AND certified_m0 must BOTH
+      be TRUE for this proxy to support grid-exact sparsity for the flagship
+      estimate_att() result. THIS IS A REPORTED FLAG, NOT AN ESTIMATOR SWITCH.
+      The question above is phrased as 'licenses reporting the flagship...
+      rather than the cross-fit fallback', but the PI's answer explicitly
+      rejects that framing: there is NO fallback to estimate_att_crossfit(),
+      silent or explicit. estimate_att() remains the paper's flagship (per
+      config_estimator) and estimate_att_crossfit() remains its
+      companion/discrepancy-check, unconditionally -- 07_estimate_att.R
+      already never auto-switches between them (see that file's header), and
+      this resolution does not change that. When the licence fails, that is a
+      signal that the discrepancy 07 already reports between estimate_att()
+      and estimate_att_crossfit() deserves particular scrutiny in the
+      write-up -- it is NOT an instruction to report
+      estimate_att_crossfit()'s number in place of estimate_att()'s. No
+      separate numeric threshold on gap_e/gap_m0 -- certified_* == TRUE
+      already implies gap == 0 in optimaltrees' convention, so a gap
+      threshold would be a second name for the same condition. used_search_*
+      and n_leaves_* stay purely descriptive. The PI explicitly acknowledged
+      the caveat this entry and 07_estimate_att.R already carried:
+      certified_* confirms the tree SEARCH provably solved eq:select at the
+      configured leaf_budget, NOT that leaf_budget is large enough to
+      represent the true nuisances exactly -- this rule is NECESSARY, not
+      sufficient, for grid-exact sparsity, and the 2026-09-24 GENERAL standard
+      (overlap/balance plus nuisance fit against OLS/GLM competitors, smidata
+      doubletree__application.yml) applies on top of it, not instead of it.
+      `value` is a human-readable LABEL for the rule, NOT a string to eval()
+      -- 07_estimate_att.R computes fit_att$certified_e && fit_att$certified_m0
+      directly and PRINTS whether the licence holds, the same
+      annotation-not-code distinction msr_code's entry and
+      tests/test-msr-filter.R already draw. 07 still does NOT auto-switch
+      estimator on this rule: the licence is reported for the human writing
+      the manuscript to interpret, never for substituting which number is
+      reported, because doing so would be the data-dependent post-selection
+      inference the paper does not analyse."),
   prior_cost_negative_floor = list(
     question = "How to treat patients whose pre-index prior_cost (sum of
       AMOUNT_PAID over [INDEX_DT-12mo, INDEX_DT)) is NEGATIVE -- claim
@@ -501,12 +523,14 @@ require_stage <- function(objects, script) {
 #' `07_estimate_att.R`, before any estimator call. NOT called from
 #' `06_assemble_analytic_data.R` (moved out 2026-09-24, design-reviewed by
 #' `oracle`): `06` assembles the analytic DATASET, and `diagnostics` -- the
-#' one decision still `blocking_final = TRUE` as of this writing -- is
+#' last decision to carry `blocking_final = TRUE`, resolved 2026-09-30 -- was
 #' specifically about which ESTIMATOR result to trust in `07`, not about
 #' whether the assembled data is correct. `06` instead branches on
 #' [has_blocking_open()] to choose a `_PROVISIONAL` filename suffix, so an
 #' inspectable intermediate artifact is reachable while the REPORTABLE
-#' (non-suffixed) one still is not.
+#' (non-suffixed) one still is not. As of 2026-09-30 every entry is
+#' `blocking_final = FALSE`, so this function passes and stays in place as a
+#' live regression guard, not a known stop.
 #'
 #' @return `invisible(TRUE)` if nothing blocks; otherwise aborts.
 assert_no_blocking_open <- function() {

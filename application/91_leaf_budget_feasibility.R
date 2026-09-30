@@ -4,11 +4,10 @@
 ## STANDALONE. Not part of the 01-07 cascade, and deliberately NOT gated by
 ## assert_no_blocking_open(): this measures WALL-CLOCK FEASIBILITY of
 ## estimate_att() at config_leaf_budget, on the real analytic data -- it does
-## NOT produce, print as final, or write a reportable theta. OPEN_DECISIONS$
-## diagnostics still blocks a REPORTABLE estimate (07_estimate_att.R still
-## aborts on it); this script exists so that gate's absence never gets
-## conflated with "the estimator can even finish at this budget," which is a
-## separate, purely computational question this script answers instead.
+## NOT produce, print as final, or write a reportable theta. It exists so
+## that "the gate passes" never gets conflated with "the estimator can even
+## finish at this budget," which is a separate, purely computational question
+## this script answers instead.
 ##
 ## WHY THIS EXISTS. Benchmarked on the 400-row Tier-0 toy fixture (helper-toy.R,
 ## same 15-column shape as the real design matrix), estimate_att() runtime grew
@@ -58,9 +57,9 @@ cli::cli_h1("91 -- leaf_budget feasibility probe (NOT a reportable estimate)")
 cli::cli_alert_warning(
   "This script deliberately does NOT check assert_no_blocking_open(). It
    measures whether estimate_att() can even FINISH at
-   {.code config_leaf_budget = {config_leaf_budget}} -- it does not produce,
-   and must never be treated as, a reportable ATT. OPEN_DECISIONS$diagnostics
-   still blocks that; see 07_estimate_att.R."
+   {.code config_leaf_budget = {config_leaf_budget}}. This probe applies no
+   diagnostics licence and reports no CI -- 07_estimate_att.R is the only
+   place a reportable ATT is produced."
 )
 
 if (!config_has_smidata) {
@@ -71,17 +70,21 @@ if (!config_has_smidata) {
   )
 }
 
-## ---- locate the analytic data: PROVISIONAL first, reportable as fallback ---
+## ---- locate the analytic data: REPORTABLE first, PROVISIONAL as a warned
+## fallback -----------------------------------------------------------------
 ##
-## As long as OPEN_DECISIONS$diagnostics blocks (true as of this writing),
-## 06 writes ONLY the _PROVISIONAL-suffixed file (has_blocking_open() is
-## TRUE) -- the non-suffixed "analytic_cohort.parquet" 07 itself reads does
-## not exist yet. Check both, PROVISIONAL first, so this script keeps
-## working unmodified once diagnostics resolves and 06 starts writing the
-## reportable name instead.
+## Order reversed 2026-09-30 when `diagnostics` resolved: 06 now writes the
+## un-suffixed name once nothing blocks, and any
+## analytic_cohort_PROVISIONAL.parquet still on disk predates that
+## resolution. Preferring it -- as this script originally did, back when
+## `diagnostics` was still open and only the PROVISIONAL file could exist --
+## would silently time a stale cohort, the exact silent fallback this
+## directory's conventions forbid. Falling back to it here is still allowed
+## (this is a feasibility probe, not a reportable run) but is now WARNED,
+## not silent.
 output_dir <- file.path(app_dir, "output")
 candidate_paths <- file.path(
-  output_dir, c("analytic_cohort_PROVISIONAL.parquet", "analytic_cohort.parquet")
+  output_dir, c("analytic_cohort.parquet", "analytic_cohort_PROVISIONAL.parquet")
 )
 data_path <- candidate_paths[fs::file_exists(candidate_paths)][1]
 if (is.na(data_path) || length(data_path) == 0L) {
@@ -92,6 +95,14 @@ if (is.na(data_path) || length(data_path) == 0L) {
            {.file run_pipeline.R}) first -- this script only TIMES
            estimate_att() on their output, it does not build it."
   ))
+}
+if (grepl("_PROVISIONAL", data_path, fixed = TRUE)) {
+  cli::cli_alert_warning(
+    "Timing the PROVISIONAL cohort -- no reportable
+     {.file analytic_cohort.parquet} exists yet. Acceptable for a feasibility
+     probe; re-run {.file 06_assemble_analytic_data.R} to time the reportable
+     sample instead."
+  )
 }
 cli::cli_alert_info("Reading {.file {data_path}}.")
 
@@ -164,8 +175,10 @@ if (is.null(fit)) {
      {fit$certified_m0}."
   )
   cli::cli_alert_warning(
-    "INFORMATIONAL ONLY -- not a reportable estimate (OPEN_DECISIONS$
-     diagnostics still open). theta from this run: {signif(fit$theta, 4)}."
+    "INFORMATIONAL ONLY -- not a reportable estimate. This script applies no
+     diagnostics licence and computes no CI; 07_estimate_att.R is the only
+     place a reportable ATT is produced. theta from this run:
+     {signif(fit$theta, 4)}."
   )
   cli::cli_alert_info(
     "estimate_att_crossfit(K = {config_crossfit_k}) in 07 fits

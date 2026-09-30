@@ -8,13 +8,21 @@
 ## R/estimate_att_crossfit.R in this package. `leaf_budget` is required and has
 ## no default; `outcome_type = "continuous"` because Y is dollars.
 ##
-## THIS SCRIPT ABORTS IMMEDIATELY TODAY, before loading anything. All four
-## blocking decisions bear on it: msr_code (A is nondeterministic),
-## cost_family_scope (Y may be double-counted, AND prior_cost's quartile
-## boundaries with it), enrollment_source (the analytic sample is empty), and
-## diagnostics (nothing specifies what licenses reporting the flagship estimate).
-## Running an estimator on top of those would produce a number, and the number
-## would be meaningless.
+## THE GATE IS NOW OPEN. As of 2026-09-30 all five OPEN_DECISIONS entries are
+## `status = "confirmed"` with no `blocking_final`, so assert_no_blocking_open()
+## below PASSES rather than aborting -- kept as a live regression guard, not as
+## a known stop. Last to resolve was `diagnostics`: certified_e AND
+## certified_m0 both TRUE means this proxy supports grid-exact sparsity for
+## the flagship estimate (PI, 2026-09-30). This is a REPORTED FLAG, NOT AN
+## ESTIMATOR SWITCH -- there is no fallback to estimate_att_crossfit(), silent
+## or explicit; the flagship stays the flagship (per config_estimator) and
+## crossfit stays its companion regardless of whether the licence holds. This
+## script prints whether it holds and still never switches estimator on it.
+##
+## PREREQUISITE, newly binding: this reads the UN-SUFFIXED
+## output/analytic_cohort.parquet, which 06 writes only once nothing blocks.
+## Any analytic_cohort_PROVISIONAL.parquet on disk predates the resolution --
+## re-run 06 first.
 ##
 ## WHY BOTH ESTIMATORS ARE ALWAYS REPORTED, regardless of config_estimator.
 ## estimate_att()'s validity rests on grid-exact sparsity (theory.tex
@@ -64,9 +72,18 @@ library(doubletree)
 
 set.seed(config_seed)
 
-analytic_data <- arrow::read_parquet(
-  file.path(app_dir, "output", "analytic_cohort.parquet")
-)
+analytic_path <- file.path(app_dir, "output", "analytic_cohort.parquet")
+if (!file.exists(analytic_path)) {
+  cli::cli_abort(c(
+    "No REPORTABLE analytic data at {.file {analytic_path}}.",
+    "i" = "06_assemble_analytic_data.R writes this un-suffixed name only once
+           nothing blocks. Any {.file analytic_cohort_PROVISIONAL.parquet}
+           beside it predates {.val diagnostics}' 2026-09-30 resolution --
+           re-run {.file 06_assemble_analytic_data.R}. Do not rename the
+           provisional file."
+  ))
+}
+analytic_data <- arrow::read_parquet(analytic_path)
 
 x_cols <- design_matrix_columns()
 X <- as.data.frame(analytic_data[, x_cols, drop = FALSE])
@@ -97,10 +114,11 @@ cli::cli_alert_info("theta = {signif(fit_att$theta, 4)}  (SE {signif(fit_att$sig
 cli::cli_alert_info("95% CI: [{signif(fit_att$ci_95[1], 4)}, {signif(fit_att$ci_95[2], 4)}]")
 
 ## Sparsity PROXIES, reported and never acted on automatically. Which of these
-## licenses reporting this estimate is OPEN_DECISIONS$diagnostics -- one of the
-## reasons the gate above blocks. Note what they can and cannot say: certified_*
-## means the returned fit provably solves eq:select, i.e. it is the right tree
-## for the budget; it does NOT mean the budget is large enough for the truth.
+## licenses reporting this estimate is OPEN_DECISIONS$diagnostics, RESOLVED
+## 2026-09-30 and evaluated explicitly below. Note what they can and cannot
+## say: certified_* means the returned fit provably solves eq:select, i.e. it
+## is the right tree for the budget; it does NOT mean the budget is large
+## enough for the truth.
 cli::cli_alert_info(
   "certified_e = {fit_att$certified_e}, certified_m0 = {fit_att$certified_m0};
    leaves: e = {fit_att$n_leaves_e}, m0 = {fit_att$n_leaves_m0} (budget
@@ -117,6 +135,34 @@ cli::cli_alert_info(
 ## interval can undercover at small n. estimate_att()'s own documentation says
 ## so; it is not implemented away because the fix would change the shared
 ## att_se() used by all three entry points.
+
+## The CONFIRMED diagnostics rule (OPEN_DECISIONS$diagnostics, PI 2026-09-30),
+## reported and still never acted on. Reporting the licence is not switching on
+## it: the flagship below stays config_estimator's, because auto-switching is
+## the post-selection inference this file's header rules out.
+flagship_licensed <- isTRUE(fit_att$certified_e) && isTRUE(fit_att$certified_m0)
+cli::cli_alert_info(
+  "Flagship licensed under the confirmed diagnostics rule
+   ({.val {confirmed_value('diagnostics')}}): {.val {flagship_licensed}}"
+)
+if (flagship_licensed) {
+  cli::cli_alert_info(
+    "Licence holds -- NECESSARY, not sufficient: certified_* says the search
+     provably solved eq:select at leaf_budget = {fit_att$leaf_budget}, not that
+     the budget is large enough for the true nuisances. The 2026-09-24 general
+     standard (overlap/balance, nuisance fit versus OLS/GLM) still applies."
+  )
+} else {
+  cli::cli_alert_warning(
+    "Licence FAILS -- certified_e and certified_m0 do not both hold, so this
+     proxy does not support grid-exact sparsity for the flagship estimate.
+     There is NO fallback to estimate_att_crossfit(), silent or explicit:
+     estimate_att() remains the flagship (per config_estimator below) and
+     estimate_att_crossfit() remains its companion, unconditionally. A failed
+     licence is a signal to scrutinize the discrepancy reported below, not an
+     instruction to report estimate_att_crossfit()'s number in its place."
+  )
+}
 
 ## ---- companion: estimate_att_crossfit() (no sparsity requirement) -----------
 ##

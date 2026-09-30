@@ -23,11 +23,11 @@
 ## roxygen already said it exists "to choose a _PROVISIONAL output suffix" --
 ## the helper was built for this and never used. `assert_no_blocking_open()`
 ## moved OUT of this script entirely (kept only in 07_estimate_att.R, where a
-## REPORTABLE estimate is produced): `diagnostics`, the one decision still
-## `blocking_final = TRUE` as of this writing, is specifically about which
-## ESTIMATOR result to trust in 07, not about whether the assembled DATA is
-## correct -- so it should not block an inspectable intermediate artifact
-## here, only the reportable one there. Every STRUCTURAL check (binary
+## REPORTABLE estimate is produced): `diagnostics` -- the last decision to
+## carry `blocking_final = TRUE`, resolved 2026-09-30 -- was specifically
+## about which ESTIMATOR result to trust in 07, not about whether the
+## assembled DATA is correct -- so it should not block an inspectable
+## intermediate artifact here, only the reportable one there. Every STRUCTURAL check (binary
 ## coding, no NA, both arms populated, nonzero rows) still aborts
 ## unconditionally, regardless of decision status -- a _PROVISIONAL file
 ## must not be a way to ship a broken matrix.
