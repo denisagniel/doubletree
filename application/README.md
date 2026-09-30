@@ -210,3 +210,8 @@ The confirmed design is recorded in
 is authoritative. Column names and row counts come from smidata snapshot `2026-09-15_2824080e`.
 The 15-column selection and `prior_cost`'s quartile discretization were confirmed by the PI on
 2026-09-17.
+
+**Shared dataset semantics** (MSR_YR format, `msr_aap`'s schizophrenia-subgroup scoping,
+SMI cohort ICD-10 definitions, cost-claims family structure) now live in
+`~/RAND/tools/smidata/inst/docs/DATA_DICTIONARY.md` and its `dictionary/` family files, added
+2026-09-28 — distinct from this file's own registry-recorded *decisions*.
