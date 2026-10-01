@@ -9,7 +9,7 @@
 ## guarded on 02-05 via `require_stage()`. Locally, the cascade correctly
 ## stops at 05_complete_case.R's own Tier-0 limitation (larger_smi_medicaid_
 ## monthly_flag's YEAR_MONTH has no real-data census levels, so the fixture
-## cannot exercise compute_complete_case() -- see that file's header): this
+## cannot exercise smidata::smi_enrollment_panel() -- see that file's header): this
 ## is an honest Tier-0 boundary, not a defect introduced here. On the server,
 ## the full chain reaches this script for real.
 ##

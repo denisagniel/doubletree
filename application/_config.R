@@ -258,7 +258,7 @@ SMI_KEYS <- list(
 #' `medicaid_monthly_flag`'s five columns are the full confirmed schema (see
 #' 90_checks_tier1.R CHECK 4 and smidata's inst/server/07_enrollment_coverage.R)
 #' minus `COHORT`, which this pipeline's own use
-#' (`helpers/complete_case.R::compute_complete_case()`) does not read.
+#' (`smidata::smi_enrollment_panel()`, since the 2026-10-01 migration) does not read.
 SMI_COLS <- list(
   covariates            = c("ID", "INDEX_DT"),
   aap                   = c("ID", "MSR", "MSR_YR", "MSR_DEN", "MSR_NUM"),

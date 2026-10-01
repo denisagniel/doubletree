@@ -13,7 +13,7 @@
 ## Stops wherever the real chain stops. Locally (Tier 0), that is inside
 ## 05_complete_case.R's own YEAR_MONTH limitation (larger_smi_medicaid_
 ## monthly_flag has no real-data census levels for that column, so the
-## fixture cannot exercise compute_complete_case() -- see that file's
+## fixture cannot exercise smidata::smi_enrollment_panel() -- see that file's
 ## header): 06 and 07 will correctly abort just past that point, which is an
 ## honest Tier-0 boundary, not a bug in this script. On the server, the full
 ## chain runs end to end.

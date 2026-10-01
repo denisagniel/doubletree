@@ -1,380 +1,211 @@
 ## ============================================================================
 ## application/tests/test-complete-case.R
 ##
-## parse_year_month(), ym_month_index(), and compute_complete_case(): the real
-## implementation behind OPEN_DECISIONS$enrollment_source's PI resolution
-## (application/_config.R, confirmed 2026-09-24).
+## THINNED 2026-10-01 by the smidata migration. The month-by-month logic this
+## file used to test -- parse_year_month(), ym_month_index(), and
+## compute_complete_case() -- now lives in smidata as
+## smi_parse_year_month() / smi_date_month_index() / smi_enrollment_panel() /
+## smi_enrollment_coverage(), and is tested there in
+## tests/testthat/test-enrollment.R (104 assertions).
 ##
-## Every expected value is HAND-CALCULATED and the calculation is stated, per
-## this directory's convention (see test-discretize-prior-cost.R's header).
-## window_months is kept small (3) throughout so every required-month set is
-## checkable by inspection; config_complete_case_months (24) is exercised
-## separately in the "uses the real config value" test at the bottom.
+## Those tests are NOT duplicated here. Same split the 0.2.0 msr_aap promotion
+## used (dual-bounds' 92 local assertions became 14 local + 78 package): the
+## package suite owns the dataset mechanics, this file owns the part that is
+## THIS PAPER'S -- the translation from OPEN_DECISIONS$enrollment_source to
+## smidata's explicit arguments, and the shape 06_assemble_analytic_data.R
+## depends on.
+##
+## Specifically moved OUT of this file, because they test smidata now:
+##   * YEAR_MONTH format parsing (both formats, mixed-format abort,
+##     out-of-range month, implausible year, NA, wrong input type)
+##   * month-index adjacency / day-of-month invariance / monotonicity
+##   * membership-not-a-count, including the mid-month INDEX_DT window shift
+##   * out-of-window rows not leaking in to satisfy coverage
+##   * the absent-patient and all-absent cases, and the tally internals
+##   * the TYPE-disagreement abort
+##
+## What stays: everything whose expected value depends on a doubletree
+## DECISION rather than on the dataset.
 ## ============================================================================
 
-## ---- parse_year_month() -----------------------------------------------------
+skip_if_not_installed("smidata")
 
-test_that("YYYY-MM format parses to the first of the month", {
-  out <- parse_year_month(c("2019-06", "2019-07", "2020-01"))
-  expect_equal(out, as.Date(c("2019-06-01", "2019-07-01", "2020-01-01")))
-})
-
-test_that("YYYYMM (flat) format parses to the first of the month", {
-  out <- parse_year_month(c("201906", "201907", "202001"))
-  expect_equal(out, as.Date(c("2019-06-01", "2019-07-01", "2020-01-01")))
-})
-
-test_that("Date/POSIXct input is floored to month-start, not re-parsed", {
-  expect_equal(parse_year_month(as.Date("2020-03-17")), as.Date("2020-03-01"))
-  expect_equal(
-    parse_year_month(as.POSIXct("2020-03-17 08:00:00", tz = "UTC")),
-    as.Date("2020-03-01")
+## The migration raised this paper's smidata floor: these functions do not
+## exist before 0.5.0. Checked here rather than letting a call fail with
+## "object not found", which reads as a typo rather than a stale install.
+test_that("the installed smidata carries the promoted enrollment functions", {
+  needed <- c("smi_enrollment_panel", "smi_enrollment_coverage",
+              "smi_parse_year_month")
+  expect_true(
+    all(needed %in% getNamespaceExports("smidata")),
+    label = paste0(
+      "smidata ", as.character(utils::packageVersion("smidata")),
+      " exports the promoted enrollment functions"
+    )
   )
 })
 
-test_that("an empty input returns an empty Date vector, not an error", {
-  expect_equal(parse_year_month(character()), as.Date(character()))
-})
-
-test_that("mixing YYYY-MM and YYYYMM in the same vector aborts", {
-  ## Neither format matches ALL values, so this is the "matches neither"
-  ## abort path, not a silent per-row dispatch.
-  expect_error(
-    parse_year_month(c("2019-06", "201907")),
-    "does not match either anticipated format"
-  )
-})
-
-test_that("an out-of-range month (13) aborts rather than wrapping", {
-  expect_error(parse_year_month("2019-13"), "month component out of range")
-})
-
-test_that("an implausible year aborts even though the regex matches", {
-  ## "0099-06" matches ^\\d{4}-\\d{2}$ (4 digits) but as.integer("0099") = 99,
-  ## outside the 1900-2100 band.
-  expect_error(parse_year_month("0099-06"), "year component outside")
-})
-
-test_that("NA in the input aborts rather than being coerced", {
-  expect_error(parse_year_month(c("2019-06", NA)), "NA")
-})
-
-test_that("non-character, non-Date input aborts", {
-  expect_error(parse_year_month(201906L), "must be character")
-  expect_error(parse_year_month(list("2019-06")), "must be character")
-})
-
-## ---- ym_month_index() --------------------------------------------------------
-
-test_that("adjacent calendar months differ by exactly 1", {
-  expect_equal(
-    ym_month_index(as.Date("2020-01-01")) - ym_month_index(as.Date("2019-12-01")),
-    1L
-  )
-})
-
-test_that("day-of-month does not affect the index -- only year and month", {
-  expect_equal(
-    ym_month_index(as.Date("2019-06-01")),
-    ym_month_index(as.Date("2019-06-28"))
-  )
-})
-
-test_that("the index is monotone across a full year", {
-  months <- as.Date(sprintf("2019-%02d-01", 1:12))
-  idx <- ym_month_index(months)
-  expect_equal(diff(idx), rep(1L, 11L))
-})
-
-## ---- compute_complete_case(): shared fixture ---------------------------------
+## ---- the translation --------------------------------------------------------
 ##
-## window_months = 3, anchor 2019-06-01 (or 2019-06-15 for the mid-month case),
-## so the required month set is always {2019-06, 2019-07, 2019-08} regardless
-## of which day of June INDEX_DT falls on.
+## 05_complete_case.R turns two recorded decision values into three smidata
+## arguments. Each assertion below is about that mapping, not about what
+## smidata then does with it.
 
-cc_cohort <- function() {
-  tibble::tibble(
-    ID = c("P1", "P2", "P3"),
-    INDEX_DT = as.Date(c("2019-06-01", "2019-06-01", "2019-06-01"))
+test_that("enrollment_source is still confirmed, with the two values the translation reads", {
+  ## If this regresses to open_decision, 05 aborts via confirmed_value() --
+  ## but it would abort at run time, on the server. Catch it here.
+  d <- OPEN_DECISIONS$enrollment_source
+  expect_identical(d$status, "confirmed")
+  expect_identical(d$value$gap_months, 0L)
+  ## The TYPE value is prose, not a token, so match on its meaning rather
+  ## than its exact wording.
+  expect_match(d$value$type_filter, "none", ignore.case = TRUE)
+})
+
+test_that("gap_months = 0 makes gap_mode unambiguous, which is why 05 may hardcode it", {
+  ## smidata separates a gap COUNT ("total") from a gap RUN ("consecutive").
+  ## At 0 they coincide -- zero uncovered months total is the same condition
+  ## as a longest run of zero -- and that equivalence is the ONLY reason 05
+  ## passing a literal "total" is defensible. Asserted, because if it stopped
+  ## being true the literal would silently become a choice nobody made.
+  ##
+  ## Fixture: patient 1 covers all 3 required months; patient 2 is missing
+  ## 2019-07 (one uncovered month, longest run 1).
+  cohort <- tibble::tibble(ID = c(1, 2), INDEX_DT = as.Date("2019-06-01"))
+  flag <- tibble::tibble(
+    ID = c(1, 1, 1, 2, 2),
+    INDEX_DT = as.Date("2019-06-01"),
+    TYPE = "IP",
+    YEAR_MONTH = c("2019-06", "2019-07", "2019-08", "2019-06", "2019-08"),
+    MEDICAID_FLAG = 1L
   )
-}
+  panel <- smidata::smi_enrollment_panel(flag, cohort, "require_agreement")
+  tot <- smidata::smi_enrollment_coverage(panel, cohort, 3L, 0L, "total")
+  con <- smidata::smi_enrollment_coverage(panel, cohort, 3L, 0L, "consecutive")
+  expect_identical(tot$covered, con$covered)
+  ## Hand-counted: only patient 1 is covered at zero tolerance.
+  expect_identical(tot$covered, c(TRUE, FALSE))
+})
 
-## P1: fully covered all 3 required months, single TYPE.
-## P2: covered Jun/Jul, Aug entirely ABSENT (no row at all).
-## P3: absent from monthly_flag entirely.
-cc_monthly_flag <- function() {
-  tibble::tibble(
-    ID = c(rep("P1", 3L), rep("P2", 2L)),
+test_that("require_agreement reproduces the deleted helper's TYPE behaviour", {
+  ## THE translation's one substantive choice. The deleted
+  ## compute_complete_case() implemented the PI's "ignore TYPE" AND aborted on
+  ## any (ID, month) TYPE disagreement, because "ignore" is only a no-op where
+  ## no disagreement exists. smidata's "any" WARNS instead; only
+  ## "require_agreement" aborts.
+  cohort <- tibble::tibble(ID = 1, INDEX_DT = as.Date("2019-06-01"))
+  agreeing <- tibble::tibble(
+    ID = 1, INDEX_DT = as.Date("2019-06-01"), TYPE = c("IP", "OP"),
+    YEAR_MONTH = "2019-06", MEDICAID_FLAG = c(1L, 1L)
+  )
+  disagreeing <- agreeing
+  disagreeing$MEDICAID_FLAG <- c(1L, 0L)
+
+  ## Where TYPE agrees, the two policies are identical -- so the migration
+  ## changes no result on data without disagreement.
+  p_req <- smidata::smi_enrollment_panel(agreeing, cohort, "require_agreement")
+  p_any <- smidata::smi_enrollment_panel(agreeing, cohort, "any")
+  expect_identical(p_req$enrolled, p_any$enrolled)
+
+  ## Where it disagrees, only "require_agreement" refuses -- which is the
+  ## deleted helper's behaviour, and the reason 05 does not pass "any".
+  expect_error(
+    smidata::smi_enrollment_panel(disagreeing, cohort, "require_agreement"),
+    "DISAGREE"
+  )
+  expect_warning(
+    smidata::smi_enrollment_panel(disagreeing, cohort, "any"),
+    "disagreeing"
+  )
+})
+
+## ---- the shape 06 depends on ------------------------------------------------
+
+test_that("the coverage result converts to 06's expected complete_case contract", {
+  ## 06_assemble_analytic_data.R does
+  ##   left_join(complete_case, by = "ID") |> filter(complete_case %in% TRUE)
+  ## so it needs an ID column and a LOGICAL complete_case that is never NA.
+  ## 05 renames smidata's `covered`; this asserts the renamed shape, because a
+  ## silent NA there would drop every row via %in% TRUE and read as
+  ## "complete_case not yet resolved" rather than as a bug.
+  cohort <- tibble::tibble(ID = c(1, 2, 3), INDEX_DT = as.Date("2019-06-01"))
+  flag <- tibble::tibble(
+    ID = c(1, 1, 1, 2, 2),
     INDEX_DT = as.Date("2019-06-01"),
     TYPE = "IP",
     YEAR_MONTH = c("2019-06", "2019-07", "2019-08", "2019-06", "2019-07"),
-    MEDICAID_FLAG = c(1L, 1L, 1L, 1L, 1L)
+    MEDICAID_FLAG = 1L
   )
-}
+  panel <- smidata::smi_enrollment_panel(flag, cohort, "require_agreement")
+  cov <- smidata::smi_enrollment_coverage(panel, cohort, 3L, 0L, "total")
 
-test_that("a fully-covered patient is complete_case = TRUE, reason = covered", {
-  out <- compute_complete_case(cc_monthly_flag(), cc_cohort(), window_months = 3L)
-  p1 <- out[out$ID == "P1", ]
-  expect_true(p1$complete_case)
-  expect_equal(p1$reason, "covered")
-})
+  complete_case <- cov |>
+    dplyr::transmute(ID = .data$ID, complete_case = .data$covered,
+                     reason = .data$reason)
 
-test_that("a patient missing exactly one required month is insufficient_coverage", {
-  out <- compute_complete_case(cc_monthly_flag(), cc_cohort(), window_months = 3L)
-  p2 <- out[out$ID == "P2", ]
-  expect_false(p2$complete_case)
-  expect_equal(p2$reason, "insufficient_coverage")
-})
-
-test_that("a patient with zero rows in monthly_flag is absent_from_flag_table", {
-  out <- compute_complete_case(cc_monthly_flag(), cc_cohort(), window_months = 3L)
-  p3 <- out[out$ID == "P3", ]
-  expect_false(p3$complete_case)
-  expect_equal(p3$reason, "absent_from_flag_table")
-})
-
-test_that("output is exactly one row per cohort patient, no more, no fewer", {
-  out <- compute_complete_case(cc_monthly_flag(), cc_cohort(), window_months = 3L)
-  expect_equal(nrow(out), 3L)
-  expect_setequal(out$ID, c("P1", "P2", "P3"))
-})
-
-test_that("the tally attribute matches the hand-counted fixture exactly", {
-  out <- compute_complete_case(cc_monthly_flag(), cc_cohort(), window_months = 3L)
-  tally <- attr(out, "tally")
-  expect_equal(tally$n_cohort, 3L)
-  expect_equal(tally$n_complete, 1L)                 # P1
-  expect_equal(tally$n_insufficient_coverage, 1L)    # P2
-  expect_equal(tally$n_absent, 1L)                   # P3
-  expect_equal(tally$n_type_disagreement_pairs, 0L)
-})
-
-## ---- mid-month INDEX_DT: the bug this function's Details section names ------
-
-test_that("a mid-month INDEX_DT still requires INDEX_DT's OWN calendar month", {
-  ## INDEX_DT = 2019-06-15 (day 15, not day 1). If the window were built from
-  ## the RAW (un-floored) INDEX_DT via Date arithmetic, the half-open interval
-  ## [2019-06-15, 2019-09-15) would exclude June entirely and include a sliver
-  ## of September instead -- exactly the shift this function's Details
-  ## section describes. Required months must still be {2019-06, 07, 08}.
-  cohort_mid <- tibble::tibble(ID = "PM", INDEX_DT = as.Date("2019-06-15"))
-  mf_covered <- tibble::tibble(
-    ID = "PM", INDEX_DT = as.Date("2019-06-15"), TYPE = "IP",
-    YEAR_MONTH = c("2019-06", "2019-07", "2019-08"), MEDICAID_FLAG = c(1L, 1L, 1L)
-  )
-  out_covered <- compute_complete_case(mf_covered, cohort_mid, window_months = 3L)
-  expect_true(out_covered$complete_case)
-  expect_equal(out_covered$reason, "covered")
-
-  ## Same patient, June's row REMOVED (only Jul/Aug present). If June were
-  ## wrongly excluded from the required set, this would ALSO show "covered"
-  ## (2 rows would look sufficient against a shifted 2-month requirement) --
-  ## it must instead be insufficient, because June is required and absent.
-  mf_missing_june <- mf_covered[mf_covered$YEAR_MONTH != "2019-06", ]
-  out_missing <- compute_complete_case(mf_missing_june, cohort_mid, window_months = 3L)
-  expect_false(out_missing$complete_case)
-  expect_equal(out_missing$reason, "insufficient_coverage")
-})
-
-## ---- out-of-window rows must not "leak in" to satisfy coverage --------------
-
-test_that("flag=1 rows OUTSIDE the required window do not count toward it", {
-  ## 4 rows with MEDICAID_FLAG == 1 total (May, Jun, Jul, Sep), but the
-  ## REQUIRED window for anchor 2019-06 at window_months=3 is {Jun,Jul,Aug}.
-  ## Aug is missing, so despite 4 "covered" rows total, this must be
-  ## insufficient -- a naive "count of flag==1 rows >= 3" check would wrongly
-  ## pass.
-  cohort_ow <- tibble::tibble(ID = "PO", INDEX_DT = as.Date("2019-06-01"))
-  mf_ow <- tibble::tibble(
-    ID = "PO", INDEX_DT = as.Date("2019-06-01"), TYPE = "IP",
-    YEAR_MONTH = c("2019-05", "2019-06", "2019-07", "2019-09"),
-    MEDICAID_FLAG = c(1L, 1L, 1L, 1L)
-  )
-  out <- compute_complete_case(mf_ow, cohort_ow, window_months = 3L)
-  expect_false(out$complete_case)
-  expect_equal(out$reason, "insufficient_coverage")
-})
-
-## ---- TYPE is ignored: agreement is silently fine, disagreement aborts -------
-
-test_that("two TYPE rows for the same month that AGREE do not abort and count once", {
-  cohort_ty <- tibble::tibble(ID = "PT", INDEX_DT = as.Date("2019-06-01"))
-  mf_agree <- tibble::tibble(
-    ID = "PT", INDEX_DT = as.Date("2019-06-01"),
-    TYPE = c("IP", "OP", "IP", "IP"),
-    YEAR_MONTH = c("2019-06", "2019-06", "2019-07", "2019-08"),
-    MEDICAID_FLAG = c(1L, 1L, 1L, 1L)
-  )
-  out <- compute_complete_case(mf_agree, cohort_ty, window_months = 3L)
-  expect_true(out$complete_case)
-  tally <- attr(out, "tally")
-  expect_equal(tally$n_type_disagreement_pairs, 0L)
-})
-
-test_that("TYPE rows that DISAGREE on MEDICAID_FLAG abort, naming CHECK 4", {
-  cohort_ty <- tibble::tibble(ID = "PT", INDEX_DT = as.Date("2019-06-01"))
-  mf_disagree <- tibble::tibble(
-    ID = "PT", INDEX_DT = as.Date("2019-06-01"),
-    TYPE = c("IP", "OP", "IP", "IP"),
-    YEAR_MONTH = c("2019-06", "2019-06", "2019-07", "2019-08"),
-    MEDICAID_FLAG = c(1L, 0L, 1L, 1L)   # IP says 1, OP says 0 for 2019-06
-  )
-  expect_error(
-    compute_complete_case(mf_disagree, cohort_ty, window_months = 3L),
-    "DISAGREE"
-  )
-  expect_error(
-    compute_complete_case(mf_disagree, cohort_ty, window_months = 3L),
-    "CHECK 4"
+  expect_named(complete_case, c("ID", "complete_case", "reason"))
+  expect_type(complete_case$complete_case, "logical")
+  expect_false(anyNA(complete_case$complete_case))
+  expect_equal(nrow(complete_case), nrow(cohort))
+  ## Hand-counted from the fixture: patient 1 covers all three required
+  ## months; patient 2 is missing 2019-08; patient 3 has no rows at all.
+  expect_identical(complete_case$complete_case, c(TRUE, FALSE, FALSE))
+  expect_identical(
+    complete_case$reason,
+    c("covered", "insufficient_coverage", "absent_from_flag_table")
   )
 })
 
-test_that("a disagreement OUTSIDE the required window does not abort", {
-  ## Same disagreement pattern as above, but in 2019-04 -- before the
-  ## anchor's required window ({2019-06,07,08}). Disagreement is checked at
-  ## cohort/window-RESTRICTED scope on purpose (this function's Details),
-  ## so this must not fire the abort.
-  cohort_ty <- tibble::tibble(ID = "PT", INDEX_DT = as.Date("2019-06-01"))
-  mf_out_of_window <- tibble::tibble(
-    ID = "PT", INDEX_DT = as.Date("2019-06-01"),
-    TYPE = c("IP", "OP", "IP", "IP", "IP"),
-    YEAR_MONTH = c("2019-04", "2019-04", "2019-06", "2019-07", "2019-08"),
-    MEDICAID_FLAG = c(1L, 0L, 1L, 1L, 1L)  # disagreement in 2019-04 only
-  )
-  out <- compute_complete_case(mf_out_of_window, cohort_ty, window_months = 3L)
-  expect_true(out$complete_case)
-})
+## ---- this paper's own 24-month window --------------------------------------
 
-## ---- NA MEDICAID_FLAG does not count as covered ------------------------------
-
-test_that("an NA MEDICAID_FLAG warns and does not count its month as covered", {
-  cohort_na <- tibble::tibble(ID = "PN", INDEX_DT = as.Date("2019-06-01"))
-  mf_na <- tibble::tibble(
-    ID = "PN", INDEX_DT = as.Date("2019-06-01"), TYPE = "IP",
-    YEAR_MONTH = c("2019-06", "2019-07", "2019-08"),
-    MEDICAID_FLAG = c(NA_integer_, 1L, 1L)
-  )
-  expect_warning(
-    out <- compute_complete_case(mf_na, cohort_na, window_months = 3L),
-    "NA"
-  )
-  expect_false(out$complete_case)
-  expect_equal(out$reason, "insufficient_coverage")
-})
-
-## ---- input validation ---------------------------------------------------------
-
-test_that("missing required columns abort, naming which table and column", {
-  expect_error(
-    compute_complete_case(
-      dplyr::select(cc_monthly_flag(), -"MEDICAID_FLAG"), cc_cohort(), 3L
-    ),
-    "monthly_flag.*missing column"
-  )
-  expect_error(
-    compute_complete_case(
-      cc_monthly_flag(), dplyr::select(cc_cohort(), -"INDEX_DT"), 3L
-    ),
-    "cohort.*missing column"
-  )
-})
-
-test_that("window_months validation rejects zero, negative, non-integer, and vectors", {
-  mf <- cc_monthly_flag(); co <- cc_cohort()
-  expect_error(compute_complete_case(mf, co, 0L), "positive integer")
-  expect_error(compute_complete_case(mf, co, -1L), "positive integer")
-  expect_error(compute_complete_case(mf, co, 1.5), "positive integer")
-  expect_error(compute_complete_case(mf, co, c(3L, 4L)), "positive integer")
-  expect_error(compute_complete_case(mf, co, NA_integer_), "positive integer")
-})
-
-test_that("an empty cohort aborts rather than returning zero rows", {
-  expect_error(
-    compute_complete_case(cc_monthly_flag(), cc_cohort()[0, ], 3L),
-    "empty"
-  )
-})
-
-test_that("a duplicate ID in cohort aborts", {
-  dup_cohort <- dplyr::bind_rows(cc_cohort(), cc_cohort()[1, ])
-  expect_error(compute_complete_case(cc_monthly_flag(), dup_cohort, 3L), "duplicate")
-})
-
-test_that("an NA INDEX_DT in cohort aborts", {
-  na_cohort <- cc_cohort()
-  na_cohort$INDEX_DT[1] <- NA
-  expect_error(compute_complete_case(cc_monthly_flag(), na_cohort, 3L), "NA")
-})
-
-test_that("an ID class mismatch between the two tables aborts", {
-  mf_int_id <- cc_monthly_flag()
-  mf_int_id$ID <- match(mf_int_id$ID, c("P1", "P2", "P3"))  # character -> integer
-  expect_error(
-    compute_complete_case(mf_int_id, cc_cohort(), 3L),
-    "class"
-  )
-})
-
-test_that("more than one distinct INDEX_DT for one ID within monthly_flag aborts", {
-  mf_bad <- cc_monthly_flag()
-  mf_bad$INDEX_DT[mf_bad$ID == "P1"][1] <- as.Date("2019-07-01")  # was all 06-01
-  expect_error(
-    compute_complete_case(mf_bad, cc_cohort(), 3L),
-    "more than one distinct"
-  )
-})
-
-test_that("monthly_flag's INDEX_DT disagreeing with cohort's aborts", {
-  mismatched_cohort <- cc_cohort()
-  mismatched_cohort$INDEX_DT[mismatched_cohort$ID == "P1"] <- as.Date("2019-07-01")
-  expect_error(
-    compute_complete_case(cc_monthly_flag(), mismatched_cohort, 3L),
-    "different"
-  )
-})
-
-test_that("a MEDICAID_FLAG value outside {0, 1} (and not NA) aborts", {
-  mf_bad_flag <- cc_monthly_flag()
-  mf_bad_flag$MEDICAID_FLAG[1] <- 2L
-  expect_error(compute_complete_case(mf_bad_flag, cc_cohort(), 3L), "outside")
-})
-
-test_that("every cohort patient coming back absent aborts as a likely join-key bug", {
-  ## Same class, but genuinely disjoint ID values -- the class check passes,
-  ## but nobody in cohort matches anybody in monthly_flag.
-  disjoint_mf <- cc_monthly_flag()
-  disjoint_mf$ID <- paste0("OTHER_", disjoint_mf$ID)
-  expect_error(
-    compute_complete_case(disjoint_mf, cc_cohort(), 3L),
-    "absent_from_flag_table"
-  )
-})
-
-## ---- uses the real config value, end to end ----------------------------------
-
-test_that("a 24-month window (config_complete_case_months) works end to end", {
-  ## config_complete_case_months is sourced from _config.R by helper-toy.R's
-  ## source() chain (via 05_complete_case.R's own convention). Confirm it is
-  ## 24 (the PI-confirmed value) and that a patient covered for exactly those
-  ## 24 months is complete.
+test_that("the real config window separates a complete patient from a one-month-short one", {
+  ## config_complete_case_months (24) is THIS PAPER'S decision, so it is
+  ## tested here and not in smidata, whose own suite uses small windows that
+  ## are checkable by inspection. These are the same two known-truth patients
+  ## 05's demonstration block prints.
   expect_equal(config_complete_case_months, 24L)
 
-  months_24 <- format(
-    seq(as.Date("2019-06-01"), by = "month", length.out = config_complete_case_months),
+  cohort <- tibble::tibble(ID = c(1, 2), INDEX_DT = as.Date("2019-06-01"))
+  months <- format(
+    seq(as.Date("2019-06-01"), by = "month",
+        length.out = config_complete_case_months),
     "%Y-%m"
   )
-  cohort_24 <- tibble::tibble(ID = "P24", INDEX_DT = as.Date("2019-06-01"))
-  mf_24 <- tibble::tibble(
-    ID = "P24", INDEX_DT = as.Date("2019-06-01"), TYPE = "IP",
-    YEAR_MONTH = months_24, MEDICAID_FLAG = 1L
+  flag <- dplyr::bind_rows(
+    tibble::tibble(ID = 1, INDEX_DT = as.Date("2019-06-01"), TYPE = "IP",
+                   YEAR_MONTH = months, MEDICAID_FLAG = 1L),
+    ## Drop the LAST required month -- the one an off-by-one is most likely to
+    ## skip silently.
+    tibble::tibble(ID = 2, INDEX_DT = as.Date("2019-06-01"), TYPE = "IP",
+                   YEAR_MONTH = months[-length(months)], MEDICAID_FLAG = 1L)
   )
-  out <- compute_complete_case(mf_24, cohort_24, config_complete_case_months)
-  expect_true(out$complete_case)
+  panel <- smidata::smi_enrollment_panel(flag, cohort, "require_agreement")
+  cov <- smidata::smi_enrollment_coverage(
+    panel, cohort, config_complete_case_months, 0L, "total"
+  )
+  expect_identical(cov$covered, c(TRUE, FALSE))
+  ## Hand-counted: 24 required months, 23 covered for patient 2.
+  expect_identical(cov$n_covered, c(24L, 23L))
+  expect_identical(cov$n_uncovered, c(0L, 1L))
+  expect_identical(cov$reason[[2]], "insufficient_coverage")
+})
 
-  ## Drop the LAST required month (the one most likely to be silently
-  ## skipped by an off-by-one): must flip to insufficient.
-  mf_23 <- mf_24[-length(months_24), ]
-  out_23 <- compute_complete_case(mf_23, cohort_24, config_complete_case_months)
-  expect_false(out_23$complete_case)
-  expect_equal(out_23$reason, "insufficient_coverage")
+test_that("05_complete_case.R no longer sources a local complete-case helper", {
+  ## The helper is DELETED, not shimmed. A re-introduced local copy is the
+  ## exact failure the promotion was meant to end -- dual-bounds' and
+  ## doubletree's copies had already drifted 82 lines apart.
+  ##
+  ## Uses app_dir_for_tests (helper-toy.R's own convention) rather than
+  ## probing the working directory: testthat runs a test file from the test
+  ## file's own directory, so a cwd-relative path works under run_tests.R and
+  ## breaks under test_file(). That difference is how this was caught.
+  expect_false(
+    file.exists(file.path(app_dir_for_tests, "helpers", "complete_case.R"))
+  )
+  txt <- paste(
+    readLines(file.path(app_dir_for_tests, "05_complete_case.R"), warn = FALSE),
+    collapse = "\n"
+  )
+  expect_false(grepl('source\\(.*"complete_case\\.R"', txt))
+  expect_match(txt, "smi_enrollment_coverage")
 })
