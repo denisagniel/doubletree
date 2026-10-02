@@ -183,8 +183,16 @@ if (!config_has_smidata) {
   ## desired behaviour against real data with a genuinely wrong format and a
   ## guaranteed abort against the Tier-0 fixture's placeholder text. Detected
   ## here so the script reports a clear, expected limitation.
+  ##
+  ## Reads smidata's own "non_conforming" attribute (0.5.0+) rather than
+  ## pattern-matching "FIXTURE_TEXT_". That pattern was duplicated here and in
+  ## dual-bounds, which is why smi_fixture() now declares its own limitation;
+  ## the placeholder's spelling is an implementation detail. The attribute
+  ## empties itself once YEAR_MONTH gains real levels (census level-enumeration
+  ## cap raised to 150, 2026-10-01 -- takes effect on the next capture), at
+  ## which point this branch simply stops being taken, with no edit here.
   year_month_is_fixture_placeholder <-
-    is_local && all(grepl("^FIXTURE_TEXT_", monthly_flag$YEAR_MONTH))
+    is_local && "YEAR_MONTH" %in% attr(monthly_flag, "non_conforming")
 
   if (year_month_is_fixture_placeholder) {
     cli::cli_alert_warning(
