@@ -162,7 +162,13 @@ if (!config_has_smidata) {
   aap_selected <- smidata::smi_select_aap_row(
     aap_raw,
     index_dt = dplyr::select(base_cohort, "ID", "INDEX_DT"),
-    target_offset_months = 12L,
+    ## MSR_YR is the START of the 12-month measurement period (smidata
+    ## 06dbbe2, 2026-10-09), so the period starting closest to INDEX_DT
+    ## (offset 0) IS the exposure window [INDEX_DT, INDEX_DT + 12mo]. The
+    ## old 12L read MSR_YR as the period END. Passed explicitly rather than
+    ## relying on smidata's default, which flipped 12L -> 0L in that commit.
+    ## Start convention not yet confirmed against msr_aap itself.
+    target_offset_months = 0L,
     achievement_threshold = config_aap_achievement_threshold,
     max_month_gap = Inf   # see 90_checks_tier1.R for the calibrating check
   )
