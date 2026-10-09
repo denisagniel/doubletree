@@ -1,7 +1,8 @@
 # `application/` — real-data application pipeline
 
+<!-- NOTE (2026-10-09 audit): AAP is Adults' Access to Preventive/Ambulatory Health Services (HEDIS), not antipsychotic adherence (that is msr_saa). Framing under PI review; see smidata QUALITY_MEASURES.md. -->
 Equity-blind, tree-based ATT estimation of antipsychotic-medication adherence (AAP achievement,
-months 0–12 post-index) on total cost (months 13–24), in the NYS OMH Medicaid SMI cohort, via
+months 0–12 post-index) on total cost (includes pharmacy; months 13–24), in the NYS OMH Medicaid SMI cohort, via
 `doubletree::estimate_att()` / `doubletree::estimate_att_crossfit()`.
 
 **Read this before running anything.**
@@ -30,7 +31,7 @@ estimator's assumption plausible.
 Inheriting a design is not sharing code. Nothing here reads anything from dual-bounds' repo. The
 one thing genuinely shared is the **implementation**, and it is shared by calling it: the
 dataset-semantics functions live in **smidata ≥ 0.2.0** as exported `smi_*()` and are called
-directly. No local copy of `smi_select_aap_row()`, `smi_patient_windows()`,
+directly. No local copy of `smi_select_measure_row()`, `smi_patient_windows()`,
 `smi_sum_cost_in_windows()`, `smi_stream_cost_files()`, `smi_classify_is_mci()`,
 `smi_window_coverage()` or `smi_read()` exists in this directory, and adding one would be exactly
 the drift their promotion eliminated.
@@ -93,7 +94,7 @@ guard, not a known stop, and `06` writes the un-suffixed `analytic_cohort.parque
 |---|---|---|---|
 | `enrollment_source` | same table, different use | **confirmed** (2026-09-24) | `MEDICAID_FLAG==1` in `larger_smi_medicaid_monthly_flag` for every one of the 24 months in `[INDEX_DT, INDEX_DT+24mo)`, no `TYPE` filter, zero gap tolerance — a PI-given, revisable default. Implemented via `smidata::smi_enrollment_panel()` + `smi_enrollment_coverage()` since the 2026-10-01 migration, translated as `type_policy = "require_agreement"` (not `"any"` — see `05_complete_case.R`'s header) and `gap_months = 0` / `gap_mode = "total"`; provisional on CHECK 4 (below) not yet running. |
 | `cost_family_scope` | **yes** — identical question | **confirmed** (`all_four`) | All four cost-claims families are disjoint claim sources; sum all four. |
-| `msr_code` | **yes** — identical question | **confirmed** (`"AAP (no filter needed)"`) | `msr_aap` is already an AAP-only extract — no `MSR` filter needed at the *registry* level. **Fixed 2026-09-24**: `02_population_and_eligibility.R`'s gate now reads this value (was stale since 2026-09-17). But "no filter needed" is not what `02` actually does — `smidata::smi_select_aap_row()`'s abort-on-tie does NOT guard against a non-AAP row silently winning when it merely lands closer to the target month than any true AAP row (no tie forms), so `02` filters to the literal `AAP_MSR_CODE` explicitly and reports any exclusion. See this decision's `note` for the full correction — the registry's "abort-on-tie is the safety net" claim was wrong, and is not yet fixed upstream (smidata, dual-bounds). |
+| `msr_code` | **yes** — identical question | **confirmed** (`"SAA (no filter needed)"`; exposure switched AAP -> SAA 2026-10-09, SAA literal not yet seen in the real table) | `msr_saa` is expected to be an SAA-only extract — no `MSR` filter needed at the *registry* level. **Fixed 2026-09-24**: `02_population_and_eligibility.R`'s gate now reads this value (was stale since 2026-09-17). But "no filter needed" is not what `02` actually does — `smidata::smi_select_measure_row()`'s abort-on-tie does NOT guard against a other-measure row silently winning when it merely lands closer to the target month than any true row of the measure (no tie forms), so `02` filters to the literal `SAA_MSR_CODE` explicitly and reports any exclusion. See this decision's `note` for the full correction — the registry's "abort-on-tie is the safety net" claim was wrong, and is not yet fixed upstream (smidata, dual-bounds). |
 | `diagnostics` | no — this paper's own | **confirmed** (`"certified_e && certified_m0"`, 2026-09-30) | Reported diagnostic flag, **not** an estimator switch: `certified_e` AND `certified_m0` both TRUE means this proxy supports grid-exact sparsity for the flagship `estimate_att()` result. **No fallback to `estimate_att_crossfit()`, silent or explicit** — the flagship stays the flagship regardless; a failed licence signals that `07`'s already-reported discrepancy deserves scrutiny, not that the crossfit number should be substituted in. No separate `gap_*` threshold — `certified_* == TRUE` already implies `gap == 0`. **Necessary, not sufficient**: `certified_*` says the search solved `eq:select` at the configured `leaf_budget`, not that the budget is large enough for the truth; the 2026-09-24 general standard (overlap/balance + nuisance fit vs OLS/GLM) applies on top. `07` **prints** whether the licence holds and never auto-switches. |
 | `prior_cost_negative_floor` | no — this paper's own | **confirmed** (`0`, 2026-09-28) | 2 patients had negative `prior_cost` (claim reversals exceeding pre-index payments) on the first real server run. Floored to 0 before `discretize_prior_cost()`, via `helpers/discretize_prior_cost.R::floor_negative_prior_cost()` — the raw dollar value retained in `06`'s output is unaffected; only the value fed to binning is floored. `discretize_prior_cost()` itself still aborts unchanged on a negative input. |
 
@@ -108,7 +109,7 @@ oversight:
   complete-case restriction is a hard inclusion criterion, so permitting a gap would make the
   retained patients' `Y` a sum over a window with holes in it. A tolerance would be a *new* PI
   decision with its own registry entry.
-- `msr_tie_break` — not applicable. This pipeline calls `smi_select_aap_row()` at smidata's own
+- `msr_tie_break` — not applicable. This pipeline calls `smi_select_measure_row()` at smidata's own
   default (`"earlier"`), and smidata aborts on any other value. No choice is being made here.
 - `sl_lib` — not applicable. SuperLearner is `marbounds`' nuisance machinery. doubletree fits its
   nuisances with optimal trees via `optimaltrees`.
@@ -124,7 +125,7 @@ oversight:
 | ~~`helpers/complete_case.R`~~ | **DELETED 2026-10-01** | Promoted into smidata as `smi_parse_year_month()` / `smi_enrollment_panel()` / `smi_enrollment_coverage()`. Deleted rather than shimmed: it had been copied into dual-bounds on 2026-09-28 and the two copies had already drifted 82 lines apart. |
 | `helpers/msr_filter.R` | yes (tested) | `filter_to_msr_code()` — the real `msr_code` contamination guard `02` uses (see that decision's row, above), pure and hand-fixture-tested. |
 | `01_declare_requirements.R` | yes | Declares 39 dataset requirements (added `medicaid_monthly_flag` 2026-09-24) + the 12 `_YN` columns via `smidata::smi_require()`; reports the census gap. Skips gracefully without smidata. |
-| `02_population_and_eligibility.R` | yes (fixture) | **Fixed 2026-09-24** (was stale — see `msr_code`'s row above). Runs end to end locally against a Tier-0 fixture (`smidata::smi_read()` dispatches to `smi_fixture()` off-server automatically): builds `base_cohort`, filters `msr_aap` to `AAP_MSR_CODE` (`helpers/msr_filter.R`, tested), calls `smi_select_aap_row()`, reports eligibility/exposure-arm counts. On the server it reads the real tables instead — same code path, `smidata::smi_env()` dispatches. |
+| `02_population_and_eligibility.R` | yes (fixture) | **Fixed 2026-09-24** (was stale — see `msr_code`'s row above). Runs end to end locally against a Tier-0 fixture (`smidata::smi_read()` dispatches to `smi_fixture()` off-server automatically): builds `base_cohort`, filters `msr_saa` to `SAA_MSR_CODE` (`helpers/msr_filter.R`, tested), calls `smi_select_measure_row()`, reports eligibility/exposure-arm counts. On the server it reads the real tables instead — same code path, `smidata::smi_env()` dispatches. |
 | `03_cost_windows.R` | yes (fixture) | **Real as of 2026-09-24.** Cascade-guarded on `02` (`require_stage()`). Builds `windows`/`coverage`, then `smi_sum_cost_in_windows()` for real (~10s against 36 Tier-0 fixtures, verified before wiring live). `outcome_cost`/`prior_cost` carry an explicit `coverage` column and are `NA` (not coalesced to 0) whenever file-date coverage is not `"full"` — a patient with a partial-window sum is marked unknowable, not passed through as if complete; see this file's header. |
 | `04_covariates.R` | yes (fixture) | **Real as of 2026-09-24.** Cascade-guarded on `03`. Reads the 12 confirmed `_YN` columns + `INDEX_DT`, joins `03`'s `prior_cost` (no `coalesce()` — see `03`'s row), runs a PREVIEW discretize/assemble/assert pass on the pre-filter cohort. Explicitly a preview: `06` re-discretizes on the real, final (complete-case-filtered) sample. |
 | `05_complete_case.R` | yes (fixture, up to a real Tier-0 boundary) | Computes complete-case status for real via `smidata::smi_enrollment_panel()` + `smi_enrollment_coverage()`, cascade-guarded on `02`. Locally, `larger_smi_medicaid_monthly_flag`'s `YEAR_MONTH` has no real-data census levels, so the fixture emits unparseable placeholder text and the real computation is skipped with an explicit message (not a crash) — the hand-built two-patient demo still runs regardless, proving the function itself. On the server this limitation does not apply. Deliberately does **not** proxy enrollment from claims presence — `MEDICAID_FLAG` is a real enrollment indicator, independent of utilization; the file's header spells out why neither directional failure mode of a claims-presence proxy applies to it. |
@@ -216,7 +217,7 @@ is authoritative. Column names and row counts come from smidata snapshot `2026-0
 The 15-column selection and `prior_cost`'s quartile discretization were confirmed by the PI on
 2026-09-17.
 
-**Shared dataset semantics** (MSR_YR format, `msr_aap`'s schizophrenia-subgroup scoping,
+**Shared dataset semantics** (MSR_YR format, `msr_aap` as an access-to-care measure (the earlier schizophrenia-subgroup scoping was retracted 2026-10-09; see `~/RAND/tools/smidata/inst/docs/dictionary/QUALITY_MEASURES.md`),
 SMI cohort ICD-10 definitions, cost-claims family structure) now live in
 `~/RAND/tools/smidata/inst/docs/DATA_DICTIONARY.md` and its `dictionary/` family files, added
 2026-09-28 — distinct from this file's own registry-recorded *decisions*.

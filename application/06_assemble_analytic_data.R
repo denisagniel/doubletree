@@ -87,7 +87,7 @@ if (!config_has_smidata) {
   ## happens here and the excluded patients are gone from the analytic data
   ## entirely -- which is exactly why the excluded COUNT must be reported.
   analytic_pre <- analysis_cohort |>                          # 02
-    dplyr::select("ID", "INDEX_DT", "A", "elig_aap", "MSR_YR_selected", "month_gap") |>
+    dplyr::select("ID", "INDEX_DT", "A", "elig_saa", "MSR_YR_selected", "month_gap") |>
     dplyr::left_join(                                         # 03: Y
       dplyr::transmute(outcome_cost, ID = .data$ID, Y = .data$cost),
       by = "ID"

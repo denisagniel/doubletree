@@ -4,8 +4,8 @@
 ## filter_to_msr_code(): the real logic behind 02_population_and_eligibility.R's
 ## MSR-contamination guard (see that file's header, and OPEN_DECISIONS$msr_code's
 ## note in application/_config.R, for why this filter exists at all -- it closes
-## a gap in smidata::smi_select_aap_row()'s abort-on-tie protection that a
-## non-tie-forming non-AAP row would otherwise pass through silently).
+## a gap in smidata::smi_select_measure_row()'s abort-on-tie protection that a
+## non-tie-forming other-measure row would otherwise pass through silently).
 ##
 ## Every expected value is HAND-CALCULATED, per this directory's convention.
 ## ============================================================================
@@ -94,22 +94,22 @@ test_that("other columns and row content are preserved for kept rows", {
   expect_equal(out$MSR_NUM, 5)
 })
 
-## ---- integration: uses application/_config.R's real AAP_MSR_CODE ------------
+## ---- integration: uses application/_config.R's real SAA_MSR_CODE ------------
 
-test_that("AAP_MSR_CODE (application/_config.R) is the literal 'AAP'", {
-  expect_equal(AAP_MSR_CODE, "AAP")
+test_that("SAA_MSR_CODE (application/_config.R) is the literal 'SAA'", {
+  expect_equal(SAA_MSR_CODE, "SAA")
   ## And it is NOT OPEN_DECISIONS$msr_code$value, which is an annotation, not
   ## a filter value -- filtering on that whole string would match zero rows.
-  expect_false(identical(AAP_MSR_CODE, OPEN_DECISIONS$msr_code$value))
+  expect_false(identical(SAA_MSR_CODE, OPEN_DECISIONS$msr_code$value))
 })
 
 test_that("filtering to OPEN_DECISIONS$msr_code$value directly would be a real bug", {
-  ## Demonstrates why AAP_MSR_CODE exists as a separate literal: using the
+  ## Demonstrates why SAA_MSR_CODE exists as a separate literal: using the
   ## decision's own annotated value string as a filter matches nothing.
-  df <- tibble::tibble(ID = c("P1", "P2"), MSR = c("AAP", "AAP"), MSR_DEN = 10, MSR_NUM = 5)
+  df <- tibble::tibble(ID = c("P1", "P2"), MSR = c("SAA", "SAA"), MSR_DEN = 10, MSR_NUM = 5)
   wrong <- suppressWarnings(filter_to_msr_code(df, OPEN_DECISIONS$msr_code$value))
   expect_equal(nrow(wrong), 0L)
 
-  right <- filter_to_msr_code(df, AAP_MSR_CODE)
+  right <- filter_to_msr_code(df, SAA_MSR_CODE)
   expect_equal(nrow(right), 2L)
 })

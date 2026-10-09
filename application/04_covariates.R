@@ -126,7 +126,7 @@ if (!config_has_smidata) {
 
   ## WHICH SAMPLE THE QUARTILES ARE COMPUTED WITHIN IS A DECISION, MADE IN 06.
   ## The confirmed design says "computed within the analytic sample". The
-  ## analytic sample is the AAP-eligible cohort AFTER the complete-case
+  ## analytic sample is the SAA-eligible cohort AFTER the complete-case
   ## restriction of 05 -- so strictly, discretization belongs after that
   ## filter, not before it. Run here anyway, for a PREVIEW only (labelled as
   ## such below): discretizing on the pre-filter cohort and then subsetting

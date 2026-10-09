@@ -46,6 +46,9 @@ config_smoke_n_patients <- 2L
 ## 2026-09-15_2824080e: 4 families x 9 years = 36 dataset keys.
 config_cost_years <- 16:24
 
+## NOTE (2026-10-09 audit): "Managed Care Invoice" is a confirmed literal level
+## of SS_DA_GRP_DESC; SS_DESC is not shown to contain it and
+## NEW_SERVICE_SETTINGS is numeric. Matched column deliberately unchanged.
 ## Which column of the cost-claims tables carries the service-setting
 ## description that the "Managed Care Invoice" exclusion matches on. Both
 ## SS_DESC and NEW_SERVICE_SETTINGS exist in all 36 files; SS_DESC is the
@@ -53,22 +56,26 @@ config_cost_years <- 16:24
 ## check (90_checks_tier1.R), not something to paper over with column probing.
 config_cost_setting_col <- "SS_DESC"
 
-## Achievement threshold for AAP: MSR_NUM / MSR_DEN >= this counts as achieved.
-## Confirmed PI 2026-09-17 (dual-bounds' exposure.definition, inherited here).
-## Passed explicitly to smidata::smi_select_aap_row(), which exposes it because
-## it means different things in different papers.
-config_aap_achievement_threshold <- 0.5
+## Achievement threshold for SAA: MSR_NUM / MSR_DEN >= this counts as achieved.
+## Inherited from dual-bounds' exposure.definition (PI 2026-09-17, stated for
+## AAP). In the contract msr_saa has MSR_NUM in {0,1} (which PDC tier it
+## encodes is unspecified, smidata QUALITY_MEASURES.md) and MSR_DEN = 1, so the
+## cut reduces to MSR_NUM == 1. Passed explicitly to
+## smidata::smi_select_measure_row(), which exposes it because it means
+## different things in different papers.
+config_saa_achievement_threshold <- 0.5
 
-## Literal msr_aap$MSR value for the AAP measure. DISTINCT from
-## OPEN_DECISIONS$msr_code$value ("AAP (no filter needed)" -- a human-readable
+## Literal msr_saa$MSR value for the SAA measure (user, 2026-10-09: "SAA"; not
+## yet seen in the real table). DISTINCT from
+## OPEN_DECISIONS$msr_code$value ("SAA (no filter needed)" -- a human-readable
 ## annotation of the resolution, not a filter value to plug into a query
 ## directly; filtering on that whole string would match zero real rows).
-## 02_population_and_eligibility.R filters msr_aap to this literal before
-## calling smi_select_aap_row() -- see that decision's note for why the
+## 02_population_and_eligibility.R filters msr_saa to this literal before
+## calling smi_select_measure_row() -- see that decision's note for why the
 ## registry's "abort-on-tie is the safety net" framing is not sufficient on
 ## its own, and why this filter (plus reporting any exclusion) is needed
 ## regardless of the "no filter needed" resolution's own intent.
-AAP_MSR_CODE <- "AAP"
+SAA_MSR_CODE <- "SAA"
 
 ## Pinned ingest for a run against staged or published server data. NOT a
 ## per-run knob that gets cleared after use -- a pin persists even after the
@@ -175,14 +182,14 @@ config_seed <- 20260917L
 ##
 ## The floor is 0.2.0, the release that PROMOTED the dataset-semantics helpers
 ## this pipeline needs: smi_parse_msr_yr(), smi_month_index(),
-## smi_select_aap_row(), smi_classify_is_mci(), smi_patient_windows(),
+## smi_select_measure_row(), smi_classify_is_mci(), smi_patient_windows(),
 ## smi_window_coverage(), smi_stream_cost_files(), smi_sum_cost_in_windows(),
 ## and smi_read(). NOTHING in this directory reimplements or copies them; a
 ## local function with any of those names would be the drift the promotion
 ## exists to eliminate.
 config_has_smidata <- requireNamespace("smidata", quietly = TRUE)
 if (config_has_smidata) {
-  stopifnot(utils::packageVersion("smidata") >= "0.2.0")
+  stopifnot(utils::packageVersion("smidata") >= "0.5.0")
 }
 
 ## ---- analysis windows (THIS PAPER's decision, not a dataset fact) ----------
@@ -237,7 +244,7 @@ config_complete_case_months <- 24L
 #' header. This registers it here, not a claim that dual-bounds already has.
 SMI_KEYS <- list(
   covariates            = "larger_smi_covariates",
-  aap                   = "msr_aap",
+  saa                   = "msr_saa",
   medicaid_monthly_flag = "larger_smi_medicaid_monthly_flag",
   cost_claims = list(
     aim3_svc   = "aim3_svc_cost",
@@ -250,7 +257,7 @@ SMI_KEYS <- list(
 #' Columns this pipeline actually requires, by dataset.
 #'
 #' Confirmed against the real fingerprint, not inferred. `larger_smi_covariates`
-#' has 72 columns and `msr_aap` has 5; these are the subsets the pipeline reads.
+#' has 72 columns and `msr_saa` has 5; these are the subsets the pipeline reads.
 #' The 12 table-resident covariates are added on top -- see
 #' `helpers/covariate_blocks.R`, which unlike dual-bounds' candidate map is
 #' PI-CONFIRMED and therefore not an open decision.
@@ -261,7 +268,7 @@ SMI_KEYS <- list(
 #' (`smidata::smi_enrollment_panel()`, since the 2026-10-01 migration) does not read.
 SMI_COLS <- list(
   covariates            = c("ID", "INDEX_DT"),
-  aap                   = c("ID", "MSR", "MSR_YR", "MSR_DEN", "MSR_NUM"),
+  saa                   = c("ID", "MSR", "MSR_YR", "MSR_DEN", "MSR_NUM"),
   medicaid_monthly_flag = c("ID", "INDEX_DT", "TYPE", "YEAR_MONTH", "MEDICAID_FLAG"),
   cost_claims = c("ID", "SRV_DT", "AMOUNT_PAID", "SEQ_ID", config_cost_setting_col)
 )
@@ -298,7 +305,7 @@ cost_dataset_keys <- function(years = config_cost_years) {
 ##                   is a hard inclusion criterion, so the question collapses
 ##                   into enrollment_source itself.
 ##   msr_tie_break   Not applicable. This pipeline calls
-##                   smidata::smi_select_aap_row() at its DEFAULT
+##                   smidata::smi_select_measure_row() at its DEFAULT
 ##                   tie_break = "earlier" and passes no other value; smidata
 ##                   aborts on any other value anyway. There is no choice being
 ##                   made here to flag.
@@ -341,11 +348,11 @@ OPEN_DECISIONS <- list(
     registry_ref = "smidata::inst/analyses/dual-bounds__application.yml#cost_family_scope",
     note = "RESOLVED (PI, 2026-09-17): 'They are disjoint subsets of patients - aim3* is the subset with 12-month enrollment after index and new* is without that enrollment guarantee.' A given patient's claims appear in exactly one family per claim type -- summing does NOT double-count, and does not shift prior_cost's quartile boundaries either, since no patient contributes to more than one family. IDENTICAL finding to dual-bounds' entry -- resolved once for both. Not yet independently verified against real claim-level data; the aim3_svc_cost_20-vs-new_svc_cost_20 comparison in dual-bounds' 90_checks_tier1.R remains worth running as corroboration."),
   msr_code = list(
-    question = "SHARED WITH dual-bounds -- see registry_ref. Which msr_aap$MSR code value identifies the AAP measure specifically (msr_aap is not filtered to one measure, so 'the single nearest-month row' is ambiguous without it).",
-    status = "confirmed", blocking_final = FALSE, value = "AAP (no filter needed)",
+    question = "SHARED WITH dual-bounds -- see registry_ref. Which msr_saa$MSR code value identifies the SAA measure specifically (msr_saa is not filtered to one measure, so 'the single nearest-month row' is ambiguous without it).",
+    status = "confirmed", blocking_final = FALSE, value = "SAA (no filter needed)",
     shared_with = "dual-bounds",
     registry_ref = "smidata::inst/analyses/dual-bounds__application.yml#msr_code",
-    note = "RESOLVED (PI, 2026-09-17): 'msr_code is always AAP in the msr_aap dataset' -- a measure-specific extract, not a combined all-measures file. Corroborated by contract evidence: msr_aap's MSR_NUM column carries the SAS label 'AAP_NUM'. IDENTICAL finding to dual-bounds' entry -- exposure A (inherited from dual-bounds) is now deterministic on this point. CORRECTION (2026-09-24, this repo, found while implementing 02_population_and_eligibility.R for real): the registry's claim that 'smidata::smi_select_aap_row()'s abort-on-tie behavior remains the safety net regardless' OVERSTATES that function's protection. Read smi_select_aap_row()'s actual source (~/RAND/tools/smidata/R/msr_aap.R): its winner-selection (candidates/winners) joins and groups on ID only and never references MSR at all except inside the tie-diagnostic message -- the abort fires ONLY when multiple rows tie at the exact same winning month_gap/row_month for one patient. A non-AAP row that is simply CLOSER in time to the target month than any true AAP row, with no tie, would be silently selected as the winner, corrupting elig_aap/aap_achieved for that patient with no abort and no warning. 02_population_and_eligibility.R now filters to AAP_MSR_CODE explicitly (below) and reports (does not silently trust) any exclusion, rather than relying on the abort-on-tie safety net this note previously (incorrectly) said was sufficient on its own. NOT YET propagated to smidata's actual dual-bounds__application.yml registry or to dual-bounds' own 02 -- both still carry the overstated claim and the identical silent-contamination exposure; see session_notes and the upstream item this should become."),
+    note = "UPDATE (2026-10-09): the exposure measure was switched from msr_aap (AAP) to msr_saa (SAA, antipsychotic adherence); the literal is now \"SAA\" (user). The SAA literal and the one-measure-per-file premise are NOT yet confirmed against the real msr_saa table; the contamination guard below is what protects against being wrong. The text that follows is the ORIGINAL AAP-era resolution, kept as history. RESOLVED (PI, 2026-09-17, for AAP): 'msr_code is always AAP in the msr_aap dataset' -- a measure-specific extract, not a combined all-measures file. Corroborated by contract evidence: msr_aap's MSR_NUM column carries the SAS label 'AAP_NUM'. IDENTICAL finding to dual-bounds' entry -- exposure A (inherited from dual-bounds) is now deterministic on this point. CORRECTION (2026-09-24, this repo, found while implementing 02_population_and_eligibility.R for real): the registry's claim that 'smidata::smi_select_aap_row()'s abort-on-tie behavior remains the safety net regardless' OVERSTATES that function's protection. Read smi_select_aap_row()'s actual source (~/RAND/tools/smidata/R/msr_aap.R): its winner-selection (candidates/winners) joins and groups on ID only and never references MSR at all except inside the tie-diagnostic message -- the abort fires ONLY when multiple rows tie at the exact same winning month_gap/row_month for one patient. A non-AAP row that is simply CLOSER in time to the target month than any true AAP row, with no tie, would be silently selected as the winner, corrupting elig_aap/aap_achieved for that patient with no abort and no warning. 02_population_and_eligibility.R now filters to AAP_MSR_CODE explicitly (below) and reports (does not silently trust) any exclusion, rather than relying on the abort-on-tie safety net this note previously (incorrectly) said was sufficient on its own. NOT YET propagated to smidata's actual dual-bounds__application.yml registry or to dual-bounds' own 02 -- both still carry the overstated claim and the identical silent-contamination exposure; see session_notes and the upstream item this should become."),
   diagnostics = list(
     question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
     status = "confirmed", blocking_final = FALSE,

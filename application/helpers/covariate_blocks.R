@@ -53,6 +53,9 @@
 covariate_blocks <- function() {
   list(
     demographics = c(
+      ## NOTE (2026-10-09 audit): HOUSING_YN / FOOD_YN / POVERTY_YN are ICD-10
+      ## Z59 social-risk flags per the data dictionary ("Extreme poverty" =
+      ## Z59.5), NOT demographics or poverty status. Block label unchanged.
       ## Z-code social-determinant flags: housing instability, food insecurity,
       ## poverty. Chosen over AGE / RACE_ETHNICITY / SEX precisely because these
       ## three are already binary; the others would each need their own
@@ -68,9 +71,12 @@ covariate_blocks <- function() {
     ),
     ap_psych_history = c(
       ## Schizophrenia diagnosis, any antipsychotic, any antidepressant.
+      ## NOTE (2026-10-09 audit): VAR5D_SZ_YN is a pre-period psychiatric
+      ## COMORBIDITY flag, not a cohort-defining or exposure variable.
+      ## NOTE (2026-10-09 audit): AAP is Adults' Access to Preventive/Ambulatory Health Services (HEDIS), not antipsychotic adherence (that is msr_saa). Framing under PI review; see smidata QUALITY_MEASURES.md.
       ##
       ## VAR9E_ANTIPSY_YN is PRE-index antipsychotic use and the exposure is
-      ## POST-index AAP achievement, so this is a confounder, not the exposure.
+      ## POST-index SAA achievement, so this is a confounder, not the exposure.
       ## That distinction rests on the measurement windows being disjoint;
       ## 90_checks_tier1.R specifies the Tier-1 check that confirms it rather
       ## than assuming it.
@@ -78,6 +84,10 @@ covariate_blocks <- function() {
     ),
     comorbidity = c(
       ## Type 2 diabetes, hypertension, and any glucose-or-lipid screening.
+      ## NOTE (2026-10-09 audit): VAR5G_DM2_YN is a composite of DM2A and DM2B
+      ## (type 2 + drug/chemical-induced diabetes). GLU_OR_LIPID_YN's window is
+      ## anchored on the index antipsychotic fill date per the covariate spec,
+      ## not INDEX_DT. Comments only; logic unchanged.
       ## GLU_OR_LIPID_YN is preferred over its GLUCOSE_YN / LIPID_YN /
       ## GLU_AND_LIPID_YN siblings: the four are mechanically related, so taking
       ## more than one spends grid atoms on near-duplicate information.

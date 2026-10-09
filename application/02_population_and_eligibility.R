@@ -1,19 +1,22 @@
 ## ============================================================================
 ## 02_population_and_eligibility.R
 ##
-## Base cohort -> AAP eligibility (elig_aap) -> exposure A (aap_achieved).
+## Base cohort -> SAA eligibility (elig_saa) -> exposure A (saa_achieved).
+## EXPOSURE SWITCHED from AAP (msr_aap) to SAA, antipsychotic adherence
+## (msr_saa), 2026-10-09. The registry text below that mentions AAP is the
+## ORIGINAL dual-bounds-inherited design and is kept as provenance.
 ##
 ## EVERY DESIGN ELEMENT IN THIS SCRIPT IS INHERITED FROM dual-bounds, VERBATIM
 ## (smidata inst/analyses/doubletree__application.yml sections 2-4, all
 ## `status: inherited`). This paper adds no eligibility criterion of its own:
 ##   population.time_zero     = INDEX_DT
-##   population.eligibility   = elig_aap == 1 iff MSR_DEN >= 1 in msr_aap
+##   population.eligibility   = elig_saa == 1 iff MSR_DEN >= 1 in msr_saa
 ##   base_cohort.source_table = larger_smi_covariates (381,018 rows)
 ##   exposure.window          = [INDEX_DT, INDEX_DT + 12mo]
 ##   exposure.definition      = A = 1 iff MSR_NUM/MSR_DEN >= 0.5
 ##
 ## Inheriting the design does NOT mean calling dual-bounds' code. The shared
-## implementation is smidata::smi_select_aap_row(), which both projects call
+## implementation is smidata::smi_select_measure_row(), which both projects call
 ## directly; nothing here reads anything from ~/RAND/rprojects/smi/dual-bounds.
 ##
 ## REAL AS OF 2026-09-24. OPEN_DECISIONS$msr_code was confirmed 2026-09-17 but
@@ -36,15 +39,15 @@
 ## patient. A non-AAP row that is merely CLOSER in time to the target month
 ## than any true AAP row, with no tie, would be silently selected as the
 ## winner, corrupting that patient's `elig_aap`/`aap_achieved` with no abort
-## and no warning at all. `AAP_MSR_CODE` (application/_config.R) is filtered
-## on explicitly here, before calling smi_select_aap_row(), specifically to
+## and no warning at all. `SAA_MSR_CODE` (application/_config.R) is filtered
+## on explicitly here, before calling smi_select_measure_row(), specifically to
 ## close that gap -- see OPEN_DECISIONS$msr_code's note for the full
 ## correction (design-reviewed by `oracle`, 2026-09-24). NOT YET propagated
 ## to smidata's shared registry or to dual-bounds' identical script -- both
 ## still carry the overstated claim and the identical exposure.
 ##
-## Run time when unblocked: msr_aap is 19,012,819 rows. Filtering it to one MSR
-## code before the join is what keeps smidata::smi_select_aap_row() tractable;
+## Run time when unblocked: msr_saa is ~3.5M rows (msr_aap was 19,012,819). Filtering it to one MSR
+## code before the join is what keeps smidata::smi_select_measure_row() tractable;
 ## expect minutes, not seconds, on the server. Locally, smidata::smi_read()
 ## transparently returns a Tier-0 fixture instead (structurally valid,
 ## deliberately unrealistic values) -- see this file's Tier-0 section below.
@@ -71,7 +74,7 @@ if (!config_has_smidata) {
   msr_code <- confirmed_value("msr_code")
   cli::cli_alert_success(
     "OPEN_DECISIONS$msr_code is confirmed: {.val {msr_code}}. Filtering
-     {.val {SMI_KEYS$aap}} to the literal {.val {AAP_MSR_CODE}} below rather
+     {.val {SMI_KEYS$saa}} to the literal {.val {SAA_MSR_CODE}} below rather
      than trusting 'no filter needed' unverified -- see this file's header."
   )
 
@@ -112,21 +115,21 @@ if (!config_has_smidata) {
     )
   }
 
-  ## ---- msr_aap: contamination guard, THEN smi_select_aap_row() ----------
-  aap_raw <- smi_read_pinned(SMI_KEYS$aap, columns = SMI_COLS$aap)
+  ## ---- msr_saa: contamination guard, THEN smi_select_measure_row() ------
+  saa_raw <- smi_read_pinned(SMI_KEYS$saa, columns = SMI_COLS$saa)
 
   ## filter_to_msr_code() (helpers/msr_filter.R) is pure and independently
   ## tested; `quiet` suppresses its own warning under a Tier-0 fixture, where
   ## an exclusion is expected and reported below in fixture-specific words,
   ## not a real finding.
-  aap_raw <- filter_to_msr_code(aap_raw, AAP_MSR_CODE, quiet = is_local)
-  n_excluded <- attr(aap_raw, "n_excluded")
-  excluded_values <- attr(aap_raw, "excluded_msr_values")
+  saa_raw <- filter_to_msr_code(saa_raw, SAA_MSR_CODE, quiet = is_local)
+  n_excluded <- attr(saa_raw, "n_excluded")
+  excluded_values <- attr(saa_raw, "excluded_msr_values")
 
   if (is_local && n_excluded > 0L) {
     cli::cli_alert_info(
       "{n_excluded} Tier-0 fixture row{?s} had {.field MSR} !=
-       {.val {AAP_MSR_CODE}} (value{?s}: {.val {excluded_values}}) and
+       {.val {SAA_MSR_CODE}} (value{?s}: {.val {excluded_values}}) and
        {?was/were} excluded. Expected -- fixture MSR values are synthetic,
        not a real finding."
     )
@@ -138,17 +141,17 @@ if (!config_has_smidata) {
        detail; this is the pointer to where it needs to land."
     )
   }
-  if (nrow(aap_raw) == 0L) {
+  if (nrow(saa_raw) == 0L) {
     if (is_local) {
       cli::cli_abort(
-        "No {.val {AAP_MSR_CODE}} rows in the Tier-0 fixture for
-         {.val {SMI_KEYS$aap}} this seed -- the fixture's synthetic MSR
-         values did not happen to include {.val {AAP_MSR_CODE}}. Not a real
+        "No {.val {SAA_MSR_CODE}} rows in the Tier-0 fixture for
+         {.val {SMI_KEYS$saa}} this seed -- the fixture's synthetic MSR
+         values did not happen to include {.val {SAA_MSR_CODE}}. Not a real
          finding; this pipeline cannot proceed further locally without one."
       )
     } else {
       cli::cli_abort(
-        "No {.val {SMI_KEYS$aap}} rows with MSR == {.val {AAP_MSR_CODE}} --
+        "No {.val {SMI_KEYS$saa}} rows with MSR == {.val {SAA_MSR_CODE}} --
          cannot proceed."
       )
     }
@@ -157,33 +160,36 @@ if (!config_has_smidata) {
   ## Grain change: one row per patient. tie_break is left at smidata's own
   ## default, "earlier", and is NOT an open decision in this project (see
   ## OPEN_DECISIONS's header comment on what is deliberately absent):
-  ## smi_select_aap_row() aborts on any other value, so no choice is being
+  ## smi_select_measure_row() aborts on any other value, so no choice is being
   ## silently made here to flag.
-  aap_selected <- smidata::smi_select_aap_row(
-    aap_raw,
+  saa_selected <- smidata::smi_select_measure_row(
+    saa_raw,
     index_dt = dplyr::select(base_cohort, "ID", "INDEX_DT"),
     ## MSR_YR is the START of the 12-month measurement period (smidata
     ## 06dbbe2, 2026-10-09), so the period starting closest to INDEX_DT
     ## (offset 0) IS the exposure window [INDEX_DT, INDEX_DT + 12mo]. The
     ## old 12L read MSR_YR as the period END. Passed explicitly rather than
     ## relying on smidata's default, which flipped 12L -> 0L in that commit.
-    ## Start convention not yet confirmed against msr_aap itself.
+    ## Start convention not yet confirmed against msr_saa itself.
     target_offset_months = 0L,
-    achievement_threshold = config_aap_achievement_threshold,
+    achievement_threshold = config_saa_achievement_threshold,
     max_month_gap = Inf   # see 90_checks_tier1.R for the calibrating check
   )
 
   population <- base_cohort |>
-    dplyr::left_join(aap_selected, by = "ID") |>
-    dplyr::mutate(A = dplyr::if_else(.data$aap_achieved, 1L, 0L))
+    dplyr::left_join(
+      dplyr::rename(saa_selected, elig_saa = "elig", saa_achieved = "achieved"),
+      by = "ID"
+    ) |>
+    dplyr::mutate(A = dplyr::if_else(.data$saa_achieved, 1L, 0L))
 
-  ## The analysis cohort is the AAP-eligible subset. Report the attrition
+  ## The analysis cohort is the SAA-eligible subset. Report the attrition
   ## explicitly -- an eligibility filter that silently halves the cohort is
   ## the kind of thing that gets discovered in review.
-  analysis_cohort <- dplyr::filter(population, .data$elig_aap)
+  analysis_cohort <- dplyr::filter(population, .data$elig_saa)
   cli::cli_alert_info(
     "Eligible: {nrow(analysis_cohort)} of {nrow(population)};
-     unmatched to msr_aap: {sum(!population$matched)}."
+     unmatched to msr_saa: {sum(!population$matched)}."
   )
 
   ## Both ATT entry points need interior treatment proportion and enough mass
@@ -192,7 +198,7 @@ if (!config_has_smidata) {
   ## alone. Report the two arm counts here so a downstream estimator failure
   ## is traceable to the cohort rather than to the estimator.
   cli::cli_alert_info(
-    "A = 1 (AAP achieved): {sum(analysis_cohort$A == 1L)};
+    "A = 1 (SAA achieved): {sum(analysis_cohort$A == 1L)};
      A = 0: {sum(analysis_cohort$A == 0L)}."
   )
   if (is_local) {

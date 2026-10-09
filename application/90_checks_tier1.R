@@ -48,7 +48,7 @@
 ## SO: when running dual-bounds' CHECK 1, additionally report the QUARTILE
 ## CUTPOINTS of pre-index total cost under each candidate scope (all four
 ## families summed, versus aim3_* only, versus the de-duplicated union) on the
-## AAP-eligible cohort. If the three cutpoint vectors agree to within rounding,
+## SAA-eligible cohort. If the three cutpoint vectors agree to within rounding,
 ## this paper is insensitive to the resolution and can proceed while dual-bounds
 ## waits. If they disagree, they disagree, and 04/06 cannot run until the scope
 ## is settled.
@@ -60,7 +60,7 @@
 
 
 ## ---------------------------------------------------------------------------
-## CHECK 2 -- msr_code ambiguity, and the AAP gap distribution
+## CHECK 2 -- msr_code ambiguity, and the SAA gap distribution
 ##                                                        [SHARED, REFERENCED]
 ##
 ## SPECIFICATION: ~/RAND/rprojects/smi/dual-bounds/analysis/real_data/
@@ -74,7 +74,7 @@
 ##
 ## Its output resolves OPEN_DECISIONS$msr_code for BOTH papers simultaneously,
 ## because exposure A here is `status: inherited` from dual-bounds -- the same
-## smidata::smi_select_aap_row() call on the same table with the same threshold.
+## smidata::smi_select_measure_row() call on the same table with the same threshold.
 ##
 ## ONE ADDITION FOR THIS PAPER. Report the resulting A = 1 / A = 0 counts at each
 ## candidate gap cutoff, not just total cohort size. estimate_att() fits its mu
@@ -128,13 +128,14 @@
 ##       entry.
 ##
 ##   (c) PREVALENCE (mean, once coding is confirmed 0/1) per column, on the
-##       AAP-eligible cohort rather than the full table. Two reasons. A flag at
+##       SAA-eligible cohort rather than the full table. Two reasons. A flag at
 ##       0.1% prevalence is very nearly a constant column: it will not be
 ##       rejected by the constant-column check, but it spends a grid coordinate
 ##       to distinguish a handful of patients, which is a poor use of a scarce
 ##       budget. And prevalence within the A = 0 arm specifically bounds what the
 ##       mu tree can split on, since that tree is fit on controls alone.
 ##
+##   NOTE (2026-10-09 audit): AAP is Adults' Access to Preventive/Ambulatory Health Services (HEDIS), not antipsychotic adherence (that is msr_saa). Framing under PI review; see smidata QUALITY_MEASURES.md.
 ##   (d) EXPOSURE-LEAKAGE CHECK on VAR9E_ANTIPSY_YN. This column is
 ##       antipsychotic use and the exposure is antipsychotic ADHERENCE. It is
 ##       included as a PRE-index confounder, which is correct only if its

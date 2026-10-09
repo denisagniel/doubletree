@@ -83,19 +83,19 @@ toy_covariates <- function(n = 64L) {
   ))
 }
 
-#' Toy `msr_aap`-shaped frame: one measurement period per patient.
+#' Toy `msr_saa`-shaped frame: one measurement period per patient.
 #'
 #' Shape only -- `MSR_YR` is smidata's confirmed `RY<yyyy>-<mm>` format, and
 #' whether the values are plausible is beside the point. Used to confirm this
-#' directory composes with `smidata::smi_select_aap_row()`'s column contract, not
+#' directory composes with `smidata::smi_select_measure_row()`'s column contract, not
 #' to test that function.
 #'
 #' @param ids Patient IDs.
 #' @return Tibble with `ID`, `MSR`, `MSR_YR`, `MSR_DEN`, `MSR_NUM`.
-toy_msr_aap <- function(ids) {
+toy_msr_saa <- function(ids) {
   tibble::tibble(
     ID = ids,
-    MSR = "AAP",
+    MSR = "SAA",
     MSR_YR = "RY2020-01",
     MSR_DEN = 10,
     ## Alternating 6/10 and 3/10 straddles the 0.5 achievement threshold, so

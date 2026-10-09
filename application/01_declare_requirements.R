@@ -6,7 +6,7 @@
 ## 200 lines into stage 03.
 ##
 ## This paper requires NO datasets beyond the ones dual-bounds already requires:
-## larger_smi_covariates, msr_aap, medicaid_monthly_flag, and all 36 cost-claims
+## larger_smi_covariates, msr_saa, medicaid_monthly_flag, and all 36 cost-claims
 ## keys. Its only additional construction -- prior_cost's quartile
 ## discretization -- is computed from data already being read. The declaration
 ## below is therefore the same 39 requirements dual-bounds' identical design
@@ -52,7 +52,7 @@ if (!config_has_smidata) {
 
   requirements <- c(
     stats::setNames(list(SMI_COLS$covariates), SMI_KEYS$covariates),
-    stats::setNames(list(SMI_COLS$aap), SMI_KEYS$aap),
+    stats::setNames(list(SMI_COLS$saa), SMI_KEYS$saa),
     stats::setNames(
       list(SMI_COLS$medicaid_monthly_flag), SMI_KEYS$medicaid_monthly_flag
     ),
@@ -90,7 +90,7 @@ if (!config_has_smidata) {
 
   ## Same reasoning one level down: a dataset can be present under the right
   ## KEY while carrying an entirely different SCHEMA. smidata's example
-  ## contract's msr_aap is exactly that case (MSR_ID/MSR_DENOM, not
+  ## contract's msr_saa is exactly that case (MSR_ID/MSR_DENOM, not
   ## MSR/MSR_YR/MSR_DEN), so declaring against it aborts on columns and again
   ## reports the wrong headline. Check first, report the schema mismatch, and
   ## declare only where the contract can actually answer.
@@ -165,7 +165,7 @@ if (!config_has_smidata) {
     )
     cli::cli_alert_warning(
       "Without a census, {.fn smidata::smi_fixture} cannot build a structurally valid
-       fixture for {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}},
+       fixture for {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$saa}},
        {.val {SMI_KEYS$medicaid_monthly_flag}}, or the cost_claims family."
     )
     cli::cli_alert_warning(
@@ -186,7 +186,7 @@ if (!config_has_smidata) {
     )
     cli::cli_alert_info(
       "{.fn smidata::smi_fixture} can now build structurally valid fixtures for
-       {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$aap}},
+       {.val {SMI_KEYS$covariates}}, {.val {SMI_KEYS$saa}},
        {.val {SMI_KEYS$medicaid_monthly_flag}}, and the cost_claims family, in
        addition to what already ran at Tier 0 ({.file application/tests/}'s
        15-column design matrix on hand-built toy data). Distributional shape
