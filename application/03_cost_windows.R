@@ -15,8 +15,10 @@
 ## Design (inherited from dual-bounds, smidata
 ## inst/analyses/doubletree__application.yml sections 5-6, `status: inherited`):
 ##   outcome.primary               = total_cost (includes pharmacy)
-##   outcome.ascertainment_window  = [INDEX_DT + 12mo, INDEX_DT + 24mo)
-##   covariates.measurement_window = [INDEX_DT - 12mo, INDEX_DT)   -> prior_cost
+##   outcome.ascertainment_window  = [T0 + 12mo, T0 + 24mo)
+##   covariates.measurement_window = [T0 - 12mo, T0)   -> prior_cost
+## where T0 is the first day of the selected exposure period's month (02), which
+## replaces INDEX_DT as time zero (2026-10-15) so the windows are contiguous.
 ##   outcome.exclusions            = Managed Care Invoice records
 ##
 ## THIS PAPER'S ONE ADDITION: prior_cost does not enter X as dollars. It is
@@ -99,7 +101,7 @@ cli::cli_alert_info(
 ## smidata::smi_patient_windows() deliberately has no default `windows`
 ## argument, so the offsets are stated exactly once for this paper and passed
 ## explicitly at every call site. Half-open, start inclusive, end exclusive;
-## prior_cost's end IS INDEX_DT, so the index day itself belongs to neither
+## prior_cost's end IS T0, so day T0 itself belongs to neither
 ## window and no claim is counted twice.
 ##
 ## The VALUES equal dual-bounds' DUAL_BOUNDS_WINDOWS, because the windows are
@@ -151,8 +153,9 @@ if (!config_has_smidata) {
   require_stage("analysis_cohort", "02_population_and_eligibility.R")
   is_local <- identical(smidata::smi_env(), "local")
 
+  ## Windows are anchored on T0 (02), not INDEX_DT.
   patients <- analysis_cohort |>
-    dplyr::transmute(id = .data$ID, index_dt = as.Date(.data$INDEX_DT))
+    dplyr::transmute(id = .data$ID, index_dt = as.Date(.data$T0))
 
   windows <- smidata::smi_patient_windows(patients, windows = DOUBLETREE_WINDOWS)
 

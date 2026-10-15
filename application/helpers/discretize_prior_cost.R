@@ -3,7 +3,7 @@
 ##
 ## Pure function. No data reads, no side effects, no smidata dependency.
 ##
-## prior_cost (continuous dollars, constructed over [INDEX_DT - 12mo, INDEX_DT)
+## prior_cost (continuous dollars, constructed over [T0 - 12mo, T0)
 ## in 03_cost_windows.R) -> 3 binary dummies, Q1 as the implicit reference.
 ## Confirmed PI 2026-09-17 (smidata inst/analyses/doubletree__application.yml,
 ## covariates.grid_exact_sparsity: "discretized into QUARTILES (Q1-Q4, computed

@@ -13,7 +13,7 @@ This directory is a **deliberate methodological contrast** with
 `~/RAND/rprojects/smi/dual-bounds/analysis/real_data/`, not an independent study. It reuses that
 paper's population, exposure, outcome and covariate-source design **verbatim** — smidata's
 `inst/analyses/doubletree__application.yml` marks sections 2–6 `status: inherited` — and differs
-in exactly two places:
+in three places (the third, time zero, is the author's 2026-10-15 choice, not yet PI-confirmed or in smidata's registry):
 
 | | dual-bounds | this paper |
 |---|---|---|
@@ -196,8 +196,15 @@ script reports its absence explicitly.
   Environment variables are reserved for smidata's own per-machine path overrides
   (`SMI_DATA_DIR`, `ANALYSIS_ENV`, …), which must resolve identically across the five projects
   sharing the server.
-- **Windows are half-open**: start inclusive, end exclusive. `prior_cost` ends *at* `INDEX_DT`, so
-  the index day belongs to neither window and no claim is counted twice.
+- **Windows are half-open**: start inclusive, end exclusive. `prior_cost` ends *at* `T0`, so
+  day `T0` belongs to neither window and no claim is counted twice.
+- **Time zero is `T0`, not `INDEX_DT`** (2026-10-15). `T0` is the first day of the month the
+  selected SAA measurement period starts in (`helpers/period_start.R`, computed in `02`). All
+  windows are anchored on it: `prior_cost` `[T0-12mo, T0)`, exposure `[T0, T0+12mo)`, outcome
+  `[T0+12mo, T0+24mo)`, complete case through `T0+24mo`. They are contiguous and non-overlapping
+  for any SAA gap. `INDEX_DT` only selects the period and keeps anchoring the 12 `_YN` covariates
+  (so at gap ≠ 0 those are shifted by up to a month) and `05`'s enrollment-panel cross-check.
+  dual-bounds still anchors on `INDEX_DT`; aligning the two is an open joint decision.
 - **The quartile cutpoints are sample-dependent and must be reported.** The confirmed design says
   quartiles are computed "within the analytic sample", which is the *post*-restriction sample —
   hence `discretize_prior_cost()` is called in `06`, after the complete-case filter, not only in

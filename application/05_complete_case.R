@@ -80,9 +80,9 @@
 ## rather than treating it as a data-cleaning step.
 ##
 ## ACKNOWLEDGED LIMITATION (author, 2026-10-15). Complete-case status requires
-## enrollment through INDEX_DT + 24mo, a window that overlaps the exposure
-## measurement period (which may start up to config_saa_max_month_gap months
-## either side of INDEX_DT), so it is determined partly AFTER treatment. The
+## enrollment through T0 + 24mo (T0 = first day of the exposure period's
+## month), a window that CONTAINS the exposure period [T0, T0 + 12mo), so it
+## is determined partly AFTER treatment. The
 ## complete-case ATT equals the full-eligible-cohort ATT only if retention R is
 ## independent of (Y(0), Y(1)) given (A, X) AND the retained treated have the
 ## same X distribution as all treated (or effects do not vary with X); under
@@ -175,7 +175,12 @@ if (!config_has_smidata) {
     columns = SMI_COLS$medicaid_monthly_flag
   )
 
+  ## Two cohort frames, deliberately. The panel is built on the true INDEX_DT
+  ## so smi_enrollment_panel()'s cross-check against the table's own INDEX_DT
+  ## keeps working; coverage is anchored on T0 (02), the first day of the
+  ## exposure period's month, which is what the 24 required months start from.
   cohort_for_cc <- dplyr::select(analysis_cohort, "ID", "INDEX_DT")
+  cohort_t0 <- dplyr::transmute(analysis_cohort, ID = .data$ID, INDEX_DT = .data$T0)
 
   if (is_local) {
     ## Fixture-only patch -- see this file's header. NEVER done against real
@@ -228,7 +233,7 @@ if (!config_has_smidata) {
 
     coverage <- smidata::smi_enrollment_coverage(
       panel = enrollment_panel,
-      cohort = cohort_for_cc,
+      cohort = cohort_t0,
       window_months = config_complete_case_months,
       gap_months = cc_gap_months,
       gap_mode = cc_gap_mode
@@ -258,8 +263,10 @@ if (!config_has_smidata) {
     if (cc_tally$n_uncovered_at_index > 0L) {
       cli::cli_alert_warning(
         "{cc_tally$n_uncovered_at_index} patient{?s} {?is/are} uncovered in
-         {?its/their} OWN index month -- investigate before trusting the rate
-         above."
+         the T0 month (the first month of the exposure period). At gap != 0
+         that is not the month of the qualifying claim, so a nonzero count is
+         not by itself a cohort/table mismatch; compare it by signed gap in the
+         table below."
       )
     }
     cli::cli_alert_info(
@@ -279,6 +286,18 @@ if (!config_has_smidata) {
     ## continuous-enrollment filter poses (Oracle-flagged, 2026-09-24 design
     ## review): retention plausibly correlates with the exposure itself
     ## (medication adherence). Report it, don't just compute it.
+    ## By signed gap: at gap -1 the required months start BEFORE INDEX_DT's
+    ## month, and larger_smi_medicaid_monthly_flag may not hold months that
+    ## early. If it does not, every such patient fails here for a reason
+    ## unrelated to enrollment. An entire stratum excluded is that signal.
+    cc_by_gap <- analysis_cohort |>
+      dplyr::left_join(complete_case, by = "ID") |>
+      dplyr::count(.data$signed_gap, .data$A, .data$reason)
+    cli::cli_alert_info("Complete-case reason by signed gap and arm:")
+    cli::cli_verbatim(utils::capture.output(print(cc_by_gap, n = Inf)))
+    fs::dir_create(file.path(app_dir, "output"))
+    arrow::write_parquet(cc_by_gap, file.path(app_dir, "output", "complete_case_by_gap.parquet"))
+
     attrition_by_arm <- analysis_cohort |>
       dplyr::left_join(complete_case, by = "ID") |>
       dplyr::summarise(

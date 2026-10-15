@@ -83,7 +83,8 @@ if (!config_has_smidata) {
   ## happens here and the excluded patients are gone from the analytic data
   ## entirely -- which is exactly why the excluded COUNT must be reported.
   analytic_pre <- analysis_cohort |>                          # 02
-    dplyr::select("ID", "INDEX_DT", "A", "elig_saa", "MSR_YR_selected", "month_gap") |>
+    dplyr::select("ID", "INDEX_DT", "T0", "signed_gap", "A", "elig_saa",
+                    "MSR_YR_selected", "month_gap") |>
     dplyr::left_join(                                         # 03: Y
       dplyr::transmute(outcome_cost, ID = .data$ID, Y = .data$cost),
       by = "ID"
@@ -187,12 +188,13 @@ if (!config_has_smidata) {
 
   analytic_data <- x_with_id |>
     dplyr::left_join(
-      dplyr::select(analytic_known_x, "ID", "A", "Y", "prior_cost",
-                    "MSR_YR_selected", "month_gap"),
+      dplyr::select(analytic_known_x, "ID", "A", "Y", "prior_cost", "T0",
+                    "signed_gap", "MSR_YR_selected", "month_gap"),
       by = "ID"
     ) |>
     dplyr::select("ID", "A", "Y", dplyr::all_of(design_matrix_columns()),
-                  "prior_cost", "MSR_YR_selected", "month_gap")
+                  "prior_cost", "T0", "signed_gap", "MSR_YR_selected",
+                  "month_gap")
   ## prior_cost (dollars) is retained ALONGSIDE its dummies deliberately: it
   ## is not passed to the estimator, but the methods section needs its
   ## distribution and the cutpoints have to be reproducible from the saved

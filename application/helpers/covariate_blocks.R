@@ -34,7 +34,7 @@
 ## prior_cost's 3 dummies are NOT in this file's blocks: they do not exist in
 ## larger_smi_covariates (the table has zero dollar fields, checked against the
 ## real 72-column list 2026-09-17). prior_cost is constructed from the
-## cost-claims family over [INDEX_DT - 12mo, INDEX_DT) in 03_cost_windows.R and
+## cost-claims family over [T0 - 12mo, T0) in 03_cost_windows.R and
 ## then discretized in helpers/discretize_prior_cost.R.
 ## ============================================================================
 

@@ -18,11 +18,15 @@
 ## RELATIONSHIP TO dual-bounds. This paper reuses dual-bounds' population,
 ## exposure, outcome and covariate SOURCE design verbatim (smidata
 ## inst/analyses/doubletree__application.yml, sections 2-6, mostly
-## `status: inherited`). It differs in exactly two places: the ESTIMATOR
+## `status: inherited`). It differs in three places: the ESTIMATOR
 ## (doubletree::estimate_att()/estimate_att_crossfit() instead of marbounds'
-## partial-identification bounds), and OUTCOME MISSINGNESS (a complete-case
+## partial-identification bounds), OUTCOME MISSINGNESS (a complete-case
 ## restriction instead of a modelled response indicator R -- doubletree's
-## estimator signature has no censoring argument for R to attach to).
+## estimator signature has no censoring argument for R to attach to), and TIME
+## ZERO (author, 2026-10-15: every window is anchored on T0, the start of the
+## selected exposure period's month, instead of INDEX_DT; NOT yet recorded in
+## smidata's registry, where population.time_zero is still `inherited`, nor
+## confirmed by the PI).
 ##
 ## Inheriting a DESIGN is not the same as sharing CODE. Constants below that
 ## happen to equal dual-bounds' constants are still declared here, locally, and
@@ -67,14 +71,18 @@ config_saa_achievement_threshold <- 0.5
 ## unmatched and ineligible. Working choice of 1 month (author, 2026-10-15),
 ## NOT yet PI-confirmed and NOT yet reconciled with dual-bounds, whose
 ## analysis shares this exposure (90_checks_tier1.R CHECK 2 is the spec and
-## CHECK 6 the executable check). month_gap is ABSOLUTE, so a cutoff of 1
-## already allows a period starting one month AFTER INDEX_DT's month (running
-## about a month into the outcome window) or one month BEFORE it (overlapping
-## the prior_cost window by up to about two months). 02 reports the signed
+## CHECK 6 the executable check). month_gap is ABSOLUTE. Windows are anchored
+## on T0, so the gap does not make them overlap; it moves them by up to |gap|
+## months relative to INDEX_DT, and at gap -1 puts the INDEX_DT-anchored _YN
+## covariates up to a month inside the exposure window. 02 reports the signed
 ## gap. Because a finite cutoff blanks month_gap for unmatched patients, 02's
 ## candidate-cutoff report can only show values at or below this cutoff, and
 ## aborts if a candidate exceeds it; use CHECK 6 for a wider table.
 config_saa_max_month_gap <- 1L
+## Which period smi_select_measure_row() targets, in months from INDEX_DT's
+## month (0 = the period STARTING in it; MSR_YR is the period start). Also the
+## reference for 02's signed gap.
+config_saa_target_offset_months <- 0L
 config_saa_gap_candidates <- c(0L, 1L)
 ## Literal msr_saa$MSR value for the SAA measure (user, 2026-10-09: "SAA"; not
 ## yet seen in the real table). DISTINCT from
@@ -210,14 +218,27 @@ if (config_has_smidata) {
 ## the prior-covariate window is a per-paper research decision. This is that
 ## decision for this paper, and it is passed explicitly at every call site.
 ##
-## Half-open: start INCLUSIVE, end EXCLUSIVE. prior_cost's end IS INDEX_DT, so
-## the index day belongs to neither window and no claim is counted twice.
+## Half-open: start INCLUSIVE, end EXCLUSIVE. prior_cost's end IS T0, so day T0
+## belongs to neither window and no claim is counted twice.
 ##
-## Inherited from dual-bounds' confirmed design (outcome.ascertainment_window,
-## covariates.measurement_window). The VALUES currently equal dual-bounds'
-## DUAL_BOUNDS_WINDOWS. They are still declared here rather than read from that
-## project: an inherited design decision that becomes a cross-project code
-## dependency is a decision that changes silently in one repo and breaks another.
+## TIME ZERO IS T0, NOT INDEX_DT (author, 2026-10-15). T0 is the first day of the
+## selected exposure period's month (02_population_and_eligibility.R). The four
+## windows are then contiguous and non-overlapping whatever the SAA gap:
+##   prior_cost [T0 - 12mo, T0) | exposure [T0, T0 + 12mo) | outcome
+##   [T0 + 12mo, T0 + 24mo) | complete case through T0 + 24mo.
+## At gap 0, T0 is the first of INDEX_DT's month. The 12 _YN covariates still
+## come from larger_smi_covariates, whose windows are anchored on INDEX_DT, so
+## at gap != 0 they are shifted by up to a month relative to T0; at gap -1 that
+## puts the covariate window up to a month INSIDE the exposure window, so those
+## covariates are partly post-treatment-start. A sensitivity analysis restricted
+## to signed gap >= 0 is the natural check (the signed gap is saved by 06).
+##
+## The window VALUES equal dual-bounds' DUAL_BOUNDS_WINDOWS, but dual-bounds
+## anchors them on INDEX_DT, so the windows themselves now differ from
+## dual-bounds' by up to the gap (a joint decision to align them is open). They
+## are declared here rather than read from that project: an inherited design
+## decision that becomes a cross-project code dependency is a decision that
+## changes silently in one repo and breaks another.
 DOUBLETREE_WINDOWS <- tibble::tibble(
   window = c("outcome", "prior_cost"),
   start_months = c(12L, -12L),
@@ -226,11 +247,13 @@ DOUBLETREE_WINDOWS <- tibble::tibble(
 
 ## The complete-case horizon (outcome.outcome_missingness, confirmed PI
 ## 2026-09-16): the estimation sample is restricted to patients with Y observed
-## through INDEX_DT + this many months. It equals DOUBLETREE_WINDOWS's outcome
+## through T0 + this many months. It equals DOUBLETREE_WINDOWS's outcome
 ## end_months by construction -- observing Y means observing the whole outcome
 ## window -- and is named separately because 05_complete_case.R is about
 ## OBSERVABILITY, not about summing cost.
 config_complete_case_months <- 24L
+stopifnot(config_complete_case_months ==
+            DOUBLETREE_WINDOWS$end_months[DOUBLETREE_WINDOWS$window == "outcome"])
 
 ## ---- dataset keys and confirmed column contracts --------------------------
 
@@ -409,7 +432,7 @@ OPEN_DECISIONS <- list(
     ),
     shared_with = "dual-bounds",
     registry_ref = "dual-bounds analysis/real_data/_config.R#coverage_eligibility",
-    note = "RESOLVED (PI, 2026-09-30, for dual-bounds); PORTED to doubletree 2026-10-15 so both papers analyse the same eligible population. Enforced in 02 (elig_coverage filter) and 03 (abort if a gating window is not fully covered). Implied INDEX_DT range at config_cost_years = 16:24 is roughly 2017-01-01 to 2023-01-01. Downstream counts shift (complete-case absent rate, decedent proxy); not bugs when first seen on the server."),
+    note = "RESOLVED (PI, 2026-09-30, for dual-bounds); PORTED to doubletree 2026-10-15 so both papers analyse the same eligible population. Enforced in 02 (elig_coverage filter) and 03 (abort if a gating window is not fully covered). Implied T0 range at config_cost_years = 16:24 is exactly 2017-01-01 to 2023-01-01 (T0 replaced INDEX_DT as time zero 2026-10-15; coverage is evaluated only for SAA-matched patients, whose exposure period gives T0). Downstream counts shift (complete-case absent rate, decedent proxy); not bugs when first seen on the server."),
   diagnostics = list(
     question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
     status = "confirmed", blocking_final = FALSE,
