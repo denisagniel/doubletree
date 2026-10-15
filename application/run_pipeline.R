@@ -46,7 +46,8 @@ pipeline_scripts <- c(
   "04_covariates.R",
   "05_complete_case.R",
   "06_assemble_analytic_data.R",
-  "07_estimate_att.R"
+  "07_estimate_att.R",
+  "08_decision_report.R"
 )
 
 ## Named, not inline in a loop, so it can be called from exactly one place

@@ -79,9 +79,14 @@
 ## then defined among 24-month survivors -- and the manuscript must say so
 ## rather than treating it as a data-cleaning step.
 ##
-## ACKNOWLEDGED LIMITATION (author, 2026-10-15). Complete-case status requires
-## enrollment through T0 + 24mo (T0 = first day of the exposure period's
-## month), a window that CONTAINS the exposure period [T0, T0 + 12mo), so it
+## WINDOW (PI, 2026-10-15): this paper REQUIRES full enrollment through s + 24mo,
+## i.e. every month of [s, s + 24mo) -- 24 months -- with type_policy
+## "require_agreement", gap 0, gap_mode recorded. s (= T0 here) is the first day
+## of the month on or after INDEX_DT. dual-bounds instead keeps everyone and
+## models R.
+##
+## ACKNOWLEDGED LIMITATION. Complete-case status requires enrollment through
+## s + 24mo, a window that CONTAINS the exposure period [s, s + 12mo), so it
 ## is determined partly AFTER treatment. The
 ## complete-case ATT equals the full-eligible-cohort ATT only if retention R is
 ## independent of (Y(0), Y(1)) given (A, X) AND the retained treated have the
@@ -100,6 +105,7 @@
 
 app_dir <- if (dir.exists("application")) "application" else "."
 source(file.path(app_dir, "_config.R"))
+source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
 
 cli::cli_h1("05 -- complete-case restriction")
@@ -112,12 +118,16 @@ enrollment_decision <- confirmed_value("enrollment_source")
 
 ## The translation. gap_months is read FROM the decision rather than written
 ## as a literal, so a revision cannot leave this call stale.
-cc_type_policy <- "require_agreement"   # see this file's header on why not "any"
+cc_type_policy <- enrollment_decision$type_policy   # "require_agreement"; see header on why not "any"
+stopifnot(identical(cc_type_policy, "require_agreement"))
 cc_gap_months <- as.integer(enrollment_decision$gap_months)
 ## NOTE-GAP-MODE: "total" vs "consecutive" is a real election once
-## cc_gap_months > 0. It is unambiguous only at 0. The guard below aborts
-## rather than letting this literal stand through a revision.
-cc_gap_mode <- "total"
+## cc_gap_months > 0. It is unambiguous only at 0. The mode is RECORDED in
+## OPEN_DECISIONS$enrollment_source$value (PI project rule, 2026-10-15: gap 0,
+## gap_mode recorded); the guard below aborts rather than letting it stand
+## through an upward revision of the gap.
+cc_gap_mode <- enrollment_decision$gap_mode   # recorded in OPEN_DECISIONS$enrollment_source (2026-10-15)
+stopifnot(identical(cc_gap_mode, "total"))
 
 cli::cli_alert_success(
   "OPEN_DECISIONS$enrollment_source is confirmed: TYPE filter =
@@ -177,8 +187,9 @@ if (!config_has_smidata) {
 
   ## Two cohort frames, deliberately. The panel is built on the true INDEX_DT
   ## so smi_enrollment_panel()'s cross-check against the table's own INDEX_DT
-  ## keeps working; coverage is anchored on T0 (02), the first day of the
-  ## exposure period's month, which is what the 24 required months start from.
+  ## keeps working; coverage is anchored on s (= T0, 02), the first day of the
+  ## month on or after INDEX_DT, which is where the 24 required months start:
+  ## window [s, s + 24mo). s is a 1st, so smidata's month floor leaves it alone.
   cohort_for_cc <- dplyr::select(analysis_cohort, "ID", "INDEX_DT")
   cohort_t0 <- dplyr::transmute(analysis_cohort, ID = .data$ID, INDEX_DT = .data$T0)
 
@@ -229,6 +240,19 @@ if (!config_has_smidata) {
       cohort = cohort_for_cc,
       type_policy = cc_type_policy
     )
+    ## A month absent from the table reads as NON-enrollment. The last required
+    ## month is s's month + (window - 1); if the table ends before it, late-T0
+    ## patients would be marked incomplete because of the table's range.
+    obs_max <- attr(enrollment_panel, "observed_range")$max
+    need_max <- max(smidata::smi_month_index(
+      lubridate::year(cohort_t0$INDEX_DT), lubridate::month(cohort_t0$INDEX_DT)
+    )) + config_complete_case_months - 1L
+    if (need_max > obs_max) {
+      cli::cli_abort(
+        "The monthly-flag table ends {need_max - obs_max} month{?s} before the last
+         required month; absent months would read as non-enrollment."
+      )
+    }
     panel_tally <- attr(enrollment_panel, "tally")
 
     coverage <- smidata::smi_enrollment_coverage(
@@ -263,9 +287,8 @@ if (!config_has_smidata) {
     if (cc_tally$n_uncovered_at_index > 0L) {
       cli::cli_alert_warning(
         "{cc_tally$n_uncovered_at_index} patient{?s} {?is/are} uncovered in
-         the T0 month (the first month of the exposure period). At gap != 0
-         that is not the month of the qualifying claim, so a nonzero count is
-         not by itself a cohort/table mismatch; compare it by signed gap in the
+         the s month (the first month of the exposure period, which is INDEX_DT's
+         own month only when INDEX_DT is the 1st); compare it by lag in the
          table below."
       )
     }
@@ -286,14 +309,14 @@ if (!config_has_smidata) {
     ## continuous-enrollment filter poses (Oracle-flagged, 2026-09-24 design
     ## review): retention plausibly correlates with the exposure itself
     ## (medication adherence). Report it, don't just compute it.
-    ## By signed gap: at gap -1 the required months start BEFORE INDEX_DT's
-    ## month, and larger_smi_medicaid_monthly_flag may not hold months that
-    ## early. If it does not, every such patient fails here for a reason
-    ## unrelated to enrollment. An entire stratum excluded is that signal.
+    ## By lag (months from INDEX_DT's month to s: 0 or 1): the required enrollment
+    ## months start at s, so a later s pushes the 24-month window later and
+    ## nearer the end of the monthly-flag table. A whole stratum excluded would
+    ## be a table-range artifact, not an enrollment pattern.
     cc_by_gap <- analysis_cohort |>
       dplyr::left_join(complete_case, by = "ID") |>
-      dplyr::count(.data$signed_gap, .data$A, .data$reason)
-    cli::cli_alert_info("Complete-case reason by signed gap and arm:")
+      dplyr::count(.data$t0_lag_months, .data$A, .data$reason)
+    cli::cli_alert_info("Complete-case reason by T0 lag and arm:")
     cli::cli_verbatim(utils::capture.output(print(cc_by_gap, n = Inf)))
     fs::dir_create(file.path(app_dir, "output"))
     arrow::write_parquet(cc_by_gap, file.path(app_dir, "output", "complete_case_by_gap.parquet"))
@@ -309,7 +332,7 @@ if (!config_has_smidata) {
       dplyr::mutate(
         rate = .data$n_complete / .data$n,
         env = smidata::smi_env(), ingest_id = config_ingest_id,
-        saa_max_month_gap = config_saa_max_month_gap
+        gap_months = cc_gap_months, gap_mode = cc_gap_mode
       ) |>
       dplyr::arrange(.data$A)
     fs::dir_create(file.path(app_dir, "output"))
@@ -321,6 +344,17 @@ if (!config_has_smidata) {
        {paste0('A=', attrition_by_arm$A, ': ',
                round(100 * attrition_by_arm$rate, 1), '%', collapse = '; ')}."
     )
+
+    ## Record for 08_decision_report.R: the per-patient result is reduced to
+    ## n_covered (no IDs) with smidata's tally attribute carried across.
+    coverage_for_report <- coverage["n_covered"]
+    attr(coverage_for_report, "tally") <- cc_tally
+    report_record("05_enrollment", list(
+      coverage = coverage_for_report,
+      window_months = config_complete_case_months,
+      by_lag_arm = cc_by_gap,
+      by_arm = attrition_by_arm
+    ), app_dir)
   }
 }
 

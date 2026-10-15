@@ -1,11 +1,11 @@
 ## ============================================================================
 ## 03_cost_windows.R
 ##
-## Build the 36-file cost_sources declaration, the per-patient windows, the
-## coverage cross-check, and the per-patient cost sums. REAL as of 2026-09-24:
+## Build the 18-file SERVICE cost_sources declaration, the per-patient windows,
+## the coverage cross-check, and the per-patient cost sums. REAL as of 2026-09-24:
 ## the previously-commented "intended pipeline" is now live code, cascade-
 ## guarded on 02's analysis_cohort (require_stage()) -- runs end to end
-## against a Tier-0 fixture locally, or the real 36 files on the server.
+## against a Tier-0 fixture locally, or the real 18 service files on the server.
 ##
 ## The OUTCOME window and the PRIOR_COST covariate window are two slices of ONE
 ## pass over the cost files. That is not an optimization -- it is what makes them
@@ -14,21 +14,25 @@
 ##
 ## Design (inherited from dual-bounds, smidata
 ## inst/analyses/doubletree__application.yml sections 5-6, `status: inherited`):
-##   outcome.primary               = total_cost (includes pharmacy)
-##   outcome.ascertainment_window  = [T0 + 12mo, T0 + 24mo)
-##   covariates.measurement_window = [T0 - 12mo, T0)   -> prior_cost
-## where T0 is the first day of the selected exposure period's month (02), which
-## replaces INDEX_DT as time zero (2026-10-15) so the windows are contiguous.
+##   outcome.primary               = total SERVICE cost (aim3_svc_cost +
+##                                   new_svc_cost; NO pharmacy files, PI 2026-10-15)
+##   outcome.ascertainment_window  = [s + 12mo, s + 24mo)
+##   covariates.measurement_window = [INDEX_DT - 12mo, INDEX_DT)   -> prior_cost
+## where s (called T0 here) is the first day of the month on or after INDEX_DT
+## (02). prior_cost is anchored on INDEX_DT ITSELF, not on s and not on the month
+## floor (PI, 2026-10-15), exactly like the 12 _YN covariates.
 ##   outcome.exclusions            = Managed Care Invoice records
+##   negative AMOUNT_PAID lines    = KEPT (netted), via smi_sum_cost_in_windows(
+##                                   negative_amount_policy = "net"); nominal dollars
 ##
 ## THIS PAPER'S ONE ADDITION: prior_cost does not enter X as dollars. It is
 ## discretized into quartile dummies in 04_covariates.R, because
 ## doubletree::estimate_att() requires every covariate to be individually binary.
 ## The dollars are still computed here -- discretization needs them.
 ##
-## Run time: ~10 seconds locally against 36 Tier-0 fixtures (verified by
+## Run time: ~10 seconds locally against Tier-0 fixtures (verified by
 ## `oracle`, 2026-09-24, before this was wired live). On the server: the
-## cost-claims family is 171.5 GB across 36 files -- 91.8% of every byte in
+## cost-claims family is 171.5 GB across 36 files (service + pharmacy; this pipeline reads only the 18 service files) -- 91.8% of every byte in
 ## the secure tree (smidata fingerprint 2026-09-15).
 ## smidata::smi_sum_cost_in_windows() streams one file at a time for exactly
 ## that reason. Budget HOURS, not minutes, and expect the per-file cost to
@@ -40,21 +44,24 @@
 
 app_dir <- if (dir.exists("application")) "application" else "."
 source(file.path(app_dir, "_config.R"))
+source(file.path(app_dir, "helpers", "period_start.R"))
+source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
 
 cli::cli_h1("03 -- cost windows")
 
-## ---- cost_sources: 4 families x 9 years = 36 files -------------------------
+## ---- cost_sources: 2 service families x 9 years = 18 files ----------------
 ##
-## Column names are verbatim from the real fingerprint (all 36 files share
-## ID / SRV_DT / AMOUNT_PAID / SEQ_ID / SS_DESC; the pharm files additionally
-## carry NDC, which this pipeline does not use).
+## Column names are verbatim from the real fingerprint (all files share
+## ID / SRV_DT / AMOUNT_PAID / SEQ_ID / SS_DESC). PHARMACY FILES ARE NOT READ:
+## costs are service-only (PI, 2026-10-15), so they are absent from SMI_KEYS and
+## COST_SOURCES in _config.R and cannot enter any total.
 ##
-## WHETHER ALL FOUR FAMILIES SHOULD BE SUMMED was the SAME unresolved question
+## WHETHER THE FAMILIES SHOULD BE SUMMED was the SAME unresolved question
 ## dual-bounds had -- same files, same consequence -- and is now CONFIRMED
-## (PI, 2026-09-17; see OPEN_DECISIONS$cost_family_scope): the four families
+## (PI, 2026-09-17; see OPEN_DECISIONS$cost_family_scope): the families
 ## are disjoint patient subsets (aim3_* has 12mo post-index enrollment,
-## new_* does not), so summing all four does not double-count. STALE GATE
+## new_* does not), so summing the two service families does not double-count. STALE GATE
 ## FIXED 2026-09-24 (same bug class as msr_code's, found the same day): this
 ## script called `open_value("cost_family_scope")`, which always warns
 ## "Unconfirmed value" regardless of actual status -- misleading for a
@@ -69,26 +76,30 @@ cost_family_scope <- confirmed_value("cost_family_scope")
 ## identical object. `cost_sources` is kept as a local alias.
 cost_sources <- COST_SOURCES
 
-if (nrow(cost_sources) != 36L) {
-  cli::cli_abort("Expected 36 cost files (4 families x 9 years); built {nrow(cost_sources)}.")
+if (nrow(cost_sources) != 18L) {
+  cli::cli_abort("Expected 18 service cost files (2 families x 9 years); built {nrow(cost_sources)}.")
+}
+if (any(grepl("pharm", cost_sources$dataset_key, ignore.case = TRUE))) {
+  cli::cli_abort("A pharmacy file is in cost_sources; costs are SERVICE only (PI, 2026-10-15).")
 }
 cli::cli_alert_info(
   "cost_sources: {nrow(cost_sources)} files across
    {dplyr::n_distinct(cost_sources$family)} families, suffix years
    {min(cost_sources$suffix_year)}-{max(cost_sources$suffix_year)}."
 )
-## cost_sources always sums all four families, so any other decision value would
+## cost_sources always sums the two service families, so any other decision value would
 ## be silently ignored. Refuse it instead.
-if (!identical(cost_family_scope, "all_four")) {
+if (!identical(cost_family_scope, "service_two_families")) {
   cli::cli_abort(c(
     "OPEN_DECISIONS$cost_family_scope is {.val {cost_family_scope}}, but this
-     script only implements {.val all_four}.",
+     script only implements {.val service_two_families}.",
     "i" = "Change COST_SOURCES (_config.R) and this script together before
            changing the decision."
   ))
 }
 cli::cli_alert_info(
-  "Summing all four families -- PI-confirmed (2026-09-17) they are
+  "Summing the two SERVICE families only (pharmacy excluded, PI 2026-10-15);
+   PI-confirmed (2026-09-17) they are
    disjoint patient subsets, not overlapping extracts. Not yet
    independently verified against real claim-level data; see
    OPEN_DECISIONS$cost_family_scope's note for the corroborating check
@@ -100,9 +111,9 @@ cli::cli_alert_info(
 ## The window table itself lives in _config.R as DOUBLETREE_WINDOWS, not here:
 ## smidata::smi_patient_windows() deliberately has no default `windows`
 ## argument, so the offsets are stated exactly once for this paper and passed
-## explicitly at every call site. Half-open, start inclusive, end exclusive;
-## prior_cost's end IS T0, so day T0 itself belongs to neither
-## window and no claim is counted twice.
+## explicitly at every call site. Half-open, start inclusive, end exclusive, so
+## no claim is counted twice. Two anchors (see _config.R): outcome on s (= T0),
+## prior_cost on INDEX_DT itself; doubletree_patient_windows() builds both.
 ##
 ## The VALUES equal dual-bounds' DUAL_BOUNDS_WINDOWS, because the windows are
 ## inherited. The CONSTANT is still local -- see _config.R's header for why an
@@ -153,11 +164,8 @@ if (!config_has_smidata) {
   require_stage("analysis_cohort", "02_population_and_eligibility.R")
   is_local <- identical(smidata::smi_env(), "local")
 
-  ## Windows are anchored on T0 (02), not INDEX_DT.
-  patients <- analysis_cohort |>
-    dplyr::transmute(id = .data$ID, index_dt = as.Date(.data$T0))
-
-  windows <- smidata::smi_patient_windows(patients, windows = DOUBLETREE_WINDOWS)
+  ## outcome on s (= T0, from 02); prior_cost on INDEX_DT itself (PI, 2026-10-15).
+  windows <- doubletree_patient_windows(analysis_cohort)
 
   coverage <- smidata::smi_window_coverage(windows, cost_sources) |>
     dplyr::select("id", "window", "coverage")
@@ -165,7 +173,7 @@ if (!config_has_smidata) {
   ## 02's elig_coverage filter excludes every patient whose
   ## config_coverage_required_windows patient-window is not "full", so a
   ## gating-window violation here is a CONTRACT VIOLATION. Abort BEFORE the
-  ## expensive 36-file pass below.
+  ## expensive 18-file pass below.
   n_bad_gating <- sum(coverage$coverage != "full" &
                         coverage$window %in% config_coverage_required_windows)
   if (n_bad_gating > 0L) {
@@ -198,7 +206,7 @@ if (!config_has_smidata) {
 
   ## Column-restricted read_fn: only what smi_sum_cost_in_windows() actually
   ## uses (id_col, date_col, amount_col, setting_col), not every column of
-  ## every file. cost_sources' columns are the confirmed contract (all 36
+  ## every file. cost_sources' columns are the confirmed contract (all
   ## files share ID/SRV_DT/AMOUNT_PAID/SEQ_ID/SS_DESC; SEQ_ID is read too,
   ## even though this function does not use it, because it is this table's
   ## claim-key column per SMI_COLS$cost_claims and dropping it here would
@@ -208,20 +216,33 @@ if (!config_has_smidata) {
   }
 
   ## The expensive call on the server (budget hours, per this file's header);
-  ## ~10s locally against 36 Tier-0 fixtures (verified by oracle before this
+  ## ~10s locally against Tier-0 fixtures (verified by oracle before this
   ## was written).
+  ## negative_amount_policy = "net" is REQUIRED by smidata (no default) and is the
+  ## project rule (PI, 2026-10-15): negative AMOUNT_PAID lines are KEPT, so a
+  ## window's cost is gross positive plus negative amounts. Nominal dollars.
   cost_by_window <- smidata::smi_sum_cost_in_windows(
     patient_windows = windows,
     cost_sources = cost_sources,
-    exclude_setting_regex = "Managed Care Invoice",  # -> smi_classify_is_mci()
+    negative_amount_policy = config_negative_amount_policy,
+    exclude_setting_regex = config_exclude_setting_regex,  # -> smi_classify_is_mci()
     detail = "total",
     read_fn = cost_read_fn,
     id_col = "ID"
   )
 
+  n_neg <- sum(cost_by_window$n_negative, na.rm = TRUE)
+  n_na_amt <- sum(cost_by_window$n_na_amount, na.rm = TRUE)
+  cli::cli_alert_info(
+    "Netted {n_neg} negative AMOUNT_PAID line{?s} (total
+     {round(sum(cost_by_window$negative_amount, na.rm = TRUE), 2)}) into the
+     window sums; {n_na_amt} line{?s} had NA AMOUNT_PAID and contributed
+     nothing."
+  )
+
   if (!is_local) {
     ## Tier-0 fixtures cannot exercise this (see (b) above) -- checked only
-    ## against real data, where a total of zero MCI exclusions across 36
+    ## against real data, where a total of zero MCI exclusions across 18
     ## files and ~24-month windows is implausible enough to be a
     ## misconfigured config_cost_setting_col or regex, not a real finding.
     n_excluded_mci_total <- sum(cost_by_window$n_excluded_mci, na.rm = TRUE)
@@ -279,6 +300,22 @@ if (!config_has_smidata) {
        a real cost distribution."
     )
   }
+
+  ## Record for 08_decision_report.R. smi_report_cost_categories() reads the
+  ## "setting_summary" attribute, so the object is saved UNMODIFIED apart from
+  ## dropping the per-patient claim-date columns, with both attributes restored.
+  cost_for_report <- dplyr::select(cost_by_window, -dplyr::any_of(c("min_claim_dt", "max_claim_dt")))
+  for (a in c("negative_amount_policy", "setting_summary")) {
+    attr(cost_for_report, a) <- attr(cost_by_window, a)
+  }
+  report_record("03_costs", list(
+    cost = cost_for_report,
+    known = tibble::tibble(
+      window = c("outcome", "prior_cost"),
+      n_cohort = c(nrow(outcome_cost), nrow(prior_cost)),
+      n_known = c(sum(!is.na(outcome_cost$cost)), sum(!is.na(prior_cost$cost)))
+    )
+  ), app_dir)
 }
 
 ## ---- smoke-check: the pure functions, on two hand-written patients ---------
@@ -310,9 +347,10 @@ if (!interactive() && sys.nframe() == 0L) {
       index_dt = as.Date(c("2018-06-15", "2023-06-15"))[seq_len(config_smoke_n_patients)]
     )
 
-    smoke_windows <- smidata::smi_patient_windows(
-      smoke_patients, windows = DOUBLETREE_WINDOWS
-    )
+    smoke_windows <- doubletree_patient_windows(dplyr::transmute(
+      smoke_patients, ID = .data$id, INDEX_DT = .data$index_dt,
+      T0 = exposure_start(.data$index_dt)
+    ))
     print(smoke_windows)
 
     smoke_coverage <- smidata::smi_window_coverage(smoke_windows, cost_sources)

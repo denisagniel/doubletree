@@ -49,6 +49,7 @@ source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "covariate_blocks.R"))
 source(file.path(app_dir, "helpers", "discretize_prior_cost.R"))
 source(file.path(app_dir, "helpers", "design_matrix.R"))
+source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
 
 cli::cli_h1("06 -- assemble analytic data")
@@ -83,8 +84,8 @@ if (!config_has_smidata) {
   ## happens here and the excluded patients are gone from the analytic data
   ## entirely -- which is exactly why the excluded COUNT must be reported.
   analytic_pre <- analysis_cohort |>                          # 02
-    dplyr::select("ID", "INDEX_DT", "T0", "signed_gap", "A", "elig_saa",
-                    "MSR_YR_selected", "month_gap") |>
+    dplyr::select("ID", "INDEX_DT", "T0", "t0_lag_months", "A", "elig_saa",
+                    "MSR_YR_selected") |>
     dplyr::left_join(                                         # 03: Y
       dplyr::transmute(outcome_cost, ID = .data$ID, Y = .data$cost),
       by = "ID"
@@ -160,6 +161,11 @@ if (!config_has_smidata) {
   ## sample", and the analytic sample is the post-restriction (complete-case)
   ## one -- not 04's pre-filter preview. Discretizing
   ## before the filter and then subsetting produces different boundaries.
+  ## TODO(open decision, smidata registry doubletree__application.yml
+  ## covariates.prior_cost_floor, 2026-10-15): keep this floor at 0, or bin the
+  ## netted signed value? Behaviour left as is. The floor is applied AFTER
+  ## netting: prior_cost is already the NET of positive and negative
+  ## AMOUNT_PAID lines over [INDEX_DT-12mo, INDEX_DT) (03).
   prior_cost_for_binning <- floor_negative_prior_cost(
     analytic_known_x$prior_cost, floor_value = confirmed_value("prior_cost_negative_floor")
   )
@@ -189,12 +195,11 @@ if (!config_has_smidata) {
   analytic_data <- x_with_id |>
     dplyr::left_join(
       dplyr::select(analytic_known_x, "ID", "A", "Y", "prior_cost", "T0",
-                    "signed_gap", "MSR_YR_selected", "month_gap"),
+                    "t0_lag_months", "MSR_YR_selected"),
       by = "ID"
     ) |>
     dplyr::select("ID", "A", "Y", dplyr::all_of(design_matrix_columns()),
-                  "prior_cost", "T0", "signed_gap", "MSR_YR_selected",
-                  "month_gap")
+                  "prior_cost", "T0", "t0_lag_months", "MSR_YR_selected")
   ## prior_cost (dollars) is retained ALONGSIDE its dummies deliberately: it
   ## is not passed to the estimator, but the methods section needs its
   ## distribution and the cutpoints have to be reproducible from the saved
@@ -239,6 +244,20 @@ if (!config_has_smidata) {
      {.code m_n = 1L} (optimaltrees' own default), estimate_att() needs
      n_control >= leaf_budget * m_n = {config_leaf_budget}; got {n_control}."
   )
+
+  ## ---- record for 08_decision_report.R (raw counts, local, gitignored) -------
+  report_record("06_final", list(
+    n_pre = n_pre,
+    n_complete_case = nrow(analytic_cc),
+    n_final = nrow(analytic_data),
+    final_ids = analytic_data$ID,
+    design = summarise_design(
+      analytic_data,
+      n_floored = n_floored,
+      floor_value = confirmed_value("prior_cost_negative_floor"),
+      cutpoints = cutpoints
+    )
+  ), app_dir)
 
   ## ---- the write: PROVISIONAL while anything blocks, real once nothing does
   suffix <- if (has_blocking_open()) "_PROVISIONAL" else ""

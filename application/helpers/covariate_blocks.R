@@ -34,7 +34,7 @@
 ## prior_cost's 3 dummies are NOT in this file's blocks: they do not exist in
 ## larger_smi_covariates (the table has zero dollar fields, checked against the
 ## real 72-column list 2026-09-17). prior_cost is constructed from the
-## cost-claims family over [T0 - 12mo, T0) in 03_cost_windows.R and
+## SERVICE cost-claims families over [INDEX_DT - 12mo, INDEX_DT) in 03_cost_windows.R and
 ## then discretized in helpers/discretize_prior_cost.R.
 ## ============================================================================
 
@@ -87,7 +87,7 @@ covariate_blocks <- function() {
       ## NOTE (2026-10-09 audit): VAR5G_DM2_YN is a composite of DM2A and DM2B
       ## (type 2 + drug/chemical-induced diabetes). GLU_OR_LIPID_YN's window is
       ## anchored on the index antipsychotic fill date per the covariate spec,
-      ## not INDEX_DT. Comments only; logic unchanged.
+      ## not INDEX_DT. (The 12 _YN covariates and prior_cost are INDEX_DT-anchored, PI 2026-10-15.) Comments only; logic unchanged.
       ## GLU_OR_LIPID_YN is preferred over its GLUCOSE_YN / LIPID_YN /
       ## GLU_AND_LIPID_YN siblings: the four are mechanically related, so taking
       ## more than one spends grid atoms on near-duplicate information.

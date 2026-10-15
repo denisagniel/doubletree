@@ -18,15 +18,25 @@
 ## RELATIONSHIP TO dual-bounds. This paper reuses dual-bounds' population,
 ## exposure, outcome and covariate SOURCE design verbatim (smidata
 ## inst/analyses/doubletree__application.yml, sections 2-6, mostly
-## `status: inherited`). It differs in three places: the ESTIMATOR
+## `status: inherited`). It differs in two places: the ESTIMATOR
 ## (doubletree::estimate_att()/estimate_att_crossfit() instead of marbounds'
-## partial-identification bounds), OUTCOME MISSINGNESS (a complete-case
-## restriction instead of a modelled response indicator R -- doubletree's
-## estimator signature has no censoring argument for R to attach to), and TIME
-## ZERO (author, 2026-10-15: every window is anchored on T0, the start of the
-## selected exposure period's month, instead of INDEX_DT; NOT yet recorded in
-## smidata's registry, where population.time_zero is still `inherited`, nor
-## confirmed by the PI).
+## partial-identification bounds) and OUTCOME MISSINGNESS (a complete-case
+## restriction through s + 24 months instead of a modelled response indicator
+## R -- doubletree's estimator signature has no censoring argument for R to
+## attach to).
+##
+## PROJECT-WIDE RULES APPLIED 2026-10-15 (PI; registry header note):
+##   * s = first day of the month ON OR AFTER INDEX_DT. The msr_saa period must
+##     START exactly at s (smi_select_measure_row(anchor = "ceiling_month")); no
+##     nearest period, no gap tolerance. No such row, or MSR_DEN < 1 -> the
+##     patient is ineligible and DROPPED. This directory's name for s is `T0`.
+##   * Achievement = MSR_NUM / MSR_DEN >= 0.5.
+##   * Exposure [s, s+12mo); outcome [s+12mo, s+24mo); covariates and prior_cost
+##     [INDEX_DT-12mo, INDEX_DT), anchored on INDEX_DT itself.
+##   * Costs: SERVICE files only (aim3_svc_cost + new_svc_cost), negative
+##     AMOUNT_PAID lines kept (net), nominal dollars.
+##   * Complete case through s+24mo: window [s, s+24), type_policy
+##     "require_agreement", gap 0, gap_mode recorded.
 ##
 ## Inheriting a DESIGN is not the same as sharing CODE. Constants below that
 ## happen to equal dual-bounds' constants are still declared here, locally, and
@@ -47,7 +57,8 @@ config_smoke_n_patients <- 2L
 
 ## Cost-claims file-suffix years present in the confirmed contract
 ## (aim3_svc_cost_16 .. _24 etc.). Verbatim from smidata snapshot
-## 2026-09-15_2824080e: 4 families x 9 years = 36 dataset keys.
+## 2026-09-15_2824080e: the 2 SERVICE families x 9 years = 18 dataset keys
+## (the 18 pharmacy keys exist in the contract and are not used).
 config_cost_years <- 16:24
 
 ## Which column of the cost-claims tables the "Managed Care Invoice" exclusion
@@ -57,33 +68,33 @@ config_cost_years <- 16:24
 ## columns to paper over a zero-exclusion result.
 config_cost_setting_col <- "SS_DESC"
 
-## Achievement threshold for SAA: MSR_NUM / MSR_DEN >= this counts as achieved.
-## Inherited from dual-bounds' exposure.definition (PI 2026-09-17, stated for
-## AAP). In the contract msr_saa has MSR_NUM in {0,1} (which PDC tier it
+## Achievement threshold for SAA: MSR_NUM / MSR_DEN >= this counts as achieved
+## (>=, not >; PI 2026-10-15, every measure). In the contract msr_saa has MSR_NUM in {0,1} (which PDC tier it
 ## encodes is unspecified, smidata QUALITY_MEASURES.md) and MSR_DEN = 1, so the
 ## cut reduces to MSR_NUM == 1. Passed explicitly to
 ## smidata::smi_select_measure_row(), which exposes it because it means
 ## different things in different papers.
 config_saa_achievement_threshold <- 0.5
 
-## Maximum |month_gap| between the targeted measurement period and INDEX_DT for
-## a patient to be SAA-matched; patients with no period within the gap are
-## unmatched and ineligible. Working choice of 1 month (author, 2026-10-15),
-## NOT yet PI-confirmed and NOT yet reconciled with dual-bounds, whose
-## analysis shares this exposure (90_checks_tier1.R CHECK 2 is the spec and
-## CHECK 6 the executable check). month_gap is ABSOLUTE. Windows are anchored
-## on T0, so the gap does not make them overlap; it moves them by up to |gap|
-## months relative to INDEX_DT, and at gap -1 puts the INDEX_DT-anchored _YN
-## covariates up to a month inside the exposure window. 02 reports the signed
-## gap. Because a finite cutoff blanks month_gap for unmatched patients, 02's
-## candidate-cutoff report can only show values at or below this cutoff, and
-## aborts if a candidate exceeds it; use CHECK 6 for a wider table.
-config_saa_max_month_gap <- 1L
-## Which period smi_select_measure_row() targets, in months from INDEX_DT's
-## month (0 = the period STARTING in it; MSR_YR is the period start). Also the
-## reference for 02's signed gap.
-config_saa_target_offset_months <- 0L
-config_saa_gap_candidates <- c(0L, 1L)
+## Period-selection anchor passed to smidata::smi_select_measure_row() in 02
+## (PI, 2026-10-15): s = first of the month on or after INDEX_DT, the msr_saa
+## period must START exactly at s. Declared here so the decision report (08)
+## reads the same object the code uses.
+config_period_anchor <- "ceiling_month"
+
+## Cost-summing levers passed to smidata::smi_sum_cost_in_windows() in 03
+## (PI, 2026-10-15): negative AMOUNT_PAID lines are kept (net), nominal dollars,
+## and Managed Care Invoice lines (matched on config_cost_setting_col) excluded.
+config_negative_amount_policy <- "net"
+config_exclude_setting_regex <- "Managed Care Invoice"
+
+## THE EXPOSURE PERIOD RULE (PI, 2026-10-15) has no tuning knobs here by design.
+## s = the first day of the month on or after INDEX_DT, and the msr_saa row must
+## START exactly at s; 02 calls smidata::smi_select_measure_row(anchor =
+## "ceiling_month"), which leaves max_month_gap at Inf and takes no
+## target_offset_months. The earlier knobs (a gap cap of one month, a target
+## offset of one month, start > INDEX_DT) implemented a superseded rule and are
+## deleted. A patient with no row starting exactly at s is ineligible.
 ## Literal msr_saa$MSR value for the SAA measure (user, 2026-10-09: "SAA"; not
 ## yet seen in the real table). DISTINCT from
 ## OPEN_DECISIONS$msr_code$value ("SAA (no filter needed)" -- a human-readable
@@ -209,6 +220,13 @@ config_seed <- 20260917L
 config_has_smidata <- requireNamespace("smidata", quietly = TRUE)
 if (config_has_smidata) {
   stopifnot(utils::packageVersion("smidata") >= "0.5.0")
+  ## The 2026-10-15 project-wide rules need two arguments an older 0.5.0 build
+  ## lacks: smi_select_measure_row(anchor =) and smi_sum_cost_in_windows(
+  ## negative_amount_policy =). Fail loudly here rather than deep in 02/03.
+  stopifnot(
+    "anchor" %in% names(formals(smidata::smi_select_measure_row)),
+    "negative_amount_policy" %in% names(formals(smidata::smi_sum_cost_in_windows))
+  )
 }
 
 ## ---- analysis windows (THIS PAPER's decision, not a dataset fact) ----------
@@ -218,36 +236,56 @@ if (config_has_smidata) {
 ## the prior-covariate window is a per-paper research decision. This is that
 ## decision for this paper, and it is passed explicitly at every call site.
 ##
-## Half-open: start INCLUSIVE, end EXCLUSIVE. prior_cost's end IS T0, so day T0
-## belongs to neither window and no claim is counted twice.
+## Half-open: start INCLUSIVE, end EXCLUSIVE, so no claim is counted twice.
 ##
-## TIME ZERO IS T0, NOT INDEX_DT (author, 2026-10-15). T0 is the first day of the
-## selected exposure period's month (02_population_and_eligibility.R). The four
-## windows are then contiguous and non-overlapping whatever the SAA gap:
-##   prior_cost [T0 - 12mo, T0) | exposure [T0, T0 + 12mo) | outcome
-##   [T0 + 12mo, T0 + 24mo) | complete case through T0 + 24mo.
-## At gap 0, T0 is the first of INDEX_DT's month. The 12 _YN covariates still
-## come from larger_smi_covariates, whose windows are anchored on INDEX_DT, so
-## at gap != 0 they are shifted by up to a month relative to T0; at gap -1 that
-## puts the covariate window up to a month INSIDE the exposure window, so those
-## covariates are partly post-treatment-start. A sensitivity analysis restricted
-## to signed gap >= 0 is the natural check (the signed gap is saved by 06).
+## TWO ANCHORS (PI, 2026-10-15). `s` (= T0 in this directory) is the first day of
+## the month on or after INDEX_DT (02_population_and_eligibility.R); the msr_saa
+## period starts exactly there. Then
+##   exposure   [s, s + 12mo)               (the msr_saa period; not summed here)
+##   outcome    [s + 12mo, s + 24mo)        anchored on s
+##   prior_cost [INDEX_DT - 12mo, INDEX_DT) anchored on INDEX_DT ITSELF, not on s
+##                                          and not on the month floor
+##   complete case [s, s + 24mo)            anchored on s (05)
+## prior_cost therefore ends at INDEX_DT, BEFORE the index event day and before the
+## INDEX_DT-to-s gap, as the 12 _YN covariates (larger_smi_covariates, also
+## INDEX_DT-anchored) do. The prior_cost window and the exposure window are NOT
+## contiguous: the days from INDEX_DT up to s belong to neither. (Until 2026-10-15
+## prior_cost was [T0 - 12mo, T0), which included the index-event cost; that is
+## superseded.)
 ##
-## The window VALUES equal dual-bounds' DUAL_BOUNDS_WINDOWS, but dual-bounds
-## anchors them on INDEX_DT, so the windows themselves now differ from
-## dual-bounds' by up to the gap (a joint decision to align them is open). They
-## are declared here rather than read from that project: an inherited design
-## decision that becomes a cross-project code dependency is a decision that
-## changes silently in one repo and breaks another.
+## The `anchor` column is this paper's own bookkeeping, not smidata's: smidata
+## sees one anchor per call, so doubletree_patient_windows() below makes one
+## smi_patient_windows() call per anchor and stacks them. Do NOT pass
+## DOUBLETREE_WINDOWS to smi_patient_windows() directly: it would silently
+## anchor every row on one date.
 DOUBLETREE_WINDOWS <- tibble::tibble(
   window = c("outcome", "prior_cost"),
+  anchor = c("s", "index_dt"),
   start_months = c(12L, -12L),
   end_months = c(24L, 0L)
 )
 
+#' Build every analysis window for a cohort, each on its own anchor.
+#'
+#' @param cohort Data frame, one row per patient: `ID`, `INDEX_DT`, `T0` (= s, the
+#'   first day of the month on or after `INDEX_DT`).
+#' @return smidata's `smi_patient_windows()` shape (`id`, `window`,
+#'   `window_start`, `window_end`, ...) for all of `DOUBLETREE_WINDOWS`, ready for
+#'   `smi_window_coverage()` and `smi_sum_cost_in_windows()`.
+doubletree_patient_windows <- function(cohort) {
+  anchored <- function(anchor_name, date_col) {
+    w <- DOUBLETREE_WINDOWS[DOUBLETREE_WINDOWS$anchor == anchor_name, , drop = FALSE]
+    smidata::smi_patient_windows(
+      tibble::tibble(id = cohort$ID, index_dt = as.Date(cohort[[date_col]])),
+      windows = w
+    )
+  }
+  dplyr::bind_rows(anchored("s", "T0"), anchored("index_dt", "INDEX_DT"))
+}
+
 ## The complete-case horizon (outcome.outcome_missingness, confirmed PI
-## 2026-09-16): the estimation sample is restricted to patients with Y observed
-## through T0 + this many months. It equals DOUBLETREE_WINDOWS's outcome
+## 2026-09-16, re-stated 2026-10-15): the estimation sample REQUIRES full
+## enrollment in [s, s + this many months), s = T0. It equals DOUBLETREE_WINDOWS's outcome
 ## end_months by construction -- observing Y means observing the whole outcome
 ## window -- and is named separately because 05_complete_case.R is about
 ## OBSERVABILITY, not about summing cost.
@@ -260,7 +298,7 @@ stopifnot(config_complete_case_months ==
 #' Dataset keys, as they appear in smidata's contract manifest.
 #'
 #' Verbatim from smidata snapshot 2026-09-15_2824080e. `cost_claims` holds
-#' BASE keys; the real dataset keys append `_<yy>` for each of
+#' BASE keys (service families only); the real dataset keys append `_<yy>` for each of
 #' `config_cost_years` (see `cost_dataset_keys()`).
 #'
 #' `medicaid_monthly_flag` was added 2026-09-24, when
@@ -280,11 +318,12 @@ SMI_KEYS <- list(
   covariates            = "larger_smi_covariates",
   saa                   = "msr_saa",
   medicaid_monthly_flag = "larger_smi_medicaid_monthly_flag",
+  ## SERVICE costs only (PI, 2026-10-15): the aim3_pharm_cost_* and
+  ## new_pharm_cost_* families exist in the contract but are deliberately NOT
+  ## listed, so no total can include pharmacy.
   cost_claims = list(
     aim3_svc   = "aim3_svc_cost",
-    new_svc    = "new_svc_cost",
-    aim3_pharm = "aim3_pharm_cost",
-    new_pharm  = "new_pharm_cost"
+    new_svc    = "new_svc_cost"
   )
 )
 
@@ -307,17 +346,17 @@ SMI_COLS <- list(
   cost_claims = c("ID", "SRV_DT", "AMOUNT_PAID", "SEQ_ID", config_cost_setting_col)
 )
 
-#' Expand the four cost-claims families across the confirmed suffix years.
+#' Expand the two service cost-claims families across the confirmed suffix years.
 #'
 #' @param years Integer vector of two-digit file suffixes. Default
 #'   `config_cost_years` (16:24), the confirmed span.
-#' @return Character vector of 36 dataset keys, family-major.
+#' @return Character vector of 18 dataset keys, family-major.
 cost_dataset_keys <- function(years = config_cost_years) {
   families <- unlist(SMI_KEYS$cost_claims, use.names = FALSE)
   as.vector(outer(families, years, function(f, y) paste0(f, "_", y)))
 }
 
-#' The 36-file cost-claims source declaration: 4 families x 9 suffix years.
+#' The 18-file cost-claims source declaration: 2 service families x 9 suffix years.
 #'
 #' Lives here, not in 03_cost_windows.R, because 02_population_and_eligibility.R
 #' needs the identical object for its elig_coverage filter
@@ -339,8 +378,11 @@ COST_SOURCES <- tidyr::expand_grid(
   ) |>
   dplyr::select("dataset_key", "family", "suffix_year",
                 "amount_col", "date_col", "setting_col", "claim_key_col")
-if (nrow(COST_SOURCES) != 36L) {
-  cli::cli_abort("Expected 36 cost files (4 families x 9 years); built {nrow(COST_SOURCES)}.")
+if (nrow(COST_SOURCES) != 18L) {
+  cli::cli_abort("Expected 18 service cost files (2 families x 9 years); built {nrow(COST_SOURCES)}.")
+}
+if (any(grepl("pharm", COST_SOURCES$dataset_key, ignore.case = TRUE))) {
+  cli::cli_abort("A pharmacy file is in COST_SOURCES; costs are SERVICE only (PI, 2026-10-15).")
 }
 
 ## Which DOUBLETREE_WINDOWS row(s) must have file-date coverage == "full" for a
@@ -390,9 +432,10 @@ stopifnot(all(config_coverage_required_windows %in% DOUBLETREE_WINDOWS$window))
 
 OPEN_DECISIONS <- list(
   enrollment_source = list(
-    question = "Table/columns providing continuous-enrollment spans through INDEX_DT+24mo, needed to determine COMPLETE-CASE STATUS (whether Y is observed for the whole outcome window). NO table in the confirmed design carries enrollment spans reaching that far: larger_smi_covariates is a covariate snapshot (72 columns, no span fields), msr_aap is measure periods (not enrollment), and the sibling aim1_smi_charac -- not elected by this paper -- encodes only ~12mo post-index enrollment.",
+    question = "Table/columns providing continuous-enrollment spans through s+24mo (s = first of the month on or after INDEX_DT), needed to determine COMPLETE-CASE STATUS (whether Y is observed for the whole outcome window). NO table in the confirmed design carries enrollment spans reaching that far: larger_smi_covariates is a covariate snapshot (72 columns, no span fields), msr_aap is measure periods (not enrollment), and the sibling aim1_smi_charac -- not elected by this paper -- encodes only ~12mo post-index enrollment.",
     status = "confirmed", blocking_final = FALSE,
-    value = list(type_filter = "none -- all TYPE values counted", gap_months = 0L),
+    value = list(type_filter = "none -- all TYPE values counted", gap_months = 0L,
+                 gap_mode = "total", type_policy = "require_agreement", window_months = 24L),
     shared_with = "dual-bounds",
     registry_ref = "smidata::inst/analyses/dual-bounds__application.yml -- IDENTICAL interim resolution, PI answered both papers in one sitting (2026-09-24)",
     note = "RESOLVED, INTERIM (PI, 2026-09-24, same finding as dual-bounds'
@@ -407,16 +450,19 @@ OPEN_DECISIONS <- list(
       dual-bounds' CHECK 3). Gap-months: PI (2026-09-24) -- 'let's just not
       have a gap for now. We can change this later.' -- complete-case status
       now requires FULL continuity (0-month gap tolerance, MEDICAID_FLAG=1
-      for every one of the ~24 months in [INDEX_DT, INDEX_DT+24mo]) as an
+      for every one of the 24 months in [s, s+24mo)) as an
       explicit, PI-given, REVISABLE default, not an implementation guess.
+      gap_mode = 'total' is RECORDED here (2026-10-15): at gap_months = 0 the
+      two modes coincide; 05 aborts if gap_months is raised without
+      re-electing the mode. type_policy = 'require_agreement' (not 'any').
       Both sub-decisions are provisional. 05_complete_case.R can now be
-      implemented against these two values instead of remaining a stub."),
+      implemented against these two values instead of remaining a stub. WINDOW (PI, 2026-10-15): the 24 required months are [s, s+24mo), s = first day of the month on or after INDEX_DT (= T0 here); this paper REQUIRES full enrollment through s+24mo, unlike dual-bounds."),
   cost_family_scope = list(
     question = "SHARED WITH dual-bounds -- see registry_ref. Whether all four cost-claims families are disjoint claim sources or aim3_*/new_* are overlapping extracts of the same claims (which would double-count cost if all four are summed).",
-    status = "confirmed", blocking_final = FALSE, value = "all_four",
+    status = "confirmed", blocking_final = FALSE, value = "service_two_families",
     shared_with = "dual-bounds",
     registry_ref = "smidata::inst/analyses/dual-bounds__application.yml#cost_family_scope",
-    note = "RESOLVED (PI, 2026-09-17): 'They are disjoint subsets of patients - aim3* is the subset with 12-month enrollment after index and new* is without that enrollment guarantee.' A given patient's claims appear in exactly one family per claim type -- summing does NOT double-count, and does not shift prior_cost's quartile boundaries either, since no patient contributes to more than one family. IDENTICAL finding to dual-bounds' entry -- resolved once for both. Not yet independently verified against real claim-level data; the aim3_svc_cost_20-vs-new_svc_cost_20 comparison in dual-bounds' 90_checks_tier1.R remains worth running as corroboration."),
+    note = "RESOLVED (PI, 2026-09-17): 'They are disjoint subsets of patients - aim3* is the subset with 12-month enrollment after index and new* is without that enrollment guarantee.' A given patient's claims appear in exactly one family per claim type -- summing does NOT double-count, and does not shift prior_cost's quartile boundaries either, since no patient contributes to more than one family. IDENTICAL finding to dual-bounds' entry -- resolved once for both. SUPERSEDED IN SCOPE (PI, 2026-10-15): totals are SERVICE costs only, so only the two service families (aim3_svc, new_svc) are summed; the pharmacy families are not read. The disjointness finding above still holds for those two. Not yet independently verified against real claim-level data; the aim3_svc_cost_20-vs-new_svc_cost_20 comparison in dual-bounds' 90_checks_tier1.R remains worth running as corroboration."),
   msr_code = list(
     question = "SHARED WITH dual-bounds -- see registry_ref. Which msr_saa$MSR code value identifies the SAA measure specifically (msr_saa is not filtered to one measure, so 'the single nearest-month row' is ambiguous without it).",
     status = "confirmed", blocking_final = FALSE, value = "SAA (no filter needed)",
@@ -432,7 +478,7 @@ OPEN_DECISIONS <- list(
     ),
     shared_with = "dual-bounds",
     registry_ref = "dual-bounds analysis/real_data/_config.R#coverage_eligibility",
-    note = "RESOLVED (PI, 2026-09-30, for dual-bounds); PORTED to doubletree 2026-10-15 so both papers analyse the same eligible population. Enforced in 02 (elig_coverage filter) and 03 (abort if a gating window is not fully covered). Implied T0 range at config_cost_years = 16:24 is exactly 2017-01-01 to 2023-01-01 (T0 replaced INDEX_DT as time zero 2026-10-15; coverage is evaluated only for SAA-matched patients, whose exposure period gives T0). Downstream counts shift (complete-case absent rate, decedent proxy); not bugs when first seen on the server."),
+    note = "RESOLVED (PI, 2026-09-30, for dual-bounds); PORTED to doubletree 2026-10-15 so both papers analyse the same eligible population. Enforced in 02 (elig_coverage filter) and 03 (abort if a gating window is not fully covered). Implied range at config_cost_years = 16:24 (2026-10-15 anchors): INDEX_DT >= 2017-01-01 (prior_cost [INDEX_DT-12mo, INDEX_DT) must start in 2016) and s <= 2023-01-01 (outcome [s+12mo, s+24mo) must end by 2025-01-01); coverage is evaluated only for SAA-matched patients, whose exposure period gives s. Downstream counts shift (complete-case absent rate, decedent proxy); not bugs when first seen on the server."),
   diagnostics = list(
     question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
     status = "confirmed", blocking_final = FALSE,
@@ -473,26 +519,32 @@ OPEN_DECISIONS <- list(
       reported, because doing so would be the data-dependent post-selection
       inference the paper does not analyse."),
   prior_cost_negative_floor = list(
-    question = "How to treat patients whose pre-index prior_cost (sum of
-      AMOUNT_PAID over [INDEX_DT-12mo, INDEX_DT)) is NEGATIVE -- claim
-      reversals in the window exceeding payments. discretize_prior_cost()
+    question = "How to treat patients whose pre-index prior_cost (cost summed over
+      [INDEX_DT-12mo, INDEX_DT), NETTING negative AMOUNT_PAID lines) is NEGATIVE
+      -- claim reversals in the window exceeding payments. discretize_prior_cost()
       refuses to bin a negative value by design (its own note: 'a decision,
       not a binning detail') -- net it to zero, drop the patient, or allow
       the signed value into the quantile grid are three genuinely different
       choices with different consequences for the covariate grid.",
     status = "confirmed", blocking_final = FALSE, value = 0,
-    note = "RESOLVED (PI, 2026-09-28, first real server run, 2 affected
-      patients): floor negative prior_cost at 0 (no net pre-index cost)
-      before discretizing into quartile dummies. Applied via
-      helpers/discretize_prior_cost.R::floor_negative_prior_cost() at both
-      call sites (04_covariates.R's preview, 06_assemble_analytic_data.R's
-      authoritative pass) -- discretize_prior_cost() itself keeps aborting
-      on a negative input unchanged, so a future caller that forgets to
-      floor first still gets the loud abort, not a silent bin. The RAW
-      dollar prior_cost retained in 06's analytic_data output is NOT
-      floored -- only the value fed to discretize_prior_cost() is -- so the
-      2 patients' true negative net cost remains visible for the methods
-      section's reported distribution.")
+    note = "TODO (OPEN in smidata's registry, doubletree__application.yml
+      covariates.prior_cost_floor, 2026-10-15; the registry lists it as
+      open_decision while this entry still says 'confirmed' from 2026-09-28):
+      keep the floor on the covariate, or net without flooring? Behaviour is
+      LEFT AS IS pending that decision: costs are summed with negative lines
+      NETTED (smi_sum_cost_in_windows(negative_amount_policy = 'net'), 03), and
+      only THEN is a negative total floored at 0 before the quartile cut.
+      Earlier history: PI 2026-09-28 (first real server run, 2 affected
+      patients) floored negative prior_cost at 0 before discretizing into
+      quartile dummies, via helpers/discretize_prior_cost.R::
+      floor_negative_prior_cost() at both call sites (04_covariates.R's
+      preview, 06_assemble_analytic_data.R's authoritative pass);
+      discretize_prior_cost() itself keeps aborting on a negative input, so a
+      caller that forgets to floor still gets the loud abort. The RAW dollar
+      prior_cost retained in 06's analytic_data is NOT floored. THE WINDOW
+      CHANGED 2026-10-15 (PI): prior_cost is [INDEX_DT-12mo, INDEX_DT), as the
+      2026-09-28 decision was originally made; the intermediate [T0-12mo, T0)
+      anchoring is gone. The quartile cutpoints change accordingly.")
 )
 
 #' Read an open decision's placeholder value, loudly.

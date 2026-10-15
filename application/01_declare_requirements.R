@@ -6,10 +6,11 @@
 ## 200 lines into stage 03.
 ##
 ## This paper requires NO datasets beyond the ones dual-bounds already requires:
-## larger_smi_covariates, msr_saa, medicaid_monthly_flag, and all 36 cost-claims
-## keys. Its only additional construction -- prior_cost's quartile
+## larger_smi_covariates, msr_saa, medicaid_monthly_flag, and the 18 SERVICE
+## cost-claims keys (pharmacy keys are not declared: costs are service-only, PI
+## 2026-10-15). Its only additional construction -- prior_cost's quartile
 ## discretization -- is computed from data already being read. The declaration
-## below is therefore the same 39 requirements dual-bounds' identical design
+## below is therefore the same 21 requirements dual-bounds' identical design
 ## implies, and that is a fact worth checking rather than assuming: if this
 ## list ever grows, the "reuses dual-bounds' design wholesale" claim in the
 ## registry has quietly stopped being true.

@@ -6,7 +6,8 @@
 ##   12 columns  read straight off larger_smi_covariates, already binary (_YN),
 ##               no construction of any kind. PI-CONFIRMED 2026-09-17.
 ##    3 columns  prior_cost's quartile dummies, discretized here from the dollar
-##               amounts 03_cost_windows.R computed.
+##               amounts 03_cost_windows.R computed over [INDEX_DT - 12mo,
+##               INDEX_DT) (service costs, negatives netted; PI 2026-10-15).
 ##
 ## Design (smidata inst/analyses/doubletree__application.yml):
 ##   covariates.source              status: inherited (from dual-bounds)
@@ -134,6 +135,12 @@ if (!config_has_smidata) {
   ## the two are not interchangeable -- 06 MUST re-discretize on its own,
   ## final sample; this call does not gate or feed anything downstream.
   if (n_prior_cost_na == 0L) {
+    ## TODO(open decision, smidata registry doubletree__application.yml
+    ## covariates.prior_cost_floor, 2026-10-15): keep this floor at 0, or bin
+    ## the netted signed value? Behaviour left as is. prior_cost reaches here
+    ## ALREADY NETTED (03 sums with negative_amount_policy = "net" over
+    ## [INDEX_DT-12mo, INDEX_DT)); the floor is applied AFTER netting, to the
+    ## total, never to individual claim lines.
     prior_cost_for_binning <- floor_negative_prior_cost(
       covariates$prior_cost, floor_value = confirmed_value("prior_cost_negative_floor")
     )

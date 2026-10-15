@@ -10,17 +10,21 @@
 ## (smidata inst/analyses/doubletree__application.yml sections 2-4, all
 ## `status: inherited`), plus one criterion ported from dual-bounds (PI,
 ## 2026-09-30) that concerns the extract, not the patient:
-##   population.index         = INDEX_DT (selects the exposure period; NOT time zero)
-##   population.eligibility   = elig_saa == 1 iff MSR_DEN >= 1 in msr_saa AND the
-##                              selected period is within config_saa_max_month_gap
-##                              months of INDEX_DT's month (|gap|, so +/-)
+##   population.index         = INDEX_DT (determines s; anchors prior_cost and the _YN covariates)
+##   population.eligibility   = elig_saa == 1 iff an msr_saa period STARTS EXACTLY
+##                              at s (first of the month on or after INDEX_DT)
+##                              with MSR_DEN >= 1; all others are DROPPED
+##                              (PI, 2026-10-15; no nearest period, no gap
+##                              tolerance, no ties)
 ##   population.coverage      = elig_coverage: every config_coverage_required_windows
 ##                              window lies inside the cost files' date coverage
-##   time zero for all windows = T0, the first day of the selected exposure
-##                              period's month (NOT INDEX_DT); see _config.R
+##   s (called T0 here)       = first day of the month on or after INDEX_DT
+##                              = the selected period's start; outcome and
+##                              complete case anchor on s, prior_cost on
+##                              INDEX_DT itself; see _config.R
 ##   base_cohort.source_table = larger_smi_covariates (381,018 rows)
-##   exposure.window          = [T0, T0 + 12mo): the selected 12-month period
-##   exposure.definition      = A = 1 iff MSR_NUM/MSR_DEN >= 0.5
+##   exposure.window          = [s, s + 12mo): the selected 12-month period
+##   exposure.definition      = A = 1 iff MSR_NUM/MSR_DEN >= 0.5 (>=, PI 2026-10-15)
 ##
 ## Inheriting the design does NOT mean calling dual-bounds' code. The shared
 ## implementation is smidata::smi_select_measure_row(), which both projects call
@@ -64,6 +68,7 @@ app_dir <- if (dir.exists("application")) "application" else "."
 source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "msr_filter.R"))
 source(file.path(app_dir, "helpers", "period_start.R"))
+source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
 
 cli::cli_h1("02 -- population and eligibility")
@@ -108,7 +113,7 @@ if (!config_has_smidata) {
   }
   if (any(is.na(base_cohort$INDEX_DT))) {
     cli::cli_abort(
-      "{.field INDEX_DT} selects the exposure period (and so T0); {.val NA} is not
+      "{.field INDEX_DT} determines s (and so T0); {.val NA} is not
        recoverable and must not be dropped silently."
     )
   }
@@ -165,109 +170,86 @@ if (!config_has_smidata) {
     }
   }
 
-  ## Grain change: one row per patient. tie_break is left at smidata's own
-  ## default, "earlier", and is NOT an open decision in this project (see
-  ## OPEN_DECISIONS's header comment on what is deliberately absent):
-  ## smi_select_measure_row() aborts on any other value, so no choice is being
-  ## silently made here to flag.
+  ## Grain change: one row per patient. PROJECT-WIDE RULE (PI, 2026-10-15):
+  ## s = first day of the month on or after INDEX_DT, and the msr_saa period
+  ## must START EXACTLY at s -- anchor = "ceiling_month": no nearest period, no
+  ## gap tolerance (max_month_gap is left at Inf, which that anchor requires),
+  ## no ties across periods. saa_raw was filtered to the single SAA code above,
+  ## BEFORE this call. tie_break stays at smidata's "earlier" and is not an
+  ## open decision here. MSR_YR is the START of the 12-month period (smidata
+  ## 06dbbe2, 2026-10-09); that start convention is not yet confirmed against
+  ## msr_saa itself.
+  base_index <- dplyr::transmute(base_cohort, ID = .data$ID, INDEX_DT = as.Date(.data$INDEX_DT))
   saa_selected <- smidata::smi_select_measure_row(
     saa_raw,
-    index_dt = dplyr::select(base_cohort, "ID", "INDEX_DT"),
-    ## MSR_YR is the START of the 12-month measurement period (smidata
-    ## 06dbbe2, 2026-10-09), so the period starting closest to INDEX_DT's
-    ## month (offset 0) is the exposure window; its start month defines T0.
-    ## The old 12L read MSR_YR as the period END. Passed explicitly rather than
-    ## relying on smidata's default, which flipped 12L -> 0L in that commit.
-    ## Start convention not yet confirmed against msr_saa itself.
-    target_offset_months = config_saa_target_offset_months,
+    index_dt = base_index,
     achievement_threshold = config_saa_achievement_threshold,
-    max_month_gap = config_saa_max_month_gap
+    anchor = config_period_anchor
+  )
+  n_saa_rows_out_of_cohort <- sum(!saa_raw$ID %in% base_cohort$ID)
+  cli::cli_alert_info(
+    "{n_saa_rows_out_of_cohort} msr_saa row{?s} {?is/are} for IDs not in
+     {.val {SMI_KEYS$covariates}} (ignored)."
   )
 
-  ## ---- observability: exposure-period distance from INDEX_DT ---------------
+  ## ---- s (= T0): the exposure start -----------------------------------------
   ##
-  ## smidata's month_gap is ABSOLUTE. Because every window is anchored on T0
-  ## (below), the gap no longer makes the windows overlap; it shifts them
-  ## relative to INDEX_DT by up to |gap| months, and at gap -1 it puts the
-  ## INDEX_DT-anchored _YN covariates up to a month inside the exposure window.
-  ## Report the SIGNED gap so the mix is visible, plus the cohort/arm sizes at
-  ## the candidate cutoffs (before the coverage filter below). The cutoff
-  ## itself is a PI decision (90 CHECK 2 is the spec, CHECK 6 the executable
-  ## check).
-  gap_matched <- saa_selected$month_gap[saa_selected$matched %in% TRUE]
-  gap_tab <- table(gap_matched)
-  cli::cli_alert_info(
-    "SAA |month_gap| among {length(gap_matched)} matched patients (cutoff
-     {.val {config_saa_max_month_gap}}): {paste0(names(gap_tab), ': ', gap_tab,
-     collapse = '; ')}."
-  )
+  ## For every matched patient the selected period's start IS s by construction
+  ## of the anchor; recomputing s from INDEX_DT independently and comparing is
+  ## the check that this script and smidata agree on the rule. EVERY window
+  ## downstream is anchored on s or on INDEX_DT as DOUBLETREE_WINDOWS (_config.R)
+  ## says: outcome [s+12mo, s+24mo) and complete case [s, s+24mo) on s; prior_cost
+  ## [INDEX_DT-12mo, INDEX_DT) on INDEX_DT itself.
   matched_rows <- saa_selected[saa_selected$matched %in% TRUE, , drop = FALSE] |>
-    dplyr::inner_join(dplyr::select(base_cohort, "ID", "INDEX_DT"), by = "ID")
-  parsed_msr_yr <- smidata::smi_parse_msr_yr(as.character(matched_rows$MSR_YR_selected))
-  signed_gap <- smidata::smi_month_index(parsed_msr_yr$yyyy, parsed_msr_yr$mm) -
-    smidata::smi_month_index(
-      lubridate::year(matched_rows$INDEX_DT), lubridate::month(matched_rows$INDEX_DT)
-    ) - config_saa_target_offset_months
-  ## T0: the first day of the selected exposure period's month. EVERY window
-  ## downstream is anchored here, not on INDEX_DT (see DOUBLETREE_WINDOWS in
-  ## _config.R): prior_cost [T0-12mo, T0), exposure [T0, T0+12mo), outcome
-  ## [T0+12mo, T0+24mo), complete case through T0+24mo. That makes the windows
-  ## contiguous and non-overlapping for any gap, and puts them on the same
-  ## month grid as the exposure measure itself.
+    dplyr::inner_join(base_index, by = "ID")
   t0_tbl <- tibble::tibble(
     ID = matched_rows$ID,
     T0 = msr_yr_period_start(matched_rows$MSR_YR_selected),
-    signed_gap = as.integer(signed_gap)
-  )
+    INDEX_DT = matched_rows$INDEX_DT
+  ) |>
+    dplyr::mutate(
+      t0_lag_months = smidata::smi_month_index(
+        lubridate::year(.data$T0), lubridate::month(.data$T0)
+      ) - smidata::smi_month_index(
+        lubridate::year(.data$INDEX_DT), lubridate::month(.data$INDEX_DT)
+      )
+    )
   if (nrow(t0_tbl) == 0L) {
     cli::cli_abort(
-      "Zero SAA-matched patients within {config_saa_max_month_gap} month{?s}:
-       there is no T0 to anchor the windows on."
+      "Zero patients have an {.val {SAA_MSR_CODE}} period starting exactly at
+       s (the first of the month on or after INDEX_DT): there is no T0 to
+       anchor the windows on."
     )
   }
-  signed_tab <- table(signed_gap)
-  cli::cli_alert_info(
-    "SIGNED gap (selected period start minus INDEX_DT month; negative = starts
-     before time zero): {paste0(names(signed_tab), ': ', signed_tab, collapse = '; ')}."
-  )
-  if (any(config_saa_gap_candidates > config_saa_max_month_gap)) {
-    cli::cli_abort(c(
-      "Candidate gap cutoff{?s} exceeding the active cutoff
-       ({config_saa_max_month_gap}): {config_saa_gap_candidates[config_saa_gap_candidates > config_saa_max_month_gap]}.",
-      "i" = "A finite cutoff censors month_gap, so those counts would equal the
-             active cutoff's. Use 90_checks_tier1.R CHECK 6 for a wider table."
-    ))
-  }
-  gap_candidates <- do.call(rbind, lapply(config_saa_gap_candidates, function(g) {
-    keep <- saa_selected$elig %in% TRUE & saa_selected$month_gap <= g
-    keep[is.na(keep)] <- FALSE
-    data.frame(
-      cutoff = g, n_elig = sum(keep),
-      n_treated = sum(keep & saa_selected$achieved %in% TRUE),
-      n_control = sum(keep & saa_selected$achieved %in% FALSE)
+  if (any(t0_tbl$T0 != exposure_start(t0_tbl$INDEX_DT)) ||
+      any(matched_rows$month_gap != 0L)) {
+    cli::cli_abort(
+      "A selected period does not start exactly at s = first of the month on
+       or after INDEX_DT; smidata's ceiling_month anchor should have
+       guaranteed it."
     )
-  }))
+  }
+  ## s is INDEX_DT's own month (INDEX_DT on the 1st: lag 0) or the next (lag 1).
+  if (!all(t0_tbl$t0_lag_months %in% c(0L, 1L))) {
+    cli::cli_abort("t0_lag_months must be 0 (INDEX_DT on the 1st) or 1.")
+  }
+  lag_tab <- table(t0_tbl$t0_lag_months)
   cli::cli_alert_info(
-    "SAA-eligible and arm sizes at candidate gap cutoffs (months), BEFORE the
-     coverage filter; the analysis cohort's own arm counts are printed below."
+    "s (T0) minus INDEX_DT's month, in months: {paste0(names(lag_tab), ': ',
+     lag_tab, collapse = '; ')}."
   )
-  cli::cli_verbatim(utils::capture.output(print(gap_candidates, row.names = FALSE)))
 
   ## ---- observability: file-date coverage (ported from dual-bounds) --------
   ##
   ## Exclude anyone whose study period extends beyond the observable cost
   ## files (PI, 2026-09-30, via dual-bounds). An eligibility criterion about
-  ## the EXTRACT's vintage, not the patient. A pure function of T0 (and so of
-  ## the exposure selection), computed here ahead of 03's expensive pass. Uses
-  ## COST_SOURCES (_config.R), the same object 03 derives its own `coverage`
-  ## from, so 03's contract-violation abort stays meaningful. Evaluated only
-  ## for patients with an exposure period (a T0); the rest are already
-  ## ineligible via elig_saa.
+  ## the EXTRACT's vintage, not the patient. A pure function of s and INDEX_DT,
+  ## computed here ahead of 03's expensive pass. Uses COST_SOURCES (_config.R),
+  ## the same object 03 derives its own `coverage` from, so 03's
+  ## contract-violation abort stays meaningful. Evaluated only for patients
+  ## with an exposure period (a T0); the rest are already dropped as ineligible.
   coverage_wide <- smidata::smi_window_coverage(
-    smidata::smi_patient_windows(
-      dplyr::transmute(t0_tbl, id = .data$ID, index_dt = .data$T0),
-      windows = DOUBLETREE_WINDOWS
-    ),
+    doubletree_patient_windows(t0_tbl),
     COST_SOURCES
   ) |>
     dplyr::select("id", "window", "coverage") |>
@@ -279,6 +261,7 @@ if (!config_has_smidata) {
       anyNA(coverage_wide[want_cov_cols])) {
     cli::cli_abort("smi_window_coverage() did not return one complete row per patient.")
   }
+  t0_tbl <- dplyr::select(t0_tbl, -"INDEX_DT")
 
   ## Report EVERY window's rate, gating or not.
   for (w in DOUBLETREE_WINDOWS$window) {
@@ -321,24 +304,40 @@ if (!config_has_smidata) {
 
   ## TWO independent criteria, reported marginally AND jointly: elig_saa is a
   ## property of the patient, elig_coverage a property of the extract. The
-  ## analysis cohort satisfies BOTH. Report the attrition explicitly -- an
-  ## eligibility filter that silently halves the cohort is the kind of thing
-  ## that gets discovered in review.
+  ## analysis cohort satisfies BOTH; every other patient is DROPPED (PI,
+  ## 2026-10-15: ineligible patients are dropped, never coded 0 or kept as NA).
+  ## Report the attrition explicitly -- an eligibility filter that silently
+  ## halves the cohort is the kind of thing that gets discovered in review.
   analysis_cohort <- dplyr::filter(population, .data$elig_saa, .data$elig_coverage)
-  ## "Unmatched" has two causes smidata's output cannot tell apart (it blanks
-  ## month_gap for both): no msr_saa row at all, or a nearest period beyond the
-  ## cutoff. The second number is the attrition the cutoff itself causes.
+  ## "Not matched" has two causes: no msr_saa row at all, or rows exist but none
+  ## STARTS exactly at s. They must add up to the unmatched count.
   n_no_saa_rows <- sum(!base_cohort$ID %in% saa_raw$ID)
-  n_gap_rejected <- sum(!population$matched) - n_no_saa_rows
+  n_no_row_at_s <- sum(!population$matched) - n_no_saa_rows
+  if (n_no_row_at_s < 0L) {
+    cli::cli_abort(
+      "Unmatched-patient partition does not add up ({n_no_saa_rows} no rows,
+       {n_no_row_at_s} none starting at s): the msr_saa and covariates tables
+       disagree on patient IDs."
+    )
+  }
+  n_with_rows <- sum(base_cohort$ID %in% saa_raw$ID)
+  cli::cli_alert_info(
+    "SAA-matched (a period starting exactly at s): {sum(population$matched)} of
+     {n_with_rows} patients with msr_saa rows
+     ({round(100 * sum(population$matched) / n_with_rows, 1)}%). A low rate
+     means the table's period structure does not put a period start on the
+     first of the month on or after INDEX_DT -- check 90 CHECK 6 before
+     trusting the cohort."
+  )
   cli::cli_alert_info(
     "Attrition: {nrow(population)} base cohort -> {sum(population$elig_saa)}
      elig_saa -> {sum(population$elig_saa & population$elig_coverage)} of those
      also elig_coverage (the analysis cohort: {nrow(analysis_cohort)}).
-     Not SAA-matched: {n_no_saa_rows} with no {SAA_MSR_CODE} rows,
-     {n_gap_rejected} with the nearest period beyond {config_saa_max_month_gap}
-     month{?s}. Matched but not eligible (MSR_DEN < 1):
-     {sum(population$matched & !population$elig_saa)}. The per-window coverage
-     counts above are over all SAA-matched patients, so they include those."
+     DROPPED as not matched: {n_no_saa_rows} with no {SAA_MSR_CODE} rows,
+     {n_no_row_at_s} with rows but none starting exactly at s. DROPPED as
+     matched but MSR_DEN < 1: {sum(population$matched & !population$elig_saa)}.
+     The per-window coverage counts above are over all SAA-matched patients,
+     so they include those."
   )
   ## achieved is NA when MSR_NUM is NA although elig is TRUE. Stop here, not
   ## after 03's multi-hour pass.
@@ -351,6 +350,41 @@ if (!config_has_smidata) {
   if (nrow(analysis_cohort) == 0L) {
     cli::cli_abort("Zero patients satisfy elig_saa AND elig_coverage.")
   }
+
+  ## ---- record the attrition for 08_decision_report.R ----------------------
+  ## The counts the report cites are RECORDED here, as the pipeline runs, not
+  ## recomputed later. Raw (unsuppressed) and local: output/ is gitignored and
+  ## the report suppresses everything it renders or exports.
+  report_record("02_population", list(
+    flow = data.frame(
+      step = c("base cohort (larger_smi_covariates)",
+               sprintf("has >= 1 msr_saa row with MSR == %s", SAA_MSR_CODE),
+               "a period starts exactly at s (first of the month on or after INDEX_DT)",
+               "MSR_DEN >= 1 (eligible for SAA)",
+               "cost-file coverage of the outcome and prior_cost windows (analysis cohort)"),
+      n = c(nrow(base_cohort), n_with_rows, sum(population$matched),
+            sum(population$elig_saa), nrow(analysis_cohort)),
+      reason = c("",
+                 "no msr_saa rows for the SAA measure",
+                 "rows exist but none starts exactly at s (no nearest period, no tolerance)",
+                 "MSR_DEN < 1",
+                 "a window in config_coverage_required_windows extends past the cost files"),
+      stringsAsFactors = FALSE
+    ),
+    selection = saa_selected[c("ID", "matched", "elig", "achieved",
+                               "MSR_YR_selected", "MSR_DEN")],
+    index_dt = base_index,
+    coverage_counts = tibble::tibble(
+      window = DOUBLETREE_WINDOWS$window,
+      gating = DOUBLETREE_WINDOWS$window %in% config_coverage_required_windows,
+      n_matched = nrow(coverage_wide),
+      n_not_full = vapply(DOUBLETREE_WINDOWS$window, function(w) {
+        sum(coverage_wide[[paste0("coverage_", w)]] != "full")
+      }, integer(1))
+    ),
+    n_msr_rows_excluded = n_excluded,
+    n_saa_rows_out_of_cohort = n_saa_rows_out_of_cohort
+  ), app_dir)
 
   ## Both ATT entry points need interior treatment proportion and enough mass
   ## in BOTH arms; estimate_att() additionally needs at least

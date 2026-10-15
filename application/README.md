@@ -2,7 +2,7 @@
 
 <!-- NOTE (2026-10-09 audit): AAP is Adults' Access to Preventive/Ambulatory Health Services (HEDIS), not antipsychotic adherence (that is msr_saa). Framing under PI review; see smidata QUALITY_MEASURES.md. -->
 Equity-blind, tree-based ATT estimation of antipsychotic-medication adherence (AAP achievement,
-months 0–12 post-index) on total cost (includes pharmacy; months 13–24), in the NYS OMH Medicaid SMI cohort, via
+months `[s, s+12mo)`) on total SERVICE cost (no pharmacy; negative claim lines netted; nominal dollars; months `[s+12mo, s+24mo)`), in the NYS OMH Medicaid SMI cohort, via
 `doubletree::estimate_att()` / `doubletree::estimate_att_crossfit()`.
 
 **Read this before running anything.**
@@ -13,12 +13,12 @@ This directory is a **deliberate methodological contrast** with
 `~/RAND/rprojects/smi/dual-bounds/analysis/real_data/`, not an independent study. It reuses that
 paper's population, exposure, outcome and covariate-source design **verbatim** — smidata's
 `inst/analyses/doubletree__application.yml` marks sections 2–6 `status: inherited` — and differs
-in three places (the third, time zero, is the author's 2026-10-15 choice, not yet PI-confirmed or in smidata's registry):
+in three places (the 2026-10-15 project-wide PI rules — `s`, the anchors, service-only costs — apply to both papers alike):
 
 | | dual-bounds | this paper |
 |---|---|---|
 | estimator | `marbounds` partial-identification bounds | `doubletree::estimate_att()` / `estimate_att_crossfit()` |
-| outcome missingness | modelled response indicator `R` | **complete-case restriction** through `INDEX_DT+24mo` |
+| outcome missingness | modelled response indicator `R` | **complete-case restriction**: full enrollment in `[s, s+24mo)`, `type_policy = "require_agreement"`, gap 0, `gap_mode = "total"` recorded (dual-bounds keeps everyone and models `R`) |
 | covariates in `X` | ~68, four blocks, non-binary allowed | **15, all binary** (12 confirmed `_YN` + 3 `prior_cost` quartile dummies) |
 
 The covariate count is the substantive consequence of the estimator choice, not a shortcut.
@@ -95,11 +95,11 @@ guard, not a known stop, and `06` writes the un-suffixed `analytic_cohort.parque
 
 | id | shared with dual-bounds | status | one line |
 |---|---|---|---|
-| `enrollment_source` | same table, different use | **confirmed** (2026-09-24) | `MEDICAID_FLAG==1` in `larger_smi_medicaid_monthly_flag` for every one of the 24 months in `[INDEX_DT, INDEX_DT+24mo)`, no `TYPE` filter, zero gap tolerance — a PI-given, revisable default. Implemented via `smidata::smi_enrollment_panel()` + `smi_enrollment_coverage()` since the 2026-10-01 migration, translated as `type_policy = "require_agreement"` (not `"any"` — see `05_complete_case.R`'s header) and `gap_months = 0` / `gap_mode = "total"`; provisional on CHECK 4 (below) not yet running. |
-| `cost_family_scope` | **yes** — identical question | **confirmed** (`all_four`) | All four cost-claims families are disjoint claim sources; sum all four. |
+| `enrollment_source` | same table, different use | **confirmed** (2026-09-24) | `MEDICAID_FLAG==1` in `larger_smi_medicaid_monthly_flag` for every one of the 24 months in `[s, s+24mo)` (`s` = `T0`; PI 2026-10-15), no `TYPE` filter, zero gap tolerance — a PI-given, revisable default. Implemented via `smidata::smi_enrollment_panel()` + `smi_enrollment_coverage()` since the 2026-10-01 migration, translated as `type_policy = "require_agreement"` (not `"any"` — see `05_complete_case.R`'s header) and `gap_months = 0` / `gap_mode = "total"`; provisional on CHECK 4 (below) not yet running. |
+| `cost_family_scope` | **yes** — identical question | **confirmed** (`service_two_families`) | The two SERVICE families (`aim3_svc`, `new_svc`) are disjoint claim sources; sum both. The four-family value is superseded: pharmacy files are not read (PI, 2026-10-15). |
 | `msr_code` | **yes** — identical question | **confirmed** (`"SAA (no filter needed)"`; exposure switched AAP -> SAA 2026-10-09, SAA literal not yet seen in the real table) | `msr_saa` is expected to be an SAA-only extract — no `MSR` filter needed at the *registry* level. **Fixed 2026-09-24**: `02_population_and_eligibility.R`'s gate now reads this value (was stale since 2026-09-17). But "no filter needed" is not what `02` actually does — `smidata::smi_select_measure_row()`'s abort-on-tie does NOT guard against a other-measure row silently winning when it merely lands closer to the target month than any true row of the measure (no tie forms), so `02` filters to the literal `SAA_MSR_CODE` explicitly and reports any exclusion. See this decision's `note` for the full correction — the registry's "abort-on-tie is the safety net" claim was wrong, and is not yet fixed upstream (smidata, dual-bounds). |
 | `diagnostics` | no — this paper's own | **confirmed** (`"certified_e && certified_m0"`, 2026-09-30) | Reported diagnostic flag, **not** an estimator switch: `certified_e` AND `certified_m0` both TRUE means this proxy supports grid-exact sparsity for the flagship `estimate_att()` result. **No fallback to `estimate_att_crossfit()`, silent or explicit** — the flagship stays the flagship regardless; a failed licence signals that `07`'s already-reported discrepancy deserves scrutiny, not that the crossfit number should be substituted in. No separate `gap_*` threshold — `certified_* == TRUE` already implies `gap == 0`. **Necessary, not sufficient**: `certified_*` says the search solved `eq:select` at the configured `leaf_budget`, not that the budget is large enough for the truth; the 2026-09-24 general standard (overlap/balance + nuisance fit vs OLS/GLM) applies on top. `07` **prints** whether the licence holds and never auto-switches. |
-| `prior_cost_negative_floor` | no — this paper's own | **confirmed** (`0`, 2026-09-28) | 2 patients had negative `prior_cost` (claim reversals exceeding pre-index payments) on the first real server run. Floored to 0 before `discretize_prior_cost()`, via `helpers/discretize_prior_cost.R::floor_negative_prior_cost()` — the raw dollar value retained in `06`'s output is unaffected; only the value fed to binning is floored. `discretize_prior_cost()` itself still aborts unchanged on a negative input. |
+| `prior_cost_negative_floor` | no — this paper's own | **confirmed locally (`0`, 2026-09-28) but OPEN in smidata's registry (`covariates.prior_cost_floor`, 2026-10-15) — TODO** | Behaviour left as is pending that decision: costs are netted (negative lines kept) first, THEN a negative window total is floored at 0. 2 patients had negative `prior_cost` (claim reversals exceeding pre-index payments) on the first real server run. Floored to 0 before `discretize_prior_cost()`, via `helpers/discretize_prior_cost.R::floor_negative_prior_cost()` — the raw dollar value retained in `06`'s output is unaffected; only the value fed to binning is floored. `discretize_prior_cost()` itself still aborts unchanged on a negative input. |
 
 The two shared entries carry machine-readable `shared_with` and `registry_ref` fields instead of a
 re-worded question. Two projects independently wording one question is how the two answers end up
@@ -121,24 +121,68 @@ oversight:
 
 | file | runs today | what it does |
 |---|---|---|
-| `_config.R` | yes | Gates, `OPEN_DECISIONS`, `SMI_KEYS`, `SMI_COLS`, the 36 cost dataset keys, `DOUBLETREE_WINDOWS`, `config_estimator`, `config_leaf_budget`. Plain top-level variables, edited in place — not `Sys.getenv()`. |
+| `_config.R` | yes | Gates, `OPEN_DECISIONS`, `SMI_KEYS`, `SMI_COLS`, the 18 service cost dataset keys, `DOUBLETREE_WINDOWS` (with its `anchor` column), `doubletree_patient_windows()`, `config_estimator`, `config_leaf_budget`. Plain top-level variables, edited in place — not `Sys.getenv()`. |
 | `helpers/covariate_blocks.R` | yes (tested) | The **PI-confirmed** 15-column selection, 4 blocks × 3 plus 3 `prior_cost` dummies, and the declared column ORDER. Authoritative, *not* a candidate — contrast dual-bounds' file of the same name. |
 | `helpers/discretize_prior_cost.R` | yes (tested) | Pure: dollars → 3 quartile dummies, Q1 implicit reference, cutpoints returned as an attribute. Aborts on a collapsed boundary or an empty bin. |
 | `helpers/design_matrix.R` | yes (tested) | `assemble_design_matrix()`, and `assert_binary_design_matrix()` — the four checks the package does **not** give you (see below). |
 | ~~`helpers/complete_case.R`~~ | **DELETED 2026-10-01** | Promoted into smidata as `smi_parse_year_month()` / `smi_enrollment_panel()` / `smi_enrollment_coverage()`. Deleted rather than shimmed: it had been copied into dual-bounds on 2026-09-28 and the two copies had already drifted 82 lines apart. |
 | `helpers/msr_filter.R` | yes (tested) | `filter_to_msr_code()` — the real `msr_code` contamination guard `02` uses (see that decision's row, above), pure and hand-fixture-tested. |
-| `01_declare_requirements.R` | yes | Declares 39 dataset requirements (added `medicaid_monthly_flag` 2026-09-24) + the 12 `_YN` columns via `smidata::smi_require()`; reports the census gap. Skips gracefully without smidata. |
-| `02_population_and_eligibility.R` | yes (fixture) | **Fixed 2026-09-24** (was stale — see `msr_code`'s row above). Runs end to end locally against a Tier-0 fixture (`smidata::smi_read()` dispatches to `smi_fixture()` off-server automatically): builds `base_cohort`, filters `msr_saa` to `SAA_MSR_CODE` (`helpers/msr_filter.R`, tested), calls `smi_select_measure_row()`, reports eligibility/exposure-arm counts. On the server it reads the real tables instead — same code path, `smidata::smi_env()` dispatches. |
-| `03_cost_windows.R` | yes (fixture) | **Real as of 2026-09-24.** Cascade-guarded on `02` (`require_stage()`). Builds `windows`/`coverage`, then `smi_sum_cost_in_windows()` for real (~10s against 36 Tier-0 fixtures, verified before wiring live). `outcome_cost`/`prior_cost` carry an explicit `coverage` column and are `NA` (not coalesced to 0) whenever file-date coverage is not `"full"` — a patient with a partial-window sum is marked unknowable, not passed through as if complete; see this file's header. |
-| `04_covariates.R` | yes (fixture) | **Real as of 2026-09-24.** Cascade-guarded on `03`. Reads the 12 confirmed `_YN` columns + `INDEX_DT`, joins `03`'s `prior_cost` (no `coalesce()` — see `03`'s row), runs a PREVIEW discretize/assemble/assert pass on the pre-filter cohort. Explicitly a preview: `06` re-discretizes on the real, final (complete-case-filtered) sample. |
+| `01_declare_requirements.R` | yes | Declares 21 dataset requirements (3 + the 18 service cost files) (added `medicaid_monthly_flag` 2026-09-24) + the 12 `_YN` columns via `smidata::smi_require()`; reports the census gap. Skips gracefully without smidata. |
+| `02_population_and_eligibility.R` | yes (fixture) | **Fixed 2026-09-24** (was stale — see `msr_code`'s row above). Runs end to end locally against a Tier-0 fixture (`smidata::smi_read()` dispatches to `smi_fixture()` off-server automatically): builds `base_cohort`, filters `msr_saa` to `SAA_MSR_CODE` (`helpers/msr_filter.R`, tested), calls `smi_select_measure_row(anchor = "ceiling_month")` (a period must start exactly at `s`; no match or `MSR_DEN < 1` -> dropped), reports eligibility/exposure-arm counts. On the server it reads the real tables instead — same code path, `smidata::smi_env()` dispatches. |
+| `03_cost_windows.R` | yes (fixture) | **Real as of 2026-09-24.** Cascade-guarded on `02` (`require_stage()`). Builds `windows`/`coverage`, then `smi_sum_cost_in_windows()` for real with `negative_amount_policy = "net"` over the 18 service files only (~10s against Tier-0 fixtures, verified before wiring live). `outcome_cost`/`prior_cost` carry an explicit `coverage` column and are `NA` (not coalesced to 0) whenever file-date coverage is not `"full"` — a patient with a partial-window sum is marked unknowable, not passed through as if complete; see this file's header. |
+| `04_covariates.R` | yes (fixture) | **Real as of 2026-09-24.** Cascade-guarded on `03`. Reads the 12 confirmed `_YN` columns + `INDEX_DT`, joins `03`'s `prior_cost` (`[INDEX_DT-12mo, INDEX_DT)`) (no `coalesce()` — see `03`'s row), runs a PREVIEW discretize/assemble/assert pass on the pre-filter cohort. Explicitly a preview: `06` re-discretizes on the real, final (complete-case-filtered) sample. |
 | `05_complete_case.R` | yes (fixture, up to a real Tier-0 boundary) | Computes complete-case status for real via `smidata::smi_enrollment_panel()` + `smi_enrollment_coverage()`, cascade-guarded on `02`. Locally, `larger_smi_medicaid_monthly_flag`'s `YEAR_MONTH` has no real-data census levels, so the fixture emits unparseable placeholder text and the real computation is skipped with an explicit message (not a crash) — the hand-built two-patient demo still runs regardless, proving the function itself. On the server this limitation does not apply. Deliberately does **not** proxy enrollment from claims presence — `MEDICAID_FLAG` is a real enrollment indicator, independent of utilization; the file's header spells out why neither directional failure mode of a claims-presence proxy applies to it. |
 | `06_assemble_analytic_data.R` | yes (fixture chain stops at `05`'s boundary; own logic verified separately) | Joins `02`–`05`, reports THREE separate attrition reasons (not complete-case; unknowable `Y`; unknowable `prior_cost` — see `03`'s coverage column), re-discretizes `prior_cost` on the real final sample, `assert_binary_design_matrix()` (unconditional), then writes with a `_PROVISIONAL` suffix while anything blocks, or without one once nothing does. **The PROVISIONAL release valve is now real** (fixed 2026-09-24, design-reviewed by `oracle`) — it was pure documentation before: `assert_no_blocking_open()` always aborted first, so the write was never reachable. Moved that call to `07` only (`diagnostics` gates the *estimate*, not the assembled *data*). **Found and fixed while verifying this script with hand-built inputs**: the original complete-case filter used `isTRUE(.data$complete_case)`, which is not vectorized — it would have silently zeroed the analytic sample on every real run, for a reason unrelated to complete-case status itself. Fixed to `.data$complete_case %in% TRUE`. |
 | `07_estimate_att.R` | yes (needs real analytic data) | Gate (`assert_no_blocking_open()`) is the first statement after config — the only place it still runs, as of 2026-09-24 (moved out of `06`); now a live regression guard, since all decisions are confirmed. Reads the un-suffixed `analytic_cohort.parquet` (aborts by name if only the `_PROVISIONAL` file exists). Runs both estimators, prints whether the confirmed `diagnostics` licence holds (`certified_e && certified_m0`) without auto-switching on it, and reports their discrepancy. Writes `output/att_estimates.parquet`, `att_diagnostics.parquet`, `att_provenance.csv` and `att_fits.rds`. |
 | `run_pipeline.R` | yes | New 2026-09-24. Convenience only (sources `01`–`07` in order) — every script is independently runnable via its own `require_stage()` cascade; this just saves typing seven commands. |
+| `helpers/decision_report.R` | yes (tested) | Review-report plumbing: `report_record()` (how `02`/`03`/`05`/`06` save their counts), `summarise_design()`, `design_patterns()`, `report_levers()` (levers read from `_config.R`'s own objects), `build_decision_report()`, and `toy_report_inputs()` (hand-calculated toy intermediates). |
+| `08_decision_report.R` | yes (toy off-server) | New 2026-10-15. Builds the review report from the intermediates `02`/`03`/`05`/`06` save to `output/report_inputs/`; see "Review report" below. Exports through `smi_report_export()` only when `smidata::smi_is_server()`. |
 | `90_checks_tier1.R` | no | Server-only. Checks 1, 2 (partly) and 4 reference dual-bounds' (comment spec); checks 3, 5 and 6 are this paper's own and executable (`_YN` coding/prevalence, cost-file coverage, msr_saa convention and gap-cutoff sizes), exporting through `smi_export()`. Aborts locally. Check 4 (added 2026-09-24) verifies the `enrollment_source` TYPE-ignore default's prerequisite. |
 | `91_leaf_budget_feasibility.R` | yes (needs real analytic data) | New 2026-09-28. STANDALONE, NOT gated by `assert_no_blocking_open()` and NOT part of the 01–07 cascade — times `estimate_att()` alone at `config_leaf_budget` on the real analytic data and reports elapsed time. Reads the reportable `analytic_cohort.parquet` first, falls back to `analytic_cohort_PROVISIONAL.parquet` with an explicit warning (order reversed 2026-09-30 when `diagnostics` resolved — preferring PROVISIONAL unconditionally would silently time a stale cohort). Informational only; never a reportable estimate. Added after benchmarking `leaf_budget = 15` (raised from 4, PI 2026-09-28) on the 400-row Tier-0 toy fixture: 4.8s at `leaf_budget = 4`, 94.5s at `6`, still running past 5+ minutes at `15` (killed) — the real cohort's `07` risks discovering an infeasible budget only after `03`'s multi-hour cost-streaming pass. Invoke wrapped in the shell's `timeout` (the real bound; this script's own `setTimeLimit()` is best-effort only against optimaltrees' compiled C++ search — see the file's own header): `timeout 900 Rscript application/91_leaf_budget_feasibility.R`. |
 | `tests/` | yes | 165 assertions, no data, no server. |
 | `run_tests.R` | yes | `testthat::test_dir("application/tests")`. |
+
+## Review report (`08_decision_report.R`)
+
+Lets the PI check every lever and quote the counts in the paper. Each stage saves the raw counts it
+already computes as it runs (`02` the attrition steps and the period selection, `03` the cost-window
+object with its `setting_summary` attribute, `05` the enrollment coverage, `06` the final-sample
+design counts) to `application/output/report_inputs/*.rds` (gitignored, local, never exported).
+`08` reads those files, takes the levers from `_config.R`'s own objects (so the report cannot drift
+from the code), and builds smidata's decision-report tables plus this paper's own. Every table is
+suppressed at n < 11; no minimum, maximum or single-patient value is reported.
+
+```
+Rscript application/run_pipeline.R          # 01-07, then 08 (or run 08 alone after 06)
+Rscript application/08_decision_report.R    # Markdown -> application/output/decision_report/decision_report.md
+```
+
+On the server (`smidata::smi_is_server()` and intermediates recorded there) the tables are also
+exported through `smidata::smi_report_export()` (the only door off the server). Off the server, with no
+intermediates, it runs on the toy inputs, titles the report "TOY INPUTS", writes to
+`output/decision_report_toy/`, and exports nothing. Stage intermediates from different runs or
+environments abort the build.
+
+| Lever / question | Where it is evidenced (report table) |
+|---|---|
+| Period rule (`s`, exact start, anchor), `MSR_DEN < 1` drop, achievement threshold, measure code, windows, cost policy, cost families, MCI rule, enrollment rule, floor, bins, covariate set, winsorizing / provider attribution (not applicable) | "Levers in force" (read from `_config.R`) |
+| Every exclusion step, base table to analytic sample, with reasons | `flow` |
+| SAA cohort: exact-start matches, unmatched, `MSR_DEN < 1`, eligible, achieved; by period-start month; `INDEX_DT` on the 1st vs later | `measure_period.summary`, `.by_period_start`, `.index_day` |
+| Cost-file coverage exclusions, per window | `coverage_by_window` |
+| Non-SAA `msr_saa` rows excluded; rows for IDs outside the cohort | `msr_filter` |
+| Negative lines and dollars, cells with negative or zero totals, missing amounts, MCI lines excluded, distribution (p01-p99), prior vs outcome window | `costs_cohort` (analysis cohort), `costs_final_sample` (final sample) |
+| Service-setting breakdown with net dollars and shares | `cost_categories` (analysis cohort; the attribute cannot be restricted) |
+| Patients with a known `Y` / `prior_cost` | `cost_known` |
+| Complete case over `[s, s+24mo)` and its attrition: covered, insufficient, absent; months covered; by `T0` lag and arm; by arm | `enrollment.summary`, `enrollment.by_months_covered`, `enrollment_by_lag_arm`, `enrollment_by_arm`, and the last two `flow` steps |
+| `prior_cost` floor: cells floored at 0, cells at the floor | `prior_cost_floor` |
+| Quartile cut points and the count in each bin | `prior_cost_cutpoints`, `prior_cost_bins` |
+| 15-covariate binary design degeneracy: prevalence of each `_YN` covariate (incl. `VAR5D_SZ_YN`, `VAR9E_ANTIPSY_YN`) in the final sample, realized patterns of the 2^15 grid | `design_prevalence`, `design_grid` |
+| Final arm sizes | `final_arms` |
+
+Not covered, and why: the costs tables describe the analysis cohort (everyone before the complete-case
+filter) and the final sample, not the complete-case-only cohort in `cost_categories`, because
+smidata's category table is read from an attribute of the unmodified cost object. Tests:
+`tests/test-decision-report.R` (hand-calculated toy values).
 
 ## What the package does not check for you
 
@@ -196,15 +240,25 @@ script reports its absence explicitly.
   Environment variables are reserved for smidata's own per-machine path overrides
   (`SMI_DATA_DIR`, `ANALYSIS_ENV`, …), which must resolve identically across the five projects
   sharing the server.
-- **Windows are half-open**: start inclusive, end exclusive. `prior_cost` ends *at* `T0`, so
-  day `T0` belongs to neither window and no claim is counted twice.
-- **Time zero is `T0`, not `INDEX_DT`** (2026-10-15). `T0` is the first day of the month the
-  selected SAA measurement period starts in (`helpers/period_start.R`, computed in `02`). All
-  windows are anchored on it: `prior_cost` `[T0-12mo, T0)`, exposure `[T0, T0+12mo)`, outcome
-  `[T0+12mo, T0+24mo)`, complete case through `T0+24mo`. They are contiguous and non-overlapping
-  for any SAA gap. `INDEX_DT` only selects the period and keeps anchoring the 12 `_YN` covariates
-  (so at gap ≠ 0 those are shifted by up to a month) and `05`'s enrollment-panel cross-check.
-  dual-bounds still anchors on `INDEX_DT`; aligning the two is an open joint decision.
+- **Windows are half-open**: start inclusive, end exclusive, so no claim is counted twice. The
+  `prior_cost` window ends *at* `INDEX_DT`, so a claim on `INDEX_DT` itself (the index event) is
+  not in it.
+- **Two anchors** (PI project-wide rules, 2026-10-15). `s` (called `T0` in the code) is the first
+  day of the month on or after `INDEX_DT` (`INDEX_DT` itself when it is the 1st; `exposure_start()`
+  in `helpers/period_start.R`). The `msr_saa` period must **start exactly at `s`**
+  (`smidata::smi_select_measure_row(anchor = "ceiling_month")`: no nearest period, no gap
+  tolerance, no ties); a patient with no such row, or `MSR_DEN < 1`, is ineligible and **dropped**.
+  Achievement is `MSR_NUM / MSR_DEN >= 0.5`. Exposure `[s, s+12mo)`, outcome `[s+12mo, s+24mo)` and
+  complete case `[s, s+24mo)` anchor on `s`; `prior_cost` `[INDEX_DT-12mo, INDEX_DT)` and the 12 `_YN`
+  covariates anchor on `INDEX_DT` itself. The prior-cost and exposure windows are therefore not
+  contiguous when `INDEX_DT` is not the 1st (the days up to `s` belong to neither).
+  `doubletree_patient_windows()` (`_config.R`) builds both anchors; do not pass
+  `DOUBLETREE_WINDOWS` to `smi_patient_windows()` directly. The earlier rule (`start > INDEX_DT`,
+  offset 1, a gap cap `config_saa_max_month_gap`, `prior_cost` on `[T0-12mo, T0)`) is superseded
+  and its code deleted.
+- **Costs are SERVICE only** (`aim3_svc_cost_*`, `new_svc_cost_*`; 18 files), no pharmacy. Negative
+  `AMOUNT_PAID` lines are kept (`negative_amount_policy = "net"`); Managed Care Invoice lines are
+  excluded; nominal dollars.
 - **The quartile cutpoints are sample-dependent and must be reported.** The confirmed design says
   quartiles are computed "within the analytic sample", which is the *post*-restriction sample —
   hence `discretize_prior_cost()` is called in `06`, after the complete-case filter, not only in
@@ -215,8 +269,8 @@ script reports its absence explicitly.
 - **The release valve is `_PROVISIONAL`, never a relaxed gate.** If a number is wanted before the
   decisions land, `06` names a `_PROVISIONAL`-suffixed artifact. A provisional file is
   self-labelling; a relaxed gate is invisible in the output.
-- **Run time.** The cost-claims family is 171.5 GB across 36 files — 91.8% of every byte in the
-  secure tree. `smi_sum_cost_in_windows()` streams one file at a time for that reason. Budget
+- **Run time.** The cost-claims family is 171.5 GB across 36 files (service + pharmacy) — 91.8% of
+  every byte in the secure tree; this pipeline reads only the 18 service files. `smi_sum_cost_in_windows()` streams one file at a time for that reason. Budget
   hours.
 
 ## Provenance

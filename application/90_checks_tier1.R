@@ -32,8 +32,8 @@
 ## ---------------------------------------------------------------------------
 ## CHECK 1 -- corroborate OPEN_DECISIONS$cost_family_scope [SHARED, REFERENCED]
 ##
-## STATUS: RESOLVED (PI, 2026-09-17: the four families are disjoint patient
-## subsets, summed). This check is CORROBORATION, not a gate: nothing in 03-07
+## STATUS: RESOLVED (PI, 2026-09-17: the families are disjoint patient
+## subsets, summed; since 2026-10-15 only the two SERVICE families). This check is CORROBORATION, not a gate: nothing in 03-07
 ## waits on it, but a disagreement would reopen the decision.
 ##
 ## SPECIFICATION: ~/RAND/rprojects/smi/dual-bounds/analysis/real_data/
@@ -58,7 +58,7 @@
 ## whose bins are drawn on inflated values is a different covariate.
 ##
 ## SO: when running dual-bounds' CHECK 1, additionally report the QUARTILE
-## CUTPOINTS of pre-index total cost under each candidate scope (all four
+## CUTPOINTS of pre-index total cost under each candidate scope (both service
 ## families summed, versus aim3_* only, versus the de-duplicated union) on the
 ## SAA-eligible cohort. If the three cutpoint vectors agree to within rounding,
 ## the resolution is corroborated for this paper. If they disagree, say so to
@@ -80,29 +80,31 @@
 ##                before treating this check as shared again).
 ## REGISTRY:      smidata::inst/analyses/dual-bounds__application.yml#msr_code
 ##
-## Do not re-derive it. That file specifies: the distribution of month_gap among
-## matched patients, the tie frequency, the unmatched count, and cohort size at
-## candidate gap cutoffs so the eligibility/precision trade-off is a PI decision
-## made on numbers. config_saa_max_month_gap (_config.R) is currently 1 month,
-## the author's working choice, not yet PI-confirmed.
+## SUPERSEDED IN PART (PI, 2026-10-15): there is no gap cutoff to choose. The
+## msr_saa period must START EXACTLY at s (first of the month on or after
+## INDEX_DT) or the patient is dropped (smi_select_measure_row(anchor =
+## "ceiling_month")), so the "month_gap distribution" and "cohort size at
+## candidate cutoffs" parts of that specification collapse to: how many patients
+## are matched at all, and the eligible / arm sizes under that single rule. Ties
+## cannot occur across periods (a period is matched or not).
 ##
 ## Its output resolves OPEN_DECISIONS$msr_code for BOTH papers simultaneously,
 ## because exposure A here is `status: inherited` from dual-bounds -- the same
 ## smidata::smi_select_measure_row() call on the same table with the same threshold.
 ##
-## ONE ADDITION FOR THIS PAPER. Report the resulting A = 1 / A = 0 counts at each
-## candidate gap cutoff, not just total cohort size. estimate_att() fits its mu
+## ONE ADDITION FOR THIS PAPER. Report the resulting A = 1 / A = 0 counts, not
+## just total cohort size. estimate_att() fits its mu
 ## tree on CONTROLS ALONE and requires at least leaf_budget * m_n control units
-## (R/estimate_att.R's n_control check); a cutoff that keeps a large cohort but
-## thins one arm can fail the estimator where it would not fail marbounds.
+## (R/estimate_att.R's n_control check); a cohort that is large but
+## thin in one arm can fail the estimator where it would not fail marbounds.
 ##
-## SECOND ADDITION: the MSR_YR CONVENTION. 02 passes target_offset_months = 0L,
-## which reads MSR_YR as the START of the 12-month measurement period; if it is
-## the END, A would be measured over [INDEX_DT - 12mo, INDEX_DT), which
-## overlaps the covariate window and is not a post-index exposure. The start
+## SECOND ADDITION: the MSR_YR CONVENTION. 02 reads MSR_YR as the START of the
+## 12-month measurement period and requires one starting exactly at s; if MSR_YR is really the END, A would be measured over a period
+## ending at that date, i.e. up to 12 months earlier and overlapping the
+## covariate window, which is not a post-index exposure. The start
 ## convention is "not yet confirmed against msr_saa itself" (02). The executable
-## check below reports the month_gap distribution under both readings
-## (offset 0 and offset 12) as EVIDENCE. It cannot settle the question if each
+## check below reports the nearest-period month_gap distribution under both
+## readings (offset 0 and offset 12) as EVIDENCE. It cannot settle the question if each
 ## patient has a measurement period every year, since both readings then give
 ## similar gaps; in that case confirm from the SAS label or data dictionary.
 ##
@@ -162,7 +164,8 @@
 ##   (d) EXPOSURE-LEAKAGE CHECK on VAR9E_ANTIPSY_YN. This column is
 ##       antipsychotic use and the exposure is antipsychotic ADHERENCE (SAA).
 ##       It is included as a PRE-index confounder, which is correct only if its
-##       measurement window precedes INDEX_DT. Confirm against the table's own
+##       measurement window precedes s (the first of the month on or after
+##       INDEX_DT, so preceding INDEX_DT suffices). Confirm against the table's own
 ##       PRE_START / INDEX_DT columns that it does (a dictionary/column lookup,
 ##       NOT automated below). The executable part cross-tabulates
 ##       VAR9E_ANTIPSY_YN against A: near-perfect agreement would indicate the
@@ -179,9 +182,9 @@
 ##
 ##   (e) GLU_OR_LIPID_YN TIMING (NOT automated). Its window is anchored on the
 ##       index antipsychotic fill date, not INDEX_DT (helpers/covariate_blocks.R
-##       audit note). Confirm that window ends at or before INDEX_DT; if the fill
-##       date can fall after INDEX_DT the flag can be post-treatment and must be
-##       replaced.
+##       audit note). Confirm that window ends at or before s; if the fill date
+##       can fall after s the flag can be post-treatment and must be replaced.
+##       (The fill date can fall after INDEX_DT but before s; that is fine.)
 ##
 ##   (f) VAR9E_ANTIPSY_YN PREVALENCE IN THE SAA COHORT. SAA's denominator
 ##       requires antipsychotic dispensing, so this flag may be near 1 within the
@@ -237,18 +240,18 @@
 
 
 ## ---------------------------------------------------------------------------
-## CHECK 5 -- do the 36 cost files cover what elig_coverage assumes?
+## CHECK 5 -- do the 18 service cost files cover what elig_coverage assumes?
 ##                                                      [THIS PAPER'S OWN]
 ##
 ## QUESTION. 02's elig_coverage filter (via smidata::smi_window_coverage())
-## treats file suffix N as calendar year 2000 + N, Jan 1 to Dec 31, for all four
+## treats file suffix N as calendar year 2000 + N, Jan 1 to Dec 31, for both service
 ## families, and calls a patient-window "full" if it lies inside the pooled span
 ## 2016-01-01 .. 2025-01-01. Nothing has verified that. If suffixes are fiscal
 ## years, if new_* starts later than aim3_*, or if late-2024 claims are not yet
 ## complete, patients marked "full" can have truncated windows -- and truncation
 ## looks like LOW COST, not missing cost.
 ##
-## THE CHECK (executable below). Stream all 36 files once and tabulate claims by
+## THE CHECK (executable below). Stream all 18 files once and tabulate claims by
 ## month. Report, per file, the first and last claim month, the number of claims
 ## with a missing date, and whether both fall in 20yy; per family, the final
 ## year's last-three-months claim volume against that year's earlier months
@@ -262,7 +265,7 @@
 
 
 ## ---------------------------------------------------------------------------
-## CHECK 6 -- exposure convention and cutoff sizes (msr_saa)  [THIS PAPER'S OWN]
+## CHECK 6 -- exposure convention and exact-start sizes (msr_saa)  [THIS PAPER'S OWN]
 ## CHECK 3 (a)-(c), (d) cross-tab only, (f) as noted above   [THIS PAPER'S OWN]
 ##
 ## Specified in CHECK 2 and CHECK 3. Implemented below.
@@ -276,18 +279,13 @@
 app_dir <- if (dir.exists("application")) "application" else "."
 source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "msr_filter.R"))
+source(file.path(app_dir, "helpers", "period_start.R"))
 source(file.path(app_dir, "helpers", "covariate_blocks.R"))
 
 ## Which of the executable checks to run, in order. The two that read only the
-## covariate and msr_saa tables come first; CHECK 5 streams all 36 cost files
+## covariate and msr_saa tables come first; CHECK 5 streams all 18 service cost files
 ## (about the cost of 03's file pass), so a late failure there costs nothing.
 config_tier1_checks <- c("saa_convention", "yn_columns", "file_coverage")
-
-## Disjoint |month_gap| bands (months) for the cutoff-size table. Disjoint so
-## that exported counts cannot be differenced into a small cell.
-config_tier1_gap_bands <- list(
-  `0` = 0L, `1` = 1L, `2-3` = 2:3, `4-6` = 4:6, `7-12` = 7:12
-)
 
 tier1_export <- function(x, name, n_cols, derived_cols = NULL) {
   smidata::smi_export(
@@ -322,7 +320,21 @@ tier1_load <- function() {
   invisible(tier1_data)
 }
 
-tier1_select_saa <- function(target_offset_months, max_month_gap) {
+## The selection 02 uses (PI, 2026-10-15): the msr_saa period starting EXACTLY at
+## s = the first of the month on or after INDEX_DT; unmatched otherwise.
+tier1_select_saa <- function() {
+  d <- tier1_load()
+  smidata::smi_select_measure_row(
+    d$saa,
+    index_dt = dplyr::transmute(d$base, ID = .data$ID, INDEX_DT = as.Date(.data$INDEX_DT)),
+    achievement_threshold = config_saa_achievement_threshold,
+    anchor = "ceiling_month"
+  )
+}
+
+## Nearest period to a target month by ABSOLUTE gap, before or after INDEX_DT.
+## Not what 02 uses; only for the MSR_YR-convention evidence in CHECK 6.
+tier1_select_saa_any_period <- function(target_offset_months, max_month_gap) {
   d <- tier1_load()
   smidata::smi_select_measure_row(
     d$saa,
@@ -336,7 +348,7 @@ tier1_select_saa <- function(target_offset_months, max_month_gap) {
 ## ---- CHECK 6 ----------------------------------------------------------------
 
 tier1_check_saa_convention <- function() {
-  cli::cli_h2("CHECK 6 -- msr_saa exposure convention and cutoff sizes")
+  cli::cli_h2("CHECK 6 -- msr_saa exposure convention and exact-start sizes")
   d <- tier1_load()
 
   ## (i) EVIDENCE on the MSR_YR convention. If periods are anchored to each
@@ -345,9 +357,12 @@ tier1_check_saa_convention <- function() {
   ## and recur every year, it cannot tell the two apart.
   parsed <- smidata::smi_parse_msr_yr(as.character(d$saa$MSR_YR))
   idx <- dplyr::select(d$base, "ID", "INDEX_DT")
+  joined <- dplyr::left_join(dplyr::select(d$saa, "ID"), idx, by = "ID")
+  if (anyNA(joined$INDEX_DT)) {
+    cli::cli_abort("{sum(is.na(joined$INDEX_DT))} msr_saa rows have no INDEX_DT.")
+  }
   rel <- smidata::smi_month_index(parsed$yyyy, parsed$mm) -
-    with(dplyr::inner_join(dplyr::select(d$saa, "ID"), idx, by = "ID"),
-         smidata::smi_month_index(lubridate::year(INDEX_DT), lubridate::month(INDEX_DT)))
+    smidata::smi_month_index(lubridate::year(joined$INDEX_DT), lubridate::month(joined$INDEX_DT))
   rel_bands <- tibble::tibble(
     band = cut(rel, c(-Inf, -13, -12, -2, -1, 0, 1, 11, 12, Inf),
                labels = c("<= -13", "-12", "-11..-2", "-1", "0", "1", "2..11", "12", ">= 13")),
@@ -364,12 +379,12 @@ tier1_check_saa_convention <- function() {
   tier1_show(rel_bands)
 
   by_offset <- lapply(c(0L, 12L), function(off) {
-    sel <- tier1_select_saa(off, Inf)
+    sel <- tier1_select_saa_any_period(off, Inf)
     tibble::tibble(
       target_offset_months = as.character(off), n_matched = sum(sel$matched),
       median_gap = stats::median(sel$month_gap, na.rm = TRUE),
       p90_gap = unname(stats::quantile(sel$month_gap, 0.9, na.rm = TRUE)),
-      share_gap_le_cutoff = mean(sel$month_gap <= config_saa_max_month_gap, na.rm = TRUE)
+      share_abs_gap_le_1 = mean(sel$month_gap <= 1L, na.rm = TRUE)
     )
   }) |> dplyr::bind_rows()
   cli::cli_alert_info(
@@ -378,39 +393,36 @@ tier1_check_saa_convention <- function() {
   )
   tier1_show(by_offset)
 
-  ## (ii) Cohort and arm sizes by DISJOINT |gap| band, offset 0 (what 02 uses).
-  chosen <- tier1_select_saa(0L, Inf)
-  band_of <- function(g) {
-    out <- rep(NA_character_, length(g))
-    for (nm in names(config_tier1_gap_bands)) out[g %in% config_tier1_gap_bands[[nm]]] <- nm
-    out
-  }
-  in_cohort <- chosen$elig %in% TRUE & !is.na(chosen$month_gap)
+  ## (ii) Cohort and arm sizes under the exact-start rule 02 uses. There is no
+  ## gap cutoff to tune any more: a patient either has a period starting exactly
+  ## at s or is dropped, so this is one DECLARED row, not a table of bands.
+  chosen <- tier1_select_saa()
+  n_with_rows <- sum(d$base$ID %in% d$saa$ID)
   by_band <- tibble::tibble(
-    band = band_of(chosen$month_gap), achieved = chosen$achieved
-  )[in_cohort, ] |>
-    dplyr::filter(!is.na(.data$band)) |>
-    dplyr::summarise(
-      n_elig = dplyr::n(), n_treated = sum(.data$achieved %in% TRUE),
-      n_control = sum(.data$achieved %in% FALSE), n_achieved_na = sum(is.na(.data$achieved)),
-      .by = "band"
-    ) |>
-    dplyr::arrange(match(.data$band, names(config_tier1_gap_bands)))
+    n_with_saa_rows = n_with_rows,
+    n_matched = sum(chosen$matched),
+    n_elig = sum(chosen$elig %in% TRUE),
+    n_treated = sum(chosen$elig %in% TRUE & chosen$achieved %in% TRUE),
+    n_control = sum(chosen$elig %in% TRUE & chosen$achieved %in% FALSE),
+    n_achieved_na = sum(chosen$elig %in% TRUE & is.na(chosen$achieved))
+  )
   cli::cli_alert_info(
-    "SAA-eligible and arm sizes by |gap| band (offset 0), BEFORE the coverage
-     filter and the complete-case restriction. estimate_att() needs at least
-     leaf_budget * m_n = {config_leaf_budget} * m_n controls AFTER both; the
-     working cutoff is {config_saa_max_month_gap} month{?s}. Cumulative sizes
-     are the sums of the bands up to a cutoff."
+    "SAA-matched (a period starting exactly at s), eligible (MSR_DEN >= 1) and
+     arm sizes, BEFORE the coverage filter and the complete-case restriction.
+     Everyone else is dropped. estimate_att() needs at least leaf_budget * m_n
+     = {config_leaf_budget} * m_n controls AFTER both. A low matched share means
+     msr_saa's periods do not start on the first of the month on or after
+     INDEX_DT for most patients."
   )
   tier1_show(by_band)
 
-  tier1_export(by_band, "doubletree_tier1_gap_bands",
-               n_cols = c("n_elig", "n_treated", "n_control", "n_achieved_na"))
+  tier1_export(by_band, "doubletree_tier1_exact_start_sizes",
+               n_cols = c("n_with_saa_rows", "n_matched", "n_elig", "n_treated",
+                          "n_control", "n_achieved_na"))
   tier1_export(rel_bands, "doubletree_tier1_msr_yr_offsets", n_cols = "n_rows")
   tier1_export(by_offset, "doubletree_tier1_gap_by_offset",
                n_cols = "n_matched",
-               derived_cols = c("median_gap", "p90_gap", "share_gap_le_cutoff"))
+               derived_cols = c("median_gap", "p90_gap", "share_abs_gap_le_1"))
   invisible(list(by_offset = by_offset, by_band = by_band, rel_bands = rel_bands))
 }
 
@@ -442,7 +454,7 @@ tier1_check_yn_columns <- function() {
   )
   tier1_show(dplyr::mutate(coding, values = unname(value_sets)))
 
-  cohort <- tier1_select_saa(0L, config_saa_max_month_gap) |>
+  cohort <- tier1_select_saa() |>
     dplyr::filter(.data$elig %in% TRUE) |>
     dplyr::select("ID", A = "achieved") |>
     dplyr::inner_join(cov[c("ID", yn_cols)], by = "ID")

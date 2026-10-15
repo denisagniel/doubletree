@@ -3,8 +3,8 @@
 ##
 ## Pure function. No data reads, no side effects, no smidata dependency.
 ##
-## prior_cost (continuous dollars, constructed over [T0 - 12mo, T0)
-## in 03_cost_windows.R) -> 3 binary dummies, Q1 as the implicit reference.
+## prior_cost (continuous dollars, SERVICE costs with negative lines netted, over
+## [INDEX_DT - 12mo, INDEX_DT) in 03_cost_windows.R) -> 3 binary dummies, Q1 as the implicit reference.
 ## Confirmed PI 2026-09-17 (smidata inst/analyses/doubletree__application.yml,
 ## covariates.grid_exact_sparsity: "discretized into QUARTILES (Q1-Q4, computed
 ## within the analytic sample at estimation time -- not fixed dollar cutoffs)").
@@ -194,6 +194,14 @@ discretize_prior_cost <- function(prior_cost, probs = c(0.25, 0.5, 0.75)) {
 #' patients on the first real server run) to floor the net at zero -- no net
 #' pre-index cost -- rather than exclude the patient or let a signed value
 #' into the quantile grid.
+#'
+#' TODO (open decision, 2026-10-15): smidata's registry
+#' (`doubletree__application.yml`, `covariates.prior_cost_floor`) lists this
+#' floor as OPEN -- keep it, or bin the netted signed value? Behaviour is left
+#' as is. The floor is applied AFTER netting: the input is the window total in
+#' which negative `AMOUNT_PAID` lines were already netted against payments
+#' (`smi_sum_cost_in_windows(negative_amount_policy = "net")`), never an
+#' individual claim line.
 #'
 #' @details
 #' Deliberately a SEPARATE function from `discretize_prior_cost()`, called
