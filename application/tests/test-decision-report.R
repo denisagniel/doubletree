@@ -68,8 +68,10 @@ test_that("exact-start period counts are reported, small cells masked", {
   v <- stats::setNames(mp$n, mp$quantity)
   expect_equal(v[["patients"]], 200L)
   expect_equal(v[["matched_exact_start"]], 160L)
-  expect_equal(v[["unmatched"]], 40L)            # 200 - 160
-  expect_true(is.na(v[["matched_den_below_1"]])) # 160 - 150 = 10 < 11
+  ## 160 - 150 = 10 < 11 is masked; smidata's complementary suppression
+  ## (smi_suppress) also masks the next-smallest cell, here unmatched = 200 - 160 = 40.
+  expect_true(is.na(v[["unmatched"]]))
+  expect_true(is.na(v[["matched_den_below_1"]]))
   expect_equal(v[["eligible"]], 150L)
   expect_equal(v[["achieved"]], 90L)             # 60 + 30
   bp <- tb$measure_period.by_period_start
