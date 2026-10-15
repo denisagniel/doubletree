@@ -1,3 +1,5 @@
+NOTE (2026-10-09): this run used target_offset_months = 12L; under the MSR_YR window-START reading that selects the outcome window, so these numbers are STALE and must be regenerated with 0L.
+
 Note: optimaltrees not found in ../optimaltrees
 If optimaltrees is elsewhere, load it manually or update this .Rprofile
 

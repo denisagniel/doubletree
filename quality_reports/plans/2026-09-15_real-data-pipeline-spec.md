@@ -36,6 +36,8 @@ about the AAP-eligibility mechanics (see dual-bounds' spec §7) apply identicall
 
 ## 2. Exposure/treatment
 
+> NOTE (2026-10-09 audit): AAP is Adults' Access to Preventive/Ambulatory Health Services (HEDIS), not antipsychotic adherence (that is msr_saa). Framing under PI review; see smidata QUALITY_MEASURES.md.
+
 **Reused from dual-bounds' spec (§2), PI-confirmed 2026-09-16.** `A` = AAP achievement in
 months 0–12 post-`INDEX_DT`: whether the patient achieved the `msr_aap` measure
 (`MSR_NUM/MSR_DEN >= 0.5` among those eligible) during `[INDEX_DT, INDEX_DT+12mo]`. Binary, no
@@ -136,6 +138,8 @@ mechanics, `cost_claims` naming). Carried forward, plus doubletree-specific addi
 1. **AAP-eligibility join mechanics** (inherited from dual-bounds' spec §7 item 1, now resolved
    as "replaces" per PI direction 2026-09-16 — the mechanical join to `larger_smi_covariates`
    still isn't built).
+> NOTE (2026-10-09 audit): AAP is Adults' Access to Preventive/Ambulatory Health Services (HEDIS), not antipsychotic adherence (that is msr_saa). Framing under PI review; see smidata QUALITY_MEASURES.md.
+
 2. ~~**Framing**: does AAP-eligibility + AAP-achievement-as-exposure need reconciling with
    doubletree's own manuscript framing?~~ **RESOLVED (PI, 2026-09-16), addressed by the same
    manuscript edit as item 7 below** — `manuscript.tex`'s Discussion section now names the
