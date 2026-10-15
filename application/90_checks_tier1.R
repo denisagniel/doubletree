@@ -281,6 +281,7 @@ source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "msr_filter.R"))
 source(file.path(app_dir, "helpers", "period_start.R"))
 source(file.path(app_dir, "helpers", "covariate_blocks.R"))
+source(file.path(app_dir, "helpers", "disclosure.R"))
 
 ## Which of the executable checks to run, in order. The two that read only the
 ## covariate and msr_saa tables come first; CHECK 5 streams all 18 service cost files
@@ -416,7 +417,10 @@ tier1_check_saa_convention <- function() {
   )
   tier1_show(by_band)
 
-  tier1_export(by_band, "doubletree_tier1_exact_start_sizes",
+  ## Exported form. with_rows >= matched >= elig is a chain, and treated + control
+  ## + na = elig is a partition; smi_export() masks cells, not their differences.
+  by_band_out <- tier1_disclosable_sizes(by_band)
+  tier1_export(by_band_out, "doubletree_tier1_exact_start_sizes",
                n_cols = c("n_with_saa_rows", "n_matched", "n_elig", "n_treated",
                           "n_control", "n_achieved_na"))
   tier1_export(rel_bands, "doubletree_tier1_msr_yr_offsets", n_cols = "n_rows")
@@ -467,8 +471,7 @@ tier1_check_yn_columns <- function() {
        skipped for {?it/them}."
     )
   }
-  ## Every cell of the 3-way split (yes / no / NA) by arm is its own DECLARED
-  ## count, so no small cell can be recovered by subtraction from published ones.
+  ## Counts of the 3-way split (yes / no / NA) by arm, unmasked (console only).
   count_cell <- function(v, arm, value) {
     in_arm <- if (is.na(arm)) rep(TRUE, length(v)) else cohort$A %in% arm
     sum(in_arm & if (is.na(value)) is.na(v) else (!is.na(v) & v == value))
@@ -477,8 +480,6 @@ tier1_check_yn_columns <- function() {
     v <- as.integer(as.character(cohort[[col]]))
     tibble::tibble(
       column = col,
-      n_yes = count_cell(v, NA, 1L), n_no = count_cell(v, NA, 0L),
-      n_na = count_cell(v, NA, NA_integer_),
       n_yes_control = count_cell(v, FALSE, 1L), n_no_control = count_cell(v, FALSE, 0L),
       n_na_control = count_cell(v, FALSE, NA_integer_),
       n_yes_treated = count_cell(v, TRUE, 1L), n_no_treated = count_cell(v, TRUE, 0L),
@@ -486,13 +487,18 @@ tier1_check_yn_columns <- function() {
     )
   }) |> dplyr::bind_rows() |>
     dplyr::mutate(
-      prevalence = .data$n_yes / (.data$n_yes + .data$n_no),
       prevalence_control = .data$n_yes_control / (.data$n_yes_control + .data$n_no_control),
       prevalence_treated = .data$n_yes_treated / (.data$n_yes_treated + .data$n_no_treated)
     )
+  ## Exported form: disjoint cells only (yes / no / NA within each arm). The
+  ## overall counts are not exported (they are the sums of the two arms), and the
+  ## arm sizes are published in doubletree_tier1_exact_start_sizes, so a small
+  ## cell is masked together with a complementary cell of its (column, arm)
+  ## partition, and the prevalence derived from a masked cell is masked.
+  prevalence_out <- tier1_disclosable_prevalence(prevalence)
   cli::cli_alert_info(
     "(c)/(f) Prevalence in the SAA-eligible cohort ({nrow(cohort)} patients,
-     before the coverage filter), overall and by arm. Near 0 or near 1 spends a
+     before the coverage filter), by arm (console only: unmasked counts). Near 0 or near 1 spends a
      grid coordinate on (almost) nothing; the mu tree is fit on controls alone,
      so prevalence_control is the one that bounds it. VAR9E_ANTIPSY_YN near 1
      is expected to be the problem case."
@@ -511,9 +517,9 @@ tier1_check_yn_columns <- function() {
 
   tier1_export(coding, "doubletree_tier1_yn_coding",
                n_cols = "n_missing", derived_cols = "na_rate")
-  count_cols <- grep("^n_", names(prevalence), value = TRUE)
-  tier1_export(prevalence, "doubletree_tier1_yn_prevalence", n_cols = count_cols,
-               derived_cols = c("prevalence", "prevalence_control", "prevalence_treated"))
+  count_cols <- grep("^n_", names(prevalence_out), value = TRUE)
+  tier1_export(prevalence_out, "doubletree_tier1_yn_prevalence", n_cols = count_cols,
+               derived_cols = c("prevalence_control", "prevalence_treated"))
   invisible(list(coding = coding, prevalence = prevalence))
 }
 

@@ -15,18 +15,22 @@
 ## DISCLOSURE. The saved intermediates (output/report_inputs/*.rds) hold RAW,
 ## unsuppressed counts and some patient-level rows; they live under
 ## application/output/ (gitignored, never exported) exactly like the parquet
-## outputs 06 already writes. Every table returned by build_decision_report() is
-## suppressed (cells < 11), through the smidata builders or through the two
-## masks below; nothing unsuppressed is rendered or exported. Counts that appear
-## in no smidata builder are masked here: report_mask() for stand-alone counts,
-## smidata::smi_suppress() for partitions, mask_binary_split() for a 0/1 split of
-## a published total.
+## outputs 06 already writes. Every cell of every table returned by
+## build_decision_report() is suppressed (cells < 11), through the smidata
+## builders or the masks below. Cell masking does NOT stop a masked count being
+## recovered as the difference of two published ones, so (helpers/disclosure.R)
+## a small attrition step is merged into the next step, a count that is a small
+## gap from its neighbour is hidden, and a table that decomposes a hidden count
+## is withheld. Stand-alone counts: report_mask(); partitions:
+## smidata::smi_suppress(); a 0/1 split of a published total:
+## mask_binary_split(). Cross-table coverage is a guard (tests/
+## test-decision-report.R), not a proof: read the rendered report.
 ##
 ## Needs smidata >= 0.5.0 with R/decision_report.R (smi_report_*). Loaded after
 ## _config.R (levers are read from its objects).
 ## ============================================================================
 
-config_report_min_cell <- 11L
+## config_report_min_cell and the gap helpers live in helpers/disclosure.R.
 
 #' Directory the pipeline stages save report intermediates to.
 report_inputs_dir <- function(app_dir) file.path(app_dir, "output", "report_inputs")
@@ -92,7 +96,7 @@ design_patterns <- function(X, min_cell = config_report_min_cell) {
 #'   columns.
 #' @param n_floored Patients whose negative `prior_cost` was floored before
 #'   binning (06's `n_floored`).
-#' @param floor_value The floor (the confirmed `prior_cost_negative_floor`).
+#' @param floor_value The floor (the OPEN `prior_cost_negative_floor`).
 #' @param cutpoints The realized quartile cutpoints (named numeric).
 #' @return A list of plain data frames and scalars; **raw, never export**.
 summarise_design <- function(analytic_data, n_floored, floor_value, cutpoints) {
@@ -197,7 +201,7 @@ report_levers <- function(meta = list(env = NA_character_, ingest_id = NA_charac
     ),
     prior_cost_floor = sprintf(
       "net prior_cost below 0 set to %s before the quartile cut (the raw dollars are not floored); decision prior_cost_negative_floor",
-      format(confirmed_value("prior_cost_negative_floor"))
+      format(OPEN_DECISIONS$prior_cost_negative_floor$value)
     ),
     prior_cost_discretization = paste(
       "within-sample quartiles (p25, p50, p75) of the FINAL complete-case sample;",
@@ -253,8 +257,40 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
                "none dropped"),
     stringsAsFactors = FALSE
   )
+  ## A small step (1..10 patients) is not a cell the reader can be denied while
+  ## both neighbouring counts are shown, so such steps are merged into the next
+  ## published step instead of masked.
+  flow_pub <- coarsen_flow(flow, mc)
 
-  period <- smidata::smi_report_measure_period(p02$selection, p02$index_dt)
+  ## Exposure-period counts. patients / matched / unmatched / den_below_1 are
+  ## published ONCE, in the flow; here only eligible and achieved remain, and
+  ## every table that decomposes `eligible` is withheld when the flow hid it.
+  period_full <- smidata::smi_report_measure_period(p02$selection, p02$index_dt)
+  n_eligible <- sum(p02$selection$elig)
+  n_achieved <- sum(p02$selection$achieved, na.rm = TRUE)
+  eligible_hidden <- !(n_eligible %in% flow_pub$n)
+  achieved_hidden <- !eligible_hidden && n_eligible - n_achieved > 0L &&
+    n_eligible - n_achieved < mc
+  withheld <- function(what) tibble::tibble(
+    note = sprintf("withheld: %s would let a masked count (< %d) be recovered by subtraction.",
+                   what, mc)
+  )
+  period_summary <- tibble::tibble(
+    quantity = c("eligible", "achieved"),
+    n = c(if (eligible_hidden) NA_integer_ else as.integer(n_eligible),
+          if (achieved_hidden) NA_integer_ else as.integer(n_achieved))
+  )
+  period_summary$n <- report_mask(period_summary$n, mc)
+  decomposed <- eligible_hidden || achieved_hidden
+  period <- list(
+    summary = period_summary,
+    by_period_start = if (decomposed) {
+      withheld("the per-period eligible/achieved counts")
+    } else period_full$by_period_start,
+    index_day = if (eligible_hidden) {
+      withheld("the per-day-of-month eligible counts")
+    } else period_full$index_day
+  )
 
   ## The two windows overlap (not a partition), so primary suppression only.
   coverage_by_window <- p02$coverage_counts
@@ -270,29 +306,49 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
   final_ids <- p06$final_ids
   cost_final <- p03$cost[p03$cost$id %in% final_ids, , drop = FALSE]
   cost_known <- p03$known
+  ## cohort - known (patients with no cost) and cohort - final are drops too.
+  unknown_gap <- cost_known$n_cohort - cost_known$n_known
+  cost_known$n_known[unknown_gap > 0L & unknown_gap < mc] <- NA
   cost_known$n_cohort <- report_mask(as.integer(cost_known$n_cohort))
   cost_known$n_known <- report_mask(as.integer(cost_known$n_known))
+  n_cohort_cost <- max(p03$known$n_cohort)
+  n_excluded_cost <- n_cohort_cost - length(final_ids)
+  costs_final_sample <- if (n_excluded_cost > 0L && n_excluded_cost < mc) {
+    withheld("the final-sample cost table next to the cohort cost table")
+  } else {
+    smidata::smi_report_costs(cost_final, min_cell = mc)
+  }
 
   ## 5. enrollment
   if (is.null(p05)) {
     enrollment <- tibble::tibble(
       note = "No 05 intermediate: complete-case status was not computed in this run (Tier-0 fixture limitation or 05 not run)."
     )
-    enrollment_by_lag_arm <- enrollment
     enrollment_by_arm <- enrollment
   } else {
     enrollment <- smidata::smi_report_enrollment(p05$coverage, p05$window_months)
-    enrollment_by_lag_arm <- p05$by_lag_arm |>
-      dplyr::mutate(n = as.integer(.data$n)) |>
-      .mask_partition("n")
+    ## One arm-level partition only. The by-lag-by-arm cells are NOT published:
+    ## they are cells of the same cross-tab, so a masked one is the difference
+    ## between this table and the lag table. n is not published either (it is
+    ## the sum of the columns, and the rate derived from them is masked together).
     enrollment_by_arm <- p05$by_arm |>
-      dplyr::select("A", "n", "n_complete", "n_unresolved", "rate") |>
-      .mask_partition(c("n", "n_complete", "n_unresolved"), "rate")
+      dplyr::mutate(
+        n_complete = as.integer(.data$n_complete),
+        n_not_complete = as.integer(.data$n - .data$n_complete - .data$n_unresolved),
+        n_unresolved = as.integer(.data$n_unresolved)
+      ) |>
+      dplyr::select("A", "n_complete", "n_not_complete", "n_unresolved", "rate") |>
+      .mask_partition(c("n_complete", "n_not_complete", "n_unresolved"), "rate")
   }
 
   ## 6. project-specific: prior_cost floor, bins, cut points, design degeneracy
   d <- p06$design
-  prior_cost_floor <- tibble::tibble(quantity = d$floor$quantity, n = report_mask(d$floor$n))
+  ## at_floor - floored = patients whose raw prior_cost is exactly the floor: a
+  ## small value there is recoverable from the two counts, so at_floor is hidden.
+  floor_n <- d$floor$n
+  zero_gap <- floor_n[3] - floor_n[2]
+  if (zero_gap > 0L && zero_gap < mc) floor_n[3] <- NA
+  prior_cost_floor <- tibble::tibble(quantity = d$floor$quantity, n = report_mask(floor_n))
   prior_cost_bins <- d$bins |>
     dplyr::mutate(pct = round(100 * .data$n / sum(.data$n), 2)) |>
     .mask_partition("n", "pct")
@@ -301,7 +357,10 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
     percentile = names(cuts),
     cutpoint_usd = if (d$n >= mc) round(unname(cuts), 2) else rep(NA_real_, length(cuts))
   )
+  ## The three quartile dummies are the Q2-Q4 counts of prior_cost_bins; they are
+  ## published there once (masked jointly with Q1), not again here.
   design_prevalence <- d$prevalence |>
+    dplyr::filter(.data$block != "prior_cost quartile") |>
     dplyr::mutate(
       prevalence = round(.data$n_yes / (.data$n_yes + .data$n_no), 4),
       minority_share = pmin(.data$prevalence, 1 - .data$prevalence)
@@ -313,16 +372,15 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
   smidata::smi_report(
     title,
     levers = report_levers(p06$.meta),
-    flow = smidata::smi_report_flow(flow, min_cell = mc),
+    flow = smidata::smi_report_flow(flow_pub, min_cell = mc),
     measure_period = period,
     coverage_by_window = coverage_by_window,
     msr_filter = msr_filter,
     costs_cohort = smidata::smi_report_costs(p03$cost, min_cell = mc),
-    costs_final_sample = smidata::smi_report_costs(cost_final, min_cell = mc),
+    costs_final_sample = costs_final_sample,
     cost_categories = smidata::smi_report_cost_categories(p03$cost, min_cell = mc),
     cost_known = cost_known,
     enrollment = enrollment,
-    enrollment_by_lag_arm = enrollment_by_lag_arm,
     enrollment_by_arm = enrollment_by_arm,
     prior_cost_floor = prior_cost_floor,
     prior_cost_bins = prior_cost_bins,

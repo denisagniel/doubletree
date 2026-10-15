@@ -30,6 +30,7 @@ app_dir <- if (dir.exists("application")) "application" else "."
 source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "covariate_blocks.R"))
 source(file.path(app_dir, "helpers", "discretize_prior_cost.R"))
+source(file.path(app_dir, "helpers", "disclosure.R"))
 source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
 
@@ -88,7 +89,7 @@ if (!config_has_smidata ||
   md_path <- file.path(out_dir, "decision_report.md")
   writeLines(smidata::smi_report_md(report), md_path)
   cli::cli_alert_success(
-    "Wrote {.file {md_path}} ({length(report$tables)} table{?s}, all suppressed at n < 11)."
+    "Wrote {.file {md_path}} ({length(report$tables)} table{?s}; cells < 11 masked, small differences between counts not published)."
   )
 
   ## Export: server only, real intermediates only, recorded on this environment.

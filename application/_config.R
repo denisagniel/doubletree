@@ -526,10 +526,11 @@ OPEN_DECISIONS <- list(
       not a binning detail') -- net it to zero, drop the patient, or allow
       the signed value into the quantile grid are three genuinely different
       choices with different consequences for the covariate grid.",
-    status = "confirmed", blocking_final = FALSE, value = 0,
+    status = "open_decision", blocking_final = FALSE, value = 0,
     note = "TODO (OPEN in smidata's registry, doubletree__application.yml
-      covariates.prior_cost_floor, 2026-10-15; the registry lists it as
-      open_decision while this entry still says 'confirmed' from 2026-09-28):
+      covariates.prior_cost_floor, 2026-10-15; this entry was 'confirmed' from
+      2026-09-28 and was reopened 2026-10-15 to match the registry, so every
+      read warns):
       keep the floor on the covariate, or net without flooring? Behaviour is
       LEFT AS IS pending that decision: costs are summed with negative lines
       NETTED (smi_sum_cost_in_windows(negative_amount_policy = 'net'), 03), and

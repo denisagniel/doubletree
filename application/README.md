@@ -65,7 +65,7 @@ technique for one script's internal joins/assertions, not a substitute for `smi_
 **Tier 1 (server, subsample + whole-data checks):** written, NOT YET RUN on the server. `90_checks_tier1.R`
 specifies six checks. CHECKS 1, 2 (partly) and 4 are dual-bounds' (referenced, not re-derived).
 CHECKS 3 (`_YN` coding and prevalence), 5 (cost-file coverage, which elig_coverage assumes) and 6
-(msr_saa exposure convention and gap-cutoff sizes) are this paper's own and are EXECUTABLE:
+(msr_saa exposure convention and exact-start sizes) are this paper's own and are EXECUTABLE:
 `Rscript application/90_checks_tier1.R` on the server (it aborts locally; each function was
 exercised against Tier-0 fixtures only). CHECK 4 (added 2026-09-24) verifies the `enrollment_source` "ignore TYPE"
 default's prerequisite at whole-table scope — `smidata::smi_enrollment_panel()` self-checks the identical
@@ -81,7 +81,7 @@ re-run before `07` can read the un-suffixed `analytic_cohort.parquet` it now req
 cohort file on the server is the `_PROVISIONAL` one written before the resolution.
 
 ```bash
-Rscript application/run_tests.R          # 165 passed, 1 failed (optimaltrees.so block), 3 skipped
+Rscript application/run_tests.R          # all tests/ files (testthat); the count changes as tests are added
 ```
 
 ## Open decisions
@@ -89,8 +89,9 @@ Rscript application/run_tests.R          # 165 passed, 1 failed (optimaltrees.so
 Registered in `_config.R`, echoed at the top of every numbered script. Confirmed decisions are
 read via `confirmed_value()` (no warning); unresolved placeholders are read via `open_value()`
 (warns on every access — see `_config.R`). **No decision blocks the final artifact as of
-2026-09-30** — all five are `status = "confirmed"`, `blocking_final = FALSE`
-(2026-09-17/09-24/09-28/09-30). `assert_no_blocking_open()` in `07` is now a live regression
+2026-09-30** — five of the six entries are `status = "confirmed"`; `prior_cost_negative_floor`
+was reopened 2026-10-15 (`status = "open_decision"`, still `blocking_final = FALSE`, read via
+`open_value()` so every read warns). `blocking_final = FALSE` throughout. `assert_no_blocking_open()` in `07` is now a live regression
 guard, not a known stop, and `06` writes the un-suffixed `analytic_cohort.parquet`.
 
 | id | shared with dual-bounds | status | one line |
@@ -99,7 +100,7 @@ guard, not a known stop, and `06` writes the un-suffixed `analytic_cohort.parque
 | `cost_family_scope` | **yes** — identical question | **confirmed** (`service_two_families`) | The two SERVICE families (`aim3_svc`, `new_svc`) are disjoint claim sources; sum both. The four-family value is superseded: pharmacy files are not read (PI, 2026-10-15). |
 | `msr_code` | **yes** — identical question | **confirmed** (`"SAA (no filter needed)"`; exposure switched AAP -> SAA 2026-10-09, SAA literal not yet seen in the real table) | `msr_saa` is expected to be an SAA-only extract — no `MSR` filter needed at the *registry* level. **Fixed 2026-09-24**: `02_population_and_eligibility.R`'s gate now reads this value (was stale since 2026-09-17). But "no filter needed" is not what `02` actually does — `smidata::smi_select_measure_row()`'s abort-on-tie does NOT guard against a other-measure row silently winning when it merely lands closer to the target month than any true row of the measure (no tie forms), so `02` filters to the literal `SAA_MSR_CODE` explicitly and reports any exclusion. See this decision's `note` for the full correction — the registry's "abort-on-tie is the safety net" claim was wrong, and is not yet fixed upstream (smidata, dual-bounds). |
 | `diagnostics` | no — this paper's own | **confirmed** (`"certified_e && certified_m0"`, 2026-09-30) | Reported diagnostic flag, **not** an estimator switch: `certified_e` AND `certified_m0` both TRUE means this proxy supports grid-exact sparsity for the flagship `estimate_att()` result. **No fallback to `estimate_att_crossfit()`, silent or explicit** — the flagship stays the flagship regardless; a failed licence signals that `07`'s already-reported discrepancy deserves scrutiny, not that the crossfit number should be substituted in. No separate `gap_*` threshold — `certified_* == TRUE` already implies `gap == 0`. **Necessary, not sufficient**: `certified_*` says the search solved `eq:select` at the configured `leaf_budget`, not that the budget is large enough for the truth; the 2026-09-24 general standard (overlap/balance + nuisance fit vs OLS/GLM) applies on top. `07` **prints** whether the licence holds and never auto-switches. |
-| `prior_cost_negative_floor` | no — this paper's own | **confirmed locally (`0`, 2026-09-28) but OPEN in smidata's registry (`covariates.prior_cost_floor`, 2026-10-15) — TODO** | Behaviour left as is pending that decision: costs are netted (negative lines kept) first, THEN a negative window total is floored at 0. 2 patients had negative `prior_cost` (claim reversals exceeding pre-index payments) on the first real server run. Floored to 0 before `discretize_prior_cost()`, via `helpers/discretize_prior_cost.R::floor_negative_prior_cost()` — the raw dollar value retained in `06`'s output is unaffected; only the value fed to binning is floored. `discretize_prior_cost()` itself still aborts unchanged on a negative input. |
+| `prior_cost_negative_floor` | no — this paper's own | **open_decision** (placeholder `0`; was confirmed 2026-09-28, reopened 2026-10-15 to match smidata's registry `covariates.prior_cost_floor`) — TODO | Behaviour left as is pending that decision: costs are netted (negative lines kept) first, THEN a negative window total is floored at 0. 2 patients had negative `prior_cost` (claim reversals exceeding pre-index payments) on the first real server run. Floored to 0 before `discretize_prior_cost()`, via `helpers/discretize_prior_cost.R::floor_negative_prior_cost()` — the raw dollar value retained in `06`'s output is unaffected; only the value fed to binning is floored. `discretize_prior_cost()` itself still aborts unchanged on a negative input. |
 
 The two shared entries carry machine-readable `shared_with` and `registry_ref` fields instead of a
 re-worded question. Two projects independently wording one question is how the two answers end up
@@ -137,9 +138,9 @@ oversight:
 | `run_pipeline.R` | yes | New 2026-09-24. Convenience only (sources `01`–`07` in order) — every script is independently runnable via its own `require_stage()` cascade; this just saves typing seven commands. |
 | `helpers/decision_report.R` | yes (tested) | Review-report plumbing: `report_record()` (how `02`/`03`/`05`/`06` save their counts), `summarise_design()`, `design_patterns()`, `report_levers()` (levers read from `_config.R`'s own objects), `build_decision_report()`, and `toy_report_inputs()` (hand-calculated toy intermediates). |
 | `08_decision_report.R` | yes (toy off-server) | New 2026-10-15. Builds the review report from the intermediates `02`/`03`/`05`/`06` save to `output/report_inputs/`; see "Review report" below. Exports through `smi_report_export()` only when `smidata::smi_is_server()`. |
-| `90_checks_tier1.R` | no | Server-only. Checks 1, 2 (partly) and 4 reference dual-bounds' (comment spec); checks 3, 5 and 6 are this paper's own and executable (`_YN` coding/prevalence, cost-file coverage, msr_saa convention and gap-cutoff sizes), exporting through `smi_export()`. Aborts locally. Check 4 (added 2026-09-24) verifies the `enrollment_source` TYPE-ignore default's prerequisite. |
+| `90_checks_tier1.R` | no | Server-only. Checks 1, 2 (partly) and 4 reference dual-bounds' (comment spec); checks 3, 5 and 6 are this paper's own and executable (`_YN` coding/prevalence, cost-file coverage, msr_saa convention and exact-start sizes), exporting through `smi_export()`. Aborts locally. Check 4 (added 2026-09-24) verifies the `enrollment_source` TYPE-ignore default's prerequisite. |
 | `91_leaf_budget_feasibility.R` | yes (needs real analytic data) | New 2026-09-28. STANDALONE, NOT gated by `assert_no_blocking_open()` and NOT part of the 01–07 cascade — times `estimate_att()` alone at `config_leaf_budget` on the real analytic data and reports elapsed time. Reads the reportable `analytic_cohort.parquet` first, falls back to `analytic_cohort_PROVISIONAL.parquet` with an explicit warning (order reversed 2026-09-30 when `diagnostics` resolved — preferring PROVISIONAL unconditionally would silently time a stale cohort). Informational only; never a reportable estimate. Added after benchmarking `leaf_budget = 15` (raised from 4, PI 2026-09-28) on the 400-row Tier-0 toy fixture: 4.8s at `leaf_budget = 4`, 94.5s at `6`, still running past 5+ minutes at `15` (killed) — the real cohort's `07` risks discovering an infeasible budget only after `03`'s multi-hour cost-streaming pass. Invoke wrapped in the shell's `timeout` (the real bound; this script's own `setTimeLimit()` is best-effort only against optimaltrees' compiled C++ search — see the file's own header): `timeout 900 Rscript application/91_leaf_budget_feasibility.R`. |
-| `tests/` | yes | 165 assertions, no data, no server. |
+| `tests/` | yes | testthat files, no data, no server. |
 | `run_tests.R` | yes | `testthat::test_dir("application/tests")`. |
 
 ## Review report (`08_decision_report.R`)
@@ -149,8 +150,14 @@ already computes as it runs (`02` the attrition steps and the period selection, 
 object with its `setting_summary` attribute, `05` the enrollment coverage, `06` the final-sample
 design counts) to `application/output/report_inputs/*.rds` (gitignored, local, never exported).
 `08` reads those files, takes the levers from `_config.R`'s own objects (so the report cannot drift
-from the code), and builds smidata's decision-report tables plus this paper's own. Every table is
-suppressed at n < 11; no minimum, maximum or single-patient value is reported.
+from the code), and builds smidata's decision-report tables plus this paper's own. Every cell is
+suppressed at n < 11, and a count that would be the difference of two published counts is not
+published at all (`helpers/disclosure.R`: a small attrition step is merged into the next step, a
+table that decomposes a hidden count is withheld). The by-lag-by-arm enrollment cells and the
+quartile-dummy rows of the prevalence table are not published separately for the same reason.
+This is a guard, not a proof: smidata's `smi_suppress()` does not cover differences across
+tables, so read the rendered report before releasing it. No minimum, maximum or single-patient
+value is reported.
 
 ```
 Rscript application/run_pipeline.R          # 01-07, then 08 (or run 08 alone after 06)

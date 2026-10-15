@@ -142,7 +142,7 @@ if (!config_has_smidata) {
     ## [INDEX_DT-12mo, INDEX_DT)); the floor is applied AFTER netting, to the
     ## total, never to individual claim lines.
     prior_cost_for_binning <- floor_negative_prior_cost(
-      covariates$prior_cost, floor_value = confirmed_value("prior_cost_negative_floor")
+      covariates$prior_cost, floor_value = open_value("prior_cost_negative_floor")
     )
     n_floored <- attr(prior_cost_for_binning, "n_floored")
     if (n_floored > 0L) {

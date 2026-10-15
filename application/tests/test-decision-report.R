@@ -46,43 +46,78 @@ test_that("the levers are read from the config objects", {
   expect_equal(length(strsplit(lv$covariate_set, ", ")[[1]]), 15L)
 })
 
-test_that("the attrition table carries every step with counts and reasons", {
+## Property: no masked cell is recoverable. Each identity below links counts that
+## are published together; the number of unknown terms must not be exactly one.
+n_unknown <- function(...) sum(is.na(c(...)))
+
+test_that("the attrition table merges a small step instead of masking its drop", {
   fl <- tb$flow
   ## 200 -> 180 (20 with no SAA rows) -> 160 (20 with rows but none at s).
   expect_equal(fl$n[1:3], c(200L, 180L, 160L))
   expect_equal(fl$n_dropped[1:3], c(0L, 20L, 20L))
-  ## 160 -> 150 drops 10 (< 11): the drop and the count it implies are masked.
-  expect_true(is.na(fl$n_dropped[4]))
-  expect_true(is.na(fl$n[4]))
+  ## 160 -> 150 drops 10 (< 11). Showing both 160 and 150 would publish the 10, so
+  ## the 150 row is merged into the next step: 160 -> 136 drops 24.
+  expect_false(150L %in% fl$n)
+  expect_equal(fl$n[4], 136L)
+  expect_equal(fl$n_dropped[4], 24L)
+  expect_match(fl$step[4], "MSR_DEN >= 1", fixed = TRUE)
+  expect_match(fl$step[4], "cost-file coverage", fixed = TRUE)
+  expect_match(fl$reason[4], "MSR_DEN < 1", fixed = TRUE)
   ## complete case: 136 -> 100, 36 dropped, 100/200 = 50% of the start.
-  expect_equal(fl$n[6], 100L)
-  expect_equal(fl$n_dropped[6], 36L)
-  expect_equal(fl$pct_of_start[6], 50)
+  expect_equal(fl$n[5], 100L)
+  expect_equal(fl$n_dropped[5], 36L)
+  expect_equal(fl$pct_of_start[5], 50)
+  expect_match(fl$step[5], "[s, s+24mo)", fixed = TRUE)
   ## the asserted-zero step is listed and drops nobody.
-  expect_equal(fl$n_dropped[7], 0L)
-  expect_match(fl$step[6], "[s, s+24mo)", fixed = TRUE)
+  expect_equal(fl$n_dropped[6], 0L)
+  ## no two published counts of the chain differ by 1..10.
+  gaps <- diff(fl$n[!is.na(fl$n)])
+  expect_false(any(gaps < 0 & gaps > -11))
 })
 
-test_that("exact-start period counts are reported, small cells masked", {
+test_that("hide_small_gaps() hides the inner count of a small drop, repeatedly", {
+  ## 100 -> 95 (5): 95 is inner and is hidden; then 100 -> 90 (10) hides 90; then
+  ## 100 -> 60 is fine.
+  expect_equal(hide_small_gaps(c(100, 95, 90, 60), 11L), c(FALSE, TRUE, TRUE, FALSE))
+  ## last count kept; the previous (inner) count is hidden instead.
+  expect_equal(hide_small_gaps(c(100, 50, 45), 11L), c(FALSE, TRUE, FALSE))
+  ## two counts only: the last is hidden (nothing inner to hide).
+  expect_equal(hide_small_gaps(c(100, 95), 11L), c(FALSE, TRUE))
+  ## drops of 0 or >= 11 are fine.
+  expect_equal(hide_small_gaps(c(100, 100, 89, 50), 11L), rep(FALSE, 4))
+  fl <- data.frame(step = c("a", "b", "c", "d"), n = c(100L, 95L, 90L, 60L),
+                   reason = c("", "rb", "rc", "rd"), stringsAsFactors = FALSE)
+  co <- coarsen_flow(fl, 11L)
+  expect_equal(co$n, c(100L, 60L))
+  expect_equal(co$reason[2], "rb; rc; rd")
+})
+
+test_that("exposure-period counts are published once; a hidden eligible count is not recoverable", {
   mp <- tb$measure_period.summary
   v <- stats::setNames(mp$n, mp$quantity)
-  expect_equal(v[["patients"]], 200L)
-  expect_equal(v[["matched_exact_start"]], 160L)
-  ## 160 - 150 = 10 < 11 is masked; smidata's complementary suppression
-  ## (smi_suppress) also masks the next-smallest cell, here unmatched = 200 - 160 = 40.
-  expect_true(is.na(v[["unmatched"]]))
-  expect_true(is.na(v[["matched_den_below_1"]]))
-  expect_equal(v[["eligible"]], 150L)
+  ## patients / matched / unmatched / den_below_1 live only in the flow.
+  expect_equal(mp$quantity, c("eligible", "achieved"))
+  ## eligible = 150 is the hidden count above (160 - 150 = 10), so it is not
+  ## published here, and neither table that decomposes it is.
+  expect_true(is.na(v[["eligible"]]))
   expect_equal(v[["achieved"]], 90L)             # 60 + 30
-  bp <- tb$measure_period.by_period_start
-  ## eligible p001-p100 start RY2020-03 (60 achieved); eligible p101-p150
-  ## start RY2020-04 (p101-p130 = 30 achieved).
-  expect_equal(bp$n_eligible, c(100L, 50L))
-  expect_equal(bp$n_achieved, c(60L, 30L))
-  expect_equal(bp$achieved_rate, c(0.6, 0.6))    # 60/100 and 30/50
-  id <- tb$measure_period.index_day
-  expect_equal(id$n_patients, c(100L, 100L))     # INDEX_DT on the 1st, then not
-  expect_equal(id$n_eligible, c(100L, 50L))
+  expect_named(tb$measure_period.by_period_start, "note")
+  expect_named(tb$measure_period.index_day, "note")
+})
+
+test_that("with no small step, eligible and its decompositions are published", {
+  big <- toy
+  big$p02$selection$elig <- seq_len(200) <= 140L   # 160 -> 140: drop 20, >= 11
+  big$p02$selection$MSR_DEN <- as.numeric(big$p02$selection$elig)
+  big$p02$selection$achieved <- dplyr::if_else(big$p02$selection$elig,
+                                               seq_len(200) %in% c(1:60, 101:130), NA)
+  big$p02$flow$n[4] <- 140L
+  rb <- build_decision_report(big, title = "toy-big")$tables
+  mp <- stats::setNames(rb$measure_period.summary$n, rb$measure_period.summary$quantity)
+  expect_equal(mp[["eligible"]], 140L)
+  expect_equal(mp[["achieved"]], 90L)
+  expect_equal(rb$measure_period.by_period_start$n_eligible, c(100L, 40L))
+  expect_equal(rb$flow$n[4], 140L)
 })
 
 test_that("cost tables: negative lines, floors, quantiles, MCI and categories", {
@@ -140,24 +175,52 @@ test_that("cost tables: negative lines, floors, quantiles, MCI and categories", 
   expect_equal(tb$cost_known$n_known, c(136L, 136L))
 })
 
-test_that("enrollment: complete-case tally, by-arm rates, small cells masked", {
+test_that("enrollment: complete-case tally, one arm-level partition", {
   es <- tb$enrollment.summary
   v <- stats::setNames(es$n, es$quantity)
   expect_equal(v[["n_cohort"]], 136L)
   expect_equal(v[["n_covered"]], 100L)
   expect_true(is.na(v[["n_absent"]]))            # 6 < 11
+  ## 136 - 100 = 36 = insufficient (30) + absent (6): the 6 is masked, so the 30
+  ## must be too, or 36 - 30 would give it back.
+  expect_true(is.na(v[["n_insufficient"]]))
   bm <- tb$enrollment.by_months_covered
   expect_equal(bm$n_patients[bm$n_covered == 24L], 100L)
   expect_equal(bm$pct[bm$n_covered == 24L], round(100 * 100 / 136, 2))  # 73.53
   expect_equal(bm$window_months[1], 24L)
-  ## by arm: A=0 45 / 60 = 0.75; A=1 55 / 76 = 0.723684.
+  ## by arm: A=0 45 / 60 = 0.75 (15 not complete); A=1 55 / 76 = 0.723684 (21).
   ba <- tb$enrollment_by_arm
+  expect_equal(ba$n_complete, c(45L, 55L))
+  expect_equal(ba$n_not_complete, c(15L, 21L))
   expect_equal(ba$rate, c(45 / 60, 55 / 76))
-  ## by lag and arm: the cells 10, 9, 6 and 10 are < 11 and masked; 40, 35,
-  ## 15 and 11 are shown.
-  la <- tb$enrollment_by_lag_arm
-  expect_equal(sum(is.na(la$n)), 4L)
-  expect_equal(sort(la$n[!is.na(la$n)]), c(11L, 15L, 35L, 40L))
+  ## the lag-by-arm cells (which had masked 10, 9, 6 and 10) are not published.
+  expect_false("enrollment_by_lag_arm" %in% names(tb))
+  ## the arm table adds up to the published totals.
+  expect_equal(sum(ba$n_complete), v[["n_covered"]])
+  expect_equal(sum(ba$n_not_complete), v[["n_cohort"]] - v[["n_covered"]])
+})
+
+test_that("a small arm-level cell is masked together with its complement", {
+  small <- toy
+  small$p05$by_arm <- tibble::tibble(
+    A = c(0L, 1L), n = c(60L, 76L), n_complete = c(50L, 66L), n_unresolved = c(0L, 0L)
+  ) |> dplyr::mutate(rate = .data$n_complete / .data$n)    # not complete: 10 and 10
+  ba <- build_decision_report(small, title = "toy-small")$tables$enrollment_by_arm
+  expect_true(all(is.na(ba$n_not_complete)))
+  expect_true(all(is.na(ba$rate)))      # the rate would give n_complete / n back
+})
+
+test_that("a cohort-minus-final difference below 11 withholds the final-sample costs", {
+  near <- toy
+  near$p06$final_ids <- sprintf("p%03d", 1:130)      # 136 - 130 = 6 excluded
+  near$p06$n_complete_case <- 130L
+  near$p06$n_final <- 130L
+  near$p06$design <- summarise_design(
+    cbind(tibble::tibble(ID = sprintf("p%03d", 1:130), A = 1L, prior_cost = 0), 
+          as.data.frame(matrix(0L, 130, 15, dimnames = list(NULL, design_matrix_columns())))),
+    n_floored = 0L, floor_value = 0, cutpoints = c(p25 = 1, p50 = 2, p75 = 3))
+  rn <- build_decision_report(near, title = "toy-near")$tables
+  expect_named(rn$costs_final_sample, "note")
 })
 
 test_that("prior_cost floor, bins and cut points (hand-calculated)", {
@@ -168,7 +231,9 @@ test_that("prior_cost floor, bins and cut points (hand-calculated)", {
   v <- stats::setNames(pf$n, pf$quantity)
   expect_equal(v[["n_final"]], 100L)
   expect_equal(v[["n_negative_prior_cost_floored"]], 19L)
-  expect_equal(v[["n_prior_cost_at_floor_after_flooring"]], 20L)
+  ## 20 at the floor - 19 floored = 1 patient with raw prior_cost exactly 0: a
+  ## small cell recoverable from the two counts, so the at-floor count is hidden.
+  expect_true(is.na(v[["n_prior_cost_at_floor_after_flooring"]]))
   ## Sorted floored values: x[1..20] = 0 and x[20 + m] = 100 m. Type-7 quantile
   ## position h = 1 + 99 p: p25 h = 25.75 -> x[25] + .75 (x[26] - x[25]) =
   ## 500 + .75 * 100 = 575; p50 h = 50.5 -> 3,000 + .5 * 100 = 3,050; p75 h =
@@ -201,8 +266,8 @@ test_that("design degeneracy table: prevalence shown, small splits masked", {
   for (nm in c("VAR9G_ANTIDEP_YN", "VAR5G_DM2_YN", "VAR5G_HTN_YN", "GLU_OR_LIPID_YN")) {
     expect_true(all(is.na(unlist(get(nm)[c("n_yes", "n_no", "prevalence")]))), info = nm)
   }
-  ## The three quartile dummies are 25 / 75.
-  expect_equal(dp$n_yes[dp$covariate == "prior_cost_q3"], 25L)
+  ## The quartile dummies are the Q2-Q4 counts of prior_cost_bins: published there.
+  expect_false(any(grepl("^prior_cost_q", dp$covariate)))
   ## Grid: 2^15 atoms; the number of realized patterns is not asserted by hand
   ## here (see design_patterns() below); it must be between 1 and 100.
   g <- tb$design_grid

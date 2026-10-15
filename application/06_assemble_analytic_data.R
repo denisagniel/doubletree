@@ -167,7 +167,7 @@ if (!config_has_smidata) {
   ## netting: prior_cost is already the NET of positive and negative
   ## AMOUNT_PAID lines over [INDEX_DT-12mo, INDEX_DT) (03).
   prior_cost_for_binning <- floor_negative_prior_cost(
-    analytic_known_x$prior_cost, floor_value = confirmed_value("prior_cost_negative_floor")
+    analytic_known_x$prior_cost, floor_value = open_value("prior_cost_negative_floor")
   )
   n_floored <- attr(prior_cost_for_binning, "n_floored")
   if (n_floored > 0L) {
@@ -254,7 +254,7 @@ if (!config_has_smidata) {
     design = summarise_design(
       analytic_data,
       n_floored = n_floored,
-      floor_value = confirmed_value("prior_cost_negative_floor"),
+      floor_value = open_value("prior_cost_negative_floor"),
       cutpoints = cutpoints
     )
   ), app_dir)
