@@ -176,21 +176,72 @@ if (!config_has_smidata) {
     max_month_gap = Inf   # see 90_checks_tier1.R for the calibrating check
   )
 
+  ## ---- observability: file-date coverage (ported from dual-bounds) --------
+  ##
+  ## Exclude anyone whose study period extends beyond the observable cost
+  ## files (PI, 2026-09-30, via dual-bounds). An eligibility criterion about
+  ## the EXTRACT's vintage, not the patient. Pure in INDEX_DT, so it sits here
+  ## ahead of 03's expensive pass. Uses COST_SOURCES (_config.R), the same
+  ## object 03 derives its own `coverage` from, so 03's contract-violation
+  ## abort stays meaningful.
+  coverage_wide <- smidata::smi_window_coverage(
+    smidata::smi_patient_windows(
+      dplyr::transmute(base_cohort, id = .data$ID,
+                       index_dt = as.Date(.data$INDEX_DT)),
+      windows = DOUBLETREE_WINDOWS
+    ),
+    COST_SOURCES
+  ) |>
+    dplyr::select("id", "window", "coverage") |>
+    tidyr::pivot_wider(names_from = "window", values_from = "coverage",
+                       names_prefix = "coverage_")
+
+  ## Report EVERY window's rate, gating or not.
+  for (w in DOUBLETREE_WINDOWS$window) {
+    n_bad <- sum(coverage_wide[[paste0("coverage_", w)]] != "full")
+    cli::cli_alert_info(
+      "{.field {w}} window: {n_bad} of {nrow(coverage_wide)} patients not
+       fully covered by the files{if (w %in% config_coverage_required_windows)
+       ' -- EXCLUDED below' else ' -- NOT gating eligibility'}."
+    )
+  }
+
+  coverage_wide$elig_coverage <- Reduce(`&`, lapply(
+    config_coverage_required_windows,
+    function(w) coverage_wide[[paste0("coverage_", w)]] == "full"
+  ))
+
   population <- base_cohort |>
     dplyr::left_join(
       dplyr::rename(saa_selected, elig_saa = "elig", saa_achieved = "achieved"),
       by = "ID"
     ) |>
+    dplyr::left_join(
+      dplyr::select(coverage_wide, ID = "id",
+                    dplyr::starts_with("coverage_"), "elig_coverage"),
+      by = "ID"
+    ) |>
     dplyr::mutate(A = dplyr::if_else(.data$saa_achieved, 1L, 0L))
 
-  ## The analysis cohort is the SAA-eligible subset. Report the attrition
-  ## explicitly -- an eligibility filter that silently halves the cohort is
-  ## the kind of thing that gets discovered in review.
-  analysis_cohort <- dplyr::filter(population, .data$elig_saa)
+  ## elig_coverage is a pure function of INDEX_DT; an NA here means the join
+  ## lost rows, not that coverage is unknown.
+  stopifnot(!anyNA(population$elig_coverage))
+
+  ## TWO independent criteria, reported marginally AND jointly: elig_saa is a
+  ## property of the patient, elig_coverage a property of the extract. The
+  ## analysis cohort satisfies BOTH. Report the attrition explicitly -- an
+  ## eligibility filter that silently halves the cohort is the kind of thing
+  ## that gets discovered in review.
+  analysis_cohort <- dplyr::filter(population, .data$elig_saa, .data$elig_coverage)
   cli::cli_alert_info(
-    "Eligible: {nrow(analysis_cohort)} of {nrow(population)};
-     unmatched to msr_saa: {sum(!population$matched)}."
+    "Attrition: {nrow(population)} base cohort -> {sum(population$elig_saa)}
+     elig_saa -> {sum(population$elig_coverage)} elig_coverage ->
+     {nrow(analysis_cohort)} both (the analysis cohort).
+     Unmatched to msr_saa: {sum(!population$matched)}."
   )
+  if (nrow(analysis_cohort) == 0L) {
+    cli::cli_abort("Zero patients satisfy elig_saa AND elig_coverage.")
+  }
 
   ## Both ATT entry points need interior treatment proportion and enough mass
   ## in BOTH arms; estimate_att() additionally needs at least

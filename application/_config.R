@@ -283,6 +283,42 @@ cost_dataset_keys <- function(years = config_cost_years) {
   as.vector(outer(families, years, function(f, y) paste0(f, "_", y)))
 }
 
+#' The 36-file cost-claims source declaration: 4 families x 9 suffix years.
+#'
+#' Lives here, not in 03_cost_windows.R, because 02_population_and_eligibility.R
+#' needs the identical object for its elig_coverage filter
+#' (smi_window_coverage() is a pure function of `suffix_year`). Two separately
+#' built copies would let a config_cost_years edit desync 02's eligibility
+#' guarantee from 03's contract-violation abort. Mirrors dual-bounds.
+COST_SOURCES <- tidyr::expand_grid(
+  family = unlist(SMI_KEYS$cost_claims, use.names = FALSE),
+  suffix_year = config_cost_years
+) |>
+  dplyr::mutate(
+    dataset_key = paste0(.data$family, "_", .data$suffix_year),
+    amount_col = "AMOUNT_PAID",
+    date_col = "SRV_DT",
+    setting_col = config_cost_setting_col,
+    ## UNVERIFIED label: SEQ_ID has only ~80 distinct values and looks like a
+    ## line sequence, not a claim key (see 90_checks_tier1.R check (d)).
+    claim_key_col = "SEQ_ID"
+  ) |>
+  dplyr::select("dataset_key", "family", "suffix_year",
+                "amount_col", "date_col", "setting_col", "claim_key_col")
+if (nrow(COST_SOURCES) != 36L) {
+  cli::cli_abort("Expected 36 cost files (4 families x 9 years); built {nrow(COST_SOURCES)}.")
+}
+
+## Which DOUBLETREE_WINDOWS row(s) must have file-date coverage == "full" for a
+## patient to be ELIGIBLE. Inherited from dual-bounds (PI, 2026-09-30: "exclude
+## anyone whose study period extends beyond the observable data"; see
+## dual-bounds' OPEN_DECISIONS$coverage_eligibility). Both windows, because
+## prior_cost is a covariate and a left-truncated (indexed too early) patient
+## would otherwise reach the nuisance fits with a partially-NA covariate.
+## Without this filter doubletree and dual-bounds analyse different cohorts.
+config_coverage_required_windows <- c("outcome", "prior_cost")
+stopifnot(all(config_coverage_required_windows %in% DOUBLETREE_WINDOWS$window))
+
 ## ---- OPEN_DECISIONS registry ----------------------------------------------
 ##
 ## Every entry is a question that is NOT settled. `value` is either a
@@ -353,6 +389,16 @@ OPEN_DECISIONS <- list(
     shared_with = "dual-bounds",
     registry_ref = "smidata::inst/analyses/dual-bounds__application.yml#msr_code",
     note = "UPDATE (2026-10-09): the exposure measure was switched from msr_aap (AAP) to msr_saa (SAA, antipsychotic adherence); the literal is now \"SAA\" (user). The SAA literal and the one-measure-per-file premise are NOT yet confirmed against the real msr_saa table; the contamination guard below is what protects against being wrong. The text that follows is the ORIGINAL AAP-era resolution, kept as history. RESOLVED (PI, 2026-09-17, for AAP): 'msr_code is always AAP in the msr_aap dataset' -- a measure-specific extract, not a combined all-measures file. Corroborated by contract evidence: msr_aap's MSR_NUM column carries the SAS label 'AAP_NUM'. IDENTICAL finding to dual-bounds' entry -- exposure A (inherited from dual-bounds) is now deterministic on this point. CORRECTION (2026-09-24, this repo, found while implementing 02_population_and_eligibility.R for real): the registry's claim that 'smidata::smi_select_aap_row()'s abort-on-tie behavior remains the safety net regardless' OVERSTATES that function's protection. Read smi_select_aap_row()'s actual source (~/RAND/tools/smidata/R/msr_aap.R): its winner-selection (candidates/winners) joins and groups on ID only and never references MSR at all except inside the tie-diagnostic message -- the abort fires ONLY when multiple rows tie at the exact same winning month_gap/row_month for one patient. A non-AAP row that is simply CLOSER in time to the target month than any true AAP row, with no tie, would be silently selected as the winner, corrupting elig_aap/aap_achieved for that patient with no abort and no warning. 02_population_and_eligibility.R now filters to AAP_MSR_CODE explicitly (below) and reports (does not silently trust) any exclusion, rather than relying on the abort-on-tie safety net this note previously (incorrectly) said was sufficient on its own. NOT YET propagated to smidata's actual dual-bounds__application.yml registry or to dual-bounds' own 02 -- both still carry the overstated claim and the identical silent-contamination exposure; see session_notes and the upstream item this should become."),
+  coverage_eligibility = list(
+    question = "SHARED WITH dual-bounds. Whether a patient whose study period (either DOUBLETREE_WINDOWS window) extends beyond COST_SOURCES' file-date coverage is excluded from the analysis cohort.",
+    status = "confirmed", blocking_final = FALSE,
+    value = list(
+      resolution = "exclude_at_population_definition",
+      gating_windows = c("outcome", "prior_cost")
+    ),
+    shared_with = "dual-bounds",
+    registry_ref = "dual-bounds analysis/real_data/_config.R#coverage_eligibility",
+    note = "RESOLVED (PI, 2026-09-30, for dual-bounds); PORTED to doubletree 2026-10-15 so both papers analyse the same eligible population. Enforced in 02 (elig_coverage filter) and 03 (abort if a gating window is not fully covered). Implied INDEX_DT range at config_cost_years = 16:24 is roughly 2017-01-01 to 2023-01-01. Downstream counts shift (complete-case absent rate, decedent proxy); not bugs when first seen on the server."),
   diagnostics = list(
     question = "Which diagnostics gate a reportable ATT. estimate_att() returns sparsity-PROXY diagnostics (certified_e, certified_m0, used_search_e, used_search_m0, n_leaves_e, n_leaves_m0, gap_e, gap_m0) and never acts on them; which of them, at which thresholds, licenses reporting the flagship estimate rather than the cross-fit fallback is unspecified.",
     status = "confirmed", blocking_final = FALSE,

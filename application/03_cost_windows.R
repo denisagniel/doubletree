@@ -14,7 +14,7 @@
 ##
 ## Design (inherited from dual-bounds, smidata
 ## inst/analyses/doubletree__application.yml sections 5-6, `status: inherited`):
-##   outcome.primary               = total_cost
+##   outcome.primary               = total_cost (includes pharmacy)
 ##   outcome.ascertainment_window  = [INDEX_DT + 12mo, INDEX_DT + 24mo)
 ##   covariates.measurement_window = [INDEX_DT - 12mo, INDEX_DT)   -> prior_cost
 ##   outcome.exclusions            = Managed Care Invoice records
@@ -63,19 +63,9 @@ cli::cli_h1("03 -- cost windows")
 
 cost_family_scope <- confirmed_value("cost_family_scope")
 
-cost_sources <- tidyr::expand_grid(
-  family = unlist(SMI_KEYS$cost_claims, use.names = FALSE),
-  suffix_year = config_cost_years
-) |>
-  dplyr::mutate(
-    dataset_key = paste0(.data$family, "_", .data$suffix_year),
-    amount_col = "AMOUNT_PAID",
-    date_col = "SRV_DT",
-    setting_col = config_cost_setting_col,
-    claim_key_col = "SEQ_ID"
-  ) |>
-  dplyr::select("dataset_key", "family", "suffix_year",
-                "amount_col", "date_col", "setting_col", "claim_key_col")
+## COST_SOURCES lives in _config.R: 02's elig_coverage filter needs the
+## identical object. `cost_sources` is kept as a local alias.
+cost_sources <- COST_SOURCES
 
 if (nrow(cost_sources) != 36L) {
   cli::cli_abort("Expected 36 cost files (4 families x 9 years); built {nrow(cost_sources)}.")
@@ -119,6 +109,9 @@ if (identical(cost_family_scope, "all_four")) {
 ##       column of every file (20-21 cols incl. NDC) -- invisible on a 200-row
 ##       fixture, real cost on aim3_svc_cost_20's 23,117,933 rows on the
 ##       server. Restricted via a wrapping closure below.
+##   NOTE (2026-10-09 audit): "Managed Care Invoice" is a confirmed literal
+##   level of SS_DA_GRP_DESC; SS_DESC is not shown to contain it and
+##   NEW_SERVICE_SETTINGS is numeric. Matched column deliberately unchanged.
 ##   (b) MCI exclusion (n_excluded_mci) is UNVERIFIABLE at Tier 0: the census
 ##       carries no real SS_DESC levels, so the fixture's SS_DESC values never
 ##       match "Managed Care Invoice" and n_excluded_mci is always 0 --
@@ -156,6 +149,24 @@ if (!config_has_smidata) {
 
   coverage <- smidata::smi_window_coverage(windows, cost_sources) |>
     dplyr::select("id", "window", "coverage")
+
+  ## 02's elig_coverage filter excludes every patient whose
+  ## config_coverage_required_windows patient-window is not "full", so a
+  ## gating-window violation here is a CONTRACT VIOLATION. Abort BEFORE the
+  ## expensive 36-file pass below.
+  n_bad_gating <- sum(coverage$coverage != "full" &
+                        coverage$window %in% config_coverage_required_windows)
+  if (n_bad_gating > 0L) {
+    cli::cli_abort(c(
+      "{n_bad_gating} patient-window{?s} in
+       {.val {config_coverage_required_windows}} {?is/are} not fully covered
+       by the files, but 02's elig_coverage filter should have excluded them.",
+      "i" = "02 and this script must use the same COST_SOURCES and
+             DOUBLETREE_WINDOWS; check that analysis_cohort is 02's FILTERED
+             object."
+    ))
+  }
+
   n_incoverage <- sum(coverage$coverage != "full")
   if (n_incoverage > 0L) {
     ## cli_alert_warning(), not cli_warn(): cli_warn() raises an R warning
