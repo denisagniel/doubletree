@@ -46,14 +46,11 @@ config_smoke_n_patients <- 2L
 ## 2026-09-15_2824080e: 4 families x 9 years = 36 dataset keys.
 config_cost_years <- 16:24
 
-## NOTE (2026-10-09 audit): "Managed Care Invoice" is a confirmed literal level
-## of SS_DA_GRP_DESC; SS_DESC is not shown to contain it and
-## NEW_SERVICE_SETTINGS is numeric. Matched column deliberately unchanged.
-## Which column of the cost-claims tables carries the service-setting
-## description that the "Managed Care Invoice" exclusion matches on. Both
-## SS_DESC and NEW_SERVICE_SETTINGS exist in all 36 files; SS_DESC is the
-## declared default. Which one literally contains the string is a Tier-1 server
-## check (90_checks_tier1.R), not something to paper over with column probing.
+## Which column of the cost-claims tables the "Managed Care Invoice" exclusion
+## matches on. SS_DESC is the correct column (author, 2026-10-15; this
+## supersedes the 2026-10-09 audit note, which pointed to SS_DA_GRP_DESC).
+## NEW_SERVICE_SETTINGS is numeric and is not used. Do not probe other
+## columns to paper over a zero-exclusion result.
 config_cost_setting_col <- "SS_DESC"
 
 ## Achievement threshold for SAA: MSR_NUM / MSR_DEN >= this counts as achieved.
@@ -65,6 +62,20 @@ config_cost_setting_col <- "SS_DESC"
 ## different things in different papers.
 config_saa_achievement_threshold <- 0.5
 
+## Maximum |month_gap| between the targeted measurement period and INDEX_DT for
+## a patient to be SAA-matched; patients with no period within the gap are
+## unmatched and ineligible. Working choice of 1 month (author, 2026-10-15),
+## NOT yet PI-confirmed and NOT yet reconciled with dual-bounds, whose
+## analysis shares this exposure (90_checks_tier1.R CHECK 2 is the spec and
+## CHECK 6 the executable check). month_gap is ABSOLUTE, so a cutoff of 1
+## already allows a period starting one month AFTER INDEX_DT's month (running
+## about a month into the outcome window) or one month BEFORE it (overlapping
+## the prior_cost window by up to about two months). 02 reports the signed
+## gap. Because a finite cutoff blanks month_gap for unmatched patients, 02's
+## candidate-cutoff report can only show values at or below this cutoff, and
+## aborts if a candidate exceeds it; use CHECK 6 for a wider table.
+config_saa_max_month_gap <- 1L
+config_saa_gap_candidates <- c(0L, 1L)
 ## Literal msr_saa$MSR value for the SAA measure (user, 2026-10-09: "SAA"; not
 ## yet seen in the real table). DISTINCT from
 ## OPEN_DECISIONS$msr_code$value ("SAA (no filter needed)" -- a human-readable

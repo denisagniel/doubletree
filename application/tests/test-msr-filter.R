@@ -71,6 +71,13 @@ test_that("quiet = TRUE suppresses the warning but not the attributes", {
   expect_equal(attr(out, "excluded_msr_values"), "BAD_CODE")
 })
 
+test_that("NA MSR values abort instead of producing all-NA filler rows", {
+  df <- tibble::tibble(ID = c("P1", "P2"), MSR = c("AAP", NA))
+  expect_error(filter_to_msr_code(df, "AAP"), "1 row has .*refusing to guess")
+  df2 <- tibble::tibble(ID = c("P1", "P2", "P3"), MSR = c(NA, NA, "AAP"))
+  expect_error(filter_to_msr_code(df2, "AAP"), "2 rows have")
+})
+
 test_that("a missing MSR column aborts", {
   df <- tibble::tibble(ID = "P1", MSR_DEN = 10, MSR_NUM = 5)
   expect_error(filter_to_msr_code(df, "AAP"), "MSR")

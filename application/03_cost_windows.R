@@ -75,15 +75,23 @@ cli::cli_alert_info(
    {dplyr::n_distinct(cost_sources$family)} families, suffix years
    {min(cost_sources$suffix_year)}-{max(cost_sources$suffix_year)}."
 )
-if (identical(cost_family_scope, "all_four")) {
-  cli::cli_alert_info(
-    "Summing all four families -- PI-confirmed (2026-09-17) they are
-     disjoint patient subsets, not overlapping extracts. Not yet
-     independently verified against real claim-level data; see
-     OPEN_DECISIONS$cost_family_scope's note for the corroborating check
-     still worth running."
-  )
+## cost_sources always sums all four families, so any other decision value would
+## be silently ignored. Refuse it instead.
+if (!identical(cost_family_scope, "all_four")) {
+  cli::cli_abort(c(
+    "OPEN_DECISIONS$cost_family_scope is {.val {cost_family_scope}}, but this
+     script only implements {.val all_four}.",
+    "i" = "Change COST_SOURCES (_config.R) and this script together before
+           changing the decision."
+  ))
 }
+cli::cli_alert_info(
+  "Summing all four families -- PI-confirmed (2026-09-17) they are
+   disjoint patient subsets, not overlapping extracts. Not yet
+   independently verified against real claim-level data; see
+   OPEN_DECISIONS$cost_family_scope's note for the corroborating check
+   still worth running."
+)
 
 ## ---- windows ---------------------------------------------------------------
 ##
@@ -109,9 +117,10 @@ if (identical(cost_family_scope, "all_four")) {
 ##       column of every file (20-21 cols incl. NDC) -- invisible on a 200-row
 ##       fixture, real cost on aim3_svc_cost_20's 23,117,933 rows on the
 ##       server. Restricted via a wrapping closure below.
-##   NOTE (2026-10-09 audit): "Managed Care Invoice" is a confirmed literal
-##   level of SS_DA_GRP_DESC; SS_DESC is not shown to contain it and
-##   NEW_SERVICE_SETTINGS is numeric. Matched column deliberately unchanged.
+##   NOTE: SS_DESC is the matched column (author, 2026-10-15), superseding the
+##   2026-10-09 audit note that pointed to SS_DA_GRP_DESC; see
+##   config_cost_setting_col in _config.R. 90_checks_tier1.R CHECK 5 reports
+##   the matched Managed Care Invoice claims as corroboration.
 ##   (b) MCI exclusion (n_excluded_mci) is UNVERIFIABLE at Tier 0: the census
 ##       carries no real SS_DESC levels, so the fixture's SS_DESC values never
 ##       match "Managed Care Invoice" and n_excluded_mci is always 0 --

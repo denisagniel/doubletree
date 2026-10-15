@@ -8,11 +8,17 @@
 ##
 ## EVERY DESIGN ELEMENT IN THIS SCRIPT IS INHERITED FROM dual-bounds, VERBATIM
 ## (smidata inst/analyses/doubletree__application.yml sections 2-4, all
-## `status: inherited`). This paper adds no eligibility criterion of its own:
+## `status: inherited`), plus one criterion ported from dual-bounds (PI,
+## 2026-09-30) that concerns the extract, not the patient:
 ##   population.time_zero     = INDEX_DT
-##   population.eligibility   = elig_saa == 1 iff MSR_DEN >= 1 in msr_saa
+##   population.eligibility   = elig_saa == 1 iff MSR_DEN >= 1 in msr_saa AND the
+##                              selected period is within config_saa_max_month_gap
+##                              months of INDEX_DT's month (|gap|, so +/-)
+##   population.coverage      = elig_coverage: every config_coverage_required_windows
+##                              window lies inside the cost files' date coverage
 ##   base_cohort.source_table = larger_smi_covariates (381,018 rows)
-##   exposure.window          = [INDEX_DT, INDEX_DT + 12mo]
+##   exposure.window          = the 12-month period starting within the gap above
+##                              (nominally [INDEX_DT, INDEX_DT + 12mo])
 ##   exposure.definition      = A = 1 iff MSR_NUM/MSR_DEN >= 0.5
 ##
 ## Inheriting the design does NOT mean calling dual-bounds' code. The shared
@@ -173,8 +179,60 @@ if (!config_has_smidata) {
     ## Start convention not yet confirmed against msr_saa itself.
     target_offset_months = 0L,
     achievement_threshold = config_saa_achievement_threshold,
-    max_month_gap = Inf   # see 90_checks_tier1.R for the calibrating check
+    max_month_gap = config_saa_max_month_gap
   )
+
+  ## ---- observability: exposure-period distance from INDEX_DT ---------------
+  ##
+  ## smidata's month_gap is ABSOLUTE. A selected period that starts one month
+  ## AFTER INDEX_DT's month runs about a month into the outcome window
+  ## [INDEX_DT + 12mo, +24mo); one that starts a month BEFORE overlaps the
+  ## prior_cost window by up to about two months. So overlap begins at a
+  ## cutoff of 1, not only at larger ones. Report the SIGNED gap so the mix is
+  ## visible, plus the cohort/arm sizes at the candidate cutoffs (before the
+  ## coverage filter below). The cutoff itself is a PI decision (90 CHECK 2 is
+  ## the spec, CHECK 6 the executable check).
+  gap_matched <- saa_selected$month_gap[saa_selected$matched %in% TRUE]
+  gap_tab <- table(gap_matched)
+  cli::cli_alert_info(
+    "SAA |month_gap| among {length(gap_matched)} matched patients (cutoff
+     {.val {config_saa_max_month_gap}}): {paste0(names(gap_tab), ': ', gap_tab,
+     collapse = '; ')}."
+  )
+  matched_rows <- saa_selected[saa_selected$matched %in% TRUE, , drop = FALSE] |>
+    dplyr::inner_join(dplyr::select(base_cohort, "ID", "INDEX_DT"), by = "ID")
+  parsed_msr_yr <- smidata::smi_parse_msr_yr(as.character(matched_rows$MSR_YR_selected))
+  signed_gap <- smidata::smi_month_index(parsed_msr_yr$yyyy, parsed_msr_yr$mm) -
+    smidata::smi_month_index(
+      lubridate::year(matched_rows$INDEX_DT), lubridate::month(matched_rows$INDEX_DT)
+    ) - 0L   # target_offset_months above
+  signed_tab <- table(signed_gap)
+  cli::cli_alert_info(
+    "SIGNED gap (selected period start minus INDEX_DT month; negative = starts
+     before time zero): {paste0(names(signed_tab), ': ', signed_tab, collapse = '; ')}."
+  )
+  if (any(config_saa_gap_candidates > config_saa_max_month_gap)) {
+    cli::cli_abort(c(
+      "Candidate gap cutoff{?s} exceeding the active cutoff
+       ({config_saa_max_month_gap}): {config_saa_gap_candidates[config_saa_gap_candidates > config_saa_max_month_gap]}.",
+      "i" = "A finite cutoff censors month_gap, so those counts would equal the
+             active cutoff's. Use 90_checks_tier1.R CHECK 6 for a wider table."
+    ))
+  }
+  gap_candidates <- do.call(rbind, lapply(config_saa_gap_candidates, function(g) {
+    keep <- saa_selected$elig %in% TRUE & saa_selected$month_gap <= g
+    keep[is.na(keep)] <- FALSE
+    data.frame(
+      cutoff = g, n_elig = sum(keep),
+      n_treated = sum(keep & saa_selected$achieved %in% TRUE),
+      n_control = sum(keep & saa_selected$achieved %in% FALSE)
+    )
+  }))
+  cli::cli_alert_info(
+    "SAA-eligible and arm sizes at candidate gap cutoffs (months), BEFORE the
+     coverage filter; the analysis cohort's own arm counts are printed below."
+  )
+  cli::cli_verbatim(utils::capture.output(print(gap_candidates, row.names = FALSE)))
 
   ## ---- observability: file-date coverage (ported from dual-bounds) --------
   ##
@@ -225,7 +283,9 @@ if (!config_has_smidata) {
 
   ## elig_coverage is a pure function of INDEX_DT; an NA here means the join
   ## lost rows, not that coverage is unknown.
-  stopifnot(!anyNA(population$elig_coverage))
+  if (anyNA(population$elig_coverage)) {
+    cli::cli_abort("elig_coverage is NA for some patients: the coverage join lost rows.")
+  }
 
   ## TWO independent criteria, reported marginally AND jointly: elig_saa is a
   ## property of the patient, elig_coverage a property of the extract. The
@@ -233,12 +293,27 @@ if (!config_has_smidata) {
   ## eligibility filter that silently halves the cohort is the kind of thing
   ## that gets discovered in review.
   analysis_cohort <- dplyr::filter(population, .data$elig_saa, .data$elig_coverage)
+  ## "Unmatched" has two causes smidata's output cannot tell apart (it blanks
+  ## month_gap for both): no msr_saa row at all, or a nearest period beyond the
+  ## cutoff. The second number is the attrition the cutoff itself causes.
+  n_no_saa_rows <- sum(!base_cohort$ID %in% saa_raw$ID)
+  n_gap_rejected <- sum(!population$matched) - n_no_saa_rows
   cli::cli_alert_info(
     "Attrition: {nrow(population)} base cohort -> {sum(population$elig_saa)}
      elig_saa -> {sum(population$elig_coverage)} elig_coverage ->
      {nrow(analysis_cohort)} both (the analysis cohort).
-     Unmatched to msr_saa: {sum(!population$matched)}."
+     Not SAA-matched: {n_no_saa_rows} with no {SAA_MSR_CODE} rows,
+     {n_gap_rejected} with the nearest period beyond {config_saa_max_month_gap}
+     month{?s}."
   )
+  ## achieved is NA when MSR_NUM is NA although elig is TRUE. Stop here, not
+  ## after 03's multi-hour pass.
+  if (anyNA(analysis_cohort$A)) {
+    cli::cli_abort(
+      "{sum(is.na(analysis_cohort$A))} eligible patient{?s} ha{?s/ve} NA SAA
+       achievement (NA MSR_NUM with MSR_DEN >= 1)."
+    )
+  }
   if (nrow(analysis_cohort) == 0L) {
     cli::cli_abort("Zero patients satisfy elig_saa AND elig_coverage.")
   }

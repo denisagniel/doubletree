@@ -32,18 +32,14 @@
 ## unconditionally, regardless of decision status -- a _PROVISIONAL file
 ## must not be a way to ship a broken matrix.
 ##
-## Y AND prior_cost ARE NOW COVERAGE-AWARE, NOT BLANKET-COALESCED. Reading
-## 03's real streaming output against a Tier-0 fixture (oracle, same
-## session) found a real gap in this file's own original comment: it claimed
-## "Y is numeric with no NA (guaranteed by the complete-case filter)" -- that
-## guarantee does not hold. A patient can be complete-case (enrolled every
-## month) yet have an UNKNOWABLE Y because their outcome window extends past
-## the cost files' 2016-2024 coverage -- a DIFFERENT reason than genuine
-## zero-utilization (Y = 0, a real value 03 already resolves). Coalescing
-## the unknowable case to 0 would silently conflate them. This script
-## excludes patients with unknowable Y (or prior_cost) from the analytic
-## sample, reporting that count SEPARATELY from the complete-case exclusion
-## count -- three different attrition reasons, not one.
+## Y AND prior_cost ARE ASSERTED NON-NA, NOT COALESCED OR DROPPED. 02's
+## elig_coverage filter keeps only patients whose outcome and prior_cost windows
+## lie fully inside the cost files, and 03 aborts if a gating window is not
+## fully covered, so a complete-case patient cannot have an unknowable Y or
+## prior_cost. An NA here means a failed join or a stage-contract violation and
+## aborts. (Before the 2026-10-15 coverage-eligibility port, such patients were
+## dropped here as "file-coverage truncation"; that path no longer exists.)
+## Y = 0 is a real value (zero utilization) that 03 already resolves.
 ##
 ## Run time: seconds, once its inputs exist.
 ## ============================================================================
@@ -101,10 +97,9 @@ if (!config_has_smidata) {
 
   n_pre <- nrow(analytic_pre)
 
-  ## Three DISTINCT exclusion reasons, reported separately -- see this
-  ## file's header on why conflating them would be wrong. Order: complete
-  ## case first (the largest, most substantive restriction), then the two
-  ## coverage-truncation exclusions on what remains.
+  ## One exclusion reason: complete case (the substantive restriction).
+  ## Coverage truncation is excluded upstream (02's elig_coverage, 03's
+  ## gating abort) and asserted absent below, not filtered.
   ##
   ## `.data$complete_case %in% TRUE`, NOT `isTRUE(.data$complete_case)` --
   ## found while verifying this script 2026-09-24 (hand-built inputs,
@@ -121,29 +116,39 @@ if (!config_has_smidata) {
   analytic_cc <- dplyr::filter(analytic_pre, .data$complete_case %in% TRUE)
   n_not_complete_case <- n_pre - nrow(analytic_cc)
 
-  analytic_known_y <- dplyr::filter(analytic_cc, !is.na(.data$Y))
-  n_unknown_y <- nrow(analytic_cc) - nrow(analytic_known_y)
-
-  analytic_known_x <- dplyr::filter(analytic_known_y, !is.na(.data$prior_cost))
-  n_unknown_prior_cost <- nrow(analytic_known_y) - nrow(analytic_known_x)
+  ## 02's elig_coverage filter and 03's gating abort guarantee that every
+  ## analysis_cohort patient has Y and prior_cost windows fully inside the
+  ## cost files. An NA here is therefore NOT file-coverage truncation: it is a
+  ## failed join (an ID missing from 03's output) or a contract violation, and
+  ## dropping those rows would hide it.
+  ## Checked on analytic_pre (every analysis_cohort patient), not only the
+  ## complete cases: the 02/03 contract covers all of them.
+  n_unknown_y <- sum(is.na(analytic_pre$Y))
+  n_unknown_prior_cost <- sum(is.na(analytic_pre$prior_cost))
+  if (n_unknown_y > 0L || n_unknown_prior_cost > 0L) {
+    cli::cli_abort(c(
+      "{n_unknown_y} NA Y and {n_unknown_prior_cost} NA prior_cost among
+       {n_pre} eligible patients.",
+      "x" = "02's elig_coverage and 03's gating abort make coverage
+             truncation impossible here; this is a join failure or a
+             stage-contract violation.",
+      "i" = "Check that 03's outcome_cost and prior_cost cover every ID in
+             02's analysis_cohort, and that all stages ran in one pipeline."
+    ))
+  }
+  analytic_known_x <- analytic_cc
 
   cli::cli_alert_info(c(
     "Attrition, in order: {n_pre} eligible",
-    " -> {nrow(analytic_cc)} complete-case ({n_not_complete_case} excluded)",
-    " -> {nrow(analytic_known_y)} with known Y ({n_unknown_y} excluded,
-       file-coverage truncation)",
-    " -> {nrow(analytic_known_x)} with known prior_cost ({n_unknown_prior_cost}
-       excluded, file-coverage truncation)."
+    " -> {nrow(analytic_cc)} complete-case ({n_not_complete_case} excluded)."
   ))
   if (nrow(analytic_known_x) == 0L) {
     cli::cli_abort(c(
       "Every patient was excluded; nothing to assemble.",
-      "i" = "{n_not_complete_case} were not complete-case; of the rest,
-             {n_unknown_y} had unknowable Y and {n_unknown_prior_cost} had
-             unknowable prior_cost. If {n_not_complete_case} == {n_pre}, this
-             is the expected outcome of complete_case not yet being
-             computable for real (see 05's own Tier-0 limitation) -- not a
-             data problem to work around here."
+      "i" = "{n_not_complete_case} of {n_pre} were not complete-case. If
+             {n_not_complete_case} == {n_pre}, this is the expected outcome of
+             complete_case not yet being computable for real (see 05's own
+             Tier-0 limitation) -- not a data problem to work around here."
     ))
   }
 
@@ -151,8 +156,8 @@ if (!config_has_smidata) {
   ##
   ## Order matters and this is why the call lives here, not only in 04: the
   ## confirmed design says quartiles are computed "within the analytic
-  ## sample", and the analytic sample is the post-restriction,
-  ## known-Y-and-prior_cost one -- not 04's pre-filter preview. Discretizing
+  ## sample", and the analytic sample is the post-restriction (complete-case)
+  ## one -- not 04's pre-filter preview. Discretizing
   ## before the filter and then subsetting produces different boundaries.
   prior_cost_for_binning <- floor_negative_prior_cost(
     analytic_known_x$prior_cost, floor_value = confirmed_value("prior_cost_negative_floor")
@@ -205,11 +210,11 @@ if (!config_has_smidata) {
     cli::cli_abort("{.field A} must be 0/1 with no NA.")
   }
   if (anyNA(analytic_data$Y)) {
-    ## Should be structurally impossible given the known-Y filter above --
+    ## Should be structurally impossible given the non-NA Y assertion above --
     ## asserted anyway, matching this codebase's "assert defensively even
     ## when guaranteed" convention (see helpers/design_matrix.R's header).
     cli::cli_abort(
-      "{.field Y} has {.val NA} despite the known-Y filter -- the filter and
+      "{.field Y} has {.val NA} despite the non-NA Y assertion -- the filter and
        the outcome disagree, and THAT is the finding, not a bug to patch
        around here."
     )
@@ -269,13 +274,13 @@ if (!config_has_smidata) {
   utils::write.csv(
     data.frame(
       field = c("timestamp", "provisional", "blocking_open_ids",
-                "n_eligible", "n_complete_case", "n_known_y", "n_final",
+                "n_eligible", "n_complete_case", "n_known_y_equals_complete_case", "n_final",
                 "n_treated", "n_control"),
       value = c(
         format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
         nzchar(suffix),
         paste(blocking_open_ids(), collapse = ";"),
-        n_pre, nrow(analytic_cc), nrow(analytic_known_y), nrow(analytic_data),
+        n_pre, nrow(analytic_cc), nrow(analytic_cc), nrow(analytic_data),
         n_treated, n_control
       )
     ),

@@ -79,6 +79,20 @@
 ## then defined among 24-month survivors -- and the manuscript must say so
 ## rather than treating it as a data-cleaning step.
 ##
+## ACKNOWLEDGED LIMITATION (author, 2026-10-15). Complete-case status requires
+## enrollment through INDEX_DT + 24mo, a window that overlaps the exposure
+## measurement period (which may start up to config_saa_max_month_gap months
+## either side of INDEX_DT), so it is determined partly AFTER treatment. The
+## complete-case ATT equals the full-eligible-cohort ATT only if retention R is
+## independent of (Y(0), Y(1)) given (A, X) AND the retained treated have the
+## same X distribution as all treated (or effects do not vary with X); under
+## the first condition alone, IPCW recovers the full-cohort ATT. Retention
+## plausibly depends on adherence, i.e. on the treatment itself. No sensitivity
+## analysis is run yet (IPCW or dual-bounds' modelled-R bounds are the
+## candidates); the arm-specific complete-case rates are saved to
+## output/attrition_by_arm.parquet (rate = n_complete / n, where n includes the
+## n_unresolved patients) so the limitation can be reported with numbers.
+##
 ## Run time: seconds against a Tier-0 fixture; hours against the real table
 ## (5.8GB / 24M rows -- see smidata's inst/server/07_enrollment_coverage.R
 ## header cost warning, which applies identically here).
@@ -268,11 +282,26 @@ if (!config_has_smidata) {
     attrition_by_arm <- analysis_cohort |>
       dplyr::left_join(complete_case, by = "ID") |>
       dplyr::summarise(
-        n = dplyr::n(), n_complete = sum(.data$complete_case, na.rm = TRUE),
+        n = dplyr::n(),
+        n_complete = sum(.data$complete_case %in% TRUE),
+        n_unresolved = sum(is.na(.data$complete_case)),
         .by = "A"
-      )
-    cli::cli_alert_info("Complete-case rate by arm (A): report this table verbatim.")
-    print(attrition_by_arm)
+      ) |>
+      dplyr::mutate(
+        rate = .data$n_complete / .data$n,
+        env = smidata::smi_env(), ingest_id = config_ingest_id,
+        saa_max_month_gap = config_saa_max_month_gap
+      ) |>
+      dplyr::arrange(.data$A)
+    fs::dir_create(file.path(app_dir, "output"))
+    arrow::write_parquet(
+      attrition_by_arm, file.path(app_dir, "output", "attrition_by_arm.parquet")
+    )
+    cli::cli_alert_info(
+      "Complete-case rate by arm (saved to output/attrition_by_arm.parquet):
+       {paste0('A=', attrition_by_arm$A, ': ',
+               round(100 * attrition_by_arm$rate, 1), '%', collapse = '; ')}."
+    )
   }
 }
 

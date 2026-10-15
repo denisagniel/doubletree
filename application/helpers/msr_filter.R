@@ -57,6 +57,14 @@ filter_to_msr_code <- function(msr_raw, msr_code, quiet = FALSE) {
   }
 
   msr_clean <- trimws(as.character(msr_raw$MSR))
+  # NA == code is NA, and a logical subscript with NA returns an all-NA filler
+  # row, so the guard cannot silently carry on past a missing MSR.
+  if (anyNA(msr_clean)) {
+    cli::cli_abort(
+      "{sum(is.na(msr_clean))} row{?s} ha{?s/ve} {.val NA} {.field MSR};
+       refusing to guess whether {?it is/they are} {.val {msr_code}}."
+    )
+  }
   distinct_msr <- unique(msr_clean)
   n_before <- nrow(msr_raw)
   out <- msr_raw[msr_clean == msr_code, , drop = FALSE]
