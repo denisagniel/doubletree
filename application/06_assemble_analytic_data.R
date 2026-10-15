@@ -295,14 +295,14 @@ if (!config_has_smidata) {
   utils::write.csv(
     data.frame(
       field = c("timestamp", "provisional", "blocking_open_ids",
-                "n_eligible", "n_complete_case", "n_known_y_equals_complete_case", "n_final",
-                "n_treated", "n_control"),
+                "n_eligible", "n_complete_case", "n_final",
+                "n_treated", "n_control", "config_fingerprint", "smi_run_id"),
       value = c(
         format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
         nzchar(suffix),
         paste(blocking_open_ids(), collapse = ";"),
-        n_pre, nrow(analytic_cc), nrow(analytic_cc), nrow(analytic_data),
-        n_treated, n_control
+        n_pre, nrow(analytic_cc), nrow(analytic_data),
+        n_treated, n_control, config_fingerprint(), Sys.getenv("SMI_RUN_ID", "none")
       )
     ),
     manifest_path, row.names = FALSE

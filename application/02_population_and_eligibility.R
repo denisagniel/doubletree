@@ -321,6 +321,9 @@ if (!config_has_smidata) {
     )
   }
   n_with_rows <- sum(base_cohort$ID %in% saa_raw$ID)
+  if (n_with_rows == 0L) {
+    cli::cli_abort("No cohort ID has an msr_saa row: the two tables share no IDs.")
+  }
   cli::cli_alert_info(
     "SAA-matched (a period starting exactly at s): {sum(population$matched)} of
      {n_with_rows} patients with msr_saa rows

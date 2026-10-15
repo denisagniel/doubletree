@@ -49,7 +49,22 @@ if (!config_has_smidata ||
   required <- c("p02", "p03", "p06")
   have <- file.exists(file.path(inputs_dir, paste0(stage_files, ".rds")))
   names(have) <- names(stage_files)
-  use_toy <- !all(have[required])
+  use_toy <- !any(have)
+  ## Some intermediates but not all is a half-finished or mixed run, never "no
+  ## pipeline output": do not discard what exists and swap in toy numbers.
+  if (!use_toy && !all(have[required])) {
+    cli::cli_abort(c(
+      "Partial report intermediates in {.path {inputs_dir}}.",
+      "x" = "Have {.file {unname(stage_files[have])}}; missing {.file {unname(stage_files[required][!have[required]])}}.",
+      "i" = "Re-run the pipeline end to end (or delete {.path {inputs_dir}} to build the toy report)."
+    ))
+  }
+  if (!use_toy && have[["p06"]] && !have[["p05"]]) {
+    cli::cli_abort(c(
+      "A 06 intermediate exists without 05's: 06 requires 05, so these are from different runs.",
+      "i" = "Re-run the pipeline end to end."
+    ))
+  }
 
   if (use_toy) {
     if (identical(smidata::smi_env(), "server")) {

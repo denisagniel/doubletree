@@ -318,8 +318,9 @@ test_that("report_record() saves a list with environment metadata", {
 
 test_that("08 runs end to end off-server on the toy inputs and exports nothing", {
   skip_if(
-    file.exists(file.path(app_dir_for_tests, "output", "report_inputs", "06_final.rds")),
-    "real/fixture report intermediates exist locally; 08 would use them"
+    length(list.files(file.path(app_dir_for_tests, "output", "report_inputs"),
+                      pattern = "[.]rds$")) > 0L,
+    "real/fixture report intermediates exist locally; 08 would use or reject them"
   )
   skip_if(smidata::smi_is_server(), "never run the toy path on the server")
   root <- dirname(normalizePath(app_dir_for_tests))

@@ -48,7 +48,7 @@ report_record <- function(name, value, app_dir) {
   fs::dir_create(dir)
   value$.meta <- list(
     env = if (requireNamespace("smidata", quietly = TRUE)) smidata::smi_env() else "unknown",
-    ingest_id = get0("config_ingest_id", ifnotfound = NA_character_),
+    ingest_id = if (exists("effective_ingest_id")) effective_ingest_id() else NA_character_,
     recorded = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
   )
   path <- file.path(dir, paste0(name, ".rds"))

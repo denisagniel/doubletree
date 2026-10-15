@@ -329,7 +329,7 @@ tier1_select_saa <- function() {
     d$saa,
     index_dt = dplyr::transmute(d$base, ID = .data$ID, INDEX_DT = as.Date(.data$INDEX_DT)),
     achievement_threshold = config_saa_achievement_threshold,
-    anchor = "ceiling_month"
+    anchor = config_period_anchor
   )
 }
 
@@ -339,7 +339,7 @@ tier1_select_saa_any_period <- function(target_offset_months, max_month_gap) {
   d <- tier1_load()
   smidata::smi_select_measure_row(
     d$saa,
-    index_dt = dplyr::select(d$base, "ID", "INDEX_DT"),
+    index_dt = dplyr::transmute(d$base, ID = .data$ID, INDEX_DT = as.Date(.data$INDEX_DT)),
     target_offset_months = target_offset_months,
     achievement_threshold = config_saa_achievement_threshold,
     max_month_gap = max_month_gap
@@ -356,12 +356,17 @@ tier1_check_saa_convention <- function() {
   ## patient's index, the distribution of (period start - INDEX_DT month) has its
   ## mass at 0 under START and at -12 under END. If periods are calendar-anchored
   ## and recur every year, it cannot tell the two apart.
-  parsed <- smidata::smi_parse_msr_yr(as.character(d$saa$MSR_YR))
+  ## msr_saa rows for IDs outside the cohort are expected and ignored, exactly as
+  ## in 02; they have no INDEX_DT to compare against.
   idx <- dplyr::select(d$base, "ID", "INDEX_DT")
-  joined <- dplyr::left_join(dplyr::select(d$saa, "ID"), idx, by = "ID")
-  if (anyNA(joined$INDEX_DT)) {
-    cli::cli_abort("{sum(is.na(joined$INDEX_DT))} msr_saa rows have no INDEX_DT.")
-  }
+  in_cohort <- d$saa$ID %in% idx$ID
+  cli::cli_alert_info(
+    "{sum(!in_cohort)} msr_saa row{?s} are for IDs outside the cohort (excluded, as in 02)."
+  )
+  saa_in <- d$saa[in_cohort, , drop = FALSE]
+  if (nrow(saa_in) == 0L) cli::cli_abort("No msr_saa rows for any cohort ID.")
+  parsed <- smidata::smi_parse_msr_yr(as.character(saa_in$MSR_YR))
+  joined <- dplyr::inner_join(dplyr::select(saa_in, "ID"), idx, by = "ID")
   rel <- smidata::smi_month_index(parsed$yyyy, parsed$mm) -
     smidata::smi_month_index(lubridate::year(joined$INDEX_DT), lubridate::month(joined$INDEX_DT))
   rel_bands <- tibble::tibble(

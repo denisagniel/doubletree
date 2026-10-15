@@ -53,7 +53,9 @@ config_echo_decisions <- TRUE
 
 ## Tiny smoke-check patient count for the pure-function calls that CAN run
 ## without real data (see 03_cost_windows.R's execution guard).
+## (smoke dates below are written for 1 or 2 patients)
 config_smoke_n_patients <- 2L
+stopifnot(config_smoke_n_patients %in% 1:2)
 
 ## Cost-claims file-suffix years present in the confirmed contract
 ## (aim3_svc_cost_16 .. _24 etc.). Verbatim from smidata snapshot
@@ -121,6 +123,10 @@ SAA_MSR_CODE <- "SAA"
 ## SCALAR gate to follow instead (OPEN_DECISIONS's own `value = NULL`
 ## convention is for a different kind of registry -- a question with no
 ## defensible placeholder at all -- not an operational knob like this one).
+## Run-record tier on the server: "full" for the whole-data run this pipeline does;
+## "smoke" is smidata's label for a declared SUBSAMPLE run, which this is not.
+config_run_tier <- "full"
+
 config_ingest_id <- "2026-09-24T095810_001"   # published 2026-09-28; excludes archive/*, telehealth_covariates, msr_smc, cohort_20260420.csv -- none of these are used by this pipeline
 
 ## Every read in this pipeline goes through here -- never call
@@ -131,14 +137,23 @@ config_ingest_id <- "2026-09-24T095810_001"   # published 2026-09-28; excludes a
 ## the ingest cache is server-only -- so an unset (NA) pin, or ANY pin at
 ## all while running locally, must never reach it. Tier-0 fixture runs must
 ## stay green with zero configuration.
+## The pin that is actually APPLIED: NA locally or when unset. Everything that
+## records an ingest id (run record, report, attrition, provenance) uses this,
+## not config_ingest_id, so a local run never claims a pin it did not use.
+effective_ingest_id <- function() {
+  if (!requireNamespace("smidata", quietly = TRUE) ||
+      identical(smidata::smi_env(), "local") || is.na(config_ingest_id)) {
+    NA_character_
+  } else {
+    config_ingest_id
+  }
+}
+
 smi_read_pinned <- function(dataset_key, columns = NULL, n = 200L) {
+  pin <- effective_ingest_id()
   smidata::smi_read(
     dataset_key, columns = columns, n = n,
-    ingest_id = if (identical(smidata::smi_env(), "local") || is.na(config_ingest_id)) {
-      NULL
-    } else {
-      config_ingest_id
-    }
+    ingest_id = if (is.na(pin)) NULL else pin
   )
 }
 
@@ -210,7 +225,7 @@ config_seed <- 20260917L
 ## assertion so sourcing _config.R never hard-fails locally; the numbered
 ## scripts each report the absence explicitly rather than proceeding blind.
 ##
-## The floor is 0.2.0, the release that PROMOTED the dataset-semantics helpers
+## The floor is 0.5.0 (the 2026-10-15 rules need its arguments); 0.2.0 was the release that PROMOTED the dataset-semantics helpers
 ## this pipeline needs: smi_parse_msr_yr(), smi_month_index(),
 ## smi_select_measure_row(), smi_classify_is_mci(), smi_patient_windows(),
 ## smi_window_coverage(), smi_stream_cost_files(), smi_sum_cost_in_windows(),
@@ -547,6 +562,28 @@ OPEN_DECISIONS <- list(
       2026-09-28 decision was originally made; the intermediate [T0-12mo, T0)
       anchoring is gone. The quartile cutpoints change accordingly.")
 )
+
+## One source of truth for the complete-case window: the registry entry and the
+## config scalar must agree.
+stopifnot(identical(
+  as.integer(OPEN_DECISIONS$enrollment_source$value$window_months),
+  as.integer(config_complete_case_months)
+))
+
+#' Fingerprint of every rule that decides which patients and which numbers 02-06
+#' produce. 06 records it in its manifest and 07 refuses a parquet built under a
+#' different one, so a file from before a rule change cannot be estimated on.
+#'
+#' @return A single hash string.
+config_fingerprint <- function() {
+  rlang::hash(list(
+    DOUBLETREE_WINDOWS, config_period_anchor, config_saa_achievement_threshold,
+    config_negative_amount_policy, config_exclude_setting_regex, config_cost_setting_col,
+    COST_SOURCES$dataset_key, config_complete_case_months, config_coverage_required_windows,
+    SAA_MSR_CODE, lapply(OPEN_DECISIONS, function(d) d[c("status", "value")]),
+    effective_ingest_id()
+  ))
+}
 
 #' Read an open decision's placeholder value, loudly.
 #'

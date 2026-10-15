@@ -41,8 +41,8 @@
 ## YEAR_MONTH-format checking every value; the ID join-key guard; the
 ## all-absent tripwire; set membership against the exact required month set
 ## rather than a covered-month count (and the mid-month INDEX_DT shift that
-## makes a count check wrong); cohort$INDEX_DT as the sole window anchor with
-## the table's own copy read only to cross-check. One guard was NARROWED on
+## makes a count check wrong); the cohort's T0 (= s) as the window anchor (INDEX_DT only
+## for the cross-check against the table's own copy). One guard was NARROWED on
 ## promotion, deliberately: the local ID check compared identical(class()) and
 ## so rejected integer-vs-double, a pairing dplyr joins correctly and the one
 ## that actually occurs here.
@@ -331,7 +331,7 @@ if (!config_has_smidata) {
       ) |>
       dplyr::mutate(
         rate = .data$n_complete / .data$n,
-        env = smidata::smi_env(), ingest_id = config_ingest_id,
+        env = smidata::smi_env(), ingest_id = effective_ingest_id(),
         gap_months = cc_gap_months, gap_mode = cc_gap_mode
       ) |>
       dplyr::arrange(.data$A)

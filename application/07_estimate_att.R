@@ -8,8 +8,9 @@
 ## R/estimate_att_crossfit.R in this package. `leaf_budget` is required and has
 ## no default; `outcome_type = "continuous"` because Y is dollars.
 ##
-## THE GATE IS NOW OPEN. As of 2026-09-30 all five OPEN_DECISIONS entries are
-## `status = "confirmed"` with no `blocking_final`, so assert_no_blocking_open()
+## THE GATE IS NOW OPEN. As of 2026-09-30 no OPEN_DECISIONS entry has
+## `blocking_final` (five are `status = "confirmed"`; prior_cost_negative_floor was
+## reopened 2026-10-15 as a non-blocking `open_decision`), so assert_no_blocking_open()
 ## below PASSES rather than aborting -- kept as a live regression guard, not as
 ## a known stop. Last to resolve was `diagnostics`: certified_e AND
 ## certified_m0 both TRUE means this proxy supports grid-exact sparsity for
@@ -92,6 +93,21 @@ if (!file.exists(analytic_path)) {
            beside it predates {.val diagnostics}' 2026-09-30 resolution --
            re-run {.file 06_assemble_analytic_data.R}. Do not rename the
            provisional file."
+  ))
+}
+## The parquet must have been built under the rules in force NOW: f5fdbbd and
+## 31f1f10 changed the windows, anchor and cost rules, and an un-suffixed file
+## from before them would otherwise be estimated on silently.
+manifest_path <- file.path(app_dir, "output", "analytic_cohort_manifest.csv")
+if (!file.exists(manifest_path)) {
+  cli::cli_abort("No manifest beside {.file {analytic_path}}; re-run {.file 06_assemble_analytic_data.R}.")
+}
+manifest <- utils::read.csv(manifest_path)
+built_under <- manifest$value[manifest$field == "config_fingerprint"]
+if (length(built_under) != 1L || !identical(built_under, config_fingerprint())) {
+  cli::cli_abort(c(
+    "{.file {analytic_path}} was built under a different config.",
+    "i" = "Its manifest fingerprint does not match the current {.file _config.R}; re-run {.file 06_assemble_analytic_data.R}."
   ))
 }
 analytic_data <- arrow::read_parquet(analytic_path)
@@ -341,29 +357,39 @@ att_diagnostics <- tibble::as_tibble(fit_att[diag_fields]) |>
     pooled_se_upper_bound_not_a_test = pooled_se
   )
 
-## git state of each code base the numbers depend on. Recorded, never silently
-## skipped: where git is unavailable the value says so.
+## Code provenance. The application is git state of app_dir, and only if app_dir
+## is itself inside a repository whose top level contains it. Installed packages
+## record their own SHA (RemoteSha) when installed from a remote; an install from
+## a local path has none, and that is recorded as such. `git -C <library path>`
+## is never used: with a library inside a project (renv) it returns the
+## ENCLOSING repository's HEAD, which would be recorded as the package's.
 git_state <- function(dir) {
-  sha <- tryCatch(
-    suppressWarnings(system2("git", c("-C", dir, "rev-parse", "HEAD"),
-                             stdout = TRUE, stderr = FALSE)),
-    error = function(e) character(0)
-  )
+  top <- suppressWarnings(system2("git", c("-C", dir, "rev-parse", "--show-toplevel"),
+                                  stdout = TRUE, stderr = FALSE))
+  if (length(top) != 1L) return("git_unavailable")
+  sha <- suppressWarnings(system2("git", c("-C", dir, "rev-parse", "HEAD"),
+                                  stdout = TRUE, stderr = FALSE))
   if (length(sha) != 1L) return("git_unavailable")
   dirty <- length(suppressWarnings(
-    system2("git", c("-C", dir, "status", "--porcelain"), stdout = TRUE,
-            stderr = FALSE)
+    system2("git", c("-C", dir, "status", "--porcelain"), stdout = TRUE, stderr = FALSE)
   )) > 0L
   paste0(sha, if (dirty) "+dirty" else "")
 }
-pkg_dir <- function(pkg) tryCatch(find.package(pkg), error = function(e) ".")
+pkg_sha <- function(pkg) {
+  d <- utils::packageDescription(pkg)
+  sha <- if (!is.null(d$RemoteSha)) d$RemoteSha else d$GithubSHA1
+  if (is.null(sha)) "unknown_installed_sha (no RemoteSha: local-path install)" else sha
+}
 prov <- c(
   timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
-  ingest_id = config_ingest_id, smi_run_id = Sys.getenv("SMI_RUN_ID", "none"),
+  ingest_id = effective_ingest_id(), smi_run_id = Sys.getenv("SMI_RUN_ID", "none"),
   r_version = R.version.string,
   seed = config_seed, estimator_flagship = config_estimator,
-  crossfit_k = config_crossfit_k, saa_period_rule = "start_exactly_at_s_ceiling_month",
-  cost_policy = "service_only_net_nominal",
+  crossfit_k = config_crossfit_k, saa_period_rule = paste0("start_exactly_at_s_", config_period_anchor),
+  cost_policy = paste0("service_only_", config_negative_amount_policy, "_nominal"),
+  exclude_setting_regex = config_exclude_setting_regex,
+  prior_cost_floor = format(OPEN_DECISIONS$prior_cost_negative_floor$value),
+  prior_cost_floor_status = OPEN_DECISIONS$prior_cost_negative_floor$status,
   saa_achievement_threshold = config_saa_achievement_threshold,
   cost_setting_col = config_cost_setting_col,
   complete_case_months = config_complete_case_months,
@@ -377,9 +403,9 @@ prov <- c(
   optimaltrees_version = as.character(utils::packageVersion("optimaltrees")),
   smidata_version = as.character(utils::packageVersion("smidata")),
   application_git = git_state(app_dir),
-  doubletree_git = git_state(pkg_dir("doubletree")),
-  optimaltrees_git = git_state(pkg_dir("optimaltrees")),
-  smidata_git = git_state(pkg_dir("smidata"))
+  doubletree_git = pkg_sha("doubletree"),
+  optimaltrees_git = pkg_sha("optimaltrees"),
+  smidata_git = pkg_sha("smidata")
 )
 if (any(prov[grepl("_git$", names(prov))] == "git_unavailable")) {
   cli::cli_alert_warning(

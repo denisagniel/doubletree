@@ -1,7 +1,7 @@
 ## ============================================================================
 ## application/run_pipeline.R
 ##
-## Convenience only, not plumbing: sources 01-07 in order, in one session, so
+## Convenience only, not plumbing: sources 01-08 in order, in one session, so
 ## the whole chain runs with a single command. Every numbered script is
 ## independently runnable standalone (each cascades to its own upstream
 ## dependencies via `require_stage()` in `_config.R` -- see e.g. 06's own
@@ -31,8 +31,8 @@
 ## matching every numbered script's own convention (_config.R's header):
 ## this repo has no data and, on some machines, no smidata, and this file
 ## must stay sourceable end to end without it, the same way 01-07 already
-## degrade gracefully on their own. `ingest_id = config_ingest_id` is exactly
-## the pin `smi_read_pinned()` reads at every call site inside 02-05, so the
+## degrade gracefully on their own. `ingest_id = effective_ingest_id()` is exactly
+## the pin `smi_read_pinned()` applies at every call site inside 02-05, so the
 ## run record and the reads it produced are pinned to the same ingest.
 ## ============================================================================
 
@@ -66,30 +66,32 @@ if (!config_has_smidata) {
   )
   source_pipeline_stages()
 } else {
-  if (is.null(smidata::smi_run_info())) {
+  ## Only the caller that STARTED a run may finish it: an outer caller's run is
+  ## left open, and its status is not ours to set.
+  started_here <- is.null(smidata::smi_run_info())
+  if (started_here) {
     smidata::smi_run_start(
       script    = "doubletree/application/run_pipeline.R",
-      tier      = if (identical(smidata::smi_env(), "local")) "local" else "smoke",
-      ingest_id = config_ingest_id
+      tier      = if (identical(smidata::smi_env(), "local")) "local" else config_run_tier,
+      ingest_id = effective_ingest_id()
     )
   } else {
     cli::cli_alert_info(
       "A run is already active ({.val {smidata::smi_run_info()$run_id}});
-       not starting a second one."
+       not starting a second one, and not finishing it."
     )
   }
 
-  ## A failed stage must still close out the run record as "error" rather
-  ## than leaving run.json stuck at status "running" forever -- see
-  ## smi_run_finish()'s own docs (status: "ok" | "error" | "cancelled"). The
-  ## original condition is re-signalled after finishing, never swallowed: no
-  ## bare tryCatch(error = function(e) NULL) here -- a real pipeline error
-  ## must still reach the caller/Rscript exit code, not just this run's log.
-  tryCatch({
-    source_pipeline_stages()
-    smidata::smi_run_finish("ok")
-  }, error = function(e) {
-    smidata::smi_run_finish("error")
-    stop(e)
-  })
+  ## A failed or interrupted stage closes the run record it opened ("error" /
+  ## "cancelled") instead of leaving run.json at "running". The calling
+  ## handlers observe the condition and let it continue: the original error
+  ## and traceback reach the caller and the Rscript exit code unchanged.
+  withCallingHandlers(
+    {
+      source_pipeline_stages()
+      if (started_here) smidata::smi_run_finish("ok")
+    },
+    error = function(e) if (started_here) smidata::smi_run_finish("error"),
+    interrupt = function(e) if (started_here) smidata::smi_run_finish("cancelled")
+  )
 }
