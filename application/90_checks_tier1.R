@@ -668,7 +668,8 @@ tier1_check_file_coverage <- function(cost_sources = COST_SOURCES) {
   tier1_publish(smidata::smi_report(
     "doubletree Tier-1: cost-file coverage",
     file_coverage = mask_counts_primary(
-      spans, c("n_claims", "n_missing_date", "n_outside_year", "n_mci"), "mci_dollars"
+      spans, c("n_claims", "n_missing_date", "n_outside_year", "n_mci"), "mci_dollars",
+      label_cols = "suffix_year"
     ),
     identities = list()
   ))

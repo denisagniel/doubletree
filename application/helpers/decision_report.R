@@ -377,6 +377,22 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
   cost_ids <- smidata::smi_report_cost_identities(
     p03$cost, costs = "costs_cohort", categories = "cost_categories"
   )
+  ## smidata declares the "excluded lines" identity for every window, but a window
+  ## with no Managed Care Invoice rows has no excluded category row, and a cell-set
+  ## over no rows aborts. Drop only those identities (their count is 0 on both
+  ## sides, so nothing is lost).
+  cost_ids <- Filter(function(idn) {
+    if (!inherits(idn, "smi_identity")) return(TRUE)
+    for (r in idn$rhs) {
+      if (r$all && identical(r$table, "cost_categories")) {
+        ct <- cost_categories
+        keep <- rep(TRUE, nrow(ct))
+        for (k in names(r$key)) keep <- keep & !is.na(ct[[k]]) & ct[[k]] == r$key[[k]]
+        if (!any(keep)) return(FALSE)
+      }
+    }
+    TRUE
+  }, cost_ids)
   ## Cohort-minus-final is the number of patients (and claim lines, ...) the
   ## complete-case restriction removed: a count in its own right, so it must not
   ## be the difference of two published ones.
@@ -432,10 +448,15 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
       tibble::tibble(quantity = names(tally), n = as.integer(unlist(tally))),
       "n", min_cell = mc
     )
+    ## Split by reason, as smidata's builder does: an absent patient sits in the
+    ## n_covered = window_months bucket, so undivided buckets would publish the
+    ## absent count as bucket - covered. Identities are per reason (declared by
+    ## smi_report_enrollment()); primary suppression only, for the same reason as
+    ## the summary above.
     enrollment$by_months_covered <- mask_counts_primary(
-      tibble::as_tibble(p05$coverage["n_covered"]) |>
-        dplyr::summarise(n_patients = dplyr::n(), .by = "n_covered") |>
-        dplyr::arrange(.data$n_covered) |>
+      tibble::as_tibble(p05$coverage[c("reason", "n_covered")]) |>
+        dplyr::summarise(n_patients = dplyr::n(), .by = c("reason", "n_covered")) |>
+        dplyr::arrange(.data$reason, .data$n_covered) |>
         dplyr::mutate(window_months = p05$window_months,
                       pct = round(100 * .data$n_patients / sum(.data$n_patients), 2)),
       "n_patients", "pct", label_cols = c("n_covered", "window_months"), min_cell = mc
@@ -474,20 +495,14 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
     if (!is.null(p05)) list(member(es("n_cohort"), tally$n_cohort)),
     list(arm_total)
   ))
-  ## Complete-case count (covered): flow, tally, arm table, months-covered row.
-  cov_full <- if (!is.null(p05)) sum(p05$coverage$n_covered == p05$window_months)
+  ## Complete-case count (covered): flow, tally, arm table, months-covered cells.
   cluster("complete-case (covered) count", value_hidden = hidden_by_flow(p06$n_complete_case), c(
     flow_members(p06$n_complete_case),
     if (!is.null(p05)) list(member(es("n_covered"), tally$n_covered)),
     list(arm_complete)
   ))
-  if (!is.null(p05) && isTRUE(cov_full == tally$n_covered)) {
-    cluster("covered = patients with every month covered", optional = TRUE, list(
-      member(es("n_covered"), tally$n_covered),
-      member(cell("enrollment.by_months_covered", "n_patients",
-                  n_covered = p05$window_months), cov_full)
-    ))
-  }
+  ## smi_report_enrollment() already declares covered = sum of the covered-reason
+  ## months-covered cells, so no second link to that table is needed here.
 
   ## 6. project-specific: prior_cost floor, bins, cut points, design degeneracy
   d <- p06$design
@@ -602,12 +617,36 @@ blank_cell <- function(tabs, cl) {
     keep <- keep & !is.na(tb[[k]]) & as.character(tb[[k]]) == as.character(cl$key[[k]])
   }
   tb[[cl$col]][keep] <- NA
-  for (d in attr(tb, "smi_derived_cols")) if (d %in% names(tb)) tb[[d]][keep] <- NA
+  from <- attr(tb, "smi_derived_from")
+  for (d in attr(tb, "smi_derived_cols")) {
+    src <- from[[d]]
+    if (d %in% names(tb) && (is.null(src) || cl$col %in% src)) tb[[d]][keep] <- NA
+  }
   tabs[[path]] <- tb
   tabs
 }
 
 ## ---- toy intermediates (hand-calculated; see tests/test-decision-report.R) ---
+
+#' Toy `coverage` as smi_enrollment_coverage() shapes it (`n_covered`, `reason`).
+#'
+#' Covered patients have every month (`window_months`), insufficient ones
+#' `insufficient_months`, and absent ones `window_months` too (they have no
+#' uncovered months to count), with a `tally` attribute.
+toy_coverage <- function(n_covered, n_insufficient, n_absent, window_months = 24L,
+                         insufficient_months = 20L) {
+  cov <- data.frame(
+    n_covered = c(rep(window_months, n_covered), rep(insufficient_months, n_insufficient),
+                  rep(window_months, n_absent)),
+    reason = c(rep("covered", n_covered), rep("insufficient_coverage", n_insufficient),
+               rep("absent_from_flag_table", n_absent))
+  )
+  attr(cov, "tally") <- list(
+    n_cohort = n_covered + n_insufficient + n_absent, n_covered = n_covered,
+    n_insufficient = n_insufficient, n_absent = n_absent, n_uncovered_at_index = 0L
+  )
+  cov
+}
 
 #' Toy report intermediates with hand-calculable values.
 #'
@@ -718,7 +757,8 @@ toy_report_inputs <- function(extra_outcome_claims = NULL) {
 
   ## ---- 05: complete case over the 136 ------------------------------------
   ## 100 covered, 30 insufficient, 6 absent.
-  cov <- data.frame(n_covered = c(rep(24L, 100), rep(20L, 30), rep(0L, 6)))
+  ## An absent patient has n_covered = window_months (smi_enrollment_coverage()).
+  cov <- toy_coverage(100L, 30L, 6L)
   attr(cov, "tally") <- list(n_cohort = 136L, n_covered = 100L, n_insufficient = 30L,
                              n_absent = 6L, n_uncovered_at_index = 0L)
   lag_arm <- tibble::tribble(

@@ -17,12 +17,9 @@
 ##                              relations are then declared as identities and
 ##                              repaired by smi_report().
 ##   * mask_counts_partition()  smi_suppress() + the table tags below.
-##   * tag_report_table()       sets the attributes smi_report()/smi_report_export()
-##                              read (n_cols, derived_cols, label_cols). smidata's
-##                              own tagger (.smi_tag) is internal, so the four
-##                              attribute names are written here; the export test
-##                              in tests/test-decision-report.R fails if smidata
-##                              renames them.
+##   * tag_report_table()       thin wrapper over smidata::smi_report_tag() (the
+##                              exported tagger smi_report() requires on every
+##                              table: counts, derived columns, labels).
 ##   * tier1_saa_report()       the Tier-1 tables that share counts, assembled into
 ##                              ONE smi_report so a single audit covers them.
 ##
@@ -35,7 +32,7 @@
 
 config_report_min_cell <- 11L
 
-#' Attach what smi_report() / smi_report_export() need to know about a table.
+#' Declare a table's disclosure roles (wrapper over `smidata::smi_report_tag()`).
 #'
 #' @param tb A data frame (already masked).
 #' @param n_cols Count columns (suppressed by smi_export()).
@@ -43,31 +40,41 @@ config_report_min_cell <- 11L
 #' @param label_cols Numeric columns that are labels, not counts (written as text).
 #' @param identities Identities local to this table (rarely needed; project
 #'   identities are passed to `smi_report(identities = )`).
+#' @param derived_from Optional `list(derived_col = c(count cols it depends on))`:
+#'   a derived column is then masked only when one of ITS sources is masked.
 tag_report_table <- function(tb, n_cols, derived_cols = character(),
-                             label_cols = character(), identities = list()) {
-  attr(tb, "smi_n_cols") <- n_cols
-  attr(tb, "smi_derived_cols") <- derived_cols
-  attr(tb, "smi_label_cols") <- label_cols
-  attr(tb, "smi_identities") <- identities
-  tb
+                             label_cols = character(), identities = list(),
+                             derived_from = NULL) {
+  smidata::smi_report_tag(tb, n_cols = n_cols, derived_cols = derived_cols,
+                          label_cols = label_cols, identities = identities,
+                          derived_from = derived_from)
 }
 
 #' Primary suppression only: 1..(min_cell - 1) become NA, zero stays zero.
 #'
 #' A row's `derived_cols` are masked with any masked count in it (a rate or mean
-#' returns its numerator otherwise).
+#' returns its numerator otherwise); with `derived_from`, only with a masked
+#' count it depends on.
 mask_counts_primary <- function(tb, n_cols, derived_cols = character(),
                                 label_cols = character(),
-                                min_cell = config_report_min_cell) {
-  hit <- rep(FALSE, nrow(tb))
+                                min_cell = config_report_min_cell,
+                                derived_from = NULL) {
+  hit_by <- list()
   for (cl in n_cols) {
     v <- tb[[cl]]
     sm <- !is.na(v) & v > 0 & v < min_cell
     tb[[cl]][sm] <- NA
-    hit <- hit | sm
+    hit_by[[cl]] <- sm
   }
-  for (cl in derived_cols) tb[[cl]][hit] <- NA
-  tag_report_table(tb, n_cols, derived_cols, label_cols)
+  any_hit <- Reduce(`|`, hit_by, rep(FALSE, nrow(tb)))
+  for (cl in derived_cols) {
+    src <- derived_from[[cl]]
+    hit <- if (is.null(src)) any_hit else {
+      Reduce(`|`, hit_by[intersect(src, n_cols)], rep(FALSE, nrow(tb)))
+    }
+    tb[[cl]][hit] <- NA
+  }
+  tag_report_table(tb, n_cols, derived_cols, label_cols, derived_from = derived_from)
 }
 
 #' smi_suppress() (primary + pooled complement) for a column that partitions a
@@ -131,14 +138,24 @@ tier1_saa_report <- function(by_band, rel_bands, by_offset, prevalence = NULL,
     smidata::smi_gap(sz("n_matched"), sz("n_elig"), label = "matched -> eligible"),
     smidata::smi_gap(sz("n_with_saa_rows"), sz("n_elig"), label = "rows -> eligible")
   )
-  ## The nearest-period match counts (any gap) contain the exact-start ones, so
-  ## their difference in either direction is a count nobody should be able to read.
-  for (off in by_offset$target_offset_months) {
+  ## The nearest-period match counts (any gap) bracket the exact-start ones, so
+  ## their difference is a count nobody should be able to read. smi_gap() needs
+  ## big >= small on the published values, so the direction is taken from the RAW
+  ## counts (equal counts differ by 0, which is not a small count: nothing to
+  ## declare).
+  for (k in seq_len(nrow(by_offset))) {
+    off <- by_offset$target_offset_months[k]
+    raw_off <- by_offset$n_matched[k]
     oc <- smidata::smi_cell("gap_by_offset", "n_matched", target_offset_months = off)
     for (q in c("n_with_saa_rows", "n_matched")) {
+      raw_q <- as.numeric(by_band[[q]])
+      if (is.na(raw_off) || is.na(raw_q) || raw_off == raw_q) next
       ids <- c(ids, list(
-        smidata::smi_gap(oc, sz(q), label = paste0("offset ", off, " vs ", q)),
-        smidata::smi_gap(sz(q), oc, label = paste0(q, " vs offset ", off))
+        if (raw_off > raw_q) {
+          smidata::smi_gap(oc, sz(q), label = paste0("offset ", off, " vs ", q))
+        } else {
+          smidata::smi_gap(sz(q), oc, label = paste0(q, " vs offset ", off))
+        }
       ))
     }
   }
@@ -148,7 +165,11 @@ tier1_saa_report <- function(by_band, rel_bands, by_offset, prevalence = NULL,
   if (!is.null(prevalence) && nrow(prevalence) > 0L) {
     cnt <- grep("^n_", names(prevalence), value = TRUE)
     der <- c("prevalence_control", "prevalence_treated")
-    tables$yn_prevalence <- mask_counts_primary(prevalence, cnt, der, min_cell = min_cell)
+    ## prevalence_<arm> = yes / (yes + no): masked only with ITS arm's yes / no.
+    dfrom <- list(prevalence_control = c("n_yes_control", "n_no_control"),
+                  prevalence_treated = c("n_yes_treated", "n_no_treated"))
+    tables$yn_prevalence <- mask_counts_primary(prevalence, cnt, der, min_cell = min_cell,
+                                                derived_from = dfrom)
     for (col in prevalence$column) {
       for (arm in c("control", "treated")) {
         pv <- function(k) smidata::smi_cell("yn_prevalence", paste0(k, "_", arm), column = col)

@@ -347,8 +347,10 @@ if (!config_has_smidata) {
     )
 
     ## Record for 08_decision_report.R: the per-patient result is reduced to
-    ## n_covered (no IDs) with smidata's tally attribute carried across.
-    coverage_for_report <- coverage["n_covered"]
+    ## n_covered and reason (no IDs) with smidata's tally attribute carried across.
+    ## `reason` is needed: an absent patient has n_covered = window_months, so the
+    ## months-covered table is split by reason (smi_report_enrollment()).
+    coverage_for_report <- coverage[c("n_covered", "reason")]
     attr(coverage_for_report, "tally") <- cc_tally
     report_record("05_enrollment", list(
       coverage = coverage_for_report,

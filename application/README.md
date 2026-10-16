@@ -137,7 +137,7 @@ oversight:
 | `07_estimate_att.R` | yes (needs real analytic data) | Gate (`assert_no_blocking_open()`) is the first statement after config — the only place it still runs, as of 2026-09-24 (moved out of `06`); now a live regression guard, since all decisions are confirmed. Reads the un-suffixed `analytic_cohort.parquet` (aborts by name if only the `_PROVISIONAL` file exists). Runs both estimators, prints whether the confirmed `diagnostics` licence holds (`certified_e && certified_m0`) without auto-switching on it, and reports their discrepancy. Writes `output/att_estimates.parquet`, `att_diagnostics.parquet`, `att_provenance.csv` and `att_fits.rds`. |
 | `run_pipeline.R` | yes | New 2026-09-24. Convenience only (sources `01`–`07` in order) — every script is independently runnable via its own `require_stage()` cascade; this just saves typing seven commands. |
 | `helpers/decision_report.R` | yes (tested) | Review-report plumbing: `report_record()` (how `02`/`03`/`05`/`06` save their counts), `summarise_design()`, `design_patterns()`, `report_levers()` (levers read from `_config.R`'s own objects), `build_decision_report()`, and `toy_report_inputs()` (hand-calculated toy intermediates). |
-| `helpers/disclosure.R` | yes (tested) | Masking helpers smidata lacks (`mask_counts_primary()`, `mask_counts_partition()`, `tag_report_table()`) and `tier1_saa_report()`; the identity-aware disclosure logic itself is smidata's (`smi_report()`, `smi_identity()`, `smi_gap()`, `smi_coarsen_flow()`). The project's former `hide_small_gaps()` / `coarsen_flow()` / `mask_partition_cells()` / `mask_binary_split()` / `tier1_disclosable_*()` were deleted. |
+| `helpers/disclosure.R` | yes (tested) | Masking helpers smidata lacks (`mask_counts_primary()`, `mask_counts_partition()`, `tag_report_table()` over `smidata::smi_report_tag()`) and `tier1_saa_report()`; the identity-aware disclosure logic itself is smidata's (`smi_report()`, `smi_identity()`, `smi_gap()`, `smi_coarsen_flow()`). The project's former `hide_small_gaps()` / `coarsen_flow()` / `mask_partition_cells()` / `mask_binary_split()` / `tier1_disclosable_*()` were deleted. |
 | `08_decision_report.R` | yes (toy off-server) | New 2026-10-15. Builds the review report from the intermediates `02`/`03`/`05`/`06` save to `output/report_inputs/`; see "Review report" below. Exports through `smi_report_export()` only when `smidata::smi_is_server()`. |
 | `90_checks_tier1.R` | no | Server-only. Checks 1, 2 (partly) and 4 reference dual-bounds' (comment spec); checks 3, 5 and 6 are this paper's own and executable (`_YN` coding/prevalence, cost-file coverage, msr_saa convention and exact-start sizes), exporting through `smi_export()`. Aborts locally. Check 4 (added 2026-09-24) verifies the `enrollment_source` TYPE-ignore default's prerequisite. |
 | `91_leaf_budget_feasibility.R` | yes (needs real analytic data) | New 2026-09-28. STANDALONE, NOT gated by `assert_no_blocking_open()` and NOT part of the 01–07 cascade — times `estimate_att()` alone at `config_leaf_budget` on the real analytic data and reports elapsed time. Reads the reportable `analytic_cohort.parquet` first, falls back to `analytic_cohort_PROVISIONAL.parquet` with an explicit warning (order reversed 2026-09-30 when `diagnostics` resolved — preferring PROVISIONAL unconditionally would silently time a stale cohort). Informational only; never a reportable estimate. Added after benchmarking `leaf_budget = 15` (raised from 4, PI 2026-09-28) on the 400-row Tier-0 toy fixture: 4.8s at `leaf_budget = 4`, 94.5s at `6`, still running past 5+ minutes at `15` (killed) — the real cohort's `07` risks discovering an infeasible budget only after `03`'s multi-hour cost-streaming pass. Invoke wrapped in the shell's `timeout` (the real bound; this script's own `setTimeLimit()` is best-effort only against optimaltrees' compiled C++ search — see the file's own header): `timeout 900 Rscript application/91_leaf_budget_feasibility.R`. |
@@ -169,6 +169,35 @@ patient inside a large group), or a masked cell narrowed to a range inside 1..10
 header line says how many identities were audited and how many further cells the repair step
 masked. Read the rendered report before releasing it; "audited" is not "safe to export". No
 minimum, maximum or single-patient value is reported.
+
+**Rules the stricter audit enforces** (smidata 15e2888). Every table must declare its count columns
+(`tag_report_table()`, a wrapper over the exported `smidata::smi_report_tag()`; a derived column can name
+the counts it depends on with `derived_from`), and the audit flags any *published* count of 1..10 in
+one (`small_cell`), which the repair masks. A declared identity that is false on the data, or
+inconsistent with the published cells, **aborts** rather than being audited; a cell-set over no rows
+aborts too. A `smi_gap(big, small)` must have `big >= small` on the published cells, so the Tier-1 report
+takes the direction from the raw counts. What aborts the build:
+
+- `measure_period`: duplicate IDs, a patient absent from `index_dt` or with `NA` `INDEX_DT`, `NA`
+  `matched`/`elig`, eligible but unmatched, an eligible patient with `NA` `achieved`;
+- `cost_categories` / `cost_identities`: a cost table filtered or modified after
+  `smi_sum_cost_in_windows()` (checksum mismatch), or one without its `negative_amount_policy`;
+- an identity this report declares that is false on the unmasked counts (stage intermediates from
+  different runs).
+
+**Cost tables.** Percentiles are order statistics (type 1, an observed cell, never an interpolation),
+and a tail percentile is published only when `floor(n_cells * min(p, 1 - p)) >= 11`: `p01`/`p99` need
+`n_cells >= 1100`, `p05`/`p95` need 220, `p25`/`p75` need 44, `p50` needs 22. With the toy's 136 cells only
+`p25`/`p50`/`p75` print. A masked negative-line count also masks `negative_dollars` and
+`negative_share_of_gross`. `cost_categories` is suppressed on **distinct patients** (`n_patients`) per
+(window, excluded) block, not on claim lines: one patient with 40 lines in a rare setting has their
+patient count, dollars and share withheld (the line count 40 is published, being >= 11), and the
+pooled complement stays inside the same block. Rows are sorted by window, excluded, setting.
+
+**Enrollment.** `enrollment.by_months_covered` has a leading `reason` column and is split by it: an
+absent patient has `n_covered = window_months`, so the full-coverage bucket holds covered and absent
+patients and an undivided bucket would give `bucket - covered` = absent. `05` therefore records
+`reason` beside `n_covered`; identities are per reason.
 
 Where a count would otherwise have to be masked in several tables, it is published once or not at
 all: a small attrition step is merged into the next one (`smi_coarsen_flow()`), eligible is
@@ -210,7 +239,9 @@ smidata's category table is read from an attribute of the unmodified cost object
 cost table has no category table, so its claim, negative and missing-amount lines are linked to the
 cohort table by gaps, not by a breakdown. Tests: `tests/test-decision-report.R` (hand-calculated toy
 values and perturbed fixtures: a `MSR_DEN < 1` count of 5, a flow step of 5, a 6-patient
-cohort-minus-final difference, a small arm cell, a 5-line service category, a small `_YN` split) and
+cohort-minus-final difference, a small arm cell, a 5-line service category, a 40-line one-patient
+category, a small `_YN` split, an `NA` `INDEX_DT`, a duplicate ID, a filtered cost table, a published
+count below 11, withheld tail percentiles, the by-reason months-covered split) and
 `tests/test-disclosure.R` (the Tier-1 report).
 
 **Tier-1 exports (`90_checks_tier1.R`).** Every table now leaves through `smi_report()` ->

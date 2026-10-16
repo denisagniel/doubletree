@@ -62,15 +62,20 @@ test_that("tier1_saa_report(): nothing small -> everything published, no repair"
   expect_equal(audit_rows_d(r), 0L)
 })
 
-test_that("tier1_saa_report(): a matched -> eligible step of 5 hides the larger count", {
-  ## 400 -> 395 is 5 patients. Eligible = 200 + 150 + 45 = 395. Both 400 and 395 are
-  ## published only if 400 - 395 may be read, so the declared gap masks the larger
-  ## (matched); 500 - 395 = 105 and 500 - 400 are fine.
+test_that("tier1_saa_report(): a matched -> eligible step of 5 hides the inner (eligible) count", {
+  ## 400 -> 395 is 5 patients. smi_gap(matched, eligible) hides the INNER end of a
+  ## small gap (eligible, 395). Eligible = treated 200 + control 150 + NA 45 is a
+  ## declared identity, so with the arms published 395 would be read back: the
+  ## smallest other part of that identity (NA, 45) is masked too. Left published:
+  ## rows 500, matched 400, treated 200, control 150. By hand: 500 - 400 = 100 and
+  ## the masked parts sum to 395 + 45 -> eligible - NA = 350, neither small.
   r <- tier1_saa_report(mk_sizes(500L, 400L, 395L, 200L, 150L, 45L), bands_ok, offsets_ok)
   s <- sz_of(r)
-  expect_true(is.na(s[["n_matched"]]))
-  expect_equal(s[["n_elig"]], 395L)
+  expect_true(all(is.na(s[c("n_elig", "n_achieved_na")])))
+  expect_equal(s[["n_matched"]], 400L)
   expect_equal(s[["n_with_saa_rows"]], 500L)
+  expect_equal(unname(s[c("n_treated", "n_control")]), c(200L, 150L))
+  expect_equal(r$resolved, 2L)
   expect_equal(audit_rows_d(r), 0L)
   ## by hand: no published pair differs by 1..10
   pub <- s[!is.na(s)]
@@ -80,16 +85,22 @@ test_that("tier1_saa_report(): a matched -> eligible step of 5 hides the larger 
 
 test_that("tier1_saa_report(): two consecutive small steps leave no small difference", {
   ## 400 -> 398 -> 395: steps of 2 and 3 (rows 400, matched 398, eligible 395 =
-  ## 200 + 150 + 45). Each declared gap masks its larger count: rows, then matched.
-  ## Only eligible (395) remains of the chain; 400 - 395 = 5 is not readable.
+  ## 200 + 150 + 45). Each declared gap masks its inner (smaller) count: matched
+  ## (rows 400 vs 398), eligible (matched 398 vs 395), and NA (the smallest other
+  ## part of eligible = treated + control + NA, 45). The two nearest-period counts
+  ## (399, one below rows' 400 and one above matched's 398) are masked as the inner
+  ## end of their own gap with rows. Only rows, treated and control stay published.
   r <- tier1_saa_report(mk_sizes(400L, 398L, 395L, 200L, 150L, 45L), bands_ok,
                         tibble::tibble(target_offset_months = c("0", "12"),
                                        n_matched = c(399L, 399L), median_gap = 0,
                                        p90_gap = 1, share_abs_gap_le_1 = .9))
   s <- sz_of(r)
-  expect_true(all(is.na(s[c("n_with_saa_rows", "n_matched")])))
-  expect_equal(s[["n_elig"]], 395L)
+  expect_true(all(is.na(s[c("n_matched", "n_elig", "n_achieved_na")])))
+  expect_equal(unname(s[c("n_with_saa_rows", "n_treated", "n_control")]), c(400L, 200L, 150L))
+  expect_true(all(is.na(r$tables$gap_by_offset$n_matched)))
   expect_equal(audit_rows_d(r), 0L)
+  pub <- s[!is.na(s)]
+  expect_false(any(outer(pub, pub, "-") %in% 1:10))     # 400, 200, 150: 50, 200, 250
 })
 
 test_that("tier1_saa_report(): a small arm cell is masked with a complement inside the partition", {
@@ -132,13 +143,15 @@ test_that("tier1_saa_report(): _YN cells are tied to the published arm sizes", {
 
 test_that("tier1_saa_report(): nearest-period match counts do not reveal a small exact-start gap", {
   ## nearest-period matches 405 (offset 0) vs exact-start matched 400: 5 patients
-  ## whose period does not start at s. The declared gaps mask the larger count.
+  ## whose period does not start at s. The declared gap (offset - matched) hides
+  ## the inner end, the exact-start matched count; the offset counts stay.
   off <- tibble::tibble(target_offset_months = c("0", "12"), n_matched = c(405L, 470L),
                         median_gap = c(0, 12), p90_gap = c(1, 13), share_abs_gap_le_1 = c(.9, .8))
   r <- tier1_saa_report(mk_sizes(500L, 400L, 300L, 100L, 150L, 50L), bands_ok, off)
-  expect_true(is.na(r$tables$gap_by_offset$n_matched[1]))
-  expect_true(is.na(r$tables$gap_by_offset$median_gap[1]))   # derived columns go with it
-  expect_equal(r$tables$gap_by_offset$n_matched[2], 470L)
+  expect_true(is.na(sz_of(r)[["n_matched"]]))
+  expect_equal(r$tables$gap_by_offset$n_matched, c(405L, 470L))
+  expect_equal(r$tables$gap_by_offset$median_gap, c(0, 12))
+  expect_equal(r$resolved, 1L)
   expect_equal(audit_rows_d(r), 0L)
 })
 
@@ -170,10 +183,10 @@ test_that("the Tier-1 report exports through smi_report_export() into a temporar
   r <- tier1_saa_report(mk_sizes(500L, 400L, 395L, 200L, 150L, 45L), bands_ok, offsets_ok)
   recs <- suppressMessages(suppressWarnings(smidata::smi_report_export(r, "doubletree_tier1")))
   expect_equal(nrow(recs), length(r$tables))     # sizes, msr_yr_offsets, gap_by_offset
-  ## the matched count the report masked is NA in the file that leaves.
+  ## the eligible count the report masked is NA in the file that leaves.
   csv <- list.files(Sys.getenv("SMI_OUTBOX"), pattern = "exact_start_sizes[.]csv$", full.names = TRUE)
   expect_length(csv, 1L)
   out <- utils::read.csv(csv, comment.char = "#")
-  expect_true(is.na(out$n[out$quantity == "n_matched"]))
-  expect_equal(out$n[out$quantity == "n_elig"], 395L)
+  expect_true(is.na(out$n[out$quantity == "n_elig"]))
+  expect_equal(out$n[out$quantity == "n_matched"], 400L)
 })

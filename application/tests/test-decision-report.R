@@ -90,13 +90,13 @@ test_that("the toy report passes smidata's audit, with the repair step's masks h
   ## design_prevalence: n_yes = 10, 10, 9, 8 (HTN, DM2, ANTIDEP, GLU) are small and
   ## masked first; each is declared against n_final = 100 (n_yes + n_no = 100), so
   ## its n_no (90, 90, 91, 92) is masked too: 4 cells. prior_cost_floor: 20 patients
-  ## at the floor - 19 floored = 1 is a small gap, so the larger count (20) is
-  ## masked: 1 cell. enrollment.summary: absent = 6 is masked (primary); n_cohort =
-  ## covered + insufficient + absent is declared, so the smallest other positive
-  ## part (insufficient, 30; covered is 100 and the cohort 136) is masked: 1 cell.
-  ## enrollment.by_months_covered: the 6 at 0 months is masked, the declared sum
-  ## over months masks the next smallest (30 at 20 months): 1 cell. Total 4 + 1 + 1 + 1 = 7.
-  expect_equal(rep_toy$resolved, 7L)
+  ## at the floor - 19 floored = 1 is a small gap; smi_gap hides the inner (smaller)
+  ## end, the 19: 1 cell. enrollment.summary: absent = 6 is masked (primary);
+  ## n_cohort = covered + insufficient + absent is declared, so the smallest other
+  ## positive part (insufficient, 30; covered is 100) is masked: 1 cell, together with
+  ## its declared copy, the insufficient months-covered bucket (one repair step). The
+  ## absent bucket (6 patients at 24 months) is a primary mask. Total 4 + 1 + 1 = 6.
+  expect_equal(rep_toy$resolved, 6L)
   md <- smidata::smi_report_md(rep_toy)
   expect_true(any(grepl("Disclosure audit: passed against", md, fixed = TRUE)))
 })
@@ -219,17 +219,24 @@ test_that("cost tables: negative lines, floors, quantiles, MCI and categories", 
   expect_equal(pr$gross_positive_dollars, 13600)
   expect_equal(pr$total_cost, 10750)
   expect_equal(pr$mean_cost, 10750 / 136)
-  ## 19 patients net 100 - 150 = -50: 19 cells with a negative total, and 19/136
-  ## = 14% of cells are at -50, so p01 and p05 are -50 and p25 is 100.
+  ## 19 patients net 100 - 150 = -50: 19 cells with a negative total; the other
+  ## 117 cells are 100. Percentiles are order statistics (type 1): p25 is the
+  ## smallest x with F(x) >= .25, and F(-50) = 19/136 = .14 < .25, so p25 = 100 (and
+  ## p50, p75 = 100). A tail percentile is published only when floor(n_cells *
+  ## min(p, 1 - p)) >= 11: with 136 cells p01 gives floor(1.36) = 1, p05 floor(6.8)
+  ## = 6, p95 6 and p99 1, all withheld; p25 floor(34) = 34 and p50 floor(68) = 68.
   expect_equal(pr$n_cells_negative_total, 19L)
-  expect_equal(c(pr$p01, pr$p05, pr$p25), c(-50, -50, 100))
+  expect_true(all(is.na(c(pr$p01, pr$p05, pr$p95, pr$p99))))
+  expect_equal(c(pr$p25, pr$p50, pr$p75), c(100, 100, 100))
   expect_equal(pr$negative_share_of_gross, round(2850 / 13600, 5))
   ## outcome: 200 + 100 each = 300 (gross 136 * 300 = 40,800); p001-p012 also
-  ## -50 (12 lines, -600). Net 40,200. 12 / 136 = 8.8% of cells net 250.
+  ## -50 (12 lines, -600). Net 40,200. 12 / 136 = 8.8% of cells net 250 (the other
+  ## 124 net 300), so p25 = p50 = p75 = 300 (F(250) = .088 < .25).
   expect_equal(ou$n_claims, 2L * 136L + 12L)
   expect_equal(ou$negative_dollars, -600)
   expect_equal(ou$total_cost, 40200)
-  expect_equal(c(ou$p01, ou$p05, ou$p25), c(250, 250, 300))
+  expect_true(all(is.na(c(ou$p01, ou$p05, ou$p95, ou$p99))))
+  expect_equal(c(ou$p25, ou$p50, ou$p75), c(300, 300, 300))
   expect_equal(ou$n_excluded_mci_lines, 12L)     # p001-p012, 12 >= 11: shown
   expect_equal(ou$n_cells_negative_total, 0L)
   expect_false(any(c("min", "max", "min_claim_dt", "max_claim_dt") %in% names(co)))
@@ -270,9 +277,17 @@ test_that("enrollment: complete-case tally, one arm-level partition", {
   ## 136 - 100 = 36 = insufficient (30) + absent (6): the 6 is masked, so the 30
   ## must be too, or 36 - 30 would give it back.
   expect_true(is.na(v[["n_insufficient"]]))
+  ## Months covered is split by reason: an absent patient has n_covered =
+  ## window_months (24), so the 24-month bucket holds covered (100) AND absent (6)
+  ## patients. Undivided, bucket - covered would return the absent count.
   bm <- tb$enrollment.by_months_covered
-  expect_equal(bm$n_patients[bm$n_covered == 24L], 100L)
-  expect_equal(bm$pct[bm$n_covered == 24L], round(100 * 100 / 136, 2))  # 73.53
+  expect_equal(names(bm)[1], "reason")
+  expect_equal(bm$reason, c("absent_from_flag_table", "covered", "insufficient_coverage"))
+  expect_equal(bm$n_covered, c(24L, 24L, 20L))
+  expect_true(is.na(bm$n_patients[1]))                       # 6 < 11
+  expect_equal(bm$n_patients[bm$reason == "covered"], 100L)
+  expect_true(is.na(bm$n_patients[3]))        # 30, masked as the complement of the 6
+  expect_equal(bm$pct[bm$reason == "covered"], round(100 * 100 / 136, 2))  # 73.53
   expect_equal(bm$window_months[1], 24L)
   ## by arm: A=0 45 / 60 = 0.75 (15 not complete); A=1 55 / 76 = 0.723684 (21).
   ba <- tb$enrollment_by_arm
@@ -287,35 +302,38 @@ test_that("enrollment: complete-case tally, one arm-level partition", {
 })
 
 test_that("a small arm-level cell is masked, and its complement is not recoverable", {
-  ## Consistent fixture: arms A=0 (60) and A=1 (76) with 50 and 66 complete, so 10
-  ## and 10 not complete; 116 covered, 14 insufficient, 6 absent (14 + 6 = 20 =
-  ## 10 + 10); months covered 116 at 24, 14 at 20, 6 at 0.
+  ## Consistent fixture: arms A=0 (60) and A=1 (76) with 50 and 64 complete, so 10
+  ## and 12 not complete; 114 covered, 16 insufficient, 6 absent (16 + 6 = 22 =
+  ## 10 + 12); months covered: 114 covered at 24, 16 insufficient at 20, 6 absent at
+  ## 24. (The masked sums are 22, not 20: two masked parts summing to exactly
+  ## 2 * 10 are themselves flagged by the audit.)
   small <- toy
   small$p05$by_arm <- tibble::tibble(
-    A = c(0L, 1L), n = c(60L, 76L), n_complete = c(50L, 66L), n_unresolved = c(0L, 0L)
+    A = c(0L, 1L), n = c(60L, 76L), n_complete = c(50L, 64L), n_unresolved = c(0L, 0L)
   ) |> dplyr::mutate(rate = .data$n_complete / .data$n)
-  small$p05$coverage <- data.frame(n_covered = c(rep(24L, 116), rep(20L, 14), rep(0L, 6)))
-  attr(small$p05$coverage, "tally") <- list(
-    n_cohort = 136L, n_covered = 116L, n_insufficient = 14L, n_absent = 6L,
-    n_uncovered_at_index = 0L
-  )
-  small$p06$n_complete_case <- 116L
+  small$p05$coverage <- toy_coverage(114L, 16L, 6L)
+  small$p06$n_complete_case <- 114L
   r <- build_decision_report(small, title = "toy-small")
   expect_equal(audit_rows(r), 0L)
   ba <- r$tables$enrollment_by_arm
-  ## n_not_complete = 10 in each arm: both < 11, masked, and the rate (which would
-  ## return n_complete / n) is masked with them. Their sum, 20 = 136 - 116, is
-  ## not a small count, so the pair does not reveal either one.
+  ## A=0 n_not_complete = 10 < 11 is masked, and the rate (which would return
+  ## n_complete / n) with it; the pooled complement masks A=1's 12 (else
+  ## 22 - 12 = 10, or 76 - 64 = 12 minus a published total, would return it).
+  ## Their sum, 22 = 136 - 114, is not a small count.
   expect_true(all(is.na(ba$n_not_complete)))
   expect_true(all(is.na(ba$rate)))
-  expect_equal(ba$n_complete, c(50L, 66L))
-  ## absent = 6: masked together with insufficient (14, the smallest other part)
-  ## so that 136 - 116 - 14 does not return it.
+  expect_equal(ba$n_complete, c(50L, 64L))
+  ## absent = 6: masked together with insufficient (16, the smallest other part)
+  ## so that 136 - 114 - 16 does not return it.
   es <- stats::setNames(r$tables$enrollment.summary$n, r$tables$enrollment.summary$quantity)
   expect_true(is.na(es[["n_absent"]]))
   expect_true(is.na(es[["n_insufficient"]]))
-  expect_equal(es[["n_covered"]], 116L)
+  expect_equal(es[["n_covered"]], 114L)
   expect_false(6L %in% count_values(r))
+  ## The 24-month bucket is split by reason: 114 covered, absent masked.
+  bm <- r$tables$enrollment.by_months_covered
+  expect_equal(bm$n_patients[bm$reason == "covered"], 114L)
+  expect_true(is.na(bm$n_patients[bm$reason == "absent_from_flag_table"]))
 })
 
 test_that("a cohort-minus-final difference below 11 hides the cohort count everywhere", {
@@ -329,11 +347,7 @@ test_that("a cohort-minus-final difference below 11 hides the cohort count every
     cbind(tibble::tibble(ID = sprintf("p%03d", 1:130), A = 1L, prior_cost = 0),
           as.data.frame(matrix(0L, 130, 15, dimnames = list(NULL, design_matrix_columns())))),
     n_floored = 0L, floor_value = 0, cutpoints = c(p25 = 1, p50 = 2, p75 = 3))
-  near$p05$coverage <- data.frame(n_covered = c(rep(24L, 130), rep(20L, 6)))
-  attr(near$p05$coverage, "tally") <- list(
-    n_cohort = 136L, n_covered = 130L, n_insufficient = 6L, n_absent = 0L,
-    n_uncovered_at_index = 0L
-  )
+  near$p05$coverage <- toy_coverage(130L, 6L, 0L)
   near$p05$by_arm <- tibble::tibble(
     A = c(0L, 1L), n = c(60L, 76L), n_complete = c(56L, 74L), n_unresolved = c(0L, 0L)
   ) |> dplyr::mutate(rate = .data$n_complete / .data$n)
@@ -351,9 +365,15 @@ test_that("a cohort-minus-final difference below 11 hides the cohort count every
   expect_equal(rn$tables$costs_final_sample$n_patients, c(130L, 130L))
   expect_false(has_small_difference(c(rn$tables$flow$n, 150L)))
   ## claim lines: the six excluded patients have six lines (prior_cost window:
-  ## 155 - 149 = 6), so the cohort table's count is masked as well.
+  ## cohort 136 + 19 = 155 vs final 130 + 19 = 149, a difference of 6). The
+  ## declared gap hides the inner (final-sample) count; the cohort's 155 stays.
   co <- rn$tables$costs_cohort
-  expect_true(is.na(co$n_claims[co$window == "prior_cost"]))
+  cf <- rn$tables$costs_final_sample
+  expect_true(is.na(cf$n_claims[cf$window == "prior_cost"]))
+  expect_equal(co$n_claims[co$window == "prior_cost"], 155L)
+  ## outcome: 2 * 136 + 12 = 284 vs 2 * 130 + 12 = 272, a difference of 12: both shown.
+  expect_equal(c(co$n_claims[co$window == "outcome"], cf$n_claims[cf$window == "outcome"]),
+               c(284L, 272L))
 })
 
 test_that("a service category with 5 claim lines is masked and not recoverable from the window total", {
@@ -367,12 +387,79 @@ test_that("a service category with 5 claim lines is masked and not recoverable f
   o <- ca[ca$window == "outcome" & !ca$excluded, ]
   expect_true(is.na(o$n_claims[o$setting == "Dental"]))
   ## 289 - 136 - 148 = 5 would return it, so another part of the identity is
-  ## masked as well (the smallest other published count, Inpatient's 136).
+  ## masked as well (the smallest other published count, Inpatient's 136). Five
+  ## lines are also five PATIENTS (p001-p005), so the patient counts are masked too.
   expect_true(is.na(o$n_claims[o$setting == "Inpatient"]))
   expect_false(5L %in% count_values(rd))
   ## the masked parts sum to 141, not a small count.
   co <- rd$tables$costs_cohort
   expect_equal(co$n_claims[co$window == "outcome"], 289L)
+})
+
+test_that("a category with 1 patient and 40 claim lines is masked on patients, not lines", {
+  ## 40 extra "Dental" lines, all p001's: 40 >= 11 lines but ONE patient. Category
+  ## rows are suppressed on n_patients, so the patient count (1) is masked, with
+  ## the pooled complement (Inpatient's 136, the smallest other positive), and the
+  ## row's dollars (40 * 40 = 1,600) and share are withheld. The line count 40 is
+  ## itself >= 11 and is published (smidata masks each count column on its own).
+  extra <- tibble::tibble(ID = rep("p001", 40), SRV_DT = as.Date("2020-07-01"),
+                          AMOUNT_PAID = 40, SS_DESC = "Dental")
+  rd <- build_decision_report(toy_report_inputs(extra_outcome_claims = extra), title = "toy-dental1")
+  expect_equal(audit_rows(rd), 0L)
+  ca <- rd$tables$cost_categories
+  d <- ca[ca$window == "outcome" & ca$setting == "Dental", ]
+  expect_equal(nrow(d), 1L)
+  expect_true(is.na(d$n_patients))
+  expect_equal(d$n_claims, 40L)
+  expect_true(all(is.na(d[c("gross_positive", "net_dollars", "share_of_window_net")])))
+  expect_false(1600 %in% unlist(ca[c("gross_positive", "net_dollars")]))
+  ## Inpatient's patients (136) is the pooled complement; its dollars are masked too.
+  expect_true(is.na(ca$n_patients[ca$setting == "Inpatient" & ca$window == "outcome"]))
+  expect_true(is.na(ca$net_dollars[ca$setting == "Inpatient" & ca$window == "outcome"]))
+  ## Window outcome lines: 136 + 148 + 40 = 324, shown in costs_cohort.
+  expect_equal(rd$tables$costs_cohort$n_claims[rd$tables$costs_cohort$window == "outcome"], 324L)
+})
+
+test_that("a published count below 11 in a declared count column is a small_cell violation", {
+  bad <- rep_toy
+  bad$tables$msr_filter$n[1] <- 7L        # the masked 7 (non-SAA rows) put back
+  v <- smidata::smi_report_audit(bad, abort = FALSE)
+  expect_true("small_cell" %in% v$kind)
+  expect_true(any(v$table == "msr_filter" & v$col == "n" & v$kind == "small_cell"))
+  expect_error(smidata::smi_report_audit(bad), "disclosure audit")
+})
+
+test_that("bad stage inputs abort rather than publish a difference", {
+  ## NA INDEX_DT: the INDEX_DT-day split would drop the patient.
+  na_dt <- toy
+  na_dt$p02$index_dt$INDEX_DT[1] <- as.Date(NA)
+  expect_error(build_decision_report(na_dt), "INDEX_DT")
+  ## A patient absent from index_dt.
+  gone <- toy
+  gone$p02$index_dt <- gone$p02$index_dt[-1, ]
+  expect_error(build_decision_report(gone), "INDEX_DT")
+  ## Duplicate IDs in the selection.
+  dup <- toy
+  dup$p02$selection <- rbind(dup$p02$selection, dup$p02$selection[1, ])
+  expect_error(build_decision_report(dup), "unique")
+})
+
+test_that("a filtered cost table is refused: its setting summary describes the original", {
+  filt <- toy
+  filt$p03$cost <- filt$p03$cost[filt$p03$cost$id %in% sprintf("p%03d", 1:100), ]
+  expect_error(build_decision_report(filt), "filtered or modified")
+})
+
+test_that("blank_cell() blanks a derived column only when the blanked count is its source", {
+  tb0 <- smidata::smi_report_tag(
+    tibble::tibble(k = c("x", "y"), n_a = c(50L, 60L), n_b = c(70L, 80L), r = c(.5, .6)),
+    n_cols = c("n_a", "n_b"), derived_cols = "r", derived_from = list(r = "n_a")
+  )
+  out <- blank_cell(list(t = tb0), smidata::smi_cell("t", "n_b", k = "y"))$t
+  expect_equal(out$n_b, c(70L, NA))
+  expect_equal(out$r, c(.5, .6))                 # r depends on n_a only
+  out <- blank_cell(list(t = tb0), smidata::smi_cell("t", "n_a", k = "y"))$t
+  expect_equal(out$r, c(.5, NA))
 })
 
 test_that("prior_cost floor, bins and cut points (hand-calculated)", {
@@ -382,10 +469,11 @@ test_that("prior_cost floor, bins and cut points (hand-calculated)", {
   pf <- tb$prior_cost_floor
   v <- stats::setNames(pf$n, pf$quantity)
   expect_equal(v[["n_final"]], 100L)
-  expect_equal(v[["n_negative_prior_cost_floored"]], 19L)
+  expect_equal(v[["n_prior_cost_at_floor_after_flooring"]], 20L)
   ## 20 at the floor - 19 floored = 1 patient with raw prior_cost exactly 0: a
-  ## small cell recoverable from the two counts, so the at-floor count is hidden.
-  expect_true(is.na(v[["n_prior_cost_at_floor_after_flooring"]]))
+  ## small cell recoverable from the two counts. smi_gap hides the inner (smaller)
+  ## end, the floored count.
+  expect_true(is.na(v[["n_negative_prior_cost_floored"]]))
   ## Sorted floored values: x[1..20] = 0 and x[20 + m] = 100 m. Type-7 quantile
   ## position h = 1 + 99 p: p25 h = 25.75 -> x[25] + .75 (x[26] - x[25]) =
   ## 500 + .75 * 100 = 575; p50 h = 50.5 -> 3,000 + .5 * 100 = 3,050; p75 h =
@@ -518,7 +606,7 @@ test_that("the toy report exports through smi_report_export() into a temporary o
   expect_equal(nrow(recs), length(rep_toy$tables))
   ## A report that fails its audit is refused at the door.
   bad <- rep_toy
-  bad$tables$prior_cost_floor$n[3] <- 20L      # un-mask the at-floor count: 20 - 19 = 1
+  bad$tables$prior_cost_floor$n[2] <- 19L      # un-mask the floored count: 20 - 19 = 1
   expect_error(smidata::smi_report_export(bad, "doubletree-bad"), "disclosure audit")
 })
 
