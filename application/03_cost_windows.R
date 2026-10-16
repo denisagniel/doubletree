@@ -45,6 +45,7 @@
 app_dir <- if (dir.exists("application")) "application" else "."
 source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "period_start.R"))
+source(file.path(app_dir, "helpers", "disclosure.R"))
 source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
 

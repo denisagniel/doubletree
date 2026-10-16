@@ -49,6 +49,7 @@ source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "covariate_blocks.R"))
 source(file.path(app_dir, "helpers", "discretize_prior_cost.R"))
 source(file.path(app_dir, "helpers", "design_matrix.R"))
+source(file.path(app_dir, "helpers", "disclosure.R"))
 source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
 

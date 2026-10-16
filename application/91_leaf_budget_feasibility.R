@@ -62,6 +62,7 @@
 
 app_dir <- if (dir.exists("application")) "application" else "."
 source(file.path(app_dir, "_config.R"))
+source(file.path(app_dir, "helpers", "covariate_blocks.R"))
 source(file.path(app_dir, "helpers", "design_matrix.R"))
 
 cli::cli_h1("91 -- leaf_budget feasibility probe (NOT a reportable estimate)")
