@@ -245,7 +245,10 @@ fit_cf <- doubletree::estimate_att_crossfit(
   X = X, A = A, Y = Y,
   K = config_crossfit_k,
   outcome_type = "continuous",
-  seed = config_seed
+  seed = config_seed,
+  model_limit = 0L           # same override as the flagship call above: X is
+                              # already binary, so fit_tree()'s 465-feature
+                              # worst-case-continuous estimate is spurious
 )
 
 cli::cli_h2("estimate_att_crossfit() -- companion, no sparsity requirement")

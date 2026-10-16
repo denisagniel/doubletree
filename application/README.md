@@ -137,6 +137,7 @@ oversight:
 | `07_estimate_att.R` | yes (needs real analytic data) | Gate (`assert_no_blocking_open()`) is the first statement after config — the only place it still runs, as of 2026-09-24 (moved out of `06`); now a live regression guard, since all decisions are confirmed. Reads the un-suffixed `analytic_cohort.parquet` (aborts by name if only the `_PROVISIONAL` file exists). Runs both estimators, prints whether the confirmed `diagnostics` licence holds (`certified_e && certified_m0`) without auto-switching on it, and reports their discrepancy. Writes `output/att_estimates.parquet`, `att_diagnostics.parquet`, `att_provenance.csv` and `att_fits.rds`. |
 | `run_pipeline.R` | yes | New 2026-09-24. Convenience only (sources `01`–`07` in order) — every script is independently runnable via its own `require_stage()` cascade; this just saves typing seven commands. |
 | `helpers/decision_report.R` | yes (tested) | Review-report plumbing: `report_record()` (how `02`/`03`/`05`/`06` save their counts), `summarise_design()`, `design_patterns()`, `report_levers()` (levers read from `_config.R`'s own objects), `build_decision_report()`, and `toy_report_inputs()` (hand-calculated toy intermediates). |
+| `helpers/disclosure.R` | yes (tested) | Masking helpers smidata lacks (`mask_counts_primary()`, `mask_counts_partition()`, `tag_report_table()`) and `tier1_saa_report()`; the identity-aware disclosure logic itself is smidata's (`smi_report()`, `smi_identity()`, `smi_gap()`, `smi_coarsen_flow()`). The project's former `hide_small_gaps()` / `coarsen_flow()` / `mask_partition_cells()` / `mask_binary_split()` / `tier1_disclosable_*()` were deleted. |
 | `08_decision_report.R` | yes (toy off-server) | New 2026-10-15. Builds the review report from the intermediates `02`/`03`/`05`/`06` save to `output/report_inputs/`; see "Review report" below. Exports through `smi_report_export()` only when `smidata::smi_is_server()`. |
 | `90_checks_tier1.R` | no | Server-only. Checks 1, 2 (partly) and 4 reference dual-bounds' (comment spec); checks 3, 5 and 6 are this paper's own and executable (`_YN` coding/prevalence, cost-file coverage, msr_saa convention and exact-start sizes), exporting through `smi_export()`. Aborts locally. Check 4 (added 2026-09-24) verifies the `enrollment_source` TYPE-ignore default's prerequisite. |
 | `91_leaf_budget_feasibility.R` | yes (needs real analytic data) | New 2026-09-28. STANDALONE, NOT gated by `assert_no_blocking_open()` and NOT part of the 01–07 cascade — times `estimate_att()` alone at `config_leaf_budget` on the real analytic data and reports elapsed time. Reads the reportable `analytic_cohort.parquet` first, falls back to `analytic_cohort_PROVISIONAL.parquet` with an explicit warning (order reversed 2026-09-30 when `diagnostics` resolved — preferring PROVISIONAL unconditionally would silently time a stale cohort). Informational only; never a reportable estimate. Added after benchmarking `leaf_budget = 15` (raised from 4, PI 2026-09-28) on the 400-row Tier-0 toy fixture: 4.8s at `leaf_budget = 4`, 94.5s at `6`, still running past 5+ minutes at `15` (killed) — the real cohort's `07` risks discovering an infeasible budget only after `03`'s multi-hour cost-streaming pass. Invoke wrapped in the shell's `timeout` (the real bound; this script's own `setTimeLimit()` is best-effort only against optimaltrees' compiled C++ search — see the file's own header): `timeout 900 Rscript application/91_leaf_budget_feasibility.R`. |
@@ -150,14 +151,31 @@ already computes as it runs (`02` the attrition steps and the period selection, 
 object with its `setting_summary` attribute, `05` the enrollment coverage, `06` the final-sample
 design counts) to `application/output/report_inputs/*.rds` (gitignored, local, never exported).
 `08` reads those files, takes the levers from `_config.R`'s own objects (so the report cannot drift
-from the code), and builds smidata's decision-report tables plus this paper's own. Every cell is
-suppressed at n < 11, and a count that would be the difference of two published counts is not
-published at all (`helpers/disclosure.R`: a small attrition step is merged into the next step, a
-table that decomposes a hidden count is withheld). The by-lag-by-arm enrollment cells and the
-quartile-dummy rows of the prevalence table are not published separately for the same reason.
-This is a guard, not a proof: smidata's `smi_suppress()` does not cover differences across
-tables, so read the rendered report before releasing it. No minimum, maximum or single-patient
-value is reported.
+from the code), and builds smidata's decision-report tables plus this paper's own.
+
+**What the audit guarantees.** Every cell below 11 is masked. `build_decision_report()` then
+declares the arithmetic between the published counts (`smidata::smi_identity()`, `smi_gap()`):
+every count published in more than one table (a flow step against the cost, enrollment and
+final-sample tables; eligible against its split; the final sample against the arm, bin and
+prevalence tables), every total beside its breakdown (cohort = covered + insufficient + absent,
+`n_yes + n_no` = final sample, the cost table's claim, negative, missing-amount and excluded lines
+against the category table), and every difference of two nested counts (cohort minus final sample,
+cohort minus known cost, at the prior-cost floor minus floored). `smidata::smi_report()` masks
+further cells until no declared identity returns a masked value, then audits. The audit guarantees
+that **no masked value is determined by the published cells through the declared identities**, and
+that no declared sum of masked parts or declared difference of published counts is a count of 1..10.
+It does **not** cover identities nobody declared, dollar dominance (a cost total dominated by one
+patient inside a large group), or a masked cell narrowed to a range inside 1..10. The report's
+header line says how many identities were audited and how many further cells the repair step
+masked. Read the rendered report before releasing it; "audited" is not "safe to export". No
+minimum, maximum or single-patient value is reported.
+
+Where a count would otherwise have to be masked in several tables, it is published once or not at
+all: a small attrition step is merged into the next one (`smi_coarsen_flow()`), eligible is
+published in `measure_period.summary` so no flow count may sit within 10 of it (that step is merged
+too), a count the flow does not publish is blanked in every other table, and the `n_matched`
+column of `coverage_by_window`, the lag-by-arm enrollment cells and the quartile-dummy rows of the
+prevalence table are not published separately.
 
 ```
 Rscript application/run_pipeline.R          # 01-07, then 08 (or run 08 alone after 06)
@@ -173,14 +191,14 @@ environments abort the build.
 | Lever / question | Where it is evidenced (report table) |
 |---|---|
 | Period rule (`s`, exact start, anchor), `MSR_DEN < 1` drop, achievement threshold, measure code, windows, cost policy, cost families, MCI rule, enrollment rule, floor, bins, covariate set, winsorizing / provider attribution (not applicable) | "Levers in force" (read from `_config.R`) |
-| Every exclusion step, base table to analytic sample, with reasons | `flow` |
-| SAA cohort: exact-start matches, unmatched, `MSR_DEN < 1`, eligible, achieved; by period-start month; `INDEX_DT` on the 1st vs later | `measure_period.summary`, `.by_period_start`, `.index_day` |
-| Cost-file coverage exclusions, per window | `coverage_by_window` |
+| Every exclusion step, base table to analytic sample, with reasons (small steps merged into the next, text kept) | `flow` (now with a `step_no` column) |
+| SAA cohort: eligible, split achieved / not achieved; by period-start month; `INDEX_DT` on the 1st vs later. Patients, exact-start matches, unmatched and `MSR_DEN < 1` are steps of `flow` (published once, merged when small) | `measure_period.summary` (`eligible`, `eligible_not_achieved`, `eligible_achieved`), `.by_period_start`, `.index_day`, `flow` |
+| Cost-file coverage exclusions, per window (patients not fully covered; the matched denominator is the `flow` step) | `coverage_by_window` |
 | Non-SAA `msr_saa` rows excluded; rows for IDs outside the cohort | `msr_filter` |
 | Negative lines and dollars, cells with negative or zero totals, missing amounts, MCI lines excluded, distribution (p01-p99), prior vs outcome window | `costs_cohort` (analysis cohort), `costs_final_sample` (final sample) |
 | Service-setting breakdown with net dollars and shares | `cost_categories` (analysis cohort; the attribute cannot be restricted) |
 | Patients with a known `Y` / `prior_cost` | `cost_known` |
-| Complete case over `[s, s+24mo)` and its attrition: covered, insufficient, absent; months covered; by `T0` lag and arm; by arm | `enrollment.summary`, `enrollment.by_months_covered`, `enrollment_by_lag_arm`, `enrollment_by_arm`, and the last two `flow` steps |
+| Complete case over `[s, s+24mo)` and its attrition: covered, insufficient, absent; months covered; by `T0` lag and arm; by arm | `enrollment.summary`, `enrollment.by_months_covered`, `enrollment_by_arm` (the by-lag-by-arm cells are not published), and the last two `flow` steps |
 | `prior_cost` floor: cells floored at 0, cells at the floor | `prior_cost_floor` |
 | Quartile cut points and the count in each bin | `prior_cost_cutpoints`, `prior_cost_bins` |
 | 15-covariate binary design degeneracy: prevalence of each `_YN` covariate (incl. `VAR5D_SZ_YN`, `VAR9E_ANTIPSY_YN`) in the final sample, realized patterns of the 2^15 grid | `design_prevalence`, `design_grid` |
@@ -188,8 +206,21 @@ environments abort the build.
 
 Not covered, and why: the costs tables describe the analysis cohort (everyone before the complete-case
 filter) and the final sample, not the complete-case-only cohort in `cost_categories`, because
-smidata's category table is read from an attribute of the unmodified cost object. Tests:
-`tests/test-decision-report.R` (hand-calculated toy values).
+smidata's category table is read from an attribute of the unmodified cost object. The final-sample
+cost table has no category table, so its claim, negative and missing-amount lines are linked to the
+cohort table by gaps, not by a breakdown. Tests: `tests/test-decision-report.R` (hand-calculated toy
+values and perturbed fixtures: a `MSR_DEN < 1` count of 5, a flow step of 5, a 6-patient
+cohort-minus-final difference, a small arm cell, a 5-line service category, a small `_YN` split) and
+`tests/test-disclosure.R` (the Tier-1 report).
+
+**Tier-1 exports (`90_checks_tier1.R`).** Every table now leaves through `smi_report()` ->
+`smi_report_export()`, named `doubletree_tier1__<table>` (it was `doubletree_tier1_<table>`).
+The exact-start sizes, the MSR_YR offsets, the gap-by-offset table and the `_YN` prevalence table
+publish related counts (an arm size is the sum of a column's yes / no / NA cells; the chain with-rows
+>= matched >= eligible; the nearest-period match counts contain the exact-start ones), so they are
+**one** audited report, written once by whichever of CHECK 6 / CHECK 3 runs first (the other no
+longer writes them again). `yn_coding` and `file_coverage` are independent counts: primary
+suppression, no declared identities, so only the per-cell guarantee applies to them.
 
 ## What the package does not check for you
 

@@ -8,10 +8,14 @@
 ##
 ## Run on the server:   Rscript application/90_checks_tier1.R
 ## It aborts on a local machine (Tier 0 is run_tests.R). Tables go out through
-## smidata::smi_export(), which suppresses declared count columns with n < 11.
-## That protects each exported cell, NOT differences between cells or tables
-## (smidata documents this as out of scope), so the exports here are built from
-## DISJOINT bands and declared complements. Console output on the server is
+## smidata::smi_report() -> smi_report_export() -> smi_export(). smi_export()
+## suppresses declared count columns with n < 11, which protects each cell but NOT
+## differences between cells or tables; so the tables that publish related counts
+## are declared as identities (smi_identity(), smi_gap()) and resolved + audited
+## together by smi_report() (helpers/disclosure.R::tier1_saa_report(): sizes,
+## MSR_YR offsets, gap-by-offset and _YN prevalence are ONE report, exported
+## together by whichever of CHECK 6 / CHECK 3 runs first). The audit covers only
+## the declared identities; see the README. Console output on the server is
 ## unsuppressed and stays on the server.
 ##
 ## "Tier 1" is smidata's middle tier: run on the server against a real
@@ -288,10 +292,22 @@ source(file.path(app_dir, "helpers", "disclosure.R"))
 ## (about the cost of 03's file pass), so a late failure there costs nothing.
 config_tier1_checks <- c("saa_convention", "yn_columns", "file_coverage")
 
-tier1_export <- function(x, name, n_cols, derived_cols = NULL) {
-  smidata::smi_export(
-    x, name = name, kind = "table", n_cols = n_cols, derived_cols = derived_cols
-  )
+## Build, resolve, audit and export a report (the only way the Tier-1 tables leave
+## the server). Exported stems are `doubletree_tier1__<table>`.
+tier1_publish <- function(report) {
+  smidata::smi_report_export(report, prefix = "doubletree_tier1")
+}
+
+## CHECK 6 and CHECK 3 publish related counts (arm sizes vs _YN cells; the
+## exact-start chain), so both are exported from ONE audited report, built from
+## the raw pieces each check leaves in tier1_data and exported once.
+tier1_publish_saa_once <- function() {
+  if (isTRUE(tier1_data$saa_published)) return(invisible(NULL))
+  report <- tier1_saa_report(tier1_by_band(), tier1_rel_bands(), tier1_by_offset(),
+                             tier1_prevalence())
+  tier1_publish(report)
+  tier1_data$saa_published <- TRUE
+  invisible(report)
 }
 
 tier1_show <- function(x) cli::cli_verbatim(utils::capture.output(print(x, n = Inf)))
@@ -348,14 +364,12 @@ tier1_select_saa_any_period <- function(target_offset_months, max_month_gap) {
 
 ## ---- CHECK 6 ----------------------------------------------------------------
 
-tier1_check_saa_convention <- function() {
-  cli::cli_h2("CHECK 6 -- msr_saa exposure convention and exact-start sizes")
+## The raw (unsuppressed) pieces CHECK 6 reports, each computed once and kept in
+## tier1_data so the combined export (tier1_publish_saa_once) can build them
+## whichever of CHECK 6 / CHECK 3 runs first.
+tier1_rel_bands <- function() {
+  if (!is.null(tier1_data$rel_bands)) return(tier1_data$rel_bands)
   d <- tier1_load()
-
-  ## (i) EVIDENCE on the MSR_YR convention. If periods are anchored to each
-  ## patient's index, the distribution of (period start - INDEX_DT month) has its
-  ## mass at 0 under START and at -12 under END. If periods are calendar-anchored
-  ## and recur every year, it cannot tell the two apart.
   ## msr_saa rows for IDs outside the cohort are expected and ignored, exactly as
   ## in 02; they have no INDEX_DT to compare against.
   idx <- dplyr::select(d$base, "ID", "INDEX_DT")
@@ -369,12 +383,55 @@ tier1_check_saa_convention <- function() {
   joined <- dplyr::inner_join(dplyr::select(saa_in, "ID"), idx, by = "ID")
   rel <- smidata::smi_month_index(parsed$yyyy, parsed$mm) -
     smidata::smi_month_index(lubridate::year(joined$INDEX_DT), lubridate::month(joined$INDEX_DT))
-  rel_bands <- tibble::tibble(
+  tier1_data$rel_bands <- tibble::tibble(
     band = cut(rel, c(-Inf, -13, -12, -2, -1, 0, 1, 11, 12, Inf),
                labels = c("<= -13", "-12", "-11..-2", "-1", "0", "1", "2..11", "12", ">= 13")),
   ) |>
     dplyr::count(.data$band, name = "n_rows") |>
     dplyr::mutate(band = as.character(.data$band))
+  tier1_data$rel_bands
+}
+
+tier1_by_offset <- function() {
+  if (!is.null(tier1_data$by_offset)) return(tier1_data$by_offset)
+  tier1_data$by_offset <- lapply(c(0L, 12L), function(off) {
+    sel <- tier1_select_saa_any_period(off, Inf)
+    tibble::tibble(
+      target_offset_months = as.character(off), n_matched = sum(sel$matched),
+      median_gap = stats::median(sel$month_gap, na.rm = TRUE),
+      p90_gap = unname(stats::quantile(sel$month_gap, 0.9, na.rm = TRUE)),
+      share_abs_gap_le_1 = mean(sel$month_gap <= 1L, na.rm = TRUE)
+    )
+  }) |> dplyr::bind_rows()
+  tier1_data$by_offset
+}
+
+## Cohort and arm sizes under the exact-start rule 02 uses. There is no gap
+## cutoff to tune any more: a patient either has a period starting exactly at s or
+## is dropped, so this is one DECLARED row, not a table of bands.
+tier1_by_band <- function() {
+  if (!is.null(tier1_data$by_band)) return(tier1_data$by_band)
+  d <- tier1_load()
+  chosen <- tier1_select_saa()
+  tier1_data$by_band <- tibble::tibble(
+    n_with_saa_rows = sum(d$base$ID %in% d$saa$ID),
+    n_matched = sum(chosen$matched),
+    n_elig = sum(chosen$elig %in% TRUE),
+    n_treated = sum(chosen$elig %in% TRUE & chosen$achieved %in% TRUE),
+    n_control = sum(chosen$elig %in% TRUE & chosen$achieved %in% FALSE),
+    n_achieved_na = sum(chosen$elig %in% TRUE & is.na(chosen$achieved))
+  )
+  tier1_data$by_band
+}
+
+tier1_check_saa_convention <- function() {
+  cli::cli_h2("CHECK 6 -- msr_saa exposure convention and exact-start sizes")
+
+  ## (i) EVIDENCE on the MSR_YR convention. If periods are anchored to each
+  ## patient's index, the distribution of (period start - INDEX_DT month) has its
+  ## mass at 0 under START and at -12 under END. If periods are calendar-anchored
+  ## and recur every year, it cannot tell the two apart.
+  rel_bands <- tier1_rel_bands()
   cli::cli_alert_info(
     "All msr_saa rows by (period start - INDEX_DT month). Mass at 0 supports the
      START reading, mass at -12 the END reading. If rows spread across all
@@ -384,34 +441,15 @@ tier1_check_saa_convention <- function() {
   )
   tier1_show(rel_bands)
 
-  by_offset <- lapply(c(0L, 12L), function(off) {
-    sel <- tier1_select_saa_any_period(off, Inf)
-    tibble::tibble(
-      target_offset_months = as.character(off), n_matched = sum(sel$matched),
-      median_gap = stats::median(sel$month_gap, na.rm = TRUE),
-      p90_gap = unname(stats::quantile(sel$month_gap, 0.9, na.rm = TRUE)),
-      share_abs_gap_le_1 = mean(sel$month_gap <= 1L, na.rm = TRUE)
-    )
-  }) |> dplyr::bind_rows()
+  by_offset <- tier1_by_offset()
   cli::cli_alert_info(
     "|month_gap| of the nearest period under each reading of MSR_YR (offset 0 =
      START, 12 = END). Informative only if the readings differ materially."
   )
   tier1_show(by_offset)
 
-  ## (ii) Cohort and arm sizes under the exact-start rule 02 uses. There is no
-  ## gap cutoff to tune any more: a patient either has a period starting exactly
-  ## at s or is dropped, so this is one DECLARED row, not a table of bands.
-  chosen <- tier1_select_saa()
-  n_with_rows <- sum(d$base$ID %in% d$saa$ID)
-  by_band <- tibble::tibble(
-    n_with_saa_rows = n_with_rows,
-    n_matched = sum(chosen$matched),
-    n_elig = sum(chosen$elig %in% TRUE),
-    n_treated = sum(chosen$elig %in% TRUE & chosen$achieved %in% TRUE),
-    n_control = sum(chosen$elig %in% TRUE & chosen$achieved %in% FALSE),
-    n_achieved_na = sum(chosen$elig %in% TRUE & is.na(chosen$achieved))
-  )
+  ## (ii) Cohort and arm sizes.
+  by_band <- tier1_by_band()
   cli::cli_alert_info(
     "SAA-matched (a period starting exactly at s), eligible (MSR_DEN >= 1) and
      arm sizes, BEFORE the coverage filter and the complete-case restriction.
@@ -422,47 +460,22 @@ tier1_check_saa_convention <- function() {
   )
   tier1_show(by_band)
 
-  ## Exported form. with_rows >= matched >= elig is a chain, and treated + control
-  ## + na = elig is a partition; smi_export() masks cells, not their differences.
-  by_band_out <- tier1_disclosable_sizes(by_band)
-  tier1_export(by_band_out, "doubletree_tier1_exact_start_sizes",
-               n_cols = c("n_with_saa_rows", "n_matched", "n_elig", "n_treated",
-                          "n_control", "n_achieved_na"))
-  tier1_export(rel_bands, "doubletree_tier1_msr_yr_offsets", n_cols = "n_rows")
-  tier1_export(by_offset, "doubletree_tier1_gap_by_offset",
-               n_cols = "n_matched",
-               derived_cols = c("median_gap", "p90_gap", "share_abs_gap_le_1"))
+  ## Exported with CHECK 3's prevalence table as ONE audited report: with_rows >=
+  ## matched >= elig is a chain, treated + control + NA = elig is a partition and
+  ## each arm size is the sum of a _YN column's yes / no / NA cells.
+  tier1_publish_saa_once()
   invisible(list(by_offset = by_offset, by_band = by_band, rel_bands = rel_bands))
 }
 
 ## ---- CHECK 3 (a)-(c), (d) cross-tab, (f) -------------------------------------
 
-tier1_check_yn_columns <- function() {
-  cli::cli_h2("CHECK 3 -- the 12 _YN columns")
+## Prevalence of each binary _YN column in the SAA-eligible cohort, by arm. The
+## raw (unsuppressed) table; NULL when no column is coded 0/1.
+tier1_prevalence <- function() {
+  if (!is.null(tier1_data$prevalence_done)) return(tier1_data$prevalence)
   d <- tier1_load()
   yn_cols <- d$yn_cols
   cov <- d$base
-  missing_cols <- setdiff(yn_cols, names(cov))
-  if (length(missing_cols) > 0L) {
-    cli::cli_abort("larger_smi_covariates is missing {.field {missing_cols}}.")
-  }
-
-  coding <- tibble::tibble(
-    column = yn_cols,
-    class = vapply(cov[yn_cols], function(x) class(x)[[1]], character(1)),
-    n_missing = vapply(cov[yn_cols], function(x) sum(is.na(x)), integer(1))
-  ) |> dplyr::mutate(na_rate = .data$n_missing / nrow(cov))
-  value_sets <- vapply(cov[yn_cols], function(x) {
-    paste(sort(unique(as.character(x)), na.last = TRUE), collapse = "|")
-  }, character(1))
-  cli::cli_alert_info(
-    "(a)/(b) Coding and missingness over the full table. Anything other than
-     0|1 is a mis-coded flag (1|2 has two distinct values and is wrong); a
-     non-trivial missing rate on a Z-code flag is a new PI decision. The value
-     sets are console-only (a rare stray code would be a small cell)."
-  )
-  tier1_show(dplyr::mutate(coding, values = unname(value_sets)))
-
   cohort <- tier1_select_saa() |>
     dplyr::filter(.data$elig %in% TRUE) |>
     dplyr::select("ID", A = "achieved") |>
@@ -490,17 +503,46 @@ tier1_check_yn_columns <- function() {
       n_yes_treated = count_cell(v, TRUE, 1L), n_no_treated = count_cell(v, TRUE, 0L),
       n_na_treated = count_cell(v, TRUE, NA_integer_)
     )
-  }) |> dplyr::bind_rows() |>
+  }) |> dplyr::bind_rows()
+  if (nrow(prevalence) > 0L) prevalence <- prevalence |>
     dplyr::mutate(
       prevalence_control = .data$n_yes_control / (.data$n_yes_control + .data$n_no_control),
       prevalence_treated = .data$n_yes_treated / (.data$n_yes_treated + .data$n_no_treated)
     )
-  ## Exported form: disjoint cells only (yes / no / NA within each arm). The
-  ## overall counts are not exported (they are the sums of the two arms), and the
-  ## arm sizes are published in doubletree_tier1_exact_start_sizes, so a small
-  ## cell is masked together with a complementary cell of its (column, arm)
-  ## partition, and the prevalence derived from a masked cell is masked.
-  prevalence_out <- tier1_disclosable_prevalence(prevalence)
+  tier1_data$cohort <- cohort
+  tier1_data$prevalence <- if (nrow(prevalence) > 0L) prevalence else NULL
+  tier1_data$prevalence_done <- TRUE
+  tier1_data$prevalence
+}
+
+tier1_check_yn_columns <- function() {
+  cli::cli_h2("CHECK 3 -- the 12 _YN columns")
+  d <- tier1_load()
+  yn_cols <- d$yn_cols
+  cov <- d$base
+  missing_cols <- setdiff(yn_cols, names(cov))
+  if (length(missing_cols) > 0L) {
+    cli::cli_abort("larger_smi_covariates is missing {.field {missing_cols}}.")
+  }
+
+  coding <- tibble::tibble(
+    column = yn_cols,
+    class = vapply(cov[yn_cols], function(x) class(x)[[1]], character(1)),
+    n_missing = vapply(cov[yn_cols], function(x) sum(is.na(x)), integer(1))
+  ) |> dplyr::mutate(na_rate = .data$n_missing / nrow(cov))
+  value_sets <- vapply(cov[yn_cols], function(x) {
+    paste(sort(unique(as.character(x)), na.last = TRUE), collapse = "|")
+  }, character(1))
+  cli::cli_alert_info(
+    "(a)/(b) Coding and missingness over the full table. Anything other than
+     0|1 is a mis-coded flag (1|2 has two distinct values and is wrong); a
+     non-trivial missing rate on a Z-code flag is a new PI decision. The value
+     sets are console-only (a rare stray code would be a small cell)."
+  )
+  tier1_show(dplyr::mutate(coding, values = unname(value_sets)))
+
+  prevalence <- tier1_prevalence()
+  cohort <- tier1_data$cohort
   cli::cli_alert_info(
     "(c)/(f) Prevalence in the SAA-eligible cohort ({nrow(cohort)} patients,
      before the coverage filter), by arm (console only: unmasked counts). Near 0 or near 1 spends a
@@ -520,11 +562,12 @@ tier1_check_yn_columns <- function() {
     VAR9E_ANTIPSY_YN = as.character(.data$VAR9E_ANTIPSY_YN)
   ))
 
-  tier1_export(coding, "doubletree_tier1_yn_coding",
-               n_cols = "n_missing", derived_cols = "na_rate")
-  count_cols <- grep("^n_", names(prevalence_out), value = TRUE)
-  tier1_export(prevalence_out, "doubletree_tier1_yn_prevalence", n_cols = count_cols,
-               derived_cols = c("prevalence_control", "prevalence_treated"))
+  tier1_publish(smidata::smi_report(
+    "doubletree Tier-1: _YN coding",
+    yn_coding = mask_counts_primary(coding, "n_missing", "na_rate"),
+    identities = list()
+  ))
+  tier1_publish_saa_once()
   invisible(list(coding = coding, prevalence = prevalence))
 }
 
@@ -620,9 +663,15 @@ tier1_check_file_coverage <- function(cost_sources = COST_SOURCES) {
     )
   }
 
-  tier1_export(spans, "doubletree_tier1_file_coverage",
-               n_cols = c("n_claims", "n_missing_date", "n_outside_year", "n_mci"),
-               derived_cols = "mci_dollars")
+  ## Independent per-file counts (no totals are exported): primary suppression,
+  ## and the dollars of a masked MCI count are masked with it.
+  tier1_publish(smidata::smi_report(
+    "doubletree Tier-1: cost-file coverage",
+    file_coverage = mask_counts_primary(
+      spans, c("n_claims", "n_missing_date", "n_outside_year", "n_mci"), "mci_dollars"
+    ),
+    identities = list()
+  ))
   invisible(list(spans = spans, runout = runout))
 }
 

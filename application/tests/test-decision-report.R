@@ -5,6 +5,15 @@
 ## toy intermediates from toy_report_inputs(). Every expected value is
 ## HAND-CALCULATED in a comment; none is copied from a run.
 ##
+## DISCLOSURE. build_decision_report() hands smidata::smi_report() the identities
+## it declares between published counts; smi_report() masks further cells until
+## none returns a masked value, then audits. These tests assert (1) the audit
+## passes on the toy and on every perturbed fixture, (2) the small value in the
+## fixture is masked or not published at all, and (3) it is not the difference of
+## two published counts, which is checked here by explicit subtraction as well as
+## by the audit. The audit covers only DECLARED identities; (3) is a second,
+## independent look at the cases the fixtures were built around.
+##
 ## Toy design (see toy_report_inputs() for the construction):
 ##   02: 200 base patients p001-p200; p001-p100 INDEX_DT 2020-03-01, p101-p200
 ##       2020-03-15. SAA rows p001-p180; a period starting exactly at s:
@@ -46,78 +55,155 @@ test_that("the levers are read from the config objects", {
   expect_equal(length(strsplit(lv$covariate_set, ", ")[[1]]), 15L)
 })
 
-## Property: no masked cell is recoverable. Each identity below links counts that
-## are published together; the number of unknown terms must not be exactly one.
-n_unknown <- function(...) sum(is.na(c(...)))
+## ---- helpers for the disclosure assertions ------------------------------------
 
-test_that("the attrition table merges a small step instead of masking its drop", {
+audit_rows <- function(rep) nrow(smidata::smi_report_audit(rep, abort = FALSE))
+
+## Every published (non-NA) value in the count columns of every table.
+count_values <- function(rep) {
+  unlist(lapply(rep$tables, function(tb) {
+    cols <- intersect(attr(tb, "smi_n_cols"), names(tb))
+    unlist(lapply(cols, function(cl) tb[[cl]][!is.na(tb[[cl]])]), use.names = FALSE)
+  }), use.names = FALSE)
+}
+
+## Every published copy of the analysis-cohort count (the 02 -> 03 cohort) outside
+## the flow.
+cohort_copies <- function(rep) {
+  t <- rep$tables
+  c(t$cost_known$n_cohort, t$cost_known$n_known, t$costs_cohort$n_patients,
+    t$costs_cohort$n_cells, t$enrollment.summary$n[t$enrollment.summary$quantity == "n_cohort"])
+}
+
+## Is any difference of two of `x` a count in 1..10?
+has_small_difference <- function(x, lo = 1L, hi = 10L) {
+  x <- sort(unique(x))
+  d <- outer(x, x, "-")
+  any(d >= lo & d <= hi)
+}
+
+test_that("the toy report passes smidata's audit, with the repair step's masks hand-counted", {
+  expect_true(rep_toy$audited)
+  expect_equal(audit_rows(rep_toy), 0L)
+  expect_gt(length(rep_toy$identities), 0L)
+  ## Cells masked by the repair step (beyond the tables' own primary masks):
+  ## design_prevalence: n_yes = 10, 10, 9, 8 (HTN, DM2, ANTIDEP, GLU) are small and
+  ## masked first; each is declared against n_final = 100 (n_yes + n_no = 100), so
+  ## its n_no (90, 90, 91, 92) is masked too: 4 cells. prior_cost_floor: 20 patients
+  ## at the floor - 19 floored = 1 is a small gap, so the larger count (20) is
+  ## masked: 1 cell. enrollment.summary: absent = 6 is masked (primary); n_cohort =
+  ## covered + insufficient + absent is declared, so the smallest other positive
+  ## part (insufficient, 30; covered is 100 and the cohort 136) is masked: 1 cell.
+  ## enrollment.by_months_covered: the 6 at 0 months is masked, the declared sum
+  ## over months masks the next smallest (30 at 20 months): 1 cell. Total 4 + 1 + 1 + 1 = 7.
+  expect_equal(rep_toy$resolved, 7L)
+  md <- smidata::smi_report_md(rep_toy)
+  expect_true(any(grepl("Disclosure audit: passed against", md, fixed = TRUE)))
+})
+
+test_that("the attrition table merges small steps instead of masking drops", {
   fl <- tb$flow
-  ## 200 -> 180 (20 with no SAA rows) -> 160 (20 with rows but none at s).
-  expect_equal(fl$n[1:3], c(200L, 180L, 160L))
-  expect_equal(fl$n_dropped[1:3], c(0L, 20L, 20L))
-  ## 160 -> 150 drops 10 (< 11). Showing both 160 and 150 would publish the 10, so
-  ## the 150 row is merged into the next step: 160 -> 136 drops 24.
-  expect_false(150L %in% fl$n)
-  expect_equal(fl$n[4], 136L)
-  expect_equal(fl$n_dropped[4], 24L)
-  expect_match(fl$step[4], "MSR_DEN >= 1", fixed = TRUE)
-  expect_match(fl$step[4], "cost-file coverage", fixed = TRUE)
-  expect_match(fl$reason[4], "MSR_DEN < 1", fixed = TRUE)
-  ## complete case: 136 -> 100, 36 dropped, 100/200 = 50% of the start.
-  expect_equal(fl$n[5], 100L)
-  expect_equal(fl$n_dropped[5], 36L)
-  expect_equal(fl$pct_of_start[5], 50)
-  expect_match(fl$step[5], "[s, s+24mo)", fixed = TRUE)
-  ## the asserted-zero step is listed and drops nobody.
-  expect_equal(fl$n_dropped[6], 0L)
-  ## no two published counts of the chain differ by 1..10.
-  gaps <- diff(fl$n[!is.na(fl$n)])
-  expect_false(any(gaps < 0 & gaps > -11))
+  ## 200 -> 180 (20 with no SAA rows) -> 160 (20 with rows but none at s) -> 150
+  ## (10 with MSR_DEN < 1) -> 136 (14 outside the cost files) -> 100 (36 not
+  ## complete-case) -> 100 (asserted, none dropped).
+  ## 160 - 150 = 10 is a small step, so smi_coarsen_flow() merges the 150 row into
+  ## the next. And eligible (150) is published in measure_period.summary, so no
+  ## flow count may sit within 10 of it: 160 - 150 = 10 would be the MSR_DEN < 1
+  ## count. The 160 row is merged into the next step as well: 180 -> 136 = 44.
+  expect_equal(fl$step_no, 1:5)
+  expect_equal(fl$n, c(200L, 180L, 136L, 100L, 100L))
+  expect_equal(fl$n_dropped, c(0L, 20L, 44L, 36L, 0L))
+  expect_equal(fl$pct_of_start, c(100, 90, 68, 50, 50))     # 180/200, 136/200, 100/200
+  expect_false(any(c(150L, 160L) %in% fl$n))
+  expect_match(fl$step[3], "a period starts exactly at s", fixed = TRUE)
+  expect_match(fl$step[3], "MSR_DEN >= 1", fixed = TRUE)
+  expect_match(fl$step[3], "cost-file coverage", fixed = TRUE)
+  expect_match(fl$reason[3], "MSR_DEN < 1", fixed = TRUE)   # nothing leaves the account
+  expect_match(fl$step[4], "[s, s+24mo)", fixed = TRUE)
+  ## no published count differs from another (flow n or eligible) by 1..10.
+  expect_false(has_small_difference(c(fl$n, tb$measure_period.summary$n[1])))   # eligible
 })
 
-test_that("hide_small_gaps() hides the inner count of a small drop, repeatedly", {
-  ## 100 -> 95 (5): 95 is inner and is hidden; then 100 -> 90 (10) hides 90; then
-  ## 100 -> 60 is fine.
-  expect_equal(hide_small_gaps(c(100, 95, 90, 60), 11L), c(FALSE, TRUE, TRUE, FALSE))
-  ## last count kept; the previous (inner) count is hidden instead.
-  expect_equal(hide_small_gaps(c(100, 50, 45), 11L), c(FALSE, TRUE, FALSE))
-  ## two counts only: the last is hidden (nothing inner to hide).
-  expect_equal(hide_small_gaps(c(100, 95), 11L), c(FALSE, TRUE))
-  ## drops of 0 or >= 11 are fine.
-  expect_equal(hide_small_gaps(c(100, 100, 89, 50), 11L), rep(FALSE, 4))
-  fl <- data.frame(step = c("a", "b", "c", "d"), n = c(100L, 95L, 90L, 60L),
-                   reason = c("", "rb", "rc", "rd"), stringsAsFactors = FALSE)
-  co <- coarsen_flow(fl, 11L)
-  expect_equal(co$n, c(100L, 60L))
-  expect_equal(co$reason[2], "rb; rc; rd")
-})
-
-test_that("exposure-period counts are published once; a hidden eligible count is not recoverable", {
+test_that("exposure-period counts: only the eligible split is published; the flow carries the rest", {
   mp <- tb$measure_period.summary
   v <- stats::setNames(mp$n, mp$quantity)
-  ## patients / matched / unmatched / den_below_1 live only in the flow.
-  expect_equal(mp$quantity, c("eligible", "achieved"))
-  ## eligible = 150 is the hidden count above (160 - 150 = 10), so it is not
-  ## published here, and neither table that decomposes it is.
-  expect_true(is.na(v[["eligible"]]))
-  expect_equal(v[["achieved"]], 90L)             # 60 + 30
-  expect_named(tb$measure_period.by_period_start, "note")
-  expect_named(tb$measure_period.index_day, "note")
+  ## Eligible p001-p150 (MSR_DEN >= 1) = 150. Achieved p001-p060 and p101-p130 =
+  ## 60 + 30 = 90, so not achieved = 150 - 90 = 60.
+  expect_equal(mp$quantity, c("eligible", "eligible_not_achieved", "eligible_achieved"))
+  expect_equal(v[["eligible"]], 150L)
+  expect_equal(v[["eligible_not_achieved"]], 60L)
+  expect_equal(v[["eligible_achieved"]], 90L)
+  ## patients (200), not matched (40) and MSR_DEN < 1 (10) are NOT republished
+  ## here: the flow has them, and 10 is small.
+  expect_false(any(c("patients", "not_matched", "matched_den_below_1") %in% mp$quantity))
+  ## By period-start month: 2020-03 is p001-p100 (all eligible, 60 achieved, 40
+  ## not); 2020-04 is p101-p150 (50 eligible, 30 achieved: p101-p130; 20 not).
+  bp <- tb$measure_period.by_period_start
+  expect_equal(bp$period_start, c("2020-03", "2020-04"))
+  expect_equal(bp$n_eligible, c(100L, 50L))
+  expect_equal(bp$n_achieved, c(60L, 30L))
+  expect_equal(bp$n_not_achieved, c(40L, 20L))
+  expect_equal(bp$achieved_rate, c(0.6, 0.6))
+  ## INDEX_DT on the 1st: p001-p100 (100 patients, all 100 eligible); later in the
+  ## month: p101-p200 (100 patients, p101-p150 = 50 eligible).
+  expect_equal(tb$measure_period.index_day$n_patients, c(100L, 100L))
+  expect_equal(tb$measure_period.index_day$n_eligible, c(100L, 50L))
 })
 
-test_that("with no small step, eligible and its decompositions are published", {
+test_that("a DEN<1 count of 5 is neither published nor the difference of two published counts", {
+  ## p001-p155 eligible: 160 matched - 155 = 5 with MSR_DEN < 1. The flow's
+  ## 160 -> 155 step is 5 and the 155 -> 136 coverage step is 19.
+  small <- toy
+  small$p02$selection$elig <- seq_len(200) <= 155L
+  small$p02$selection$MSR_DEN <- as.numeric(small$p02$selection$elig)
+  small$p02$selection$achieved <- dplyr::if_else(small$p02$selection$elig,
+                                                 seq_len(200) %in% c(1:60, 101:130), NA)
+  small$p02$flow$n[4] <- 155L
+  r <- build_decision_report(small, title = "toy-den5")
+  expect_equal(audit_rows(r), 0L)
+  fl <- r$tables$flow
+  ## chain 200, 180, 160, 155, 136, 100, 100: 160 - 155 = 5 hides 155; eligible
+  ## (155) is published, so 160 (within 10 of it) is merged away too.
+  expect_equal(fl$n, c(200L, 180L, 136L, 100L, 100L))
+  mp <- stats::setNames(r$tables$measure_period.summary$n, r$tables$measure_period.summary$quantity)
+  expect_equal(mp[["eligible"]], 155L)
+  expect_equal(mp[["eligible_not_achieved"]], 65L)          # 155 - 90
+  expect_false(has_small_difference(c(fl$n, mp[["eligible"]])))
+  expect_false(5L %in% count_values(r))
+  expect_false(160L %in% count_values(r))
+})
+
+test_that("a flow drop of 5 between the first two steps is merged, not masked", {
+  small <- toy
+  small$p02$flow$n[2] <- 195L          # 200 -> 195: 5 patients without an SAA row
+  r <- build_decision_report(small, title = "toy-flow5")
+  expect_equal(audit_rows(r), 0L)
+  ## chain 200, 195, 160, 150, 136, 100, 100: 200 - 195 = 5 hides 195; 160 - 150 =
+  ## 10 hides 150; eligible = 150 is published, so 160 goes too: 200, 136, 100, 100.
+  expect_equal(r$tables$flow$n, c(200L, 136L, 100L, 100L))
+  expect_equal(r$tables$flow$n_dropped, c(0L, 64L, 36L, 0L))
+  expect_false(has_small_difference(c(r$tables$flow$n, 150L)))
+})
+
+test_that("with a large DEN<1 count the flow keeps its steps", {
   big <- toy
-  big$p02$selection$elig <- seq_len(200) <= 140L   # 160 -> 140: drop 20, >= 11
+  big$p02$selection$elig <- seq_len(200) <= 140L   # 160 - 140 = 20 >= 11
   big$p02$selection$MSR_DEN <- as.numeric(big$p02$selection$elig)
   big$p02$selection$achieved <- dplyr::if_else(big$p02$selection$elig,
                                                seq_len(200) %in% c(1:60, 101:130), NA)
   big$p02$flow$n[4] <- 140L
-  rb <- build_decision_report(big, title = "toy-big")$tables
-  mp <- stats::setNames(rb$measure_period.summary$n, rb$measure_period.summary$quantity)
-  expect_equal(mp[["eligible"]], 140L)
-  expect_equal(mp[["achieved"]], 90L)
-  expect_equal(rb$measure_period.by_period_start$n_eligible, c(100L, 40L))
-  expect_equal(rb$flow$n[4], 140L)
+  rb <- build_decision_report(big, title = "toy-big")
+  ## 200, 180, 160, 140, 136, 100, 100: the 140 -> 136 coverage step is 4 (small),
+  ## so 136 is hidden; eligible (140) is published and 136 is 4 below it. The
+  ## coverage step 136 is therefore merged into the complete case step (100):
+  ## 200, 180, 160, 140, 100, 100.
+  expect_equal(audit_rows(rb), 0L)
+  expect_equal(rb$tables$flow$n, c(200L, 180L, 160L, 140L, 100L, 100L))
+  expect_equal(rb$tables$measure_period.summary$n, c(140L, 50L, 90L))   # 140 - 90 = 50
+  expect_equal(rb$tables$measure_period.by_period_start$n_eligible, c(100L, 40L))
+  ## 136 is hidden by the flow, so no other table may publish it either.
+  expect_false(136L %in% cohort_copies(rb))
+  expect_false(136L %in% rb$tables$flow$n)
 })
 
 test_that("cost tables: negative lines, floors, quantiles, MCI and categories", {
@@ -200,27 +286,93 @@ test_that("enrollment: complete-case tally, one arm-level partition", {
   expect_equal(sum(ba$n_not_complete), v[["n_cohort"]] - v[["n_covered"]])
 })
 
-test_that("a small arm-level cell is masked together with its complement", {
+test_that("a small arm-level cell is masked, and its complement is not recoverable", {
+  ## Consistent fixture: arms A=0 (60) and A=1 (76) with 50 and 66 complete, so 10
+  ## and 10 not complete; 116 covered, 14 insufficient, 6 absent (14 + 6 = 20 =
+  ## 10 + 10); months covered 116 at 24, 14 at 20, 6 at 0.
   small <- toy
   small$p05$by_arm <- tibble::tibble(
     A = c(0L, 1L), n = c(60L, 76L), n_complete = c(50L, 66L), n_unresolved = c(0L, 0L)
-  ) |> dplyr::mutate(rate = .data$n_complete / .data$n)    # not complete: 10 and 10
-  ba <- build_decision_report(small, title = "toy-small")$tables$enrollment_by_arm
+  ) |> dplyr::mutate(rate = .data$n_complete / .data$n)
+  small$p05$coverage <- data.frame(n_covered = c(rep(24L, 116), rep(20L, 14), rep(0L, 6)))
+  attr(small$p05$coverage, "tally") <- list(
+    n_cohort = 136L, n_covered = 116L, n_insufficient = 14L, n_absent = 6L,
+    n_uncovered_at_index = 0L
+  )
+  small$p06$n_complete_case <- 116L
+  r <- build_decision_report(small, title = "toy-small")
+  expect_equal(audit_rows(r), 0L)
+  ba <- r$tables$enrollment_by_arm
+  ## n_not_complete = 10 in each arm: both < 11, masked, and the rate (which would
+  ## return n_complete / n) is masked with them. Their sum, 20 = 136 - 116, is
+  ## not a small count, so the pair does not reveal either one.
   expect_true(all(is.na(ba$n_not_complete)))
-  expect_true(all(is.na(ba$rate)))      # the rate would give n_complete / n back
+  expect_true(all(is.na(ba$rate)))
+  expect_equal(ba$n_complete, c(50L, 66L))
+  ## absent = 6: masked together with insufficient (14, the smallest other part)
+  ## so that 136 - 116 - 14 does not return it.
+  es <- stats::setNames(r$tables$enrollment.summary$n, r$tables$enrollment.summary$quantity)
+  expect_true(is.na(es[["n_absent"]]))
+  expect_true(is.na(es[["n_insufficient"]]))
+  expect_equal(es[["n_covered"]], 116L)
+  expect_false(6L %in% count_values(r))
 })
 
-test_that("a cohort-minus-final difference below 11 withholds the final-sample costs", {
+test_that("a cohort-minus-final difference below 11 hides the cohort count everywhere", {
+  ## 136 -> 130 (6 excluded by the complete-case restriction). Consistent fixture:
+  ## 130 covered, 6 insufficient, none absent; arms 56 + 74 = 130 complete.
   near <- toy
-  near$p06$final_ids <- sprintf("p%03d", 1:130)      # 136 - 130 = 6 excluded
+  near$p06$final_ids <- sprintf("p%03d", 1:130)
   near$p06$n_complete_case <- 130L
   near$p06$n_final <- 130L
   near$p06$design <- summarise_design(
-    cbind(tibble::tibble(ID = sprintf("p%03d", 1:130), A = 1L, prior_cost = 0), 
+    cbind(tibble::tibble(ID = sprintf("p%03d", 1:130), A = 1L, prior_cost = 0),
           as.data.frame(matrix(0L, 130, 15, dimnames = list(NULL, design_matrix_columns())))),
     n_floored = 0L, floor_value = 0, cutpoints = c(p25 = 1, p50 = 2, p75 = 3))
-  rn <- build_decision_report(near, title = "toy-near")$tables
-  expect_named(rn$costs_final_sample, "note")
+  near$p05$coverage <- data.frame(n_covered = c(rep(24L, 130), rep(20L, 6)))
+  attr(near$p05$coverage, "tally") <- list(
+    n_cohort = 136L, n_covered = 130L, n_insufficient = 6L, n_absent = 0L,
+    n_uncovered_at_index = 0L
+  )
+  near$p05$by_arm <- tibble::tibble(
+    A = c(0L, 1L), n = c(60L, 76L), n_complete = c(56L, 74L), n_unresolved = c(0L, 0L)
+  ) |> dplyr::mutate(rate = .data$n_complete / .data$n)
+  rn <- build_decision_report(near, title = "toy-near")
+  expect_equal(audit_rows(rn), 0L)
+  ## Chain 200, 180, 160, 150, 136, 130, 130: 160 - 150 = 10 and 136 - 130 = 6 are
+  ## small steps, and eligible (150) is published, so the flow publishes only
+  ## 200, 180 and 130 (the final sample).
+  expect_equal(rn$tables$flow$n, c(200L, 180L, 130L))
+  ## 136 is not in the flow, so no other table may carry it (cost_known, the cost
+  ## tables, the coverage tally): 136 - 130 = 6 would return the excluded count.
+  expect_true(all(is.na(cohort_copies(rn))))
+  expect_true(130L %in% count_values(rn))
+  ## The final-sample costs are published (the old report withheld them).
+  expect_equal(rn$tables$costs_final_sample$n_patients, c(130L, 130L))
+  expect_false(has_small_difference(c(rn$tables$flow$n, 150L)))
+  ## claim lines: the six excluded patients have six lines (prior_cost window:
+  ## 155 - 149 = 6), so the cohort table's count is masked as well.
+  co <- rn$tables$costs_cohort
+  expect_true(is.na(co$n_claims[co$window == "prior_cost"]))
+})
+
+test_that("a service category with 5 claim lines is masked and not recoverable from the window total", {
+  ## 5 extra "Dental" lines in the outcome window (p001-p005, 40 each).
+  extra <- tibble::tibble(ID = sprintf("p%03d", 1:5), SRV_DT = as.Date("2020-07-01"),
+                          AMOUNT_PAID = 40, SS_DESC = "Dental")
+  rd <- build_decision_report(toy_report_inputs(extra_outcome_claims = extra), title = "toy-dental")
+  expect_equal(audit_rows(rd), 0L)
+  ## Window outcome claim lines: 136 Inpatient + 148 Outpatient + 5 Dental = 289.
+  ca <- rd$tables$cost_categories
+  o <- ca[ca$window == "outcome" & !ca$excluded, ]
+  expect_true(is.na(o$n_claims[o$setting == "Dental"]))
+  ## 289 - 136 - 148 = 5 would return it, so another part of the identity is
+  ## masked as well (the smallest other published count, Inpatient's 136).
+  expect_true(is.na(o$n_claims[o$setting == "Inpatient"]))
+  expect_false(5L %in% count_values(rd))
+  ## the masked parts sum to 141, not a small count.
+  co <- rd$tables$costs_cohort
+  expect_equal(co$n_claims[co$window == "outcome"], 289L)
 })
 
 test_that("prior_cost floor, bins and cut points (hand-calculated)", {
@@ -287,15 +439,29 @@ test_that("design_patterns() counts distinct rows and small-pattern patients", {
   expect_equal(design_patterns(X, min_cell = 2L)$n_in_small_patterns, 1L)
 })
 
-test_that("mask_binary_split() hides both sides of a small split, keeps zero", {
-  tb2 <- tibble::tibble(
-    n_yes = c(5L, 50L, 95L, 0L), n_no = c(95L, 50L, 5L, 100L),
-    prevalence = c(.05, .5, .95, 0), minority_share = c(.05, .5, .05, 0)
-  )
-  m <- mask_binary_split(tb2, min_cell = 11L)
-  ## 5/95 and 95/5 are masked (either side below 11); 50/50 and 0/100 are not.
-  expect_equal(is.na(m$n_yes), c(TRUE, FALSE, TRUE, FALSE))
-  expect_equal(is.na(m$prevalence), c(TRUE, FALSE, TRUE, FALSE))
+test_that("a small yes/no split is masked on both sides, zero is not, and the rest stay", {
+  ## n_yes + n_no = n_final = 100 is published (prior_cost_floor). VAR9G (10),
+  ## DM2 (10), HTN (9) and GLU (8) have a small yes count: masked, and the declared
+  ## identity n_yes + n_no = n_final masks the no side too (else 100 - n_no).
+  dp <- tb$design_prevalence
+  small_rows <- dp$covariate %in% c("VAR9G_ANTIDEP_YN", "VAR5G_DM2_YN", "VAR5G_HTN_YN", "GLU_OR_LIPID_YN")
+  expect_true(all(is.na(dp$n_yes[small_rows]) & is.na(dp$n_no[small_rows])))
+  expect_false(any(is.na(dp$n_yes[!small_rows])))
+  ## A column with ZERO yes (a degeneracy flag) is published, not masked.
+  zero <- toy
+  zero$p06$design$prevalence$n_yes[1] <- 0L
+  zero$p06$design$prevalence$n_no[1] <- 100L
+  rz <- build_decision_report(zero, title = "toy-zero")$tables$design_prevalence
+  expect_equal(rz$n_yes[1], 0L)
+  expect_equal(rz$n_no[1], 100L)
+  ## A single small split of 5 (95 no) in an otherwise large table.
+  five <- toy
+  five$p06$design$prevalence$n_yes[1] <- 5L
+  five$p06$design$prevalence$n_no[1] <- 95L
+  rf <- build_decision_report(five, title = "toy-five")
+  expect_equal(audit_rows(rf), 0L)
+  expect_true(is.na(rf$tables$design_prevalence$n_yes[1]) && is.na(rf$tables$design_prevalence$n_no[1]))
+  expect_true(is.na(rf$tables$design_prevalence$prevalence[1]))
 })
 
 test_that("the report refuses intermediates from different runs", {
@@ -340,6 +506,20 @@ test_that("08 runs end to end off-server on the toy inputs and exports nothing",
   lines <- readLines(md)
   expect_true(any(grepl("TOY INPUTS", lines, fixed = TRUE)))
   expect_true(any(grepl("^## prior_cost_floor", lines)))
+  expect_true(any(grepl("Disclosure audit: passed against", lines, fixed = TRUE)))
+})
+
+test_that("the toy report exports through smi_report_export() into a temporary outbox", {
+  skip_if(smidata::smi_is_server(), "never export the toy on the server")
+  withr::local_envvar(c(SMI_OUTBOX = file.path(withr::local_tempdir(), "outbox")))
+  recs <- suppressMessages(suppressWarnings(
+    smidata::smi_report_export(rep_toy, "doubletree-toy")
+  ))
+  expect_equal(nrow(recs), length(rep_toy$tables))
+  ## A report that fails its audit is refused at the door.
+  bad <- rep_toy
+  bad$tables$prior_cost_floor$n[3] <- 20L      # un-mask the at-floor count: 20 - 19 = 1
+  expect_error(smidata::smi_report_export(bad, "doubletree-bad"), "disclosure audit")
 })
 
 test_that("smi_report_export() is only reachable behind smi_is_server()", {

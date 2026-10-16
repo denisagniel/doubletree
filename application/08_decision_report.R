@@ -12,7 +12,12 @@
 ## cannot drift from the code. Tables come from smidata's decision-report
 ## builders (smi_report_flow / _measure_period / _costs / _cost_categories /
 ## _enrollment) plus this paper's own (prior_cost floor and bins, design
-## degeneracy), all suppressed at n < 11.
+## degeneracy), all suppressed at n < 11. smidata::smi_report() then resolves and
+## AUDITS the identities declared between them (helpers/decision_report.R); the
+## report's header line states what was audited. The audit guarantees that no
+## masked value is determined by the published cells through those declared
+## identities, and nothing more (undeclared identities, dollar dominance and
+## narrowing inside 1..10 are not covered).
 ##
 ## OUTPUT. The Markdown goes to application/output/decision_report/ (local,
 ## gitignored). The tables leave the secure server ONLY through
@@ -104,7 +109,7 @@ if (!config_has_smidata ||
   md_path <- file.path(out_dir, "decision_report.md")
   writeLines(smidata::smi_report_md(report), md_path)
   cli::cli_alert_success(
-    "Wrote {.file {md_path}} ({length(report$tables)} table{?s}; cells < 11 masked, small differences between counts not published)."
+    "Wrote {.file {md_path}} ({length(report$tables)} table{?s}; cells < 11 masked; audited against {length(report$identities)} declared identit{?y/ies}, {report$resolved} further cell{?s} masked by the repair step)."
   )
 
   ## Export: server only, real intermediates only, recorded on this environment.
