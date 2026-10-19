@@ -90,9 +90,15 @@ two cross-fit anchors differ in clipping as well as in the learner.
 Early stopping uses an explicit metric (\code{logloss} for the propensity and
 a binary outcome, \code{rmse} otherwise), not the version-dependent default.
 The caller's \code{.Random.seed} is restored on exit, so calling this inside a
-simulation loop does not reset the loop's random stream. Validated against
-xgboost 1.7 and 2.x; xgboost >= 3.0 changes the R interface and is refused
-until it has been validated.
+simulation loop does not reset the loop's random stream.
+
+Validated on xgboost 1.7.11.1 and 3.2.1.1, whose R interfaces differ
+(\code{watchlist} vs \code{evals}; \code{best_iteration} as a list field vs
+only as a 0-based attribute; \code{iterationrange} end exclusive vs
+inclusive). The number of boosting rounds kept is read from the 0-based
+\code{best_iteration} attribute (+ 1) on both, and predictions use the
+booster's default, which is the early-stopped model on both; tests check
+this against a refit with exactly that many rounds.
 }
 \seealso{
 \code{\link{estimate_att_crossfit}}, \code{\link{estimate_att}}

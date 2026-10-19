@@ -88,3 +88,30 @@ test_that("reserved xgboost params are rejected", {
   expect_error(estimate_att_crossfit_xgb(d$X, d$A, d$Y, seed = 1, params = list(nthread = 8)),
                "may not set")
 })
+
+test_that("early-stopped predictions equal a refit with exactly best_iter rounds (any xgboost version)", {
+  skip_if_not_installed("xgboost")
+  set.seed(1)
+  n <- 600
+  X <- matrix(rbinom(n * 4, 1, 0.5), n, 4)
+  colnames(X) <- paste0("x", 1:4)
+  y <- 2 * X[, 1] + rnorm(n)
+  tr <- 1:480; te <- 481:600
+  # subsample = 1 makes boosting deterministic, so the refit must match exactly.
+  params <- list(max_depth = 3L, eta = 0.1, subsample = 1, colsample_bytree = 1,
+                 min_child_weight = 1, lambda = 1)
+  fit <- doubletree:::.xgb_fit_one(
+    X[tr, ], y[tr], objective = "reg:squarederror", params = params,
+    nrounds_max = 500L, early_stopping_rounds = 20L, valid_frac = 0.2,
+    nthread = 1L, seed = 11L
+  )
+  expect_lt(fit$best_iter, 500L)
+  pred <- doubletree:::.xgb_predict(fit, X[te, ])
+  # Refit on the same training split with exactly best_iter rounds.
+  set.seed(11)
+  is_val <- seq_len(length(tr)) %in% sample.int(length(tr), max(2L, round(0.2 * length(tr))))
+  dtr <- xgboost::xgb.DMatrix(X[tr, ][!is_val, ], label = y[tr][!is_val])
+  p <- c(params, list(objective = "reg:squarederror", nthread = 1L, eval_metric = "rmse"))
+  refit <- xgboost::xgb.train(params = p, data = dtr, nrounds = fit$best_iter, verbose = 0)
+  expect_equal(pred, as.numeric(predict(refit, xgboost::xgb.DMatrix(X[te, ]))), tolerance = 1e-6)
+})

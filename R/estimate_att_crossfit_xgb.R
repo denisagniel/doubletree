@@ -24,9 +24,15 @@
 #' Early stopping uses an explicit metric (\code{logloss} for the propensity and
 #' a binary outcome, \code{rmse} otherwise), not the version-dependent default.
 #' The caller's \code{.Random.seed} is restored on exit, so calling this inside a
-#' simulation loop does not reset the loop's random stream. Validated against
-#' xgboost 1.7 and 2.x; xgboost >= 3.0 changes the R interface and is refused
-#' until it has been validated.
+#' simulation loop does not reset the loop's random stream.
+#'
+#' Validated on xgboost 1.7.11.1 and 3.2.1.1, whose R interfaces differ
+#' (\code{watchlist} vs \code{evals}; \code{best_iteration} as a list field vs
+#' only as a 0-based attribute; \code{iterationrange} end exclusive vs
+#' inclusive). The number of boosting rounds kept is read from the 0-based
+#' \code{best_iteration} attribute (+ 1) on both, and predictions use the
+#' booster's default, which is the early-stopped model on both; tests check
+#' this against a refit with exactly that many rounds.
 #'
 #' @param X Covariates (data frame or matrix, numeric/binary; no NA).
 #' @param A Binary treatment vector (0/1).
@@ -76,11 +82,6 @@ estimate_att_crossfit_xgb <- function(X, A, Y, K = 5,
          call. = FALSE)
   }
   xgb_version <- utils::packageVersion("xgboost")
-  if (xgb_version >= "3.0.0") {
-    stop("estimate_att_crossfit_xgb() is validated on xgboost < 3.0 (the 3.x R ",
-         "interface changed best_iteration and iterationrange handling); installed: ",
-         as.character(xgb_version), ".", call. = FALSE)
-  }
   # Restore the caller's RNG stream on exit: this function reseeds internally.
   if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
     old_seed <- get(".Random.seed", envir = globalenv(), inherits = FALSE)
@@ -229,16 +230,20 @@ estimate_att_crossfit_xgb <- function(X, A, Y, K = 5,
                verbose = if (verbose) 1L else 0L)
   args[[eval_arg]] <- list(val = dval)
   model <- do.call(xgboost::xgb.train, args)
-  best <- model$best_iteration
-  if (is.null(best)) {
+  # 0-based "best_iteration" attribute on every supported version (the list
+  # field is 1-based on 1.7 and absent on 3.x), so rounds kept = attribute + 1.
+  best0 <- xgboost::xgb.attr(model, "best_iteration")
+  if (is.null(best0)) {
     stop("xgboost returned no best_iteration; early stopping did not run.", call. = FALSE)
   }
-  list(model = model, best_iter = as.integer(best))
+  list(model = model, best_iter = as.integer(best0) + 1L)
 }
 
 #' Predict from .xgb_fit_one() at the early-stopped iteration
 #' @noRd
 .xgb_predict <- function(fit, Xnew) {
-  as.numeric(stats::predict(fit$model, xgboost::xgb.DMatrix(Xnew),
-                            iterationrange = c(1L, fit$best_iter + 1L)))
+  # The default predict() uses the early-stopped model on xgboost 1.7 and 3.x
+  # (tested against a refit with `best_iter` rounds); an explicit iterationrange
+  # would need a different end convention per version.
+  as.numeric(stats::predict(fit$model, xgboost::xgb.DMatrix(Xnew)))
 }
