@@ -94,7 +94,7 @@ if (!config_has_smidata) {
 ## directory's conventions forbid. Falling back to it here is still allowed
 ## (this is a feasibility probe, not a reportable run) but is now WARNED,
 ## not silent.
-output_dir <- file.path(app_dir, "output")
+output_dir <- dirname(output_file("private", "x", app_dir = app_dir))   # patient-level cohort lives in output/private/
 candidate_paths <- file.path(
   output_dir, c("analytic_cohort.parquet", "analytic_cohort_PROVISIONAL.parquet")
 )

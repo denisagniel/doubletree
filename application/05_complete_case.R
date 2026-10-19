@@ -319,8 +319,7 @@ if (!config_has_smidata) {
       dplyr::count(.data$t0_lag_months, .data$A, .data$reason)
     cli::cli_alert_info("Complete-case reason by T0 lag and arm:")
     cli::cli_verbatim(utils::capture.output(print(cc_by_gap, n = Inf)))
-    fs::dir_create(file.path(app_dir, "output"))
-    arrow::write_parquet(cc_by_gap, file.path(app_dir, "output", "complete_case_by_gap.parquet"))
+    arrow::write_parquet(cc_by_gap, output_file("export", "complete_case_by_gap.parquet", app_dir = app_dir))
 
     attrition_by_arm <- analysis_cohort |>
       dplyr::left_join(complete_case, by = "ID") |>
@@ -336,12 +335,11 @@ if (!config_has_smidata) {
         gap_months = cc_gap_months, gap_mode = cc_gap_mode
       ) |>
       dplyr::arrange(.data$A)
-    fs::dir_create(file.path(app_dir, "output"))
     arrow::write_parquet(
-      attrition_by_arm, file.path(app_dir, "output", "attrition_by_arm.parquet")
+      attrition_by_arm, output_file("export", "attrition_by_arm.parquet", app_dir = app_dir)
     )
     cli::cli_alert_info(
-      "Complete-case rate by arm (saved to output/attrition_by_arm.parquet):
+      "Complete-case rate by arm (saved to output/export/attrition_by_arm.parquet):
        {paste0('A=', attrition_by_arm$A, ': ',
                round(100 * attrition_by_arm$rate, 1), '%', collapse = '; ')}."
     )

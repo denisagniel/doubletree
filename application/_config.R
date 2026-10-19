@@ -212,6 +212,46 @@ config_leaf_budget <- 16L
 ## plausibly powered to require anyway.
 config_max_depth <- 4L
 
+## ---- output layout: what may leave the server, and what may not -------------
+##
+## application/output/ (gitignored) is split in two, so "what comes back" is a
+## folder, not a memory:
+##   output/export/   aggregates only (estimates, diagnostics, provenance, counts,
+##                    comparison tables, the audited decision report). These are
+##                    the files to pull back after a server run.
+##   output/private/  patient-level files (analytic cohort, fitted-model RDS,
+##                    raw report intermediates). They never leave the server.
+## Every script resolves its paths through output_file() so a file cannot land
+## in the wrong half by accident. Anything NOT created through it (e.g. a loose
+## file in output/) is not covered by either promise.
+#' @param area `"export"` or `"private"`.
+#' @param ... Path components under that area (may include subfolders).
+#' @param app_dir The application directory.
+#' @return The path; its parent folder is created.
+output_file <- function(area = c("export", "private"), ..., app_dir) {
+  area <- match.arg(area)
+  path <- file.path(app_dir, "output", area, ...)
+  fs::dir_create(dirname(path))
+  ## A marker in the area's root, so anyone browsing the server sees which half
+  ## they are in without reading the code.
+  marker <- file.path(app_dir, "output", area, "_READ_ME.txt")
+  if (!file.exists(marker)) {
+    writeLines(
+      if (area == "export") {
+        c("EXPORT: aggregate results only (estimates, diagnostics, provenance,",
+          "counts, comparison tables, the audited decision report).",
+          "These are the files to pull back from the server.")
+      } else {
+        c("PRIVATE: patient-level data and fitted objects (analytic cohort,",
+          "fitted-model RDS, raw report intermediates).",
+          "NEVER copy anything in this folder off the server.")
+      },
+      marker
+    )
+  }
+  path
+}
+
 ## K for the cross-fitting companion estimate.
 config_crossfit_k <- 5L
 

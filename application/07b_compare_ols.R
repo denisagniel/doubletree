@@ -4,7 +4,7 @@
 ## Compare the tree estimators with OLS/logit on the SAME winsorized outcome and
 ## the SAME folds as 07's cross-fit anchor. Reads 07's outputs, so run 07 first.
 ##
-## Written to output/:
+## Written to output/export/ (shareable aggregates; reads from output/private/):
 ##   ols_att_estimates.parquet     ATT for each (e learner x m0 learner) pair
 ##       full_sample  e: flagship tree | logit     m0: flagship tree | OLS main | OLS +pairwise
 ##       cross_fit    e: tree_cv | anchor | logit   m0: tree_cv | anchor | OLS main | OLS +pairwise
@@ -49,12 +49,11 @@ stopifnot(
   exists("predict_nuisances_fold", envir = asNamespace("doubletree"))
 )
 
-out_dir <- file.path(app_dir, "output")
-fs::dir_create(out_dir)
-analytic_path <- file.path(out_dir, "analytic_cohort.parquet")
-fits_path <- file.path(out_dir, "att_fits.rds")
-manifest_path <- file.path(out_dir, "analytic_cohort_manifest.csv")
-prov_path <- file.path(out_dir, "att_provenance.csv")
+analytic_path <- output_file("private", "analytic_cohort.parquet", app_dir = app_dir)
+fits_path <- output_file("private", "att_fits.rds", app_dir = app_dir)
+manifest_path <- output_file("private", "analytic_cohort_manifest.csv", app_dir = app_dir)
+prov_path <- output_file("export", "att_provenance.csv", app_dir = app_dir)
+out_dir <- dirname(output_file("export", "x", app_dir = app_dir))
 for (p in c(analytic_path, fits_path, manifest_path, prov_path)) {
   if (!file.exists(p)) cli::cli_abort("Missing {.file {p}}; run 06 and 07 first.")
 }

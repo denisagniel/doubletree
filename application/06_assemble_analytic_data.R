@@ -56,7 +56,6 @@ if (config_echo_decisions) echo_open_decisions()
 
 cli::cli_h1("06 -- assemble analytic data")
 
-output_dir <- file.path(app_dir, "output")
 output_stem <- "analytic_cohort"
 
 cli::cli_alert_info(
@@ -263,12 +262,19 @@ if (!config_has_smidata) {
   ## adjacent order statistics (essentially one person's cost) and a per-arm
   ## count can fall under config_report_min_cell. Full precision stays in the
   ## parquet/manifest only.
-  mask_count <- function(k) if (k < config_report_min_cell) paste0("<", config_report_min_cell) else k
+  ## Both arms are suppressed if EITHER is small: the total capped is fixed by
+  ## n and q (about (1 - q)(n - 1)), so one masked arm would be recoverable by
+  ## subtraction from the other.
+  capped_small <- min(winsor_n_capped_a0, winsor_n_capped_a1) < config_report_min_cell
+  capped_shown <- if (capped_small) {
+    rep(paste0("<", config_report_min_cell, " (suppressed)"), 2L)
+  } else {
+    c(winsor_n_capped_a0, winsor_n_capped_a1)
+  }
   cli::cli_alert_info(
     "Y winsorized above the p{100 * winsor_q} quantile (cap ~{signif(winsor_cap, 2)});
-     {mask_count(winsor_n_capped_a0)} control and {mask_count(winsor_n_capped_a1)}
-     treated row(s) capped. Estimand: ATT on winsorized cost. Raw cost kept as
-     {.field Y_raw}."
+     {capped_shown[1]} control and {capped_shown[2]} treated row(s) capped.
+     Estimand: ATT on winsorized cost. Raw cost kept as {.field Y_raw}."
   )
 
   ## Informational only, not an abort: estimate_att()'s OWN internal check
@@ -310,15 +316,16 @@ if (!config_has_smidata) {
     cli::cli_alert_success("Nothing blocks -- writing the REPORTABLE artifact.")
   }
 
-  fs::dir_create(output_dir)
-  out_path <- file.path(output_dir, paste0(output_stem, suffix, ".parquet"))
+  ## Patient-level: output/private/. Aggregates: output/export/ (see _config.R).
+  out_path <- output_file("private", paste0(output_stem, suffix, ".parquet"), app_dir = app_dir)
   arrow::write_parquet(analytic_data, out_path)
   cli::cli_alert_success("Wrote {.file {out_path}} ({nrow(analytic_data)} rows).")
 
   ## The cutpoints are an ATTRIBUTE, and parquet does not carry R attributes.
   ## Written as a sidecar so the grid the sparsity assumption is stated over
   ## is recoverable from disk rather than only from this session.
-  cutpoint_path <- file.path(output_dir, paste0(output_stem, suffix, "_prior_cost_cutpoints.csv"))
+  cutpoint_path <- output_file("export", paste0(output_stem, suffix, "_prior_cost_cutpoints.csv"),
+                               app_dir = app_dir)
   utils::write.csv(
     data.frame(
       prob = names(attr(analytic_data, "prior_cost_cutpoints")),
@@ -330,7 +337,11 @@ if (!config_has_smidata) {
 
   ## A manifest, so a _PROVISIONAL file that outlives the session still says
   ## WHICH decision made it provisional -- a filename suffix alone does not.
-  manifest_path <- file.path(output_dir, paste0(output_stem, suffix, "_manifest.csv"))
+  ## PRIVATE: holds the winsorization cap at full precision (essentially one
+  ## person's cost) and is what 07/07b check the parquet against. The shareable
+  ## summary is written to output/export/ below.
+  manifest_path <- output_file("private", paste0(output_stem, suffix, "_manifest.csv"),
+                               app_dir = app_dir)
   utils::write.csv(
     data.frame(
       field = c("timestamp", "provisional", "blocking_open_ids",
@@ -350,6 +361,24 @@ if (!config_has_smidata) {
     manifest_path, row.names = FALSE
   )
   cli::cli_alert_success("Wrote {.file {manifest_path}}.")
+
+  ## The shareable counterpart of the private manifest: counts, the level, a
+  ## ROUNDED cap and suppressed per-arm capped counts. This is the one to pull.
+  summary_path <- output_file("export", paste0(output_stem, suffix, "_summary.csv"),
+                              app_dir = app_dir)
+  utils::write.csv(
+    data.frame(
+      field = c("provisional", "n_eligible", "n_complete_case", "n_final",
+                "n_treated", "n_control", "config_fingerprint",
+                "winsor_quantile", "winsor_cap_rounded_2sf",
+                "winsor_n_capped_control", "winsor_n_capped_treated"),
+      value = c(nzchar(suffix), n_pre, nrow(analytic_cc), nrow(analytic_data),
+                n_treated, n_control, config_fingerprint(),
+                winsor_q, signif(winsor_cap, 2), capped_shown)
+    ),
+    summary_path, row.names = FALSE
+  )
+  cli::cli_alert_success("Wrote {.file {summary_path}} (shareable).")
 }
 
 if (!interactive() && sys.nframe() == 0L) {

@@ -12,7 +12,7 @@
 ##   * toy_report_inputs()    hand-calculated toy intermediates (off-server run
 ##                            and tests/test-decision-report.R)
 ##
-## DISCLOSURE. The saved intermediates (output/report_inputs/*.rds) hold RAW,
+## DISCLOSURE. The saved intermediates (output/private/report_inputs/*.rds) hold RAW,
 ## unsuppressed counts and some patient-level rows; they live under
 ## application/output/ (gitignored, never exported) exactly like the parquet
 ## outputs 06 already writes. build_decision_report() masks every cell below 11
@@ -34,7 +34,7 @@
 ## config_report_min_cell and the masking helpers live in helpers/disclosure.R.
 
 #' Directory the pipeline stages save report intermediates to.
-report_inputs_dir <- function(app_dir) file.path(app_dir, "output", "report_inputs")
+report_inputs_dir <- function(app_dir) file.path(app_dir, "output", "private", "report_inputs")
 
 #' Save one stage's report intermediate.
 #'

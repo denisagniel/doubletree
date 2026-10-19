@@ -98,7 +98,7 @@ library(doubletree)
 
 set.seed(config_seed)
 
-analytic_path <- file.path(app_dir, "output", "analytic_cohort.parquet")
+analytic_path <- output_file("private", "analytic_cohort.parquet", app_dir = app_dir)
 if (!file.exists(analytic_path)) {
   cli::cli_abort(c(
     "No REPORTABLE analytic data at {.file {analytic_path}}.",
@@ -112,7 +112,7 @@ if (!file.exists(analytic_path)) {
 ## The parquet must have been built under the rules in force NOW: f5fdbbd and
 ## 31f1f10 changed the windows, anchor and cost rules, and an un-suffixed file
 ## from before them would otherwise be estimated on silently.
-manifest_path <- file.path(app_dir, "output", "analytic_cohort_manifest.csv")
+manifest_path <- output_file("private", "analytic_cohort_manifest.csv", app_dir = app_dir)
 if (!file.exists(manifest_path)) {
   cli::cli_abort("No manifest beside {.file {analytic_path}}; re-run {.file 06_assemble_analytic_data.R}.")
 }
@@ -169,8 +169,7 @@ fit_att <- doubletree::estimate_att(
 ## an open optimaltrees bug affects it (header). If it errors or is killed, the
 ## flagship fit, which may itself have taken hours, is not lost. Failures stay
 ## loud (no tryCatch); this only preserves work. Server-only, patient-level.
-fs::dir_create(file.path(app_dir, "output"))
-readr::write_rds(fit_att, file.path(app_dir, "output", "att_fit_flagship.rds"))
+readr::write_rds(fit_att, output_file("private", "att_fit_flagship.rds", app_dir = app_dir))
 
 cli::cli_h2("estimate_att() -- flagship, requires grid-exact sparsity")
 cli::cli_alert_info("theta = {signif(fit_att$theta, 4)}  (SE {signif(fit_att$sigma, 4)})")
@@ -332,11 +331,11 @@ cli::cli_alert_info(
 ## here, with the run's provenance, so no number depends on a console session.
 ## The .tex tables and nuisance-tree figure are built from these files
 ## downstream; this script does not typeset anything.
-##   output/att_fit_flagship.rds      checkpoint written right after estimate_att()
-##   output/att_estimates.parquet     one row per estimator: theta, SE, CI, n
-##   output/att_diagnostics.parquet   one row: sparsity proxies + licence flags
-##   output/att_provenance.csv        config, versions, git state, data hash
-##   output/att_fits.rds              both fit objects, plus sessionInfo()
+##   output/private/att_fit_flagship.rds   checkpoint written right after estimate_att()
+##   output/private/att_fits.rds           both fit objects, plus sessionInfo()
+##   output/export/att_estimates.parquet   one row per estimator: theta, SE, CI, n
+##   output/export/att_diagnostics.parquet one row: sparsity proxies + licence flags
+##   output/export/att_provenance.csv      config, versions, git state, data hash
 ##
 ## SERVER-ONLY. The .rds files hold patient-level quantities (score values,
 ## fitted propensities, outcome vectors) and the estimates files are only as
@@ -345,8 +344,7 @@ cli::cli_alert_info(
 ## in a tidy form here: n_leaves_* in the diagnostics are all that is saved
 ## outside the RDS, so the nuisance-tree figure still needs its own step.
 
-out_dir <- file.path(app_dir, "output")
-fs::dir_create(out_dir)
+export_dir <- dirname(output_file("export", "x", app_dir = app_dir))
 
 licence_vacuous <- budget_check_vacuous   # set with the licence above
 
@@ -465,7 +463,7 @@ prov <- c(
   prior_cost_floor = format(OPEN_DECISIONS$prior_cost_negative_floor$value),
   prior_cost_floor_status = OPEN_DECISIONS$prior_cost_negative_floor$status,
   outcome_winsor_quantile = manifest$value[manifest$field == "winsor_quantile"],
-  outcome_winsor_cap = manifest$value[manifest$field == "winsor_cap"],
+  outcome_winsor_cap_rounded_2sf = format(signif(winsor_cap, 2)),   # full precision stays in the private manifest
   outcome_winsor_status = OPEN_DECISIONS$outcome_winsor_quantile$status,
   saa_achievement_threshold = config_saa_achievement_threshold,
   cost_setting_col = config_cost_setting_col,
@@ -492,14 +490,14 @@ if (any(prov[grepl("_git$", names(prov))] == "git_unavailable")) {
 }
 att_provenance <- tibble::tibble(field = names(prov), value = unname(as.character(prov)))
 
-arrow::write_parquet(att_estimates, file.path(out_dir, "att_estimates.parquet"))
-arrow::write_parquet(att_diagnostics, file.path(out_dir, "att_diagnostics.parquet"))
-readr::write_csv(att_provenance, file.path(out_dir, "att_provenance.csv"))
+arrow::write_parquet(att_estimates, file.path(export_dir, "att_estimates.parquet"))
+arrow::write_parquet(att_diagnostics, file.path(export_dir, "att_diagnostics.parquet"))
+readr::write_csv(att_provenance, file.path(export_dir, "att_provenance.csv"))
 readr::write_rds(
   list(fit_att = fit_att, fit_cf = fit_cf, session = utils::sessionInfo()),
-  file.path(out_dir, "att_fits.rds")
+  output_file("private", "att_fits.rds", app_dir = app_dir)
 )
-cli::cli_alert_success("Wrote the 07 result files to {.file {out_dir}}.")
+cli::cli_alert_success("Wrote the shareable 07 results to {.file {export_dir}} (fitted objects are in output/private/ and stay on the server).")
 
 if (!interactive() && sys.nframe() == 0L) {
   cli::cli_alert_info("07_estimate_att.R complete.")

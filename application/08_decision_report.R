@@ -3,7 +3,7 @@
 ##
 ## REVIEW REPORT: every lever in force and what it did, in tables the PI can
 ## check and quote in the paper. Builds from the intermediates 02, 03, 05 and 06
-## SAVE as they run (application/output/report_inputs/*.rds); it recomputes
+## SAVE as they run (application/output/private/report_inputs/*.rds); it recomputes
 ## nothing heuristically and reads no data.
 ##
 ##   Rscript application/08_decision_report.R
@@ -19,13 +19,13 @@
 ## identities, and nothing more (undeclared identities, dollar dominance and
 ## narrowing inside 1..10 are not covered).
 ##
-## OUTPUT. The Markdown goes to application/output/decision_report/ (local,
+## OUTPUT. The Markdown goes to application/output/export/decision_report/ (local,
 ## gitignored). The tables leave the secure server ONLY through
 ## smidata::smi_report_export() -> smi_export(), and only when
 ## smidata::smi_is_server() and the intermediates were recorded on the server.
 ## Off-server this script still runs end to end: with no intermediates it uses
 ## helpers/decision_report.R::toy_report_inputs() (hand-calculated toy counts),
-## says so in the report title, writes to output/decision_report_toy/, and
+## says so in the report title, writes to output/private/decision_report_toy/, and
 ## exports nothing.
 ##
 ## Run after 06 (it does not need 07).
@@ -104,9 +104,11 @@ if (!config_has_smidata ||
     }
   )
 
-  out_dir <- file.path(app_dir, "output", if (use_toy) "decision_report_toy" else "decision_report")
-  fs::dir_create(out_dir)
-  md_path <- file.path(out_dir, "decision_report.md")
+  ## The audited report is shareable (export/); a toy report is not a result and
+  ## stays in private/.
+  md_path <- output_file(if (use_toy) "private" else "export",
+                         if (use_toy) "decision_report_toy" else "decision_report",
+                         "decision_report.md", app_dir = app_dir)
   writeLines(smidata::smi_report_md(report), md_path)
   cli::cli_alert_success(
     "Wrote {.file {md_path}} ({length(report$tables)} table{?s}; cells < 11 masked; audited against {length(report$identities)} declared identit{?y/ies}, {report$resolved} further cell{?s} masked by the repair step)."

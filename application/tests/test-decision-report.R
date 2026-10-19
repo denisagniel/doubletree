@@ -573,7 +573,7 @@ test_that("report_record() saves a list with environment metadata", {
 
 test_that("08 runs end to end off-server on the toy inputs and exports nothing", {
   skip_if(
-    length(list.files(file.path(app_dir_for_tests, "output", "report_inputs"),
+    length(list.files(file.path(app_dir_for_tests, "output", "private", "report_inputs"),
                       pattern = "[.]rds$")) > 0L,
     "real/fixture report intermediates exist locally; 08 would use or reject them"
   )
@@ -590,7 +590,7 @@ test_that("08 runs end to end off-server on the toy inputs and exports nothing",
   status <- attr(out, "status")
   expect_true(is.null(status) || status == 0L, info = paste(utils::tail(out, 15), collapse = "\n"))
   expect_true(any(grepl("Not exporting: not on the server", out, fixed = TRUE)))
-  md <- file.path(app_dir_for_tests, "output", "decision_report_toy", "decision_report.md")
+  md <- file.path(app_dir_for_tests, "output", "private", "decision_report_toy", "decision_report.md")
   expect_true(file.exists(md))
   lines <- readLines(md)
   expect_true(any(grepl("TOY INPUTS", lines, fixed = TRUE)))

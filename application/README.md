@@ -118,6 +118,20 @@ oversight:
 - `sl_lib` — not applicable. SuperLearner is `marbounds`' nuisance machinery. doubletree fits its
   nuisances with optimal trees via `optimaltrees`.
 
+## Output layout: what comes back, what stays
+
+`application/output/` (gitignored) is split in two. Every script resolves its paths through
+`output_file()` in `_config.R`, and each folder carries a `_READ_ME.txt`.
+
+| Folder | Contents | Leaves the server? |
+|---|---|---|
+| `output/export/` | Aggregates only: `att_estimates.parquet`, `att_diagnostics.parquet`, `att_provenance.csv`, `analytic_cohort_summary.csv` (counts, winsorization level, **rounded** cap, suppressed capped counts), `analytic_cohort_prior_cost_cutpoints.csv`, `attrition_by_arm.parquet`, `complete_case_by_gap.parquet`, the `ols_*` comparison files from `07b`, and the audited `decision_report/` | **Yes: pull this folder back** (the decision report goes through `smi_report_export()`) |
+| `output/private/` | Patient-level: `analytic_cohort*.parquet`, `analytic_cohort*_manifest.csv` (holds the full-precision winsorization cap), `att_fits.rds`, `att_fit_flagship.rds`, raw `report_inputs/*.rds`, the toy report | **Never** |
+
+A run from before this layout left files flat in `output/`; re-run 06 and 07 (they read from `private/`).
+Output names do not carry the winsorization level, so a sensitivity run (another
+`outcome_winsor_quantile`) overwrites the previous one: copy `export/` out first.
+
 ## Files
 
 | file | runs today | what it does |
@@ -134,11 +148,11 @@ oversight:
 | `04_covariates.R` | yes (fixture) | **Real as of 2026-09-24.** Cascade-guarded on `03`. Reads the 12 confirmed `_YN` columns + `INDEX_DT`, joins `03`'s `prior_cost` (`[INDEX_DT-12mo, INDEX_DT)`) (no `coalesce()` — see `03`'s row), runs a PREVIEW discretize/assemble/assert pass on the pre-filter cohort. Explicitly a preview: `06` re-discretizes on the real, final (complete-case-filtered) sample. |
 | `05_complete_case.R` | yes (fixture, up to a real Tier-0 boundary) | Computes complete-case status for real via `smidata::smi_enrollment_panel()` + `smi_enrollment_coverage()`, cascade-guarded on `02`. Locally, `larger_smi_medicaid_monthly_flag`'s `YEAR_MONTH` has no real-data census levels, so the fixture emits unparseable placeholder text and the real computation is skipped with an explicit message (not a crash) — the hand-built two-patient demo still runs regardless, proving the function itself. On the server this limitation does not apply. Deliberately does **not** proxy enrollment from claims presence — `MEDICAID_FLAG` is a real enrollment indicator, independent of utilization; the file's header spells out why neither directional failure mode of a claims-presence proxy applies to it. |
 | `06_assemble_analytic_data.R` | yes (fixture chain stops at `05`'s boundary; own logic verified separately) | Joins `02`–`05`, reports THREE separate attrition reasons (not complete-case; unknowable `Y`; unknowable `prior_cost` — see `03`'s coverage column), re-discretizes `prior_cost` on the real final sample, `assert_binary_design_matrix()` (unconditional), then writes with a `_PROVISIONAL` suffix while anything blocks, or without one once nothing does. **The PROVISIONAL release valve is now real** (fixed 2026-09-24, design-reviewed by `oracle`) — it was pure documentation before: `assert_no_blocking_open()` always aborted first, so the write was never reachable. Moved that call to `07` only (`diagnostics` gates the *estimate*, not the assembled *data*). **Found and fixed while verifying this script with hand-built inputs**: the original complete-case filter used `isTRUE(.data$complete_case)`, which is not vectorized — it would have silently zeroed the analytic sample on every real run, for a reason unrelated to complete-case status itself. Fixed to `.data$complete_case %in% TRUE`. |
-| `07_estimate_att.R` | yes (needs real analytic data) | Gate (`assert_no_blocking_open()`) is the first statement after config — the only place it still runs, as of 2026-09-24 (moved out of `06`); now a live regression guard, since all decisions are confirmed. Reads the un-suffixed `analytic_cohort.parquet` (aborts by name if only the `_PROVISIONAL` file exists). Runs both estimators, prints whether the confirmed `diagnostics` licence holds (`certified_e && certified_m0`) without auto-switching on it, and reports their discrepancy. Writes `output/att_estimates.parquet`, `att_diagnostics.parquet`, `att_provenance.csv` and `att_fits.rds`. |
+| `07_estimate_att.R` | yes (needs real analytic data) | Gate (`assert_no_blocking_open()`) is the first statement after config — the only place it still runs, as of 2026-09-24 (moved out of `06`); now a live regression guard, since all decisions are confirmed. Reads the un-suffixed `analytic_cohort.parquet` (aborts by name if only the `_PROVISIONAL` file exists). Runs both estimators, prints whether the confirmed `diagnostics` licence holds (`certified_e && certified_m0`) without auto-switching on it, and reports their discrepancy. Writes `output/export/att_estimates.parquet`, `att_diagnostics.parquet`, `att_provenance.csv`, and `output/private/att_fits.rds`. |
 | `run_pipeline.R` | yes | New 2026-09-24. Convenience only (sources `01`–`07` in order) — every script is independently runnable via its own `require_stage()` cascade; this just saves typing seven commands. |
 | `helpers/decision_report.R` | yes (tested) | Review-report plumbing: `report_record()` (how `02`/`03`/`05`/`06` save their counts), `summarise_design()`, `design_patterns()`, `report_levers()` (levers read from `_config.R`'s own objects), `build_decision_report()`, and `toy_report_inputs()` (hand-calculated toy intermediates). |
 | `helpers/disclosure.R` | yes (tested) | Masking helpers smidata lacks (`mask_counts_primary()`, `mask_counts_partition()`, `tag_report_table()` over `smidata::smi_report_tag()`) and `tier1_saa_report()`; the identity-aware disclosure logic itself is smidata's (`smi_report()`, `smi_identity()`, `smi_gap()`, `smi_coarsen_flow()`). The project's former `hide_small_gaps()` / `coarsen_flow()` / `mask_partition_cells()` / `mask_binary_split()` / `tier1_disclosable_*()` were deleted. |
-| `08_decision_report.R` | yes (toy off-server) | New 2026-10-15. Builds the review report from the intermediates `02`/`03`/`05`/`06` save to `output/report_inputs/`; see "Review report" below. Exports through `smi_report_export()` only when `smidata::smi_is_server()`. |
+| `08_decision_report.R` | yes (toy off-server) | New 2026-10-15. Builds the review report from the intermediates `02`/`03`/`05`/`06` save to `output/private/report_inputs/`; see "Review report" below. Exports through `smi_report_export()` only when `smidata::smi_is_server()`. |
 | `90_checks_tier1.R` | no | Server-only. Checks 1, 2 (partly) and 4 reference dual-bounds' (comment spec); checks 3, 5 and 6 are this paper's own and executable (`_YN` coding/prevalence, cost-file coverage, msr_saa convention and exact-start sizes), exporting through `smi_export()`. Aborts locally. Check 4 (added 2026-09-24) verifies the `enrollment_source` TYPE-ignore default's prerequisite. |
 | `91_leaf_budget_feasibility.R` | yes (needs real analytic data) | New 2026-09-28. STANDALONE, NOT gated by `assert_no_blocking_open()` and NOT part of the 01–07 cascade — times `estimate_att()` alone at `config_leaf_budget` on the real analytic data and reports elapsed time. Reads the reportable `analytic_cohort.parquet` first, falls back to `analytic_cohort_PROVISIONAL.parquet` with an explicit warning (order reversed 2026-09-30 when `diagnostics` resolved — preferring PROVISIONAL unconditionally would silently time a stale cohort). Informational only; never a reportable estimate. Added after benchmarking `leaf_budget = 15` (raised from 4, PI 2026-09-28) on the 400-row Tier-0 toy fixture: 4.8s at `leaf_budget = 4`, 94.5s at `6`, still running past 5+ minutes at `15` (killed) — the real cohort's `07` risks discovering an infeasible budget only after `03`'s multi-hour cost-streaming pass. Invoke wrapped in the shell's `timeout` (the real bound; this script's own `setTimeLimit()` is best-effort only against optimaltrees' compiled C++ search — see the file's own header): `timeout 900 Rscript application/91_leaf_budget_feasibility.R`. |
 | `tests/` | yes | testthat files, no data, no server. |
@@ -149,7 +163,7 @@ oversight:
 Lets the PI check every lever and quote the counts in the paper. Each stage saves the raw counts it
 already computes as it runs (`02` the attrition steps and the period selection, `03` the cost-window
 object with its `setting_summary` attribute, `05` the enrollment coverage, `06` the final-sample
-design counts) to `application/output/report_inputs/*.rds` (gitignored, local, never exported).
+design counts) to `application/output/private/report_inputs/*.rds` (gitignored, local, never exported).
 `08` reads those files, takes the levers from `_config.R`'s own objects (so the report cannot drift
 from the code), and builds smidata's decision-report tables plus this paper's own.
 
@@ -208,13 +222,13 @@ prevalence table are not published separately.
 
 ```
 Rscript application/run_pipeline.R          # 01-07, then 08 (or run 08 alone after 06)
-Rscript application/08_decision_report.R    # Markdown -> application/output/decision_report/decision_report.md
+Rscript application/08_decision_report.R    # Markdown -> application/output/export/decision_report/decision_report.md
 ```
 
 On the server (`smidata::smi_is_server()` and intermediates recorded there) the tables are also
 exported through `smidata::smi_report_export()` (the only door off the server). Off the server, with no
 intermediates, it runs on the toy inputs, titles the report "TOY INPUTS", writes to
-`output/decision_report_toy/`, and exports nothing. Stage intermediates from different runs or
+`output/private/decision_report_toy/`, and exports nothing. Stage intermediates from different runs or
 environments abort the build.
 
 | Lever / question | Where it is evidenced (report table) |
