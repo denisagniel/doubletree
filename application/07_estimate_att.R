@@ -2,10 +2,20 @@
 ## 07_estimate_att.R
 ##
 ## Tree-based ATT estimation via doubletree::estimate_att() (flagship, no sample
-## splitting) and doubletree::estimate_att_crossfit() (K-fold fallback).
+## splitting) and a K-fold cross-fit companion/anchor, which is
+## doubletree::estimate_att_crossfit_xgb() by default (config_crossfit_learner;
+## "tree" restores estimate_att_crossfit(), which is very slow).
 ##
 ## Signatures below are REAL, taken from R/estimate_att.R and
-## R/estimate_att_crossfit.R in this package. `leaf_budget` is required and has
+## R/estimate_att_crossfit.R / R/estimate_att_crossfit_xgb.R in this package.
+## The cross-fit companion ("anchor") is xgboost by default
+## (config_crossfit_learner): it needs no sparsity, only a sqrt(n)-consistent
+## estimator, runs in seconds, and its validity rests on the product-rate
+## condition for the boosted nuisances (an assumption, not checked here). Note
+## it clips the propensity one-sidedly like the flagship, whereas the "tree"
+## crossfit clamps to [0.01, 0.99] two-sidedly. The outcome Y is the
+## WINSORIZED cost from 06 (estimand: ATT on winsorized cost); the cap is
+## estimated but treated as fixed by the Wald intervals (see 06). `leaf_budget` is required and has
 ## no default; `outcome_type = "continuous"` because Y is dollars.
 ##
 ## THE GATE IS NOW OPEN. As of 2026-09-30 no OPEN_DECISIONS entry has
@@ -69,6 +79,9 @@ cli::cli_h1("07 -- tree-based ATT estimation")
 assert_no_blocking_open()
 
 ## Fail before the (long) fits, not after them.
+if (config_crossfit_learner == "xgboost" && !requireNamespace("xgboost", quietly = TRUE)) {
+  cli::cli_abort("{.code config_crossfit_learner} is {.val xgboost} but the xgboost package is not installed.")
+}
 if (!(is.character(config_estimator) && length(config_estimator) == 1L &&
       config_estimator %in% c("att", "crossfit"))) {
   cli::cli_abort(
@@ -79,6 +92,7 @@ if (!(is.character(config_estimator) && length(config_estimator) == 1L &&
 
 source(file.path(app_dir, "helpers", "covariate_blocks.R"))
 source(file.path(app_dir, "helpers", "design_matrix.R"))
+source(file.path(app_dir, "helpers", "disclosure.R"))   # config_report_min_cell
 
 library(doubletree)
 
@@ -117,6 +131,16 @@ X <- as.data.frame(analytic_data[, x_cols, drop = FALSE])
 A <- as.integer(analytic_data$A)
 Y <- as.numeric(analytic_data$Y)
 
+## The analytic Y must be Y_raw capped at the manifest's winsorization cap.
+winsor_cap <- suppressWarnings(as.numeric(manifest$value[manifest$field == "winsor_cap"]))
+if (length(winsor_cap) != 1L || is.na(winsor_cap) || !"Y_raw" %in% names(analytic_data) ||
+    !isTRUE(all.equal(Y, pmin(as.numeric(analytic_data$Y_raw), winsor_cap)))) {
+  cli::cli_abort(c(
+    "The analytic Y is not Y_raw capped at the manifest's winsor_cap.",
+    "i" = "Re-run {.file 06_assemble_analytic_data.R}; parquet and manifest disagree."
+  ))
+}
+
 ## Re-assert at the estimator boundary. Not redundant with 06: the parquet
 ## round-trip is where a 0/1 integer column can come back as something else, and
 ## column ORDER is not guaranteed by a file format. See helpers/design_matrix.R
@@ -125,7 +149,7 @@ assert_binary_design_matrix(X)
 
 cli::cli_alert_info(
   "n = {nrow(X)}; A = 1: {sum(A == 1L)}; A = 0: {sum(A == 0L)};
-   Y in [{round(min(Y))}, {round(max(Y))}]"
+   Y (winsorized) in [{round(min(Y))}, ~{signif(max(Y), 2)}]"
 )
 
 ## ---- flagship: estimate_att() (grid-exact sparsity required) ----------------
@@ -241,17 +265,33 @@ if (flagship_licensed) {
 ## header for why: a sparsity failure that is invisible in the flagship estimate
 ## shows up here as a discrepancy.
 
-fit_cf <- doubletree::estimate_att_crossfit(
-  X = X, A = A, Y = Y,
-  K = config_crossfit_k,
-  outcome_type = "continuous",
-  seed = config_seed,
-  model_limit = 0L           # same override as the flagship call above: X is
-                              # already binary, so fit_tree()'s 465-feature
-                              # worst-case-continuous estimate is spurious
-)
+cf_name <- if (config_crossfit_learner == "xgboost") {
+  "estimate_att_crossfit_xgb"
+} else {
+  "estimate_att_crossfit"
+}
+fit_cf <- if (config_crossfit_learner == "xgboost") {
+  ## Fast anchor (config_crossfit_learner): boosted nuisances, early stopping on
+  ## a validation split of each fold's TRAINING rows, one thread (reproducible).
+  doubletree::estimate_att_crossfit_xgb(
+    X = X, A = A, Y = Y,
+    K = config_crossfit_k,
+    outcome_type = "continuous",
+    seed = config_seed
+  )
+} else {
+  doubletree::estimate_att_crossfit(
+    X = X, A = A, Y = Y,
+    K = config_crossfit_k,
+    outcome_type = "continuous",
+    seed = config_seed,
+    model_limit = 0L           # same override as the flagship call above: X is
+                                # already binary, so fit_tree()'s 465-feature
+                                # worst-case-continuous estimate is spurious
+  )
+}
 
-cli::cli_h2("estimate_att_crossfit() -- companion, no sparsity requirement")
+cli::cli_h2("{cf_name}() -- companion, no sparsity requirement")
 cli::cli_alert_info("theta = {signif(fit_cf$theta, 4)}  (SE {signif(fit_cf$sigma, 4)})")
 cli::cli_alert_info("95% CI: [{signif(fit_cf$ci_95[1], 4)}, {signif(fit_cf$ci_95[2], 4)}]")
 
@@ -261,7 +301,7 @@ delta <- fit_att$theta - fit_cf$theta
 pooled_se <- sqrt(fit_att$sigma^2 + fit_cf$sigma^2)
 cli::cli_h2("Discrepancy")
 cli::cli_alert_info(
-  "estimate_att() - estimate_att_crossfit() = {signif(delta, 4)}
+  "estimate_att() - {cf_name}() = {signif(delta, 4)}
    ({signif(delta / pooled_se, 2)} pooled SEs)"
 )
 cli::cli_alert_warning(
@@ -320,16 +360,30 @@ att_estimates <- dplyr::bind_rows(
     ci_of(fit_att)
   ),
   dplyr::bind_cols(
-    tibble::tibble(estimator = "estimate_att_crossfit", theta = fit_cf$theta,
+    tibble::tibble(estimator = cf_name, theta = fit_cf$theta,
                    sigma = fit_cf$sigma),
     ci_of(fit_cf)
   )
 ) |>
   dplyr::mutate(
-    flagship = (.data$estimator == "estimate_att") == (config_estimator == "att"),
+    estimand = sprintf("ATT on Y capped at p%s (decision outcome_winsor_quantile: %s)",
+                       format(100 * OPEN_DECISIONS$outcome_winsor_quantile$value),
+                       OPEN_DECISIONS$outcome_winsor_quantile$status),
+    flagship = if (config_estimator == "att") {
+      .data$estimator == "estimate_att"
+    } else {
+      .data$estimator == cf_name
+    },
     ## The saved sigma/CI carry these caveats into any table built from them.
-    se_method = c("in-sample EIF plug-in; downward-biased, O((2*leaf_budget+1)/n)",
-                  "cross-fit EIF"),
+    se_method = paste0(
+      c("in-sample EIF plug-in; downward-biased, O((2*leaf_budget+1)/n)",
+        if (config_crossfit_learner == "xgboost") {
+          "cross-fit EIF, xgboost nuisances (anchor)"
+        } else {
+          "cross-fit EIF"
+        }),
+      "; treats the estimated winsorization cap as fixed (first-order term ignored)"
+    ),
     ci_method = "Wald", ci_level = 0.95,
     n = nrow(X), n_treated = sum(A == 1L), n_control = sum(A == 0L)
   )
@@ -340,7 +394,8 @@ att_estimates <- dplyr::bind_rows(
 diag_fields <- c(
   "certified_e", "certified_m0", "used_search_e", "used_search_m0",
   "n_leaves_e", "n_leaves_m0", "gap_e", "gap_m0", "any_truncated_e",
-  "any_truncated_m0", "clip_rate_e",
+  "any_truncated_m0", "feasible_e", "feasible_m0",
+  "certificate_case_e", "certificate_case_m0", "clip_rate_e",
   # The package-default values actually used (not set in _config.R), recorded
   # so a package upgrade that changes a default is visible in the output.
   "m_n", "lambda_n", "lambda_e", "lambda_m0", "clip_c"
@@ -348,6 +403,13 @@ diag_fields <- c(
 bad_fields <- diag_fields[lengths(fit_att[diag_fields]) != 1L]
 if (length(bad_fields) > 0L) {
   cli::cli_abort("estimate_att() did not return length-1 {.field {bad_fields}}.")
+}
+## Share of the sum of squared EIF scores carried by the top 0.1% of patients,
+## but never fewer than config_report_min_cell patients (a statistic about fewer
+## people than the minimum cell size would describe individuals).
+psi_share_top <- function(psi, frac = 0.001, k_min = config_report_min_cell) {
+  psi2 <- sort(psi^2, decreasing = TRUE)
+  sum(psi2[seq_len(min(length(psi2), max(k_min, ceiling(frac * length(psi2)))))]) / sum(psi2)
 }
 att_diagnostics <- tibble::as_tibble(fit_att[diag_fields]) |>
   dplyr::mutate(
@@ -357,7 +419,15 @@ att_diagnostics <- tibble::as_tibble(fit_att[diag_fields]) |>
     flagship_licensed = flagship_licensed,
     budget_check_vacuous = licence_vacuous,
     delta = delta,
-    pooled_se_upper_bound_not_a_test = pooled_se
+    pooled_se_upper_bound_not_a_test = pooled_se,
+    ## Heavy-tail check: share of the flagship's sum of squared EIF scores
+    ## coming from the top 0.1% of observations. Large values mean the Wald CI
+    ## rests on a handful of patients.
+    flagship_psi_sq_share_top_0.1pct = psi_share_top(fit_att$score_values),
+    anchor_psi_sq_share_top_0.1pct = psi_share_top(fit_cf$score_values),
+    anchor_learner = config_crossfit_learner,
+    anchor_clip_rate_e = if (is.null(fit_cf$clip_rate_e)) NA_real_ else fit_cf$clip_rate_e,
+    anchor_hit_nrounds_max = if (is.null(fit_cf$hit_nrounds_max)) NA else fit_cf$hit_nrounds_max
   )
 
 ## Code provenance. The application is git state of app_dir, and only if app_dir
@@ -388,11 +458,15 @@ prov <- c(
   ingest_id = effective_ingest_id(), smi_run_id = Sys.getenv("SMI_RUN_ID", "none"),
   r_version = R.version.string,
   seed = config_seed, estimator_flagship = config_estimator,
-  crossfit_k = config_crossfit_k, saa_period_rule = paste0("start_exactly_at_s_", config_period_anchor),
+  crossfit_k = config_crossfit_k, crossfit_learner = config_crossfit_learner,
+  xgboost_version = if (config_crossfit_learner == "xgboost") fit_cf$xgboost_version else "not_used", saa_period_rule = paste0("start_exactly_at_s_", config_period_anchor),
   cost_policy = paste0("service_only_", config_negative_amount_policy, "_nominal"),
   exclude_setting_regex = config_exclude_setting_regex,
   prior_cost_floor = format(OPEN_DECISIONS$prior_cost_negative_floor$value),
   prior_cost_floor_status = OPEN_DECISIONS$prior_cost_negative_floor$status,
+  outcome_winsor_quantile = manifest$value[manifest$field == "winsor_quantile"],
+  outcome_winsor_cap = manifest$value[manifest$field == "winsor_cap"],
+  outcome_winsor_status = OPEN_DECISIONS$outcome_winsor_quantile$status,
   saa_achievement_threshold = config_saa_achievement_threshold,
   cost_setting_col = config_cost_setting_col,
   complete_case_months = config_complete_case_months,

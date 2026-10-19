@@ -49,6 +49,7 @@ source(file.path(app_dir, "_config.R"))
 source(file.path(app_dir, "helpers", "covariate_blocks.R"))
 source(file.path(app_dir, "helpers", "discretize_prior_cost.R"))
 source(file.path(app_dir, "helpers", "design_matrix.R"))
+source(file.path(app_dir, "helpers", "winsorize_outcome.R"))
 source(file.path(app_dir, "helpers", "disclosure.R"))
 source(file.path(app_dir, "helpers", "decision_report.R"))
 if (config_echo_decisions) echo_open_decisions()
@@ -235,6 +236,41 @@ if (!config_has_smidata) {
        estimator can fit on a single arm."
     )
   }
+  ## ---- Winsorize Y ONCE, here, for every downstream estimator --------------
+  ##
+  ## PI direction 2026-10-19 (OPEN_DECISIONS$outcome_winsor_quantile): the
+  ## winsorized outcome is used throughout, so the estimand is the ATT on
+  ## winsorized cost. The cap is the pooled type-7 quantile over the FINAL
+  ## complete-case sample; it defines the outcome and is not a per-fold
+  ## nuisance. Raw cost is kept as Y_raw for the decision report and
+  ## sensitivities. Runs AFTER the structural checks above so their specific
+  ## aborts fire before winsorize_upper()'s generic ones.
+  ##
+  ## INFERENCE CAVEAT: the cap is ESTIMATED (a sample quantile) but the
+  ## downstream Wald intervals treat it as FIXED. The omitted term is
+  ## theta'(c) * (c_hat - c) with c_hat - c = O_p(n^-1/2): first order, small at
+  ## p99 only if the two arms' tail probabilities beyond c are close. It is
+  ## recorded in the saved se_method strings; a bootstrap from this step onward
+  ## is the check.
+  winsor_q <- open_value("outcome_winsor_quantile")
+  y_w <- winsorize_upper(analytic_data$Y, winsor_q)
+  analytic_data$Y_raw <- analytic_data$Y
+  analytic_data$Y <- as.numeric(y_w)
+  winsor_cap <- attr(y_w, "cap")
+  winsor_n_capped_a0 <- sum(analytic_data$Y_raw > winsor_cap & analytic_data$A == 0L)
+  winsor_n_capped_a1 <- sum(analytic_data$Y_raw > winsor_cap & analytic_data$A == 1L)
+  ## The console shows a rounded cap and masked counts: the p99 interpolates two
+  ## adjacent order statistics (essentially one person's cost) and a per-arm
+  ## count can fall under config_report_min_cell. Full precision stays in the
+  ## parquet/manifest only.
+  mask_count <- function(k) if (k < config_report_min_cell) paste0("<", config_report_min_cell) else k
+  cli::cli_alert_info(
+    "Y winsorized above the p{100 * winsor_q} quantile (cap ~{signif(winsor_cap, 2)});
+     {mask_count(winsor_n_capped_a0)} control and {mask_count(winsor_n_capped_a1)}
+     treated row(s) capped. Estimand: ATT on winsorized cost. Raw cost kept as
+     {.field Y_raw}."
+  )
+
   ## Informational only, not an abort: estimate_att()'s OWN internal check
   ## (R/estimate_att.R, n_control < leaf_budget * m_n) uses the REAL m_n
   ## passed at call time in 07, which this script does not know yet.
@@ -252,6 +288,8 @@ if (!config_has_smidata) {
     n_complete_case = nrow(analytic_cc),
     n_final = nrow(analytic_data),
     final_ids = analytic_data$ID,
+    winsor = list(q = winsor_q, n_capped_a0 = winsor_n_capped_a0,
+                  n_capped_a1 = winsor_n_capped_a1),
     design = summarise_design(
       analytic_data,
       n_floored = n_floored,
@@ -297,13 +335,16 @@ if (!config_has_smidata) {
     data.frame(
       field = c("timestamp", "provisional", "blocking_open_ids",
                 "n_eligible", "n_complete_case", "n_final",
-                "n_treated", "n_control", "config_fingerprint", "smi_run_id"),
+                "n_treated", "n_control", "config_fingerprint", "smi_run_id",
+                "winsor_quantile", "winsor_cap", "winsor_n_capped_control",
+                "winsor_n_capped_treated"),
       value = c(
         format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z"),
         nzchar(suffix),
         paste(blocking_open_ids(), collapse = ";"),
         n_pre, nrow(analytic_cc), nrow(analytic_data),
-        n_treated, n_control, config_fingerprint(), Sys.getenv("SMI_RUN_ID", "none")
+        n_treated, n_control, config_fingerprint(), Sys.getenv("SMI_RUN_ID", "none"),
+        winsor_q, winsor_cap, winsor_n_capped_a0, winsor_n_capped_a1
       )
     ),
     manifest_path, row.names = FALSE

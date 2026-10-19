@@ -11,9 +11,10 @@ estimate_att(
   leaf_budget,
   outcome_type = c("binary", "continuous"),
   lambda_n = NULL,
-  m_n = 1L,
+  m_n = NULL,
   verbose = FALSE,
-  propensity_loss = c("log_loss", "squared_error"),
+  propensity_loss = c("squared_error", "log_loss"),
+  clip_c = 0.01,
   discretize_method = "quantiles",
   discretize_bins = "adaptive",
   ...
@@ -37,48 +38,78 @@ fitted trees less interpretable and the finite-sample variance bias
 (order \eqn{(2\bar L + 1)/n}) larger.}
 
 \item{outcome_type}{Character. \code{"binary"} (default) or
-\code{"continuous"}. Determines the loss used for the \eqn{\mu} tree
-(\code{"log_loss"} vs \code{"squared_error"}).}
+\code{"continuous"}. As of the 2026-09-30 paper-alignment fix this no
+longer determines the \eqn{\mu} tree's loss (see \code{propensity_loss}
+and Details) -- it governs only input validation (\code{Y} must be 0/1
+when \code{"binary"}) and a mismatch warning.}
 
-\item{lambda_n}{Numeric penalty per leaf in \code{eq:select}. Default
-\code{NULL} resolves to \eqn{\log(n)/n}. That rate is what
-\code{prop:parsimony} needs: it requires \eqn{\lambda_n \to 0}
-(Assumption~\code{ass:global}) \emph{and} \eqn{n\lambda_n \to \infty}
-simultaneously, and \eqn{\log(n)/n} satisfies both. (The formula coincides
-numerically with \code{optimaltrees::select_epsilon_n()}, but that function
-returns a Rashomon \emph{tolerance} --- a different quantity from a
-selection penalty --- and is deliberately not called here.)}
+\item{lambda_n}{Numeric penalty per leaf in \code{eq:select}, on the
+scale-free RATE side of the mechanism. Default \code{NULL} resolves to
+\eqn{\log(n)/n}. That rate is what \code{prop:parsimony} needs: it
+requires \eqn{\lambda_n \to 0} (Assumption~\code{ass:global}) \emph{and}
+\eqn{n\lambda_n \to \infty} simultaneously, and \eqn{\log(n)/n} satisfies
+both. (The formula coincides numerically with
+\code{optimaltrees::select_epsilon_n()}, but that function returns a
+Rashomon \emph{tolerance} --- a different quantity from a selection
+penalty --- and is deliberately not called here.) \strong{This rate is
+not passed to the solver directly}: each tree instead receives
+\code{lambda_n * L_root}, where \code{L_root} is that tree's own
+root-node loss (see Details, "Root-loss-relative penalty") -- the
+\emph{resolved rate} is returned as \code{lambda_n}; the two
+\emph{actually-used} penalties are returned as \code{lambda_e},
+\code{lambda_m0}.}
 
 \item{m_n}{Integer minimum observations per leaf, the \eqn{m_n} of
-\code{eq:feasible}. Default \code{1L}, matching
-\code{optimaltrees::bisect_lambda_to_budget()}'s own default: a
-\emph{trivial} floor that forbids empty leaves but imposes no binding
-minimum-leaf-mass constraint. That is sufficient, because
-Assumption~\code{ass:construct}(d) asks only for \eqn{m_n/n \to 0} and
-\eqn{\bar L\, m_n \lesssim n}, both satisfied trivially at \eqn{m_n = 1}.
-Raise it to stabilise leaf values at the cost of shrinking the feasible
-candidate set.}
+\code{eq:feasible}. Default \code{NULL} resolves to
+\code{ceiling(sqrt(n))}. \code{ass:construct}(d) asks only for a RATE
+(\eqn{m_n/n \to 0}, \eqn{\bar L\, m_n \lesssim n}), not a value, and the
+trivial floor \eqn{m_n = 1} (the pre-2026-09-30 default) satisfies that
+rate while imposing no real constraint at all: leaves are then free to
+become near-degenerate, pushing the resulting extreme propensities onto
+\code{clip_c} instead (observed directly:
+\code{simulations/propensity_loss_choice}'s weak-overlap cell reached a
+47\% clip rate at \eqn{m_n = 1}). \eqn{\sqrt n} satisfies the rate
+condition and stabilises leaf values; raise it further to trade the
+feasible candidate set for stability, or supply an explicit integer.}
 
 \item{verbose}{Logical. Forwarded to \code{optimaltrees}. Default
 \code{FALSE}.}
 
-\item{propensity_loss}{Character. Loss used to fit and select the
-propensity (\eqn{e}) tree: \code{"log_loss"} (default) or
-\code{"squared_error"}. Both are proper scoring rules, so for a
-\strong{fixed} partition they give the identical leaf estimate --
-\code{propensity_loss} can only change which partition
-\code{bisect_lambda_to_budget()} selects (log-loss's near-boundary split
-weighting, \eqn{\sim 1/[q(1-q)]}, versus squared-error's uniform
-weighting), not the leaf values themselves. This is an empirical,
-decision-relevant choice, not a validity question: the loss-norm link for
-log-loss holds via Pinsker's inequality with a universal constant and no
-boundedness assumption on the truth (uniform loss-boundedness for
-estimation comes from clipping the \emph{fitted} propensity, orthogonal
-to the fitting loss). See
+\item{propensity_loss}{Character. Loss used to fit and select \emph{both}
+trees' structure: \code{"squared_error"} (default, per
+\code{theory.tex} Assumption~\code{ass:construct}(a): "Both nuisances
+are fitted by squared error") or \code{"log_loss"}. Despite the name,
+this argument now governs the \eqn{e} tree's loss only -- the
+\eqn{\mu}/outcome tree is \strong{always} \code{"squared_error"}
+regardless of \code{outcome_type} or this argument (see Details,
+"Root-loss-relative penalty", and \code{ass:construct}(a)); the
+argument name is retained for signature stability. Both losses are
+proper scoring rules, so for a \strong{fixed} partition they give the
+identical leaf estimate for \eqn{e} -- \code{propensity_loss} can only
+change which partition \code{bisect_lambda_to_budget()} selects
+(log-loss's near-boundary split weighting, \eqn{\sim 1/[q(1-q)]}, versus
+squared-error's uniform weighting). \code{"log_loss"} remains available
+as a deliberate, documented departure from \code{ass:construct}(a) for
+comparison/ablation purposes (see
 \code{quality_reports/specs/2026-08-20_propensity-loss-choice.md} in the
-\code{global-scholars} project for the ablation that motivates the
-default. The \eqn{\mu}/outcome tree's loss is unaffected -- it is always
-determined by \code{outcome_type}.}
+\code{global-scholars} project) -- \strong{that ablation predates the
+2026-09-30 root-loss-relative \code{lambda_n} fix and is confounded by
+the bug it fixes; re-run before drawing any conclusion from it}.}
+
+\item{clip_c}{Numeric in \eqn{(0, 1)}, default \code{0.01}. The positivity
+constant \eqn{c} of Assumption~\code{ass:causal} /
+\code{ass:construct}(c): fitted propensities are clipped
+\strong{one-sided}, \code{pmin(1 - clip_c, e_hat)}. \code{theory.tex} is
+explicit that no lower clip is used anywhere ("\eqn{e_0(x) = 0} is
+harmless") and that two-sided clipping forfeits the one-sided clip's
+non-expansiveness (the Euclidean projection onto \eqn{[0, 1-c]}) "wherever
+\eqn{e_0 < c}" -- a property every downstream \eqn{L_2} bound relies on;
+\code{psi_att()}'s own algebra is finite at \eqn{e = 0} regardless.
+\eqn{c} is the analyst's declared constant, not something estimated from
+this sample (\code{theory.tex}: "\eqn{c} is an unknown functional of
+\eqn{P} and is nowhere estimated ... any conservative choice
+\eqn{c' \le c} suffices, and only overshooting is fatal") -- smaller
+\code{clip_c} is the risky direction, not the safe one.}
 
 \item{discretize_method}{Character. Passed through to \code{optimaltrees}.
 Default \code{"quantiles"}. With binary \code{X} (the only supported case)
@@ -112,35 +143,69 @@ A list with elements:
     \eqn{\hat\theta}.}
   \item{nuisance_fits}{List with \code{e_model}, \code{m0_model} (the fitted
     \code{OptimalTreesModel} objects) and the in-sample \code{propensity}
-    (clamped) and \code{outcome_control} predictions, mirroring
+    (clipped) and \code{outcome_control} predictions, mirroring
     \code{\link{estimate_att_crossfit}}'s diagnostic fields.}
   \item{n}{Sample size.}
-  \item{leaf_budget, lambda_n, m_n}{The resolved tuning values actually used
-    (\code{lambda_n} is the resolved \eqn{\log(n)/n} when the argument was
-    \code{NULL}).}
+  \item{leaf_budget, m_n}{The resolved tuning values actually used
+    (\code{m_n} is the resolved \code{ceiling(sqrt(n))} when the argument
+    was \code{NULL}).}
+  \item{lambda_n}{The resolved scale-free RATE (\eqn{\log(n)/n} when the
+    argument was \code{NULL}) -- NOT what the solver actually saw; see
+    \code{lambda_e}/\code{lambda_m0}.}
+  \item{lambda_e, lambda_m0}{The root-loss-relative penalties actually
+    passed to each tree's \code{bisect_lambda_to_budget()} call
+    (\code{lambda_n * L_root}, Details).}
+  \item{clip_c}{The clipping constant actually used, echoed back.}
+  \item{clip_rate_e}{Fraction of in-sample rows whose \emph{unclipped}
+    fitted propensity exceeded \eqn{1 -} \code{clip_c}.
+    Assumption~\code{ass:clip-margin} implies clipping is inactive at
+    every leaf with probability tending to one; a persistently nonzero
+    rate is the only observable evidence against that margin holding
+    here.}
   \item{certified_e, certified_m0}{Logical. \code{TRUE} iff the returned fit
     is \emph{proven} to solve \code{eq:select} exactly (see
     \code{optimaltrees::bisect_lambda_to_budget()}).}
   \item{used_search_e, used_search_m0}{Logical. \code{FALSE} iff
-    \code{lambda_n} alone already respected \code{leaf_budget}, so no
-    bisection was needed --- the asymptotically typical case under
-    \code{prop:parsimony}.}
+    \code{lambda_e}/\code{lambda_m0} alone already respected
+    \code{leaf_budget}, so no bisection was needed --- the
+    asymptotically typical case under \code{prop:parsimony}.}
   \item{n_leaves_e, n_leaves_m0}{Realised leaf counts \eqn{|\hat\tau_e|},
     \eqn{|\hat\tau_\mu|}.}
   \item{gap_e, gap_m0}{Computable suboptimality slack when the corresponding
     \code{certified_*} is \code{FALSE} but the fit is feasible and within
     budget; \code{0} when certified, \code{NA} when infeasible or the budget
     could not be met.}
+  \item{feasible_e, feasible_m0}{Logical. \code{TRUE} iff every leaf of the
+    returned tree carries at least \code{m_n} observations (control
+    observations for the outcome tree). With the default native floor this
+    is always \code{TRUE} (\code{n < leaf_budget * m_n} is rejected up
+    front); \code{FALSE} can arise only if \code{enforce_floor = FALSE} or a
+    group-aware floor is forwarded through \code{...}.}
+  \item{certificate_case_e, certificate_case_m0}{Character: \code{"ii"}
+    (the fit at \code{lambda_e}/\code{lambda_m0} is within budget), \code{"i"}
+    (budget hit exactly at a larger penalty), \code{"iii"} (the leaf-count
+    staircase skipped the budget; \code{gap_*} is the slack),
+    \code{"infeasible"}, or \code{"over_budget"}. Only \code{"ii"} and
+    \code{"i"} are \code{certified_*}.}
+  \item{any_truncated_e, any_truncated_m0}{Logical. \code{TRUE} iff ANY
+    internal fit for that tree hit its wall-clock \code{time_limit} before
+    branch-and-bound converged (see
+    \code{optimaltrees::bisect_lambda_to_budget()}'s \code{any_truncated}).
+    A truncated fit's incumbent is not proven optimal, which breaks the
+    premise \code{certified} relies on for that fit --
+    \code{certified_* == TRUE} together with \code{any_truncated_* ==
+    TRUE} is a real, distinct failure mode, not a contradiction to paper
+    over.}
 
 \strong{How to read the diagnostics.} \code{certified_* == TRUE} together
-with \code{used_search_* == FALSE} and a small, \eqn{n}-stable
-\code{n_leaves_*} is the operational signature that \code{prop:parsimony}'s
-conclusion has kicked in, which is \emph{consistent with}
-\code{ass:sparsity} holding at this \eqn{\bar L}. It is \strong{not} a proof
-or a test of it: \code{ass:sparsity} is an assumption about \eqn{P}, is not
-identified from a single sample, and a certified fit can occur while
-\eqn{\delta_e, \delta_\mu > 0}. Treat these fields as a signal to reconsider
-\eqn{\bar L} or to switch deliberately to
+with \code{used_search_* == FALSE}, \code{any_truncated_* == FALSE}, and a
+small, \eqn{n}-stable \code{n_leaves_*} is the operational signature that
+\code{prop:parsimony}'s conclusion has kicked in, which is \emph{consistent
+with} \code{ass:sparsity} holding at this \eqn{\bar L}. It is \strong{not}
+a proof or a test of it: \code{ass:sparsity} is an assumption about
+\eqn{P}, is not identified from a single sample, and a certified fit can
+occur while \eqn{\delta_e, \delta_\mu > 0}. Treat these fields as a signal
+to reconsider \eqn{\bar L} or to switch deliberately to
 \code{\link{estimate_att_crossfit}}, never as a licence to auto-switch.
 }
 \description{

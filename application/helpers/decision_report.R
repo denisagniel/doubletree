@@ -189,7 +189,14 @@ report_levers <- function(meta = list(env = NA_character_, ingest_id = NA_charac
       "bins (-Inf, c1], (c1, c2], (c2, c3], (c3, Inf); Q1 reference; 3 dummies"
     ),
     covariate_set = paste(design_matrix_columns(), collapse = ", "),
-    winsorizing = "not applicable: no winsorizing or trimming of Y or prior_cost",
+    winsorizing = if (OPEN_DECISIONS$outcome_winsor_quantile$value >= 1) {
+      "none: Y is raw cost (outcome_winsor_quantile = 1); prior_cost is not winsorized or trimmed"
+    } else {
+      sprintf(
+        "Y capped above its p%s quantile over the final complete-case sample (pooled across arms); estimand is the ATT on winsorized cost; prior_cost is not winsorized or trimmed; decision outcome_winsor_quantile",
+        format(100 * OPEN_DECISIONS$outcome_winsor_quantile$value)
+      )
+    },
     provider_attribution = "not applicable: patient-level ATT, no provider attribution",
     open_decisions = paste0(names(open_status), "=", open_status, collapse = "; ")
   )
@@ -219,6 +226,16 @@ build_decision_report <- function(inputs, title = "doubletree application: decis
       "i" = "They come from different runs; re-run the pipeline end to end."
     ))
   }
+  ## The winsorization lever is read from the config; make sure 06 used it.
+  if (!is.null(p06$winsor) &&
+      !isTRUE(all.equal(p06$winsor$q, OPEN_DECISIONS$outcome_winsor_quantile$value))) {
+    cli::cli_abort(c(
+      "06 winsorized Y at q = {p06$winsor$q} but the config now says
+       {OPEN_DECISIONS$outcome_winsor_quantile$value}.",
+      "i" = "Re-run 06 (and 07) so the report describes the level actually used."
+    ))
+  }
+
   envs <- unique(c(p02$.meta$env, p03$.meta$env, p06$.meta$env, p05$.meta$env))
   if (length(envs) != 1L) {
     cli::cli_abort("Intermediates come from different environments: {.val {envs}}.")

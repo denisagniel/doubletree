@@ -245,6 +245,18 @@
 #'     \code{certified_*} is \code{FALSE} but the fit is feasible and within
 #'     budget; \code{0} when certified, \code{NA} when infeasible or the budget
 #'     could not be met.}
+#'   \item{feasible_e, feasible_m0}{Logical. \code{TRUE} iff every leaf of the
+#'     returned tree carries at least \code{m_n} observations (control
+#'     observations for the outcome tree). With the default native floor this
+#'     is always \code{TRUE} (\code{n < leaf_budget * m_n} is rejected up
+#'     front); \code{FALSE} can arise only if \code{enforce_floor = FALSE} or a
+#'     group-aware floor is forwarded through \code{...}.}
+#'   \item{certificate_case_e, certificate_case_m0}{Character: \code{"ii"}
+#'     (the fit at \code{lambda_e}/\code{lambda_m0} is within budget), \code{"i"}
+#'     (budget hit exactly at a larger penalty), \code{"iii"} (the leaf-count
+#'     staircase skipped the budget; \code{gap_*} is the slack),
+#'     \code{"infeasible"}, or \code{"over_budget"}. Only \code{"ii"} and
+#'     \code{"i"} are \code{certified_*}.}
 #'   \item{any_truncated_e, any_truncated_m0}{Logical. \code{TRUE} iff ANY
 #'     internal fit for that tree hit its wall-clock \code{time_limit} before
 #'     branch-and-bound converged (see
@@ -583,6 +595,10 @@ estimate_att <- function(X, A, Y, leaf_budget,
     n_leaves_m0 = m0_fit$n_leaves,
     gap_e = e_fit$gap,
     gap_m0 = m0_fit$gap,
+    feasible_e = e_fit$feasible,
+    feasible_m0 = m0_fit$feasible,
+    certificate_case_e = e_fit$certificate_case,
+    certificate_case_m0 = m0_fit$certificate_case,
     any_truncated_e = e_fit$any_truncated,
     any_truncated_m0 = m0_fit$any_truncated
   )

@@ -49,7 +49,8 @@ test_that("the levers are read from the config objects", {
   expect_match(lv$enrollment_rule, "gap_months = 0, gap_mode = total", fixed = TRUE)
   expect_match(lv$cost_families, "18 files", fixed = TRUE)
   expect_match(lv$prior_cost_floor, "set to 0", fixed = TRUE)
-  expect_match(lv$winsorizing, "^not applicable")
+  expect_match(lv$winsorizing, "capped above its p99 quantile", fixed = TRUE)
+  expect_match(lv$winsorizing, "ATT on winsorized cost", fixed = TRUE)
   expect_match(lv$provider_attribution, "^not applicable")
   ## 15 design columns listed.
   expect_equal(length(strsplit(lv$covariate_set, ", ")[[1]]), 15L)

@@ -47,6 +47,7 @@ source(file.path(app_dir_for_tests, "helpers", "design_matrix.R"))
 source(file.path(app_dir_for_tests, "helpers", "msr_filter.R"))
 source(file.path(app_dir_for_tests, "helpers", "period_start.R"))
 source(file.path(app_dir_for_tests, "helpers", "disclosure.R"))
+source(file.path(app_dir_for_tests, "helpers", "winsorize_outcome.R"))
 
 #' Toy `larger_smi_covariates`-shaped frame: the 12 confirmed columns, 0/1 coded.
 #'

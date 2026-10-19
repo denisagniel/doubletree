@@ -215,8 +215,25 @@ config_max_depth <- 4L
 ## K for the cross-fitting companion estimate.
 config_crossfit_k <- 5L
 
-## Seed for the cross-fitting fold assignment. estimate_att() itself is
-## deterministic given (X, A, Y); only the crossfit path randomizes.
+## Learner for the cross-fitting companion ("anchor"). PI direction 2026-10-19:
+## "xgboost" (doubletree::estimate_att_crossfit_xgb(), seconds) rather than
+## "tree" (doubletree::estimate_att_crossfit(): per-fold optimal trees with an
+## inner lambda search, very slow). The anchor needs no sparsity, only a
+## sqrt(n)-consistent estimator, so it need not be a tree.
+config_crossfit_learner <- "xgboost"
+
+## Repeats of K-fold CV for the held-out outcome-model comparison in
+## 07b_compare_ols.R (tree vs OLS). Repetition 1 reuses the anchor's folds; the
+## others draw fresh stratified folds. Each repetition refits the flagship tree
+## K times.
+config_oof_repeats <- 3L
+stopifnot(is.numeric(config_oof_repeats), length(config_oof_repeats) == 1L,
+          config_oof_repeats >= 1)
+stopifnot(config_crossfit_learner %in% c("xgboost", "tree"))
+
+## Seed for fold assignment, validation splits and xgboost in the cross-fitting
+## anchor, and for 07b's fresh CV folds. estimate_att() itself is deterministic
+## given (X, A, Y).
 config_seed <- 20260917L
 
 ## ---- smidata availability --------------------------------------------------
@@ -560,7 +577,11 @@ OPEN_DECISIONS <- list(
       prior_cost retained in 06's analytic_data is NOT floored. THE WINDOW
       CHANGED 2026-10-15 (PI): prior_cost is [INDEX_DT-12mo, INDEX_DT), as the
       2026-09-28 decision was originally made; the intermediate [T0-12mo, T0)
-      anchoring is gone. The quartile cutpoints change accordingly.")
+      anchoring is gone. The quartile cutpoints change accordingly."),
+  outcome_winsor_quantile = list(
+    question = "Upper quantile at which the cost outcome Y is winsorized (capped) before ANY estimator sees it. Cost has a very heavy right tail, and squared-error trees spend leaves isolating outliers; winsorizing changes the estimand to the ATT on winsorized (trimmed) cost, so it must be reported as such.",
+    status = "open_decision", blocking_final = FALSE, value = 0.99,
+    note = "PI direction 2026-10-19: use the winsorized outcome THROUGHOUT (flagship, cross-fit anchor, OLS comparison), not selection-only. Level 0.99 is the analyst's placeholder: report 0.995 and 1 (no winsorization) as sensitivities before fixing it. The cap is the type-7 quantile of Y over the FINAL complete-case sample, pooled across arms, computed once in 06 (it defines the outcome; it is not a per-fold nuisance). Raw cost is kept as Y_raw. value = 1 disables winsorization.")
 )
 
 ## One source of truth for the complete-case window: the registry entry and the

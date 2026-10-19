@@ -45,6 +45,10 @@ test_that("estimate_att returns the documented list structure and runs on binary
   expect_type(fit$certified_m0, "logical")
   expect_type(fit$used_search_e, "logical")
   expect_type(fit$used_search_m0, "logical")
+  expect_true(fit$feasible_e)
+  expect_true(fit$feasible_m0)
+  expect_true(fit$certificate_case_e %in% c("i", "ii", "iii"))
+  expect_true(fit$certificate_case_m0 %in% c("i", "ii", "iii"))
   expect_true(fit$n_leaves_e >= 1 && fit$n_leaves_e <= 4L)
   expect_true(fit$n_leaves_m0 >= 1 && fit$n_leaves_m0 <= 4L)
 
@@ -178,4 +182,31 @@ test_that("estimate_att's certified/used_search/n_leaves diagnostics are interna
   # certified == FALSE with a feasible fit gives a non-negative gap or NA.
   if (isTRUE(fit$certified_e)) expect_equal(fit$gap_e, 0)
   if (isTRUE(fit$certified_m0)) expect_equal(fit$gap_m0, 0)
+})
+
+test_that("estimate_att() on a heavy-tailed control outcome returns a feasible, certified m0", {
+  # An isolated block of rows with huge costs would, without the solver's native
+  # m_n floor, earn its own tiny leaf (the 2026-10-17 server run: leaves of 81,
+  # 193 and 203 controls against m_n = 227).
+  set.seed(20261019)
+  n <- 4000
+  X <- as.data.frame(matrix(rbinom(n * 5, 1, 0.5), n, 5))
+  names(X) <- paste0("x", 1:5)
+  A <- rbinom(n, 1, plogis(-0.2 + 0.6 * X$x1))
+  Y <- rexp(n, 1 / 1000)
+  block <- which(X$x1 == 1 & X$x2 == 1 & X$x3 == 1 & X$x4 == 1 & A == 0)
+  big <- sample(block, min(25, length(block)))
+  Y[big] <- Y[big] + 100000
+  X$x5[big] <- 1L; X$x5[-big] <- 0L
+  fit <- estimate_att(X, A, Y, leaf_budget = 8L, outcome_type = "continuous",
+                      max_depth = 3L, depth_restricted = TRUE)
+  expect_true(fit$feasible_m0)
+  expect_true(fit$certified_m0)
+  expect_equal(fit$certificate_case_m0, "ii")
+  leaf_id <- optimaltrees:::assign_leaf_ids(
+    fit$nuisance_fits$m0_model,
+    optimaltrees:::apply_discretization(X[A == 0, , drop = FALSE],
+                                        fit$nuisance_fits$m0_model@discretization_metadata)
+  )
+  expect_gte(min(table(leaf_id)), fit$m_n)
 })
