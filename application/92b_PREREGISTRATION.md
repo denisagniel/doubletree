@@ -2,6 +2,8 @@
 
 **Status:** pre-registered 2026-10-28, before any headroom number in this
 document has been computed. Frozen until amended by a dated entry below.
+**Amended:** see [A1](#a1----2026-11-06-widen-the-search-to-a-declared-grid-with-a-multiplicity-rule),
+which supersedes the hard cap and the logit parts of the ranking metric.
 
 **Purpose:** find ONE small, honest, pedagogical illustration of the
 flexibility-vs-legibility tension `doubletree` is built to resolve (flexibility
@@ -279,6 +281,142 @@ consult those files directly for any measure not already named above.
 
 ## Amendments
 
-*(None yet. Any change to the frozen cell list, the hard cap, or the ranking
-metric after this document's status date goes here, dated, with a reason --
-never as a silent edit to the sections above.)*
+*(Any change to the frozen cell list, the hard cap, or the ranking metric after
+this document's status date goes here, dated, with a reason -- never as a
+silent edit to the sections above.)*
+
+### A1 -- 2026-11-06: widen the search to a declared grid, with a multiplicity rule
+
+**Status:** DRAFT until committed. It takes effect on commit. Numbers marked
+**[author-chosen]** are the drafter's proposals, to be confirmed before the
+commit; they cannot be changed after any new stage-1 number is computed.
+Sections 1-10 above are unchanged and stay in force except where this entry
+says it supersedes them.
+
+**Why.** The purpose of the application was restated: show that an
+interpretable tree is close to an ML benchmark in accuracy while a linear
+model is visibly wrong, in a high-stakes setting where black boxes are not
+usable. Tested in this order:
+
+1. *Linear is wrong:* a flexible learner beats a linear model.
+2. *Tree is close to ML:* an optimal tree recovers most of that gain.
+
+(The method does not use a Rashomon-structure criterion, so none is applied.)
+Sections 5 and Tiers 0-2 test only (1); nothing tested (2) before a cell was
+chosen.
+
+**Numbers seen before this amendment** (disclosed so they cannot be mistaken
+for blind): reference R has `xgb - additive_logit` headroom of about 0.2% of
+outcome MSE. A run of `92_outcome_screen.R` on the confirmed 15 covariates
+gave gaps of -0.00195 (`fuh30_followup`) and -0.00276 (`fuh07_followup`), and
+the additive logit separated for `hosp_any_fuh30` and `aap_access`, so no
+gap exists for those two on the 15. Both `fuh*` outcomes are excluded from
+the grid as post-exposure-conditioned. No other stage-1 number exists for any
+cell below.
+
+**A1.1 Supersedes the hard cap (header).** A cell is (exposure, outcome,
+covariate set). The cap is raised from 10 to **45 cells [author-chosen]**.
+Arithmetic: 9 cells registered above, plus the 35-cell grid in A1.2, minus 1
+overlap (`hosp_any_fuh30` x S17 is C1) = 43, leaving 2 unassigned. C2, C3,
+P1, P2 and C4-C7 keep their registered status but are not in the grid. Any
+further cell needs another dated amendment.
+
+**A1.2 The grid.** Exposure SAA throughout: 7 outcomes x 5 covariate sets = 35.
+
+| Outcomes (7) | Definition |
+|---|---|
+| R | winsorized service cost, `[s+12mo, s+24mo)` |
+| R' | `log(1 + service cost)`, same window |
+| `psych_admit` | any psychiatric inpatient admission in the window (claims-derived, section 8) |
+| `any_hosp` | any all-cause inpatient admission in the window (claims-derived) |
+| `any_ed` | any ED visit (mental-health or medical) in the window (claims-derived) |
+| `high_cost` | total (unwinsorized) service cost in the window in the top decile of the analytic cohort (threshold from the outcome's marginal only) |
+| `hosp_any_fuh30` | as in C1; a missing measure row is read as no discharge, and the matched-row share is reported beside every number |
+
+| Covariate set | Contents |
+|---|---|
+| S15 | the confirmed 15, unchanged (the measured null) |
+| S17 | S15 + `VAR5D_BD_YN`, `VAR5D_SUD_YN` |
+| S-fine | S15 with the three prior-cost quartile dummies replaced by prior-cost decile threshold indicators, plus `AGE` decile threshold indicators |
+| S-util | S15 + threshold indicators at the quartiles of `OP_MH_CNT`, `MH_ER_CNT`, `MED_ER_CNT` (tied quantiles collapse) |
+| S-comorb | S15 + `VAR5G_HF_YN`, `VAR5G_CAD_YN`, `VAR5G_TOBACCO_YN`, `VAR5G_OBES_YN`, `VAR5G_META_RISK_YN` |
+
+Cutpoints are quantiles of the cohort distribution of the covariate alone,
+never of an outcome. Binary covariates only (the estimator's grid-exact
+sparsity assumption is unchanged).
+
+**Open engineering item for the claims-derived outcomes** (`psych_admit`,
+`any_hosp`, `any_ed`): they need a helper reading the service-claims files.
+It is not yet confirmed that the claims families in `03_cost_windows.R` can
+identify inpatient and ED encounters. If one cannot, that outcome is dropped
+and the drop is recorded here; it is not replaced by a different outcome.
+
+**A1.3 Supersedes the `p <= 20` rule (section 5).** The size of a covariate
+set is its number of grid atoms: the product, over variables, of the number of
+levels (nested threshold indicators from one variable with `k` cutpoints are
+`k + 1` atoms, not `2^k`). The rule is atoms `<= 2^20`. Report atoms on every
+row in place of `p` and `2^p`. Atoms: S15 = 2^14, S17 = 2^16, S-comorb = 2^19,
+S-util <= 2^20, S-fine ~ 2^18.6.
+
+**A1.4 Validity filter (before any gap is computed).** An outcome enters only
+if it is defined for the whole analytic cohort, or is unconditional on a
+post-exposure event, under a convention stated in advance. Rejected here and
+in section 4: `fuh30_followup`, `fuh07_followup`, `amm_*`. `aap_access` and
+`msr_ccs` are not in this grid (C2 and C3 remain registered).
+
+**A1.5 What each learner sees, and the statistic.**
+- *Raw linear* (the baseline for the pass rule): ridge logit (OLS for
+  continuous outcomes) on the raw continuous variables where S-fine and S-util
+  use them, and on the declared indicators otherwise. Ridge, not an
+  unpenalized logit, so separation yields a fit rather than a missing value.
+- *xgboost:* same inputs as raw linear (raw continuous variables).
+- *Tree:* the threshold indicators (the estimator requires binary covariates).
+- *Secondary diagnostics, not in the pass rule:* additive ridge logit on the
+  threshold indicators (a step-function model) and a lasso with all pairwise
+  terms. A cell that passes against raw linear but whose gap vanishes against
+  the step-function baseline reflects discretization, not interaction, and is
+  reported as such.
+- S15, S17 and S-comorb keep the prior-cost quartile dummies for every learner,
+  as in the primary application.
+- *Gap:* `gap = skill(xgboost) - skill(raw linear)`, skill against the
+  constant model, from one repetition (repetition 1) of 5-fold CV. The same
+  single-repetition statistic is used for the observed gap and for every
+  permuted gap, so the two are comparable; the average over
+  `config_oof_repeats` repetitions is reported as a descriptive figure.
+- *Ranking among stage-2 passers:* `loworder_share` as in section 5, with the
+  pairwise lasso supplying the numerator and raw linear the baseline.
+
+**A1.6 Stage 1: pass rule with multiplicity control.** The outcome is
+permuted among analysed rows (breaking the covariate-outcome link and keeping
+the covariates) **B = 500 times [author-chosen]**, recomputing every cell's
+gap per permutation in the same fold structure. Each cell's gap is standardized
+by the null standard deviation of its own gap. The critical value is the 95th
+percentile, across the 500 permutations, of the maximum standardized gap over
+all 35 cells (a max-statistic, so the family-wise error across the grid is
+controlled). A cell passes stage 1 if its standardized observed gap exceeds
+the critical value and its raw gap clears the section 5 feasibility floor.
+Stage 1 uses no treatment-effect information.
+
+**A1.7 Stage 2: tree criterion, on stage-1 passers only.** Fit
+`optimaltrees` at `L = 4` and `L = 8` (never 16, per section 5). A cell passes
+stage 2 if its out-of-fold tree skill recovers at least **60%
+[author-chosen]** of `skill(xgboost) - skill(raw linear)`. If several cells
+pass, the illustration is the one with the highest `loworder_share`.
+
+**A1.8 Stop rule.** If no cell passes stage 1, that is the finding: in these
+data and covariates there is no setting where a linear model is demonstrably
+wrong. This is reported as such and the search does not widen further without
+a new amendment. If cells pass stage 1 but none passes stage 2, that is also
+reported as is.
+
+**A1.9 What does not change.** The primary application (SAA -> winsorized
+service cost, `07_estimate_att.R` / `07b_compare_ols.R`), `config_leaf_budget`,
+`design_matrix_columns()`, and every `OPEN_DECISIONS` entry are untouched. No
+new `OPEN_DECISIONS` entry is added (it would change `config_fingerprint()`),
+and the section 7 AAP-semantics question remains a separate PI item.
+
+**A1.10 Implementation, after commit.** Time one cell's fit before the full
+run: the null costs about 35 cells x 500 permutations x 5 folds = 87,500 xgboost
+fits, which needs parallelization on the server. Rework `92_outcome_screen.R`
+into stage 1 as specified; stage 2 is a separate script. Neither is run
+before this amendment is committed.
