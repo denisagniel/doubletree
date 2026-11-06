@@ -202,16 +202,25 @@ predict_m0 <- function(X, A, Y, folds, seed) {
   M1 <- ols_design(X, FALSE)
   M2 <- ols_design(X, TRUE)
   Xm <- as.matrix(X); storage.mode(Xm) <- "double"
-  out <- list(constant = numeric(n), logit_main = numeric(n),
+  out <- list(constant = numeric(n), logit_main = rep(NA_real_, n),
               logit_pairwise = rep(NA_real_, n), xgboost = numeric(n))
+  main_ok <- TRUE
   pairwise_ok <- TRUE
   for (k in sort(unique(folds))) {
     te <- which(folds == k)
     trc <- which(folds != k & A == 0L)
     out$constant[te] <- mean(Y[trc])
-    out$logit_main[te] <- logit_fit_predict(M1, Y, trc, te)
-    ## 121 terms can separate on a rare outcome; that is a finding, not an error:
-    ## report the learner as unavailable instead of dropping the whole candidate.
+    ## A logit can (quasi-)separate on a rare outcome (a covariate cell with no
+    ## events); logit_fit_predict() errors rather than return garbage. That is a
+    ## finding, not a reason to drop the candidate: report the learner as
+    ## unavailable (NA in every fold, so averages stay comparable) and go on.
+    if (main_ok) {
+      mn <- tryCatch(logit_fit_predict(M1, Y, trc, te), error = function(e) {
+        cli::cli_alert_warning("additive logit unavailable: {conditionMessage(e)}")
+        NULL
+      })
+      if (is.null(mn)) main_ok <- FALSE else out$logit_main[te] <- mn
+    }
     if (pairwise_ok) {
       pw <- tryCatch(logit_fit_predict(M2, Y, trc, te), error = function(e) NULL)
       if (is.null(pw)) pairwise_ok <- FALSE else out$logit_pairwise[te] <- pw
@@ -223,6 +232,7 @@ predict_m0 <- function(X, A, Y, folds, seed) {
     )
     out$xgboost[te] <- doubletree:::.xgb_predict(fx, Xm[te, , drop = FALSE])
   }
+  if (!main_ok) out$logit_main[] <- NA_real_
   if (!pairwise_ok) out$logit_pairwise[] <- NA_real_
   out
 }
@@ -263,11 +273,15 @@ screen_one <- function(cd) {
   ## xgboost is better). SE from repetition 1's K fold values.
   w <- stats::reshape(pf[, c("rep", "fold", "learner", "brier")],
                       idvar = c("rep", "fold"), timevar = "learner", direction = "wide")
+  print(agg, digits = 4, row.names = FALSE)
+  if (!all(c("brier.logit_main", "brier.xgboost") %in% names(w))) {
+    cli::cli_alert_warning("Additive logit unavailable (separation): no gap for this candidate.")
+    return(list(counts = cnt, metrics = agg, gap = c(gap = NA_real_, se = NA_real_)))
+  }
   d <- w$brier.logit_main - w$brier.xgboost
   d1 <- d[w$rep == 1L]
   gap_skill <- agg$skill[agg$learner == "xgboost"] - agg$skill[agg$learner == "logit_main"]
   gap_se <- stats::sd(d1) / sqrt(length(d1)) / base
-  print(agg, digits = 4, row.names = FALSE)
   cli::cli_alert_info("gap = skill(xgboost) - skill(additive logit) = {signif(gap_skill, 3)} (rough SE {signif(gap_se, 2)}).")
   list(counts = cnt, metrics = agg, gap = c(gap = gap_skill, se = gap_se))
 }
